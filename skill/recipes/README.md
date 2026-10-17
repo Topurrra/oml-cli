@@ -7,26 +7,24 @@ Use a new staged output path for each apply. Do not edit the source module.
 | File | Builds | Base |
 |---|---|---|
 | [entity-with-crud.jsonc](entity-with-crud.jsonc) | Product, static status, checked save and delete | Fresh CrossDevice |
-| [list-detail-screens.jsonc](list-detail-screens.jsonc) | Registered-only list/detail, server save | CRUD output on a Falcon copy |
+| [list-detail-screens.jsonc](list-detail-screens.jsonc) | Registered-only list/detail, server save | CRUD output on a UI base |
 | [edit-existing-flow.jsonc](edit-existing-flow.jsonc) | Insert, add widget, set, rename | List/detail output, once |
 | [aggregate-join-groupby.jsonc](aggregate-join-groupby.jsonc) | Join, filter, sort, Sum/Count per category | Fresh CrossDevice |
 | [rest-client.jsonc](rest-client.jsonc) | GET/POST and server call | Fresh CrossDevice |
 | [references-from-producer.jsonc](references-from-producer.jsonc) | Qualified public entity/action | Fresh CrossDevice and producer export |
 | [sql-query.jsonc](sql-query.jsonc) | Parameterized SQL, entity output, loop | Fresh CrossDevice |
 | [web-screen.jsonc](web-screen.jsonc) | Preparation, table, save button/action | Fresh WebResponsive; see warning below |
-| [timer-role-site-property.jsonc](timer-role-site-property.jsonc) | Timer, role-only screen, site property | Falcon copy |
+| [timer-role-site-property.jsonc](timer-role-site-property.jsonc) | Timer, role-only screen, site property | UI base |
 
 Create a blank base with `oml new tmp/base.oml --kind CrossDevice` (or `WebResponsive`).
 Then run `oml apply tmp/base.oml skill/recipes/sql-query.jsonc tmp/sql.staged.oml`.
 Set `TEMP` and `TMP` to your worktree's `tmp` folder before running model commands.
 
-For the UI chain, copy `ref/falcon.oml` to `tmp/ui-base.oml`. Apply entity-with-crud,
-then list-detail-screens, then edit-existing-flow, each to a new staged file.
-Apply timer-role-site-property separately to another Falcon copy.
+For the UI recipes, use a copy of your own Reactive module as the UI base. It needs `LayoutTopMenu` with the Title, Actions and MainContent placeholders, and a configured exception handler.
+Apply entity-with-crud, then list-detail-screens, then edit-existing-flow, each to a new staged file.
+Apply timer-role-site-property separately to another copy of the UI base.
 Use the module's own `LayoutTopMenu`, not a guessed producer block.
-Falcon has a configured exception handler and existing baseline warnings.
-The recipes add no errors or warnings to it. The export is private test input and is not committed.
-Without it, the check script prints an explicit skip for these three UI recipes.
+`tests/recipes-check.ps1` builds such a UI base itself, so every recipe runs in every clone.
 A local layout alone works on blank CrossDevice, but does not provide an exception handler.
 
 For references, run `oml find Product <consumer.oml> --in <producer.oml>` and

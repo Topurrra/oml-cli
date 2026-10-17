@@ -21,6 +21,8 @@ oml inspect <module.oml> [--own] [--only entities,structures,actions,screens,blo
 oml describe <module.oml> <Element> [--depth N] [--in <folder|file.oml>]...
 oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
 oml census <module.oml>
+oml architecture [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--out <file.html>] [--json <file.json>]
+oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
 oml tree <module.oml> <ElementName>   (object tree of one action, screen, entity, ...)
 oml validate <module.oml> [--warnings]
 oml apply <source.oml> <spec.json> <staged-out.oml>
@@ -106,6 +108,8 @@ oml lt environments | apps [--env Name] | tag App --version x.y.z [--description
 | Command group | Result or limit |
 |---|---|
 | version | CLI version, Service Studio build, self-test status, and .NET runtime. |
+| openapi | OpenAPI 3.0.3 for own exposed REST APIs. Read only; one JSON file per API. |
+| architecture | Application and module layers, dependencies and findings in HTML and optional schema version 1 JSON. |
 | describe | Short pseudo-code for an action, screen, block, data type, or REST method. `--depth N` adds called bodies. `--in` supplies producer files. |
 | inspect | Entities, structures, action parameters, screens, timers, processes, roles, exceptions, integrations, and references. |
 | find | `qualified`, `kind`, `isPublic`, `inputs`, `outputs`, `source`, and ambiguity `hint`. Sources: `this module`, `referenced`, `producer file`. Supports `*` and repeated `--in`. |
@@ -241,3 +245,31 @@ oml lt status Key
 LifeTime is mock verified only. Run a real LifeTime smoke test before relying on deployments.
 `tests/lifetime-check.ps1` checks contracts, polling, intervention, failures, and credential redaction using a local HTTP mock.
 The API adaptation derives from OutSystems/outsystems-pipeline. Its license is `licenses/outsystems-pipeline-LICENSE.txt`.
+
+## Architecture
+
+`oml architecture [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--out <file.html>] [--json <file.json>]`
+
+Read modules and packages without changing them. Repeat `--in`; folders are scanned recursively for `.oml` and `.oap`. Package membership sets each module's application, including loose copies listed in a package. Other loose modules belong to `(no application)`. Repeat `--app` to keep selected applications and their referenced external producers. Package extraction uses a temporary folder that is removed afterwards. Unreadable inputs are skipped with report warnings. Duplicate module names use the first loose file, otherwise the first package copy.
+
+Default output: `architecture.html` in the current folder. `--json` writes schema version 1 data, also embedded in the HTML. Both outputs refuse existing paths. Stdout reports modules, applications, edges, findings by severity, warnings, output paths and elapsed seconds. Modules load and dispose one at a time.
+
+Layers: `EndUser`, `Core`, `Foundation`. `--layers` accepts a JSON object such as `{ "Shop*": "Core", "Shop_CW": "EndUser" }`. Matching is case insensitive. Exact names win; wildcard patterns use descending non-wildcard length, then alphabetical order. Overrides precede library/extension/platform classification, then known suffixes, then content. Screens suggest EndUser; entities, integrations or business logic suggest Core; utility actions, blocks, themes and scripts suggest Foundation. `layerReason` explains the guess. Review these guesses before changing a module.
+
+JSON includes module kind, description, own element counts, public contracts, entity attributes and identifier references, screens, exposed and consumed REST method counts and consumed base URLs, timers and processes. Imported entities, server/service actions, structures and blocks make a dependency strong. Theme/script/image/role-only dependencies are weak. Edges represent imported signatures rather than runtime call counts. External modules have only their name, application `(external)`, external flag, layer and reason.
+
+Finding ids: `upward-reference`, `side-reference-enduser`, `cycle` (high); `core-ui`, `foundation-business` (medium); `unused-public`, `large-module`, `missing-description` (low). Cycles include a closed path. Large modules have more than 150 actions, screens and entities. Unused public contracts are checked only with at least two input modules and may have consumers outside the input. Missing descriptions are counted once per module. Static file analysis cannot recover dynamic or runtime dependencies.
+
+The launcher resolves `--team` through LifeTime before calling Core. The internal `--team-label <Name>` option only records `input.team`. Local exports need no connection. When LifeTime is unavailable, export the team's applications as `.oap` files and use `--in <folder>`.
+
+## OpenAPI
+
+`oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...`
+
+Reads exposed REST APIs owned by the module, including unpublished staged files. Without `--api`, exports every API. An unknown name reports available APIs. Default output: `<Module>.<Api>.openapi.json` in the current folder. A `.json` output path requires one selected API; otherwise `--out` is a folder. Refuses existing files. JSON files are indented UTF-8 without BOM, with LF endings. Stdout is a compact report: `files`, each with `file`, `operationCount`, `schemaCount`, and `placeholders`.
+
+Uses typed API paths, verbs, descriptions, Receive In / Send In, wire names, mandatory inputs, authentication, and recursive structure/entity attributes. Lists have `items`; schemas include mandatory attributes, text lengths, and simple literal defaults. Type names gain a module prefix only on clash. Basic authentication emits HTTP Basic. None emits `x-oml-authentication: None`. Custom emits `x-oml-authentication: Custom` and an apiKey scheme with a placeholder header name.
+
+Repeat `--server` for environment base URLs. Otherwise the server uses `https://<FILL: hostname>/<Module>/rest/<Api>` (the model base path when available). Fill version, contact, license, terms of service, documentation, missing descriptions, and Custom authentication details. Search `<FILL:`; every example leaf is also in `placeholders`, including numbers, booleans, and dates. Report paths use dots and array indexes, for example `paths./orders/{Id}.get.responses.200.content.application/json.example.Total`.
+
+Exposed REST has no typed request/response format setting on this build; Text bodies use `text/plain`, other bodies use `application/json`. Success defaults to `200`, without content for no body output. Runtime status overrides and callbacks are not inferred. Error responses share `OutSystemsError`, assumed to be `{ "Errors": [string], "StatusCode": integer }`; installed documentation did not confirm the shape. `401` appears only for authenticated APIs. Static entity IDs are omitted from enums because the typed static record contract exposes symbolic identifiers and expressions, not runtime numeric IDs. Unknown types have an unconstrained schema with an OutSystems type description. Recursive example cycles use a placeholder string that needs a valid example supplied by the user.

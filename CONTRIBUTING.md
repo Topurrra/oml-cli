@@ -42,6 +42,28 @@ To run the build capability check alone:
 oml selftest
 ```
 
+## Releasing
+
+Build releases locally on Windows with PowerShell 7, Service Studio 11, and the .NET SDK.
+Update `src/Directory.Build.props` and add a matching `## <version>` section to `CHANGELOG.md`,
+then commit all changes. Configure `origin`; the script checks both local and remote tags.
+Set `OML_SERVICE_STUDIO` for a non-default installation and ensure `dotnet` is on PATH.
+
+```powershell
+pwsh -NoProfile -File ./release.ps1
+```
+
+The script requires a clean working tree on a branch. It cleans and builds Release,
+runs the full regression suite, publishes a framework-dependent win-x64 CLI, checks that
+no Service Studio files are included, and smoke-tests the extracted archive.
+It writes the zip, SHA-256 checksum, and `release-notes.md` to ignored `dist/` and prints
+the exact tag, push, and GitHub CLI release commands for you to run.
+`-Version` overrides the shared version for the build and package; `-OutDir` changes the output folder.
+Use an ignored folder or a folder outside the repository for output.
+With `-Publish`, it shows the repository, tag, and files and requires interactive confirmation
+before running those commands. This requires an authenticated `gh` CLI. Never use `-Publish` in tests.
+If publishing stops partway through, inspect the local and remote tag and release state before retrying.
+
 ## Add a feature
 
 1. Add a focused file in `src/Core/`. Extend the shared builder when needed.

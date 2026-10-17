@@ -1,5 +1,5 @@
 // Build registered-only Product list/detail screens with the module's LayoutTopMenu.
-// Base: entity-with-crud output on ref/falcon.oml; use its own LayoutTopMenu and handler.
+// Base: entity-with-crud output on a copy of your Reactive module; use its own LayoutTopMenu and handler.
 // Rename Product, Products, ProductDetail and layout names to match your module.
 // Related keys: screens, template, entity, layout, access, actions. Save validates on server.
 {

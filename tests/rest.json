@@ -3,7 +3,8 @@
   "structures": [
     { "name": "ForecastDto", "attributes": [{ "name": "Temperature", "type": "Decimal" }] },
     { "name": "ForecastRequest", "attributes": [{ "name": "City", "type": "Text" }] },
-    { "name": "OrderDto", "attributes": [{ "name": "Total", "type": "Decimal" }] }
+    { "name": "OrderDto", "attributes": [{ "name": "Total", "type": "Decimal" },
+      { "name": "Items", "type": "List of ForecastDto" }, { "name": "Label", "length": 45, "mandatory": true }] }
   ],
   "restClients": [{ "name": "Weather", "baseUrl": "https://api.example.com", "actions": [
     { "name": "GetForecast", "method": "GET", "url": "/forecast/{City}",
@@ -22,12 +23,15 @@
     { "kind": "assign", "assign": { "Temperature": "Fetch.Response.Temperature" } }
   ] }],
   "restServices": [{ "name": "OrdersApi", "actions": [
-    { "name": "GetOrder", "method": "GET", "url": "/orders/{Id}",
-      "inputs": [{ "name": "Id", "type": "Long Integer", "location": "url" }],
-      "outputs": [{ "name": "Order", "type": "OrderDto" }],
+    { "name": "GetOrder", "method": "POST", "url": "/orders/{Id}",
+      "inputs": [{ "name": "Id", "type": "Long Integer", "location": "url" },
+        { "name": "Limit", "type": "Integer", "location": "query", "mandatory": true },
+        { "name": "Token", "location": "header", "headerName": "X-Token" },
+        { "name": "Body", "type": "ForecastRequest", "location": "body", "mandatory": true }],
+      "outputs": [{ "name": "Order", "type": "OrderDto" }, { "name": "Trace", "location": "header", "headerName": "X-Trace" }],
       "flow": [
         { "kind": "aggregate", "name": "FindOrder", "sources": ["Order"], "filters": ["Order.Id = LongIntegerToIdentifier(Id)"], "maxRecords": 1 },
         { "kind": "assign", "assign": { "Order.Total": "FindOrder.List.Current.Order.Total" } }
       ] }
-  ] }]
+  ] }, { "name": "PublicApi", "actions": [{ "name": "Ping" }] }]
 }

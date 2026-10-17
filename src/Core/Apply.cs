@@ -32,7 +32,7 @@ record Spec(List<RecordSpec>? Entities = null, List<RecordSpec>? Structures = nu
     List<string>? Locales = null, TranslationImportSpec? Translations = null, List<TranslationSpec>? Translate = null,
     List<ContentFileSpec>? Images = null, List<ContentFileSpec>? Scripts = null,
     List<ThemeSpec>? Themes = null, List<ContentFileSpec>? Resources = null,
-    List<FolderSpec>? Folders = null);
+    List<FolderSpec>? Folders = null, List<string>? TidyFlows = null);
 
 static class Apply
 {
@@ -73,6 +73,7 @@ static class Apply
     static (int code, object report) Execute(Spec spec, IESpace m, string output, int commentsRemoved)
     {
         var rules = new ProductionRules(m);
+        var flowLayoutBefore = FlowLayout.Capture(m);
         var services = Model.Services();
         var baseline = Model.Errors(m);
         var baselineWarnings = Model.Warnings(m);
@@ -202,6 +203,7 @@ static class Apply
         }
 
         Content.After(m, spec, created, existing, problems);
+        FlowLayout.Apply(m, flowLayoutBefore, spec.TidyFlows, problems);
 
         // Service Studio's "Remove Unused Dependencies" (module context menu); runs last so new usages count.
         var removedDependencies = spec.RemoveUnusedDependencies ? RemoveUnused(m) : null;

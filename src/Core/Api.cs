@@ -45,7 +45,8 @@ static class Api
 
     static string Describe(MemberInfo m)
     {
-        try { return m.ToString() ?? m.Name; }
+        try { return m is FieldInfo { IsLiteral: true } field
+            ? $"{m} = {field.GetRawConstantValue()}" : m.ToString() ?? m.Name; }
         catch (Exception) { return m.Name; } // a signature type that cannot load on this build
     }
 

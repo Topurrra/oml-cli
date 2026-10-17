@@ -1,5 +1,5 @@
 // Build a timer action reading a site property, a role, and a role-only screen.
-// Base: ref/falcon.oml with LayoutTopMenu and a handler. Rename ProductManager/ReadLimit/MaxProducts.
+// Base: a copy of your Reactive module with LayoutTopMenu and a handler. Rename ProductManager/ReadLimit/MaxProducts.
 // Related keys: timers, roles, siteProperties, access. Timer execution needs runtime tests.
 {
   "roles": [{ "name": "ProductManager", "persistent": true }],

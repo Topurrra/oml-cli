@@ -137,6 +137,8 @@ static class Inspect
         folder = Reflect.Get(o, "Folder") is { } folder ? Model.NameOf(folder) : null,
         requiredScripts = Content.Items(o, "RequiredScripts").Select(Model.NameOf).ToArray(),
         path,
+        horizontalPosition = o is IFlowNode positioned ? (int?)positioned.HorizontalPosition : null,
+        verticalPosition = o is IFlowNode positionedY ? (int?)positionedY.VerticalPosition : null,
         widgetOrder = Reflect.Get(o, "Widgets") is System.Collections.IEnumerable widgets
             ? widgets.Cast<object>().Select(w => Model.NameOf(w) ?? ElementPaths.Kind(w)).ToArray() : null,
         roles = Reflect.Get(o, "Roles") is System.Collections.IEnumerable roles

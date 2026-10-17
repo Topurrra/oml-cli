@@ -22,6 +22,8 @@ public static class Cli
         oml describe <module.oml> <Element> [--depth N] [--in <folder|file.oml>]...
         oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
         oml census <module.oml>
+        oml architecture [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--out <file.html>] [--json <file.json>]
+        oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
         oml tree <module.oml> <ElementName>   (object tree of one action, screen, entity, ...)
         oml validate <module.oml> [--warnings]
         oml apply <source.oml> <spec.json> <staged-out.oml>
@@ -56,6 +58,21 @@ public static class Cli
                 SelfTest.EnsurePassed();
             switch (command)
             {
+                case "architecture-render" when args.Count == 3:
+                {
+                    var output = Path.GetFullPath(args[2]);
+                    if (File.Exists(output)) throw new CliError($"Output already exists: {output}. Use a new output path, or delete that file first.", 2);
+                    try
+                    {
+                        var html = ArchitecturePage.Render(File.ReadAllText(args[1]));
+                        using var file = new FileStream(output, FileMode.CreateNew, FileAccess.Write);
+                        using var writer = new StreamWriter(file, new System.Text.UTF8Encoding(false));
+                        writer.Write(html);
+                    }
+                    catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+                    { throw new CliError(e.Message, 2); }
+                    return Emit(new { output });
+                }
                 case "version":
                     var build = Model.InstalledBuild();
                     return Emit(new { oml = typeof(Cli).Assembly.GetName().Version?.ToString(3), serviceStudio = build,
@@ -80,8 +97,10 @@ public static class Cli
                     Emit(report);
                     return code;
                 case "app": return Packages.Run(args);
+                case "architecture": return Architecture.Run(args);
                 case "extension": return Extensions.Run(args);
                 case "templates": return Emit(Templates.List());
+                case "openapi" when args.Count >= 2: return OpenApi.Run(args);
                 case "new" when args.Count >= 2:
                     if (args.Contains("--from-template")) {
                         if (Opt(args, "--from-template") is not { } from || from.StartsWith("--") || args.Contains("--template"))

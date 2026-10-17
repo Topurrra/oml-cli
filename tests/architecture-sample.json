@@ -1,0 +1,1154 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-10-17T12:00:00Z",
+  "omlVersion": "0.8.0",
+  "input": {
+    "sources": [
+      "exports/CustomerExperience.oap",
+      "exports/Operations.oap",
+      "exports/SharedPlatform.oap"
+    ],
+    "apps": [],
+    "team": null
+  },
+  "applications": [
+    {
+      "name": "Customer Experience",
+      "modules": [
+        "Shop_Portal",
+        "Support_UI",
+        "Orders_CS",
+        "Customers_Core",
+        "Commerce_Theme"
+      ]
+    },
+    {
+      "name": "Operations",
+      "modules": [
+        "Operations_App",
+        "Inventory_CS",
+        "Shipping_API",
+        "Warehouse_BL",
+        "ERP_IS"
+      ]
+    },
+    {
+      "name": "Shared Platform",
+      "modules": [
+        "Shared_CW",
+        "Identity_CS",
+        "Audit_Lib",
+        "Common_Lib",
+        "Design_Th"
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "name": "Shop_Portal",
+      "application": "Customer Experience",
+      "external": false,
+      "kind": "Reactive",
+      "layer": "EndUser",
+      "layerReason": "suffix _Portal",
+      "description": "Customers browse products, place orders and track delivery.",
+      "counts": {
+        "entities": 0,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 0,
+        "serviceActions": 0,
+        "clientActions": 6,
+        "screens": 2,
+        "blocks": 2,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [],
+        "blocks": [],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [],
+      "screens": [
+        "Home",
+        "OrderDetails"
+      ],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Support_UI",
+      "application": "Customer Experience",
+      "external": false,
+      "kind": "Traditional Web",
+      "layer": "EndUser",
+      "layerReason": "suffix _UI",
+      "description": "Support staff view customer requests. Literal example: </script><script>window.untrustedExecuted=true</script> & <b>text</b>.",
+      "counts": {
+        "entities": 0,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 1,
+        "serviceActions": 0,
+        "clientActions": 6,
+        "screens": 1,
+        "blocks": 2,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [
+          "OpenSupportRequest"
+        ],
+        "blocks": [],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [],
+      "screens": [
+        "Dashboard"
+      ],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Orders_CS",
+      "application": "Customer Experience",
+      "external": false,
+      "kind": "Service",
+      "layer": "Core",
+      "layerReason": "suffix _CS",
+      "description": "Stores orders and applies pricing, payment and fulfilment rules.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 0,
+        "structures": 1,
+        "serverActions": 155,
+        "serviceActions": 2,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 1,
+        "processes": 1,
+        "siteProperties": 0,
+        "roles": 1
+      },
+      "public": {
+        "entities": [
+          "Order"
+        ],
+        "actions": [
+          "GetOrder",
+          "SaveOrder",
+          "RepriceLegacyOrder"
+        ],
+        "blocks": [],
+        "structures": [
+          "OrderSummary"
+        ],
+        "staticEntities": []
+      },
+      "entities": [
+        {
+          "name": "Order",
+          "public": true,
+          "attributes": 6,
+          "references": [
+            "Customer"
+          ]
+        }
+      ],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [
+        "CloseExpiredOrders"
+      ],
+      "processes": [
+        "ApproveLargeOrder"
+      ]
+    },
+    {
+      "name": "Customers_Core",
+      "application": "Customer Experience",
+      "external": false,
+      "kind": "Service",
+      "layer": "Core",
+      "layerReason": "suffix _Core",
+      "description": "Customers Core provides shared capabilities for Customer Experience.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 0,
+        "structures": 1,
+        "serverActions": 12,
+        "serviceActions": 2,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 1
+      },
+      "public": {
+        "entities": [
+          "Customer"
+        ],
+        "actions": [
+          "GetCustomer",
+          "SaveCustomer"
+        ],
+        "blocks": [],
+        "structures": [
+          "CustomerSummary"
+        ],
+        "staticEntities": []
+      },
+      "entities": [
+        {
+          "name": "Customer",
+          "public": true,
+          "attributes": 6,
+          "references": []
+        }
+      ],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Commerce_Theme",
+      "application": "Customer Experience",
+      "external": false,
+      "kind": "Library",
+      "layer": "Foundation",
+      "layerReason": "suffix _Theme",
+      "description": "Commerce Theme provides shared capabilities for Customer Experience.",
+      "counts": {
+        "entities": 0,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 0,
+        "serviceActions": 0,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 3,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [],
+        "blocks": [],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Operations_App",
+      "application": "Operations",
+      "external": false,
+      "kind": "Mobile",
+      "layer": "EndUser",
+      "layerReason": "suffix _App",
+      "description": "Operations App provides shared capabilities for Operations.",
+      "counts": {
+        "entities": 0,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 0,
+        "serviceActions": 0,
+        "clientActions": 6,
+        "screens": 1,
+        "blocks": 2,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [],
+        "blocks": [],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [],
+      "screens": [
+        "Dashboard"
+      ],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Inventory_CS",
+      "application": "Operations",
+      "external": false,
+      "kind": "Service",
+      "layer": "Core",
+      "layerReason": "suffix _CS",
+      "description": "Inventory CS provides shared capabilities for Operations.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 1,
+        "structures": 1,
+        "serverActions": 12,
+        "serviceActions": 2,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 1
+      },
+      "public": {
+        "entities": [
+          "Inventory"
+        ],
+        "actions": [
+          "GetInventory",
+          "SaveInventory",
+          "ReserveStock"
+        ],
+        "blocks": [],
+        "structures": [
+          "InventorySummary"
+        ],
+        "staticEntities": [
+          "StockState"
+        ]
+      },
+      "entities": [
+        {
+          "name": "Inventory",
+          "public": true,
+          "attributes": 6,
+          "references": []
+        }
+      ],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Shipping_API",
+      "application": "Operations",
+      "external": false,
+      "kind": "Service",
+      "layer": "Core",
+      "layerReason": "suffix _API",
+      "description": "Shipping API provides shared capabilities for Operations.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 0,
+        "structures": 1,
+        "serverActions": 12,
+        "serviceActions": 2,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 1,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 1
+      },
+      "public": {
+        "entities": [
+          "Shipping"
+        ],
+        "actions": [
+          "GetShipping",
+          "SaveShipping",
+          "CreateShipment"
+        ],
+        "blocks": [],
+        "structures": [
+          "ShippingSummary"
+        ],
+        "staticEntities": []
+      },
+      "entities": [
+        {
+          "name": "Shipping",
+          "public": true,
+          "attributes": 6,
+          "references": []
+        }
+      ],
+      "screens": [],
+      "restExposed": [
+        {
+          "name": "Shipments",
+          "methods": 4
+        }
+      ],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Warehouse_BL",
+      "application": "Operations",
+      "external": false,
+      "kind": "Service",
+      "layer": "Core",
+      "layerReason": "suffix _BL",
+      "description": "Warehouse BL provides shared capabilities for Operations.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 0,
+        "structures": 1,
+        "serverActions": 12,
+        "serviceActions": 2,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 1
+      },
+      "public": {
+        "entities": [
+          "Warehouse"
+        ],
+        "actions": [
+          "GetWarehouse",
+          "SaveWarehouse",
+          "AllocateShipment"
+        ],
+        "blocks": [],
+        "structures": [
+          "WarehouseSummary"
+        ],
+        "staticEntities": []
+      },
+      "entities": [
+        {
+          "name": "Warehouse",
+          "public": true,
+          "attributes": 6,
+          "references": []
+        }
+      ],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "ERP_IS",
+      "application": "Operations",
+      "external": false,
+      "kind": "Service",
+      "layer": "Core",
+      "layerReason": "suffix _IS",
+      "description": "Connects warehouse operations to the ERP service.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 0,
+        "structures": 1,
+        "serverActions": 12,
+        "serviceActions": 2,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 1,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 1
+      },
+      "public": {
+        "entities": [
+          "ERP"
+        ],
+        "actions": [
+          "GetERP",
+          "SaveERP",
+          "SendToERP"
+        ],
+        "blocks": [],
+        "structures": [
+          "ERPSummary"
+        ],
+        "staticEntities": []
+      },
+      "entities": [
+        {
+          "name": "ERP",
+          "public": true,
+          "attributes": 6,
+          "references": []
+        }
+      ],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [
+        {
+          "name": "WarehouseERP",
+          "methods": 5,
+          "baseUrl": "https://erp.example.invalid/api"
+        }
+      ],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Shared_CW",
+      "application": "Shared Platform",
+      "external": false,
+      "kind": "Reactive",
+      "layer": "EndUser",
+      "layerReason": "suffix _CW",
+      "description": "Shared CW provides shared capabilities for Shared Platform.",
+      "counts": {
+        "entities": 0,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 0,
+        "serviceActions": 0,
+        "clientActions": 6,
+        "screens": 1,
+        "blocks": 2,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [],
+        "blocks": [
+          "StatusBadge"
+        ],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [],
+      "screens": [
+        "Dashboard"
+      ],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Identity_CS",
+      "application": "Shared Platform",
+      "external": false,
+      "kind": "Reactive",
+      "layer": "Core",
+      "layerReason": "suffix _CS",
+      "description": "Identity CS provides shared capabilities for Shared Platform.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 0,
+        "structures": 1,
+        "serverActions": 12,
+        "serviceActions": 2,
+        "clientActions": 0,
+        "screens": 1,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 1
+      },
+      "public": {
+        "entities": [
+          "Identity"
+        ],
+        "actions": [
+          "GetIdentity",
+          "SaveIdentity",
+          "Authorize"
+        ],
+        "blocks": [],
+        "structures": [
+          "IdentitySummary"
+        ],
+        "staticEntities": []
+      },
+      "entities": [
+        {
+          "name": "Identity",
+          "public": true,
+          "attributes": 6,
+          "references": []
+        }
+      ],
+      "screens": [
+        "ManageUsers"
+      ],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Audit_Lib",
+      "application": "Shared Platform",
+      "external": false,
+      "kind": "Reactive",
+      "layer": "Foundation",
+      "layerReason": "suffix _Lib",
+      "description": "Writes technical audit events. Currently also owns business audit records.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 1,
+        "serviceActions": 0,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [
+          "WriteEvent"
+        ],
+        "blocks": [],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [
+        {
+          "name": "BusinessAudit",
+          "public": false,
+          "attributes": 7,
+          "references": []
+        }
+      ],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Common_Lib",
+      "application": "Shared Platform",
+      "external": false,
+      "kind": "Library",
+      "layer": "Foundation",
+      "layerReason": "suffix _Lib",
+      "description": "Common Lib provides shared capabilities for Shared Platform.",
+      "counts": {
+        "entities": 0,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 1,
+        "serviceActions": 0,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [
+          "FormatDate"
+        ],
+        "blocks": [],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Design_Th",
+      "application": "Shared Platform",
+      "external": false,
+      "kind": "Library",
+      "layer": "Foundation",
+      "layerReason": "suffix _Th",
+      "description": "Design Th provides shared capabilities for Shared Platform.",
+      "counts": {
+        "entities": 0,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 0,
+        "serviceActions": 0,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 3,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [],
+        "blocks": [],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "OutSystemsUI",
+      "external": true,
+      "layer": "Foundation",
+      "layerReason": "known platform module",
+      "application": "(external)"
+    },
+    {
+      "name": "System",
+      "external": true,
+      "layer": "Foundation",
+      "layerReason": "known platform module",
+      "application": "(external)"
+    },
+    {
+      "name": "Crypto.xif",
+      "external": true,
+      "layer": "Foundation",
+      "layerReason": "extension producer",
+      "application": "(external)"
+    }
+  ],
+  "edges": [
+    {
+      "from": "Shop_Portal",
+      "to": "Orders_CS",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "Entity",
+          "name": "Order"
+        },
+        {
+          "kind": "ServerAction",
+          "name": "SaveOrder"
+        },
+        {
+          "kind": "Structure",
+          "name": "OrderSummary"
+        }
+      ]
+    },
+    {
+      "from": "Shop_Portal",
+      "to": "Customers_Core",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "Entity",
+          "name": "Customer"
+        }
+      ]
+    },
+    {
+      "from": "Shop_Portal",
+      "to": "Commerce_Theme",
+      "strong": false,
+      "elements": [
+        {
+          "kind": "Theme",
+          "name": "Commerce"
+        }
+      ]
+    },
+    {
+      "from": "Shop_Portal",
+      "to": "Support_UI",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "OpenSupportRequest"
+        }
+      ]
+    },
+    {
+      "from": "Support_UI",
+      "to": "Customers_Core",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "GetCustomer"
+        }
+      ]
+    },
+    {
+      "from": "Operations_App",
+      "to": "Inventory_CS",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "Entity",
+          "name": "Inventory"
+        },
+        {
+          "kind": "ServerAction",
+          "name": "GetInventory"
+        }
+      ]
+    },
+    {
+      "from": "Operations_App",
+      "to": "Shipping_API",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServiceAction",
+          "name": "CreateShipment"
+        }
+      ]
+    },
+    {
+      "from": "Operations_App",
+      "to": "Design_Th",
+      "strong": false,
+      "elements": [
+        {
+          "kind": "Theme",
+          "name": "Design"
+        }
+      ]
+    },
+    {
+      "from": "Orders_CS",
+      "to": "Inventory_CS",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "ReserveStock"
+        }
+      ]
+    },
+    {
+      "from": "Inventory_CS",
+      "to": "Orders_CS",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "GetOrder"
+        }
+      ]
+    },
+    {
+      "from": "Shipping_API",
+      "to": "Warehouse_BL",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "AllocateShipment"
+        }
+      ]
+    },
+    {
+      "from": "Warehouse_BL",
+      "to": "ERP_IS",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServiceAction",
+          "name": "SendToERP"
+        }
+      ]
+    },
+    {
+      "from": "ERP_IS",
+      "to": "Common_Lib",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "FormatDate"
+        }
+      ]
+    },
+    {
+      "from": "Orders_CS",
+      "to": "Identity_CS",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "Authorize"
+        }
+      ]
+    },
+    {
+      "from": "Identity_CS",
+      "to": "System",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "Role",
+          "name": "Registered"
+        },
+        {
+          "kind": "Entity",
+          "name": "User"
+        }
+      ]
+    },
+    {
+      "from": "Audit_Lib",
+      "to": "Orders_CS",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "Entity",
+          "name": "Order"
+        }
+      ]
+    },
+    {
+      "from": "Orders_CS",
+      "to": "Audit_Lib",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "WriteEvent"
+        }
+      ]
+    },
+    {
+      "from": "Customers_Core",
+      "to": "Common_Lib",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "FormatDate"
+        }
+      ]
+    },
+    {
+      "from": "Shared_CW",
+      "to": "OutSystemsUI",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "Block",
+          "name": "Badge"
+        }
+      ]
+    },
+    {
+      "from": "Shop_Portal",
+      "to": "Shared_CW",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "Block",
+          "name": "StatusBadge"
+        }
+      ]
+    },
+    {
+      "from": "Design_Th",
+      "to": "OutSystemsUI",
+      "strong": false,
+      "elements": [
+        {
+          "kind": "Theme",
+          "name": "OutSystemsUI"
+        },
+        {
+          "kind": "Script",
+          "name": "Accessibility"
+        }
+      ]
+    },
+    {
+      "from": "Common_Lib",
+      "to": "Crypto.xif",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "Encrypt"
+        }
+      ]
+    },
+    {
+      "from": "Support_UI",
+      "to": "System",
+      "strong": false,
+      "elements": [
+        {
+          "kind": "Role",
+          "name": "Registered"
+        },
+        {
+          "kind": "Image",
+          "name": "Logo"
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "upward-reference",
+      "severity": "high",
+      "title": "Audit library depends on business data",
+      "modules": [
+        "Audit_Lib",
+        "Orders_CS"
+      ],
+      "detail": "Audit_Lib is in Foundation but uses Order from Core. A shared technical service now depends on a specific business domain.",
+      "fix": "Pass a simple audit message into the library instead of importing the Order entity."
+    },
+    {
+      "id": "side-reference-enduser",
+      "severity": "high",
+      "title": "User experiences depend on each other",
+      "modules": [
+        "Shop_Portal",
+        "Support_UI",
+        "Shared_CW"
+      ],
+      "detail": "Shop_Portal calls an action in Support_UI and uses a block from Shared_CW. Strong dependencies between End-user modules make their releases harder to separate.",
+      "fix": "Move the shared support action into Core. Review whether the reusable status block belongs in a Foundation library."
+    },
+    {
+      "id": "cycle",
+      "severity": "high",
+      "title": "Orders and inventory depend on each other",
+      "modules": [
+        "Orders_CS",
+        "Inventory_CS",
+        "Orders_CS"
+      ],
+      "detail": "Cycle: Orders_CS → Inventory_CS → Orders_CS. These modules cannot evolve independently.",
+      "fix": "Move stock reservation coordination into a separate Core service, with dependencies in one direction."
+    },
+    {
+      "id": "core-ui",
+      "severity": "medium",
+      "title": "Identity mixes user screens and business logic",
+      "modules": [
+        "Identity_CS"
+      ],
+      "detail": "Identity_CS contains the ManageUsers screen. Core services are harder to reuse when they include a user experience.",
+      "fix": "Move ManageUsers into an End-user module and keep identity rules in Core."
+    },
+    {
+      "id": "foundation-business",
+      "severity": "medium",
+      "title": "Audit library stores business records",
+      "modules": [
+        "Audit_Lib"
+      ],
+      "detail": "Audit_Lib owns the non-static BusinessAudit entity. Business data in Foundation couples technical services to business rules.",
+      "fix": "Move BusinessAudit into a Core audit service and keep generic logging in the library."
+    },
+    {
+      "id": "unused-public",
+      "severity": "low",
+      "title": "A legacy order action has no input consumers",
+      "modules": [
+        "Orders_CS"
+      ],
+      "detail": "RepriceLegacyOrder is public but no other input module uses it. It expands the interface that must be maintained.",
+      "fix": "Check consumers outside this snapshot, then make the action private or remove it if no longer needed."
+    },
+    {
+      "id": "large-module",
+      "severity": "low",
+      "title": "Order management has grown large",
+      "modules": [
+        "Orders_CS"
+      ],
+      "detail": "Orders_CS contains more than 150 actions, screens and entities. A large module is harder to understand and change safely.",
+      "fix": "Consider separating pricing, order storage and fulfilment along clear business responsibilities."
+    },
+    {
+      "id": "missing-description",
+      "severity": "low",
+      "title": "Shipping has undocumented public elements",
+      "modules": [
+        "Shipping_API"
+      ],
+      "detail": "Three public elements have no description. Consumers must inspect their implementation to understand the contract.",
+      "fix": "Describe the purpose, inputs and expected results of the public shipping elements."
+    }
+  ]
+}

@@ -6,6 +6,41 @@ It never edits OML XML.
 Describe changes in a spec. Apply the spec to a staged file, review it, then install it over the source file.
 You can use the CLI directly or give [skill/SKILL.md](skill/SKILL.md) to an AI agent.
 
+## Install
+
+### Option 1: Download a release
+
+Download `oml-<version>-win-x64.zip` and its `.sha256` checksum from this repository's
+GitHub Releases page. Requires Windows x64, Service Studio 11, and the .NET 8 runtime
+(or the newer runtime required by your Service Studio).
+Unzip the archive, keep its folders together, and add the extracted `bin` folder to PATH:
+
+```powershell
+$env:PATH = 'C:\Tools\oml\bin;' + $env:PATH
+oml version
+```
+
+The archive includes the whole `skill/` folder and documentation. Service Studio assemblies
+are loaded from your local installation and are not included.
+Unsigned executables may be blocked by company policy. Teams can build from source instead.
+
+### Option 2: Build from source
+
+Install Service Studio 11 and the .NET 8 SDK, clone this repository, and follow
+[Build and use](#build-and-use) below. It includes the commands and configuration for
+a non-default Service Studio folder.
+
+## What it does
+
+- **Build and change modules** from one JSON spec: entities, static entities, CRUD actions, server, service and client actions, flows, aggregates with joins, SQL, REST, screens and blocks (Reactive, Mobile, Traditional Web), timers, roles, processes, translations and resources.
+- **Read modules cheaply**: `inspect`, `describe` (what an action or screen does, in a few lines), `find` (which module owns an element) and compact JSON output, to keep agent token use low.
+- **Production rules**: [skill/rules.md](skill/rules.md) tells agents what they must never do. `oml apply` also enforces the main ones: it refuses to delete existing entities, to rename or delete existing elements, to change existing attributes, and to add data-changing SQL.
+- **Front-end assets**: convert fonts (TTF, OTF, WOFF) to WOFF2, and convert, resize and shrink images (PNG, JPEG, WebP, SVG). No module or Service Studio window is needed.
+- **Fewer tokens in stylesheets and scripts**: `apply` removes comments from CSS and JavaScript and keeps `/*! ... */` license notices.
+- **Packages and extensions**: list, extract and pack `.oap`/`.osp` files, and inspect or create `.xif` extensions.
+- **Publish and deploy**: 1-Click Publish and Refresh All references through the Service Studio MCP server, and LifeTime API v2 tags and deployments.
+- **Agent skill**: [skill/SKILL.md](skill/SKILL.md), a short [Copilot file](skill/copilot-instructions.md) for small budgets, and ready [recipes](skill/recipes/).
+
 ## Terms
 
 | Term | Meaning |
@@ -117,6 +152,12 @@ Publishing is a separate step. See [Publish and deploy](#publish-and-deploy).
 ## Commands
 
 Angle brackets mark values you must replace. Square brackets mark optional arguments.
+
+| Command | Result |
+|---|---|
+| `oml openapi` | Export exposed REST APIs as OpenAPI 3.0.3 JSON. |
+| `oml architecture` | Read module layers, dependencies and architecture findings into HTML and optional JSON. |
+
 This is the CLI usage text:
 
 ```text
@@ -134,6 +175,8 @@ oml inspect <module.oml> [--own] [--only entities,structures,actions,screens,blo
 oml describe <module.oml> <Element> [--depth N] [--in <folder|file.oml>]...
 oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
 oml census <module.oml>
+oml architecture [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--out <file.html>] [--json <file.json>]
+oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
 oml tree <module.oml> <ElementName>   (object tree of one action, screen, entity, ...)
 oml validate <module.oml> [--warnings]
 oml apply <source.oml> <spec.json> <staged-out.oml>
@@ -143,7 +186,7 @@ oml install <staged.oml> <target.oml>
 oml studio                          (Service Studio's MCP server: reachable? open modules)
 oml publish <Module | file.oml>     (1-Click Publish through Service Studio)
 oml references <Module | file.oml>  (Refresh All references through Service Studio)
-oml lt environments|apps|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lt' for usage)
+oml lt environments|teams|team-apps|apps|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lt' for usage)
 oml font woff2 <input> [output.woff2] [--force]
 oml font batch <folder> [--out folder] [--force]
 oml image <input> [--to png|jpeg|webp|svg] [--max-width N] [--max-height N] [--quality 1-100] [--out file] [--force]
@@ -270,7 +313,7 @@ Expression values use OutSystems syntax. A text expression needs escaped quotes 
 | Module | `module`: description, JavaScript, PNG icon, tenancy flags, default theme |
 | Data | `entities`, `structures`, `exceptions`, `staticEntities` |
 | Dependencies | `references`, `referenceAliases`, `removeUnusedDependencies` (removes unused producer references only; never elements of this module) |
-| Logic | `serverActions`, `serviceActions`, `clientActions`, action `flow` |
+| Logic | `serverActions`, `serviceActions`, `clientActions`, action `flow`; automatic node layout; `tidyFlows` moves selected existing flows |
 | State and events | `clientVariables`, `sessionVariables`, `systemEvents`, `onException`, `globalExceptionHandler` |
 | Integrations | `restClients`, `restServices` |
 | Platform | `timers`, `roles`, `processes`, `siteProperties` |
@@ -280,7 +323,6 @@ Expression values use OutSystems syntax. A text expression needs escaped quotes 
 
 Flows support assignment, branches, loops, switches, aggregates, SQL, action calls, navigation, exception handlers, messages, comments, Excel conversion, downloads, existing Web Email screens, and JavaScript.
 See [skill/reference/spec.md](skill/reference/spec.md) for every spec key and examples.
-See [Falcon](examples/falcon/README.md) for a complete Reactive example.
 
 Use `Module.Name` to select an element from a producer module.
 A plain name selects this module's element first, then a unique referenced element.
@@ -303,6 +345,7 @@ Load and IPP refusals require an authorized export or infrastructure connection.
 - The CLI rejects model renames caused by name clashes.
 - Generated CRUD actions can be called in the same spec that creates their entity.
 - New entities need an attribute besides their auto-number `Id`.
+- The production rules for agents are in [skill/rules.md](skill/rules.md). Rules 2, 3, 5 and 6 are enforced by `apply`, as described in the next items; the others are for agents to follow.
 - Elements present in the source are assumed to have production data and external consumers. Existing entities, static records, structures, actions and their parameters, screens, blocks, roles, exceptions, site properties, timers, REST integrations/methods, and processes cannot be renamed or deleted. Their attributes cannot be renamed/deleted or change type, length, decimals, or mandatory setting. There is no override.
 - Elements created in the same spec remain editable and deletable. Entity/attribute deletion still needs `allowDataLoss: true` and no module usages; identifier attributes cannot be deleted alone.
 - Flow nodes, widgets, and local variables in existing elements remain editable and removable. New attributes and parameters can be added.
@@ -374,44 +417,72 @@ LifeTime is verified against a local mock only. Run a smoke test against a real 
 Agents must confirm install, publish, reference refresh, deployment control, tagging, and data deletion with the user.
 The CLI does not prompt for that confirmation.
 
+### Architecture for a LifeTime team
+
+```powershell
+oml lt teams
+oml lt team-apps Commerce
+oml architecture --team Commerce --out commerce.html --json commerce.json
+```
+
+Use the same host and token environment variables as `oml lt`. Team names match without case sensitivity; team keys also work.
+The launcher uses API v2 `GET /teams` and `GET /teams/{TeamKey}?IncludeUsers=false&IncludeApplications=true` to resolve membership.
+It gets each application's modules and running environments with `GET /applications/{ApplicationKey}?IncludeModules=true&IncludeEnvStatus=true`.
+It prefers the Development environment; otherwise it uses the available running environment with the lowest `Order`.
+It requests the current `.oap` with `GET /environments/{EnvironmentKey}/applications/{ApplicationKey}/content`, then downloads the returned `url`.
+Package download requires LifeTime 11.22.0 or later and permission to download the application. See the [official download example](https://success.outsystems.com/documentation/11/reference/outsystems_apis/lifetime_api_v2/lifetime_api_examples/publish_an_app_across_infrastructures_using_the_lifetime_api/).
+Downloads must use HTTPS on the configured LifeTime host. Redirects are refused.
+
+Packages go into a new folder under TEMP. The launcher replaces `--team Commerce` with `--in <temporary folder> --team-label Commerce` before Core runs and removes the folder afterwards, including on failure.
+Existing `--in`, `--app`, and output options are preserved. `OML_DEBUG_ARGS=1` prints the rewritten arguments and downloaded file sizes and exits before Core runs; the temporary files are still removed.
+If configuration, access, connectivity, or download support is missing, the command exits `2` and asks you to export the team's applications as `.oap` files into a folder and run `oml architecture --in <folder>`.
+
 ## oml and the OutSystems MCP
 
-The remote OutSystems MCP targets ODC. Service Studio's built-in MCP targets O11 publishing and reference refresh.
+OutSystems MCP has a different form on each platform ([O11 documentation](https://success.outsystems.com/documentation/11/outsystems_mcp/)):
 
-| | oml | OutSystems MCP |
-|---|---|---|
-| Platform | O11 | ODC |
-| Runs | Locally, against an `.oml` file | In your ODC tenant |
-| How changes are made | Typed model API, deterministic | Mentor (an AI model on the server), from a text prompt |
-| Speed | 2–4 s per spec | Minutes per Mentor turn |
-| Control | Exact: names, joins, connectors, widgets | Whatever Mentor builds from the prompt |
-| Reading an app | `inspect`, `tree` on the file | Context lookups on the tenant |
-| Validation | Before and after save, per change | Reported by Mentor after the turn |
-| Publish | Yes, through Service Studio's built-in MCP | Yes |
-| Deploy between environments | LifeTime API v2 (mock verified; real smoke test required) | Yes |
-| Needs | Service Studio 11, .NET 8 | ODC tenant, sign-in |
+- **O11:** the Service Studio MCP server, a local server inside Service Studio, plus the OutSystems skill for O11. The agent reads the open module and writes changes as Model API code (`applyModelApiCode`) to a copy. You review the copy in Compare and Merge. Reads are generally available; writes are Beta.
+- **ODC:** a remote server in your ODC tenant. Changes are made by Mentor from a text prompt.
 
-### Benchmark: oml vs Service Studio's built-in MCP
+`oml` uses the Service Studio MCP server only to publish and to refresh references.
 
-Two agents did the same task on the same O11 module. Agent A used only Service Studio's built-in MCP (`applyModelApiCode` and its read tools). Agent B used only `oml` with `skill/copilot-instructions.md` and the recipes.
+| | oml | OutSystems MCP, O11 | OutSystems MCP, ODC |
+|---|---|---|---|
+| Runs | Locally, against an `.oml` file | Locally, in Service Studio, on the open module | In your ODC tenant |
+| How changes are made | JSON spec, built by `oml` through the typed Model API | Model API code that the agent writes | Mentor, from a text prompt |
+| Control | Exact: names, joins, connectors, widgets | Exact, if the agent's code compiles | Whatever Mentor builds |
+| Reading a module | `inspect`, `describe`, `find`, `tree` on the file, no Service Studio window needed | Read tools on the open module | Context lookups on the tenant |
+| Validation | Before and after save, per change | Validation tool on the result | Reported by Mentor after the turn |
+| Safety rules | [skill/rules.md](skill/rules.md); `apply` refuses deletes, renames and attribute changes of existing elements, and data-changing SQL | Review in Compare and Merge | Review in ODC Studio |
+| Front-end assets | Font to WOFF2; image convert, resize and shrink | No | No |
+| Publish | Yes, through the Service Studio MCP server | Yes (Beta) | Yes |
+| Deploy between environments | LifeTime API v2 (mock verified; real smoke test required) | No | Yes |
+| Needs | Service Studio 11, .NET 8 | Service Studio 11.55.91 or later, module open | ODC tenant, sign-in |
 
-**Task:** add an entity `Product` (Name, Price, IsActive), the server actions `Product_CreateOrUpdate` and `Product_Delete`, and a Reactive screen `ProductList` with a table, using the existing layout.
+### Benchmark: oml vs OutSystems MCP in O11
+
+Two agents did the same task on the same O11 module.
+
+- **Agent A:** OutSystems MCP in O11, set up as OutSystems documents it: the Service Studio MCP server plus the official OutSystems skill for O11 (`servicestudio-mcp-oml` and `AGENTS.md` from [outsystems11-mcp](https://github.com/OutSystems/outsystems11-mcp), installed with its Codex guide).
+- **Agent B:** `oml` with [skill/copilot-instructions.md](skill/copilot-instructions.md) and the recipes. No MCP server.
+
+**Task:** add an entity `Supplier` (Name, Rating, IsActive), the server actions `Supplier_CreateOrUpdate` and `Supplier_Delete`, and a Reactive screen `SupplierList` with a table, using the existing layout.
 
 **Setup:** Codex `exec`, model `gpt-6-luna`, medium reasoning effort, one run per agent, October 2026. Service Studio 11.55.92.
 
-| | Service Studio MCP | oml | Difference |
+| | OutSystems MCP + O11 skill | oml | Difference |
 |---|---:|---:|---|
 | Result | 0 errors | 0 errors | Same module content |
-| Input tokens | 1,004,361 | **291,201** | **3.4× fewer** |
-| Input tokens, not cached | 66,889 | **25,217** | **2.7× fewer** |
-| Output tokens | 8,128 | **3,017** | **2.7× fewer** |
-| Time | 161 s | **50 s** | **3.2× faster** |
-| Tool calls | 20 | **9** | 2.2× fewer |
-| Failed tool calls | 5 | **0** | |
+| Input tokens | 611,714 | **207,210** | **3.0× fewer** |
+| Input tokens, not cached | 67,202 | **21,610** | **3.1× fewer** |
+| Output tokens | 4,474 | **2,780** | **1.6× fewer** |
+| Time | 185 s | **56 s** | **3.3× faster** |
+| Tool calls | 19 | **10** | 1.9× fewer |
+| Failed tool calls | 2 | **0** | |
 
-Both results were checked with `oml validate` and `oml describe`. They have the same entity (Name Text 50 mandatory, Price Decimal 37,8, IsActive default True), the same calls to the generated entity actions, and the same `ProductList` table inside `LayoutTopMenu`.
+Both results were checked with `oml validate` and `oml describe`. They have the same entity (Name Text 50 mandatory, Rating Decimal 37,8, IsActive default True), the same calls to the generated entity actions, and the same `SupplierList` table inside `LayoutTopMenu`.
 
-Why the MCP agent needed more: three parallel reads failed and were repeated, and two `applyModelApiCode` attempts did not compile before the third one worked. It also read five screens and two actions to learn the patterns that `oml` gives in a recipe.
+Why agent A needed more: it read four screens and three actions to copy their patterns, its first `applyModelApiCode` did not compile (a duplicate local name), and it ran more reads after the change to check the result. Agent B read one recipe, ran `inspect` and `describe`, and its first `apply` was correct.
 
 This is one run of one simple task. Results change with the model, the task and the module.
 
@@ -426,6 +497,37 @@ pwsh -NoProfile -File tests/regress.ps1
 The suite applies fixtures to new modules, checks saved models, tests LifeTime against a mock, and runs the self-test.
 Exit `0` means pass. See [CONTRIBUTING.md](CONTRIBUTING.md) for development and bug reports.
 
+## OpenAPI
+
+Export exposed REST APIs from any `.oml`, including a staged module before publishing:
+
+```powershell
+oml openapi staged.oml --api OrdersApi --out docs --server https://example.com/Orders/rest/OrdersApi
+```
+
+Writes OpenAPI 3.0.3 JSON, one file per API, without changing the module. The default filename is `<Module>.<Api>.openapi.json` in the current folder. `--out` accepts a folder or, for one API, a `.json` file. Existing files are refused. Repeat `--server` for multiple environments.
+
+Paths, verbs, parameter placement, wire names, descriptions, authentication, and recursive data schemas come from the typed model. The JSON report lists files, operation/schema counts, and placeholder paths. Search for `<FILL:` and fill contact, license, version, documentation, missing descriptions, server details, and Custom authentication header names. Review every generated `example`; the report also lists numeric, boolean, and date example leaves.
+
+The default success response is `200`, with no content when there is no body output. Runtime status changes, callbacks, deployment hostnames, and real examples are not signature metadata. The shared error schema assumes `{ "Errors": [string], "StatusCode": integer }`; this shape was not confirmed from installed documentation. Static entity record IDs are not exported because their runtime numeric values are not available through the typed record contract.
+
+## Architecture
+
+```powershell
+oml architecture --in exports --out shop.html --json shop.json
+oml architecture --in exports --app Shop --layers layers.json
+```
+
+Repeat `--in` for folders, `.oml` files or `.oap` packages. Folders are searched recursively. Packages supply application membership; loose modules belong to `(no application)` unless a package lists them. Repeat `--app` to select applications. Referenced producers outside the selection remain as external modules. Modules load one at a time. Unreadable files are skipped and listed in the stdout warnings. Temporary package files are removed after reading.
+
+The default output is `architecture.html` in the current folder. Existing outputs are refused. `--json` also writes schema version 1 data, matching the data embedded in the HTML. Stdout reports module, application and edge counts, findings by severity, warnings, output paths and elapsed seconds.
+
+Layers are `EndUser`, `Core` and `Foundation`. A layers file such as `{ "Shop*": "Core", "Shop_CW": "EndUser" }` overrides guesses. Exact names win over wildcard patterns; the most specific wildcard wins, then alphabetical order. Library and extension modules are Foundation. Other guesses use known name suffixes, then screens, entities and business logic. Utility actions alone are Foundation. Each module records its `layerReason`; review guesses before acting on findings.
+
+The reader reports upward references, strong references between EndUser modules, dependency cycles, Core screens, Foundation business entities, unused public contracts, large modules and missing public descriptions. Edges describe imported signatures. A strong edge carries entities, server or service actions, structures or blocks. Themes, scripts, images and roles alone are weak. Unused public contracts mean no other input module imports them; other applications may still use them. Runtime calls and dynamic dependencies are not available from these files.
+
+The launcher resolves `--team` through LifeTime before Core runs. Core accepts the internal `--team-label` option only to record the team in JSON. Local exports require no LifeTime connection.
+
 ## Project layout
 
 | Folder or file | Contents |
@@ -433,7 +535,7 @@ Exit `0` means pass. See [CONTRIBUTING.md](CONTRIBUTING.md) for development and 
 | `src/` | C# launcher, LifeTime client, project files, and shared version settings. |
 | `src/Core/` | Typed model host, spec builders, inspection, validation, self-test, and CLI commands. |
 | `tests/` | JSON fixtures, PowerShell regression checks, and the LifeTime mock. |
-| `examples/falcon/` | Reactive example, spec generator, assets, verifier, and component license files. |
+| `LICENSE` | MIT License for `oml`. |
 | `licenses/` | License text for adapted OutSystems examples and pipeline code. |
 | `README.md` | Setup and use for developers. |
 | `skill/SKILL.md` | The agent skill: rules, commands, spec key index, workflow, troubleshooting. |
@@ -471,5 +573,6 @@ Check the CLI version, Service Studio build, runtime, and self-test status with:
 oml version
 ```
 
+`oml` is released under the [MIT License](LICENSE).
 See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for adapted sources and licenses.
 `oml` uses locally installed Service Studio assemblies. It does not ship them.

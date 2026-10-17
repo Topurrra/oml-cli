@@ -29,6 +29,39 @@ try {
                 $inputText = $reader.ReadToEnd(); $reader.Dispose()
                 $payload = if ($inputText) { $inputText | ConvertFrom-Json } else { $null }
                 switch -Regex ("$method $path") {
+                    '^GET teams$' {
+                        # Team fields use the casing in the official v2 Team response.
+                        $body = @('Commerce','Forbidden','NoDownload','Unsafe','Redirect','Partial','Malformed','Empty') | ForEach-Object { @{key=$_.ToLowerInvariant();name=$_} }; break
+                    }
+                    '^GET teams/(commerce|forbidden|nodownload|unsafe|redirect|partial|malformed|empty)$' {
+                        $team = $Matches[1]
+                        if ($request.QueryString['IncludeApplications'] -ne 'true' -or $request.QueryString['IncludeUsers'] -ne 'false') { throw 'Need team applications' }
+                        if ($team -eq 'forbidden') { $code = 403; break }
+                        $members = switch ($team) {
+                            'commerce' { @(@{Key='shop';Name='Shop'},@{Key='orders';Name='Orders'}) }
+                            'partial' { @(@{Key='shop';Name='Shop'},@{Key='nodownload';Name='NoDownload'}) }
+                            'empty' { @() }
+                            default { @(@{Key=$team;Name=$team}) }
+                        }
+                        $body = @{key=$team;name=$team;applications=@($members)}; break
+                    }
+                    '^GET applications/(shop|orders|nodownload|unsafe|redirect|malformed)$' {
+                        if ($request.QueryString['IncludeModules'] -ne 'true' -or $request.QueryString['IncludeEnvStatus'] -ne 'true') { throw 'Need modules and env status' }
+                        $body = @{Key=$Matches[1];Modules=@(@{Key='module';Name='Module'});AppStatusInEnvs=@(@{EnvironmentKey='dev'},@{EnvironmentKey='test'})}; break
+                    }
+                    '^GET environments/dev/applications/(shop|orders|nodownload|unsafe|redirect|malformed)/content$' {
+                        $app = $Matches[1]
+                        if ($app -eq 'nodownload') { $code = 404; break }
+                        if ($app -eq 'malformed') { $body = '<html>invalid</html>'; $raw = $true; break }
+                        $url = "http://127.0.0.1:$Port/lifetimeapi/rest/v2/downloads/$app"
+                        if ($app -eq 'unsafe') { $url = 'https://other.invalid/download' }
+                        $body = @{url=$url;expires='2099-01-01T00:00:00Z'}; break
+                    }
+                    '^GET downloads/(shop|orders|redirect)$' {
+                        if ($Matches[1] -eq 'redirect') { $code = 302; $response.RedirectLocation = '/lifetimeapi/rest/v2/downloads/shop'; break }
+                        # Launcher-only tests inspect downloaded bytes without asking Core to open a model.
+                        $body = 'mock-oap-' + $Matches[1]; $raw = $true; break
+                    }
                     '^GET environments$' { $body = $environments; break }
                     '^GET applications$' {
                         if ($request.QueryString['IncludeEnvStatus'] -ne 'true') { throw 'Need env status' }

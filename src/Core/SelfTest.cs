@@ -132,6 +132,7 @@ static partial class SelfTest
             }
 
             RestSelfTest.Run(blank, dir, failures);
+            OpenApiTest(blank, dir, failures);
             StaticTest(blank, dir, failures);
             SqlDeletionSelfTest.Run(blank, dir, failures);
             RulesTest(blank, dir, failures);
@@ -142,7 +143,9 @@ static partial class SelfTest
             MinifyTest(blank, dir, failures);
             PackageSelfTest.Run(blank, dir, failures);
             LogicTest(blank, dir, failures);
+            FlowLayoutTest(blank, dir, failures);
             ContentSelfTest.Run(blank, dir, failures);
+            ArchitectureTest(Path.Combine(dir, "built.oml"), failures);
 
             // A clash with a generated CRUD action must be refused, not renamed.
             File.WriteAllText(spec, """{ "entities": [ { "name": "Order", "attributes": [{ "name": "Name" }] } ], "serverActions": [ { "name": "GetOrder" } ] }""");

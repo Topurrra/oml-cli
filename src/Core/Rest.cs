@@ -96,7 +96,8 @@ partial class Builder
         foreach (var p in s.Inputs ?? new())
         {
             var location = (p.Location ?? "query").ToLowerInvariant();
-            if (location == "query" && !url.Contains("{" + p.Name + "}", StringComparison.Ordinal))
+            // Exposed URLPath contains only the path. URL inputs absent from its tokens are query inputs.
+            if (!service && location == "query" && !url.Contains("{" + p.Name + "}", StringComparison.Ordinal))
                 url += (url.Contains('?') ? "&" : "?") + p.Name + "={" + p.Name + "}";
         }
         RestSet(action, "URLPath", url);

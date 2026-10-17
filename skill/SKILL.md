@@ -17,7 +17,7 @@ Use the `oml` CLI for local O11 work. Extend its typed model code when the spec 
 | ODC: ODC Studio | V13 | OutSystems MCP context lookups | Mentor editing and publishing; MCP deployment tools. See [reference/odc.md](reference/odc.md). |
 
 Never load ODC modules with the O11 V12 loader. Never send O11 module work to the remote ODC MCP.
-Service Studio has a separate built-in MCP for O11 publishing and reference refresh.
+In O11, OutSystems MCP is the local Service Studio MCP server. `oml` uses it only to publish and refresh references.
 
 ### Terms
 
@@ -106,6 +106,8 @@ The CLI runs a cached self-test on a disposable module for each installed build.
 | `oml inspect`, `census` | Module overview. Use `--own` and `--only` to cut output. |
 | `oml describe` | What an existing action, screen or block does. Read it before you change one. |
 | `oml find` | Which module owns an element. |
+| `oml openapi` | Export exposed REST APIs as OpenAPI 3.0.3 JSON; reports placeholders to fill. |
+| `oml architecture` | Read application/module layers, dependencies and findings into HTML and optional JSON. |
 | `oml tree` | Exact object paths for `edits`. |
 | `oml validate` | Errors, and warnings with `--warnings`. |
 | `oml apply` | Run a spec into a staged copy. |
@@ -131,6 +133,7 @@ A spec is one JSON file. Every key is optional. Start with a recipe below. Read 
 | `staticEntities` | Static entities with records. | Static entities |
 | `references`, `referenceAliases`, `removeUnusedDependencies` | Elements from producer modules, local names for them, and removal of unused ones. | References and aliases |
 | `serverActions`, `serviceActions`, `clientActions` | Actions with inputs, outputs, locals and a `flow`. | Logic and flows |
+| `tidyFlows` | Move nodes in existing flows selected by element paths or name patterns. | Logic and flows |
 | `clientVariables`, `sessionVariables`, `systemEvents` | Module state and calls from platform lifecycle events. Module kind limits apply. | Module variables and system events |
 | `onException`, `globalExceptionHandler`, flow `exceptionHandler` | Separate exception paths and a Reactive global handler. | Exception handling |
 | `flow` nodes `aggregate` | Sources, joins, filters, sorts, group by, calculated attributes. | Queries |

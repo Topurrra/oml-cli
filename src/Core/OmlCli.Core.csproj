@@ -9,6 +9,7 @@
     <SS Condition="'$(SS)' == ''">C:\Program Files\OutSystems\Service Studio 11\Service Studio</SS>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Architecture\template.html" LogicalName="OmlCli.Architecture.template.html" />
     <Compile Include="..\JsonOutput.cs" Link="JsonOutput.cs" />
     <Compile Include="..\AssetFiles.cs" Link="AssetFiles.cs" />
     <!-- Compile-time only. At run time every one of these, and whatever they depend on,
@@ -23,5 +24,6 @@
     <Reference Include="$(SS)\ServiceStudio.Common.dll" Private="false" />
     <Reference Include="$(SS)\OutSystems.Model.Plugins.dll" Private="false" />
     <Reference Include="$(SS)\Plugins\ServiceStudio\ServiceStudio.Plugin.NRWidgets.dll" Private="false" />
+    <Reference Include="$(SS)\Plugins\ServiceStudio\ServiceStudio.Plugin.RESTService.dll" Private="false" />
   </ItemGroup>
 </Project>

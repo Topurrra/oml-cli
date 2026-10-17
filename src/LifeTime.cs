@@ -11,7 +11,7 @@ namespace OmlCli;
 // Ported from OutSystems/outsystems-pipeline outsystems/lifetime/lifetime_applications.py (Apache-2.0).
 static class LifeTime
 {
-    const string Usage = "oml lt environments | apps [--env Name] | tag App --version x.y.z [--description Text] [--env Development] | deploy App[,App2] --from Env --to Env [--version x.y.z|latest] [--notes Text] [--wait] | status Key | abort Key | continue Key";
+    const string Usage = "oml lt environments | teams | team-apps Team | apps [--env Name] | tag App --version x.y.z [--description Text] [--env Development] | deploy App[,App2] --from Env --to Env [--version x.y.z|latest] [--notes Text] [--wait] | status Key | abort Key | continue Key";
 
     public static int Run(string[] args)
     {
@@ -42,6 +42,8 @@ static class LifeTime
             http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
             http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             var client = new Client(http);
+            if (verb == "teams") { Emit(client.List("teams")); return 0; }
+            if (verb == "team-apps") { Emit(client.TeamApplications(positional!)); return 0; }
             string Opt(string name, string fallback = "") => options.GetValueOrDefault(name) ?? fallback;
             if (verb == "environments") { Emit(client.List("environments")); return 0; }
             if (verb is "status" or "abort" or "continue")
@@ -147,6 +149,94 @@ static class LifeTime
         { Emit(new { error = "Invalid LifeTime response or configuration; check LifeTime before retrying a mutation.", deploymentKey }); return 2; }
     }
 
+    // Runs before loading Core. Only this invocation owns the temporary package folder.
+    public static int Architecture(string[] args, Func<string[], int> runCore)
+    {
+        string? folder = null;
+        var token = Environment.GetEnvironmentVariable("OML_LIFETIME_TOKEN");
+        int Unavailable(string reason)
+        {
+            if (!string.IsNullOrEmpty(token)) reason = reason.Replace(token, "[REDACTED]", StringComparison.Ordinal);
+            Console.Error.WriteLine($"LifeTime is not available ({reason}). Export the team's applications as .oap files into a folder and run: oml architecture --in <folder>");
+            return 2;
+        }
+        try
+        {
+            string[] rewritten;
+            try
+            {
+                var index = System.Array.IndexOf(args, "--team");
+                if (index < 0 || index + 1 >= args.Length || string.IsNullOrWhiteSpace(args[index + 1])
+                    || args[index + 1].StartsWith("--") || args.Skip(index + 1).Contains("--team") || args.Contains("--team-label"))
+                    throw new LtError("--team requires one team name and cannot be repeated", 2);
+                var team = args[index + 1];
+                var host = Environment.GetEnvironmentVariable("OML_LIFETIME_HOST");
+                if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(token))
+                    throw new LtError("set OML_LIFETIME_HOST and OML_LIFETIME_TOKEN", 2);
+                var root = Endpoint(host);
+                if (token.Any(char.IsControl)) throw new LtError("invalid OML_LIFETIME_TOKEN format", 2);
+                using var handler = new HttpClientHandler { AllowAutoRedirect = false };
+                using var http = new HttpClient(handler) { BaseAddress = root, Timeout = TimeSpan.FromSeconds(100) };
+                http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                var client = new Client(http);
+                var apps = client.TeamApplications(team);
+                if (apps.Length == 0) throw new LtError("the team has no applications available to this account", 2);
+                var environments = client.List("environments");
+                folder = Directory.CreateTempSubdirectory("oml-architecture-").FullName;
+                int number = 0;
+                foreach (var app in apps)
+                {
+                    var key = Text(app, "Key");
+                    if (key.Length == 0) throw new LtError("invalid application key", 2);
+                    // Includes the module list; the OAP manifest preserves application membership for Core.
+                    var details = client.Send("GET", $"applications/{Escape(key)}?IncludeModules=true&IncludeEnvStatus=true");
+                    if (Property(details, "Modules") is not JsonArray)
+                        throw new LtError("LifeTime did not return application modules", 2);
+                    var states = Array(Property(details, "AppStatusInEnvs"));
+                    var env = environments.Where(e => states.Any(s => Text(s, "EnvironmentKey") == Text(e, "Key")))
+                        .OrderByDescending(e => Text(e, "EnvironmentType").Equals("Development", StringComparison.OrdinalIgnoreCase)
+                            || Text(e, "Name").Equals("Development", StringComparison.OrdinalIgnoreCase))
+                        .ThenBy(e => Property(e, "Order")?.GetValue<int>() ?? int.MaxValue).FirstOrDefault()
+                        ?? throw new LtError("no running application environment is available", 2);
+                    var link = client.Send("GET", $"environments/{Escape(Text(env, "Key"))}/applications/{Escape(key)}/content");
+                    if (!Uri.TryCreate(Text(link, "url"), UriKind.Absolute, out var url)
+                        || url.Scheme != root.Scheme || url.Authority != root.Authority || url.UserInfo.Length != 0 || url.Fragment.Length != 0)
+                        throw new LtError("no safe package download URL was offered", 2);
+                    client.Download(url, Path.Combine(folder, $"application-{++number}.oap"));
+                }
+                rewritten = args.Take(index).Concat(new[] { "--in", folder, "--team-label", team }).Concat(args.Skip(index + 2)).ToArray();
+            }
+            catch (LtError e) { return Unavailable(e.Message.TrimEnd('.')); }
+            catch (Exception e) when (e is HttpRequestException or OperationCanceledException or IOException or UnauthorizedAccessException)
+            { return Unavailable("connection, TLS, timeout or temporary file failure"); }
+            catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException or ArgumentException)
+            { return Unavailable("invalid LifeTime response or configuration"); }
+
+            if (Environment.GetEnvironmentVariable("OML_DEBUG_ARGS") == "1")
+            {
+                var debug = JsonSerializer.SerializeToNode(new { args = rewritten,
+                    files = Directory.GetFiles(folder!).Select(f => new { name = Path.GetFileName(f), bytes = new FileInfo(f).Length }) });
+                if (!string.IsNullOrEmpty(token)) Redact(debug, token);
+                Console.WriteLine(JsonOutput.Serialize(debug!));
+                return 0;
+            }
+            return runCore(rewritten);
+        }
+        finally
+        {
+            if (folder is not null)
+            {
+                var owned = Path.GetFullPath(folder);
+                var temp = Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                if (!string.Equals(Path.GetDirectoryName(owned), temp, StringComparison.OrdinalIgnoreCase)
+                    || !Path.GetFileName(owned).StartsWith("oml-architecture-", StringComparison.Ordinal))
+                    throw new IOException("Refused to remove an unexpected temporary package directory.");
+                Directory.Delete(owned, recursive: true);
+            }
+        }
+    }
+
     static Uri Endpoint(string host)
     {
         if (host.Any(char.IsWhiteSpace) || host.IndexOfAny(new[] { '/', '\\', '@', '?', '#' }) >= 0
@@ -165,13 +255,13 @@ static class LifeTime
         if (args.Length == 0) throw new LtError(Usage, 2);
         var verb = args[0];
         var allowed = verb switch {
-            "environments" or "status" or "abort" or "continue" => System.Array.Empty<string>(),
+            "environments" or "teams" or "team-apps" or "status" or "abort" or "continue" => System.Array.Empty<string>(),
             "apps" => new[] { "--env" }, "tag" => new[] { "--version", "--description", "--env" },
             "deploy" => new[] { "--from", "--to", "--version", "--notes", "--wait" },
             _ => throw new LtError(Usage, 2) };
         int i = 1;
         string? positional = null;
-        if (verb is "tag" or "deploy" or "status" or "abort" or "continue")
+        if (verb is "tag" or "deploy" or "team-apps" or "status" or "abort" or "continue")
         {
             if (i == args.Length || string.IsNullOrWhiteSpace(args[i]) || args[i].StartsWith("--")) throw new LtError(Usage, 2);
             positional = args[i++];
@@ -195,7 +285,9 @@ static class LifeTime
     }
 
     static string Escape(string value) => Uri.EscapeDataString(value);
-    static string Text(JsonNode? node, string property) => node?[property]?.GetValue<string>() ?? "";
+    static JsonNode? Property(JsonNode? node, string property) => node is JsonObject obj
+        ? obj.FirstOrDefault(p => p.Key.Equals(property, StringComparison.OrdinalIgnoreCase)).Value : null;
+    static string Text(JsonNode? node, string property) => Property(node, property)?.GetValue<string>() ?? "";
     static JsonNode?[] Array(JsonNode? node) => node is JsonArray array ? array.ToArray() : System.Array.Empty<JsonNode?>();
     static JsonNode Find(JsonNode?[] nodes, string name, string kind, string field = "Name")
     {
@@ -223,6 +315,27 @@ static class LifeTime
 
     sealed class Client(HttpClient http)
     {
+        public JsonNode?[] TeamApplications(string name)
+        {
+            var team = Find(List("teams"), name, "team");
+            var details = Send("GET", $"teams/{Escape(Text(team, "Key"))}?IncludeUsers=false&IncludeApplications=true");
+            if (Property(details, "applications") is not JsonArray)
+                throw new LtError("LifeTime did not return team applications.", 2);
+            return Array(Property(details, "applications"));
+        }
+        public void Download(Uri url, string path)
+        {
+            using var timeout = new CancellationTokenSource(http.Timeout);
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/octet-stream"));
+            using var response = http.Send(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            if (response.StatusCode != System.Net.HttpStatusCode.OK)
+                throw new LtError($"package download refused (HTTP {(int)response.StatusCode})", 2);
+            using var input = response.Content.ReadAsStream();
+            using var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
+            input.CopyToAsync(output, timeout.Token).GetAwaiter().GetResult();
+            if (output.Length == 0) throw new LtError("package download was empty", 2);
+        }
         public JsonNode? Send(string method, string path, object? payload = null, int expected = 200)
         {
             using var request = new HttpRequestMessage(new HttpMethod(method), path);

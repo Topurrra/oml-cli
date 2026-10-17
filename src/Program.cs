@@ -14,6 +14,14 @@ public static class Program
         var filtered = args.Where(a => a != "--pretty").ToArray();
         if (filtered.FirstOrDefault() == "lt") return LifeTime.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "font") return FontAssets.Run(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "architecture" && filtered.Contains("--team"))
+            return LifeTime.Architecture(args, RunCore);
+        return RunCore(args);
+    }
+
+    static int RunCore(string[] args)
+    {
+        var filtered = args.Where(a => a != "--pretty").ToArray();
 
         var ss = Environment.GetEnvironmentVariable("OML_SERVICE_STUDIO")
                  ?? @"C:\Program Files\OutSystems\Service Studio 11\Service Studio";

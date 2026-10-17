@@ -38,10 +38,14 @@ foreach ($case in @(@("logic.json",$reactive),@("block.json",$reactive),@("servi
   if ($case[0] -eq 'rest.json' -and $r.saved) {
     try { & (Join-Path $PSScriptRoot 'rest-check.ps1') $oml $out }
     catch { $fail++; Write-Host "FAIL REST wiring: $_" }
+    try { & (Join-Path $PSScriptRoot 'openapi-check.ps1') $oml $out }
+    catch { $fail++; Write-Host "FAIL OpenAPI: $_" }
   }
 }
 try { & (Join-Path $PSScriptRoot "edits-check.ps1") -Oml $oml -Tmp $tmp }
 catch { $fail++; Write-Host "FAIL edits checks: $_" }
+try { & (Join-Path $PSScriptRoot 'flowlayout-check.ps1') $oml $tmp }
+catch { $fail++; Write-Host "FAIL flow layout checks: $_" }
 try { & (Join-Path $PSScriptRoot "describe-check.ps1") -Oml $oml -Tmp $tmp }
 catch { $fail++; Write-Host "FAIL describe checks: $_" }
 try { & (Join-Path $PSScriptRoot 'content-check.ps1') $oml $tmp $reactive }
@@ -51,5 +55,8 @@ try { & (Join-Path $PSScriptRoot 'recipes-check.ps1') -Oml $oml }
 catch { $fail++; Write-Host "FAIL recipes checks: $_" }
 try { & (Join-Path $PSScriptRoot "packages-check.ps1") -Oml $oml -Tmp $tmp } catch { $fail++; Write-Host "FAIL packages checks: $_" }
 try { & (Join-Path $PSScriptRoot 'assets-check.ps1') -Oml $oml -Tmp $tmp } catch { $fail++; Write-Host "FAIL assets checks: $_" }
+try { & (Join-Path $PSScriptRoot 'architecture-check.ps1') -Oml $oml -Tmp $tmp } catch { $fail++; Write-Host "FAIL architecture checks: $_" }
+try { & (Join-Path $PSScriptRoot 'architecture-page-check.ps1') -Oml $oml -Tmp $tmp }
+catch { $fail++; Write-Host "FAIL architecture page: $_" }
 & $oml selftest | ConvertFrom-Json | ForEach-Object { if (-not $_.passed) { $fail++; Write-Host "FAIL selftest"; $_ | ConvertTo-Json -Depth 8 } else { Write-Host "ok   selftest" } }
 exit $fail

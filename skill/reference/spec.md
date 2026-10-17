@@ -256,6 +256,29 @@ The installed API has no Reactive Email screen or Reactive SendEmail contract. T
 
 ### Logic and flows
 
+`apply` automatically lays out every new logic or BPT process flow and every existing flow where
+the spec inserts or removes nodes. It moves the nodes of those flows, including exception handler
+paths. Other existing flows keep their positions. Comment nodes always keep their positions.
+The main path runs down; If false runs down and true runs right, matching the sample Studio flow.
+Switch branches use separate columns, loop bodies run to the right, and exception handlers sit beside
+the main flow. Shared joins and End nodes sit below their incoming branches. Layout changes positions
+through the typed Model API; it keeps the connectors and expressions.
+
+Use the root key `tidyFlows` to move the nodes of selected existing flows without changing their logic:
+
+```json
+{ "tidyFlows": ["Fx*", "Showcase/CopyText"] }
+```
+
+Each entry is an element path to an editable action, preparation, process or other logic flow,
+or a case-sensitive name/path pattern with `*`. `"*"` selects all local editable flows, including
+nested flows. Use the qualified paths from `oml tree` when names are ambiguous. Empty entries,
+paths to non-flow elements, and patterns with no matches are errors. This is an explicit request
+to replace the selected flows' node positions. Comments stay fixed; nodes avoid their default bounds.
+Layout uses Studio's default `(3196, 800)` origin, `2660` spacing and `914 × 928` node bounds,
+with extra room for labels. The typed API does not expose rendered text bounds, so very long labels
+or expanded comments can extend beyond the reserved space.
+
 | Scope | Keys | Meaning |
 |---|---|---|
 | Root | `serverActions`, `serviceActions`, `clientActions` | Action arrays. Module kinds must support the action type. |
@@ -384,6 +407,8 @@ Model validation does not execute SQL or verify database-specific results.
 
 ### REST
 
+Export exposed API documentation with `oml openapi`; see [command details](commands.md#openapi).
+
 | Scope | Keys | Meaning |
 |---|---|---|
 | Root | `restClients`, `restServices` | Consumed and exposed REST integrations. |
@@ -393,7 +418,7 @@ Model validation does not execute SQL or verify database-specific results.
 
 Input locations: url, query (default), header, body. Output locations: body (default), header.
 URL inputs need matching `{Name}` placeholders and become mandatory.
-Query inputs append `Name={Name}` unless the placeholder exists. Headers use the wire name from headerName.
+Consumed query inputs append `Name={Name}` unless the placeholder exists; exposed query inputs use Receive In = URL without a path token. Headers use the wire name from headerName.
 Consumed body formats: Text = plain text; Binary Data = binary; structure/list = JSON.
 Use one body parameter. Wrap multiple fields or other scalar types in a structure.
 
