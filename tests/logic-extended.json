@@ -1,0 +1,32 @@
+{
+  "exceptions": ["LogicFailure"],
+  "structures": [{"name":"ExcelRow","attributes":[{"name":"Label"}]}],
+  "clientVariables": [{"name":"Caption","type":"Text","default":"\"Ready\""}],
+  "serverActions": [{"name":"ConvertRows","inputs":[{"name":"Content","type":"Binary Data"}],"locals":[{"name":"Rows","type":"List of ExcelRow"}],"flow":[
+    {"kind":"comment","text":"Import and export rows"},
+    {"kind":"excelToRecordList","name":"ImportRows","fileContent":"Content","sheetName":"\"Sheet1\"","dataType":"List of ExcelRow"},
+    {"kind":"recordListToExcel","name":"ExportRows","recordList":"Rows","attributeSelection":["Label"]},
+    {"kind":"exceptionHandler","name":"OnDatabase","exception":"DatabaseException","abortTransaction":true,"logError":true,"next":"Recover"},
+    {"kind":"assign","name":"Recover","assign":{"Rows":"Rows"},"next":"End"}
+  ]}],
+  "clientActions": [{"name":"ShowStatus","flow":[
+    {"kind":"assign","name":"SetCaption","assign":{"Client.Caption":"\"Done\""}},
+    {"kind":"message","name":"Notify","message":"Client.Caption","type":"success"},
+    {"kind":"exceptionHandler","name":"OnFailure","exception":"AllExceptions","logError":true,"next":"End"}
+  ]}],
+  "screens":[{"name":"LogicHome","actions":[{"name":"ScreenWork","locals":[{"name":"Caption"}],"flow":[
+    {"kind":"assign","name":"ReadClient","assign":{"Caption":"Client.Caption"}},
+    {"kind":"exceptionHandler","name":"ScreenError","exception":"AllExceptions"}
+  ]}],"dataActions":[{"name":"ReadValue","outputs":[{"name":"Value","type":"Integer"}],"flow":[
+    {"kind":"assign","name":"SetValue","assign":{"Value":"1"}},
+    {"kind":"exceptionHandler","name":"DataError","exception":"AllExceptions","next":"Fallback"},
+    {"kind":"assign","name":"Fallback","assign":{"Value":"0"}}
+  ]}]}],
+  "onException":{"name":"HandleError","flow":"MainFlow","nodes":[{"kind":"exceptionHandler","name":"GlobalError","exception":"AllExceptions"},{"kind":"execute","action":"ShowStatus"}]},
+  "globalExceptionHandler":"MainFlow/HandleError",
+  "systemEvents":{"onApplicationReady":"ShowStatus","onApplicationResume":"ShowStatus"},
+  "edits":[{"op":"addExceptionHandler","action":"ConvertRows","flow":[
+    {"kind":"exceptionHandler","name":"OnUserError","exception":"LogicChecks.LogicFailure","abortTransaction":true,"logError":false,"next":"UserEnd"},
+    {"kind":"end","name":"UserEnd"}
+  ]}]
+}

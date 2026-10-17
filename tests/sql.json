@@ -1,0 +1,21 @@
+{
+  "entities": [{ "name": "Customer", "attributes": [{ "name": "Name", "length": 100 }] }],
+  "structures": [{ "name": "CustomerSummary", "attributes": [{ "name": "Caption" }] }],
+  "serverActions": [
+    { "name": "SearchCustomers", "inputs": [{ "name": "Search" }], "outputs": [{ "name": "LastName" }], "flow": [
+      { "kind": "sql", "name": "GetTopCustomers", "sql": "SELECT {Customer}.* FROM {Customer} WHERE {Customer}.[Name] LIKE @Pattern",
+        "params": [{ "name": "Pattern", "type": "Text", "value": "\"%\" + Search + \"%\"", "expandInline": false }], "outputs": ["Customer"], "maxRecords": 50 },
+      { "kind": "forEach", "name": "Loop", "recordList": "GetTopCustomers.List", "cycle": "CopyName", "next": "End" },
+      { "kind": "assign", "name": "CopyName", "assign": { "LastName": "GetTopCustomers.List.Current.Customer.Name" }, "next": "Loop" }
+    ] },
+    { "name": "SummarizeCustomers", "outputs": [{ "name": "Caption" }], "flow": [
+      { "kind": "sql", "name": "GetSummary", "sql": "SELECT 'Customers'", "outputs": ["CustomerSummary"] },
+      { "kind": "assign", "name": "CopyCaption", "assign": { "Caption": "GetSummary.List.Current.CustomerSummary.Caption" } }
+    ] }
+  ],
+  "edits": [{ "op": "insertNodes", "action": "SummarizeCustomers", "after": "Start", "flow": [
+    { "kind": "sql", "name": "InsertedSql", "sql": "SELECT @Caption", "params": [{ "name": "Caption", "value": "\"Inline\"", "expandInline": true }], "outputs": ["CustomerSummary"] },
+    { "kind": "sql", "name": "MixedSql", "sql": "SELECT {Customer}.*, @Caption FROM {Customer} WHERE {Customer}.[Id] > @Minimum",
+      "params": [{ "name": "Minimum", "type": "Integer", "value": "0" }, { "name": "Caption", "value": "\"Caption\"" }], "outputs": ["Customer", "CustomerSummary"] }
+  ] }]
+}

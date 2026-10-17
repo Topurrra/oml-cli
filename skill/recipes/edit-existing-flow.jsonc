@@ -1,0 +1,15 @@
+// Apply once on entity-with-crud + list-detail-screens output, in that order.
+// Insert a normalizing assignment, add a screen note, set a property, rename a node.
+// Rename paths to match the existing elements; inspect the result before reuse.
+// Flow nodes may be renamed in existing actions; module elements and parameters may not.
+// Related keys: edits, insertNodes, addWidgets, set, rename. Edits run in order.
+{
+  "edits": [
+    { "op": "insertNodes", "action": "Product_CreateOrUpdate", "after": "Start",
+      "flow": [{ "kind": "assign", "name": "Normalize", "assign": { "Product.Name": "Trim(Product.Name)" } }] },
+    { "op": "addWidgets", "screen": "Products",
+      "widgets": [{ "type": "Text", "name": "HelpText", "text": "Choose a product to edit." }] },
+    { "op": "set", "element": "Product/Name", "properties": { "description": "Required product name" } },
+    { "op": "rename", "element": "Product_CreateOrUpdate/Normalize", "to": "TrimName" }
+  ]
+}

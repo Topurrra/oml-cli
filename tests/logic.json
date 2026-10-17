@@ -1,0 +1,314 @@
+{
+ "exceptions": [
+  "InvalidOrder"
+ ],
+ "entities": [
+  {
+   "name": "Customer",
+   "attributes": [
+    {
+     "name": "Name",
+     "length": 100,
+     "mandatory": true
+    }
+   ]
+  },
+  {
+   "name": "Order",
+   "attributes": [
+    {
+     "name": "CustomerId",
+     "type": "Customer Identifier",
+     "mandatory": true
+    },
+    {
+     "name": "Total",
+     "type": "Decimal",
+     "length": 37,
+     "decimals": 2
+    }
+   ]
+  }
+ ],
+ "serverActions": [
+  {
+   "name": "CreateOrderFor",
+   "inputs": [
+    {
+     "name": "CustomerId",
+     "type": "Customer Identifier",
+     "mandatory": true
+    },
+    {
+     "name": "Total",
+     "type": "Decimal"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "OrderId",
+     "type": "Order Identifier"
+    }
+   ],
+   "locals": [
+    {
+     "name": "Rec",
+     "type": "Order"
+    }
+   ],
+   "flow": [
+    {
+     "kind": "if",
+     "name": "ValidTotal",
+     "condition": "Total >= 0",
+     "true": "Prepare",
+     "false": "Invalid"
+    },
+    {
+     "kind": "assign",
+     "name": "Prepare",
+     "assign": {
+      "Rec.CustomerId": "CustomerId",
+      "Rec.Total": "Total"
+     }
+    },
+    {
+     "kind": "execute",
+     "action": "CreateOrder",
+     "args": {
+      "Source": "Rec"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "SetOut",
+     "assign": {
+      "OrderId": "CreateOrder.Id"
+     },
+     "next": "End"
+    },
+    {
+     "kind": "raiseException",
+     "name": "Invalid",
+     "exception": "InvalidOrder",
+     "message": "\"Total must be >= 0\""
+    }
+   ]
+  },
+  {
+   "name": "SumCustomerOrders",
+   "inputs": [
+    {
+     "name": "CustomerId",
+     "type": "Customer Identifier"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "Sum",
+     "type": "Decimal"
+    },
+    {
+     "name": "Count",
+     "type": "Integer"
+    }
+   ],
+   "flow": [
+    {
+     "kind": "aggregate",
+     "name": "GetOrders",
+     "sources": [
+      "Order"
+     ],
+     "filters": [
+      "Order.CustomerId = CustomerId"
+     ],
+     "sorts": [
+      {
+       "attribute": "Order.Id",
+       "descending": true
+      }
+     ],
+     "maxRecords": 50
+    },
+    {
+     "kind": "forEach",
+     "name": "Loop",
+     "recordList": "GetOrders.List",
+     "cycle": "Add",
+     "next": "SetCount"
+    },
+    {
+     "kind": "assign",
+     "name": "Add",
+     "assign": {
+      "Sum": "Sum + GetOrders.List.Current.Order.Total"
+     },
+     "next": "Loop"
+    },
+    {
+     "kind": "assign",
+     "name": "SetCount",
+     "assign": {
+      "Count": "GetOrders.Count"
+     }
+    }
+   ]
+  }
+ ],
+ "clientActions": [
+  {
+   "name": "FormatTotal",
+   "inputs": [
+    {
+     "name": "Value",
+     "type": "Decimal"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "Label",
+     "type": "Text"
+    }
+   ],
+   "flow": [
+    {
+     "kind": "assign",
+     "name": "Build",
+     "assign": {
+      "Label": "\"Total: \" + Value"
+     }
+    }
+   ]
+  }
+ ],
+ "screens": [
+  {
+   "name": "Orders",
+   "title": "\"Orders\"",
+   "inputs": [
+    {
+     "name": "CustomerId",
+     "type": "Customer Identifier"
+    }
+   ],
+   "locals": [
+    {
+     "name": "NewTotal",
+     "type": "Decimal",
+     "default": "0"
+    }
+   ],
+   "aggregates": [
+    {
+     "name": "GetOrders",
+     "sources": [
+      "Order"
+     ],
+     "filters": [
+      "Order.CustomerId = CustomerId"
+     ],
+     "maxRecords": 50
+    }
+   ],
+   "actions": [
+    {
+     "name": "Init",
+     "flow": [
+      {
+       "kind": "assign",
+       "name": "Reset",
+       "assign": {
+        "NewTotal": "0"
+       }
+      }
+     ]
+    },
+    {
+     "name": "Save",
+     "flow": [
+      {
+       "kind": "execute",
+       "action": "CreateOrderFor",
+       "args": {
+        "CustomerId": "CustomerId",
+        "Total": "NewTotal"
+       }
+      }
+     ]
+    }
+   ],
+   "onInitialize": "Init",
+   "widgets": [
+    {
+     "type": "Container",
+     "name": "Header",
+     "style": "\"card\"",
+     "children": [
+      {
+       "type": "Expression",
+       "name": "CountText",
+       "value": "\"Orders: \" + GetOrders.Count"
+      },
+      {
+       "type": "Input",
+       "name": "TotalInput",
+       "variable": "NewTotal"
+      },
+      {
+       "type": "Button",
+       "name": "SaveButton",
+       "onClick": "Save",
+       "children": [
+        {
+         "type": "Text",
+         "text": "Save"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "If",
+     "name": "HasOrders",
+     "condition": "not GetOrders.List.Empty",
+     "trueBranch": [
+      {
+       "type": "TableRecords",
+       "name": "OrdersTable",
+       "source": "GetOrders.List",
+       "headerRow": [
+        {
+         "type": "HeaderCell",
+         "children": [
+          {
+           "type": "Text",
+           "text": "Total"
+          }
+         ]
+        }
+       ],
+       "row": [
+        {
+         "type": "RowCell",
+         "children": [
+          {
+           "type": "Expression",
+           "value": "GetOrders.List.Current.Order.Total"
+          }
+         ]
+        }
+       ]
+      }
+     ],
+     "falseBranch": [
+      {
+       "type": "Text",
+       "text": "No orders yet"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,24 @@
+// Build a Traditional Web screen with Preparation, a table, and a save button.
+// Base: fresh WebResponsive. Rename Product and all matching expressions together.
+// Related keys: preparation, actions, TableRecords, source, headerRow, row, onClick.
+// onException adds the UI flow's error handler. In Traditional Web it must end with a navigation, not End.
+{
+  "entities": [{ "name": "Product", "attributes": [{ "name": "Name", "length": 100 }] }],
+  "onException": { "name": "OnException", "flow": "MainFlow", "nodes": [
+    { "kind": "exceptionHandler", "name": "OnAllErrors", "exception": "AllExceptions", "logError": true },
+    { "kind": "destination", "screen": "Products" }
+  ] },
+  "screens": [{ "name": "Products", "access": { "anonymous": false, "registered": true },
+    "locals": [{ "name": "Product", "type": "Product" }],
+    "preparation": [{ "kind": "aggregate", "name": "FetchProducts", "sources": ["Product"], "maxRecords": 50 }],
+    "actions": [{ "name": "Save", "flow": [
+      { "kind": "execute", "action": "CreateOrUpdateProduct", "args": { "Source": "Product" } }
+    ] }],
+    "widgets": [
+      { "type": "Input", "variable": "Product.Name", "maxLength": 100 },
+      { "type": "Button", "onClick": "Save", "children": [{ "type": "Text", "text": "Save" }] },
+      { "type": "TableRecords", "source": "FetchProducts.List",
+        "headerRow": [{ "type": "HeaderCell", "children": [{ "type": "Text", "text": "Name" }] }],
+        "row": [{ "type": "RowCell", "children": [{ "type": "Expression", "value": "FetchProducts.List.Current.Product.Name" }] }] }
+    ] }]
+}

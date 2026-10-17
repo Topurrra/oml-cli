@@ -1,0 +1,3 @@
+{ "blocks": [ { "name": "Card", "inputs": [ { "name": "Title", "type": "Text" } ],
+    "widgets": [ { "type": "Container", "style": "\"card\"", "children": [ { "type": "Expression", "value": "Title" } ] } ] } ],
+  "screens": [ { "name": "Home", "widgets": [ { "type": "BlockInstance", "name": "Card1", "sourceBlock": "Card", "args": { "Title": "\"Hello\"" } } ] } ] }

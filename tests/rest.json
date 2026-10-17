@@ -1,0 +1,33 @@
+{
+  "entities": [{ "name": "Order", "attributes": [{ "name": "Total", "type": "Decimal" }] }],
+  "structures": [
+    { "name": "ForecastDto", "attributes": [{ "name": "Temperature", "type": "Decimal" }] },
+    { "name": "ForecastRequest", "attributes": [{ "name": "City", "type": "Text" }] },
+    { "name": "OrderDto", "attributes": [{ "name": "Total", "type": "Decimal" }] }
+  ],
+  "restClients": [{ "name": "Weather", "baseUrl": "https://api.example.com", "actions": [
+    { "name": "GetForecast", "method": "GET", "url": "/forecast/{City}",
+      "inputs": [
+        { "name": "City", "type": "Text", "location": "url" },
+        { "name": "Days", "type": "Integer", "location": "query" },
+        { "name": "ApiKey", "type": "Text", "location": "header", "headerName": "X-Api-Key" }
+      ], "outputs": [{ "name": "Response", "type": "ForecastDto" }] },
+    { "name": "PostForecast", "method": "POST", "url": "/forecast",
+      "inputs": [{ "name": "Body", "type": "ForecastRequest", "location": "body" }],
+      "outputs": [{ "name": "Response", "type": "ForecastDto" }] }
+  ] }],
+  "serverActions": [{ "name": "FetchForecast", "outputs": [{ "name": "Temperature", "type": "Decimal" }], "flow": [
+    { "kind": "execute", "name": "Fetch", "action": "Weather.GetForecast",
+      "args": { "City": "\"Lisbon\"", "Days": "3", "ApiKey": "\"test-key\"" } },
+    { "kind": "assign", "assign": { "Temperature": "Fetch.Response.Temperature" } }
+  ] }],
+  "restServices": [{ "name": "OrdersApi", "actions": [
+    { "name": "GetOrder", "method": "GET", "url": "/orders/{Id}",
+      "inputs": [{ "name": "Id", "type": "Long Integer", "location": "url" }],
+      "outputs": [{ "name": "Order", "type": "OrderDto" }],
+      "flow": [
+        { "kind": "aggregate", "name": "FindOrder", "sources": ["Order"], "filters": ["Order.Id = LongIntegerToIdentifier(Id)"], "maxRecords": 1 },
+        { "kind": "assign", "assign": { "Order.Total": "FindOrder.List.Current.Order.Total" } }
+      ] }
+  ] }]
+}

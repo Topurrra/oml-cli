@@ -1,0 +1,19 @@
+// Build a consumed API with GET/POST and a server action calling GET.
+// Base: fresh CrossDevice. Replace the example URL and rename ProductDto/API together.
+// Related keys: structures, restClients, location, execute, args. No HTTP call runs here.
+{
+  "structures": [{ "name": "ProductDto", "public": true, "attributes": [{ "name": "Name" }] }],
+  "restClients": [{ "name": "Catalog", "baseUrl": "https://api.example.com", "actions": [
+    { "name": "GetProduct", "method": "GET", "url": "/products/{Id}",
+      "inputs": [{ "name": "Id", "type": "Integer", "location": "url" }],
+      "outputs": [{ "name": "Response", "type": "ProductDto" }] },
+    { "name": "PostProduct", "method": "POST", "url": "/products",
+      "inputs": [{ "name": "Body", "type": "ProductDto", "location": "body" }],
+      "outputs": [{ "name": "Response", "type": "ProductDto" }] }
+  ] }],
+  "serverActions": [{ "name": "FetchProduct", "public": true, "inputs": [{ "name": "Id", "type": "Integer" }],
+    "outputs": [{ "name": "Name" }], "flow": [
+      { "kind": "execute", "name": "Fetch", "action": "Catalog.GetProduct", "args": { "Id": "Id" } },
+      { "kind": "assign", "assign": { "Name": "Fetch.Response.Name" } }
+    ] }]
+}

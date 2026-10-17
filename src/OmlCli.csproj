@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- Run on the newest installed .NET, so a Service Studio that moves to a newer runtime still loads. -->
+    <RollForward>LatestMajor</RollForward>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>oml</AssemblyName>
+    <DefaultItemExcludes>$(DefaultItemExcludes);Core\**</DefaultItemExcludes>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Built and copied next to oml.exe, but never loaded by the default context (see Program.cs). -->
+    <ProjectReference Include="Core\OmlCli.Core.csproj" />
+  </ItemGroup>
+</Project>

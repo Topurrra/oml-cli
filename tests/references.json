@@ -1,0 +1,9 @@
+{
+  "references": [{ "producer": "tmp/references-producer.oml", "elements": ["Customer", "GetCustomerById", "CustomerCard", "OrderDto", "SupportRole", "ClientHello"] }],
+  "structures": [{ "name": "ConsumerDto", "attributes": [{ "name": "CustomerId", "type": "Customer Identifier" }] }],
+  "serverActions": [{ "name": "UseProducer", "locals": [{ "name": "CustomerId", "type": "Customer Identifier" }, { "name": "Dto", "type": "OrderDto" }], "flow": [
+    { "kind": "execute", "action": "GetCustomerById", "args": { "Id": "CustomerId" } },
+    { "kind": "execute", "action": "CheckSupportRoleRole" }
+  ] }],
+  "screens": [{ "name": "ConsumerScreen", "access": { "roles": ["SupportRole"] }, "actions": [{ "name": "Init", "flow": [{ "kind": "execute", "action": "ClientHello" }] }], "onInitialize": "Init", "widgets": [{ "type": "BlockInstance", "sourceBlock": "CustomerCard" }] }]
+}

@@ -1,0 +1,225 @@
+{
+  "edits": [
+    {
+      "op": "addVariables",
+      "action": "CreateOrderFor",
+      "locals": [
+        {
+          "name": "AuditTotal",
+          "type": "Decimal"
+        }
+      ]
+    },
+    {
+      "op": "insertNodes",
+      "action": "CreateOrderFor",
+      "after": "Prepare",
+      "flow": [
+        {
+          "kind": "assign",
+          "name": "Audit",
+          "assign": {
+            "AuditTotal": "Total"
+          }
+        }
+      ]
+    },
+    {
+      "op": "rename",
+      "element": "CreateOrderFor/Audit",
+      "to": "RememberTotal"
+    },
+    {
+      "op": "insertNodes",
+      "action": "SumCustomerOrders",
+      "after": "Loop",
+      "connector": "next",
+      "flow": [
+        {
+          "kind": "assign",
+          "name": "ResetCount",
+          "assign": {
+            "Count": "0"
+          }
+        }
+      ]
+    },
+    {
+      "op": "delete",
+      "element": "SumCustomerOrders/ResetCount"
+    },
+    {
+      "op": "addParts",
+      "screen": "Orders",
+      "locals": [
+        {
+          "name": "Caption",
+          "default": "\"Edited\""
+        }
+      ],
+      "actions": [
+        {
+          "name": "RefreshCaption",
+          "flow": [
+            {
+              "kind": "assign",
+              "name": "UpdateCaption",
+              "assign": {
+                "Caption": "\"Ready\""
+              }
+            }
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "name": "CaptionInput"
+        }
+      ],
+      "aggregates": [
+        {
+          "name": "RecentOrders",
+          "sources": [
+            "Order"
+          ],
+          "maxRecords": 5
+        }
+      ],
+      "dataActions": [
+        {
+          "name": "LoadCaption",
+          "outputs": [
+            {
+              "name": "Result"
+            }
+          ],
+          "flow": [
+            {
+              "kind": "assign",
+              "name": "ReturnCaption",
+              "assign": {
+                "Result": "\"Loaded\""
+              }
+            }
+          ]
+        }
+      ],
+      "onReady": "RefreshCaption"
+    },
+    {
+      "op": "addWidgets",
+      "screen": "Orders",
+      "parent": "Header",
+      "index": 1,
+      "widgets": [
+        {
+          "type": "Expression",
+          "name": "EditCaption",
+          "value": "Caption"
+        },
+        {
+          "type": "Expression",
+          "name": "EditHint",
+          "value": "\"Hint\""
+        }
+      ]
+    },
+    {
+      "op": "set",
+      "element": "Orders/CountText",
+      "properties": {
+        "value": "\"Total orders: \" + GetOrders.Count"
+      }
+    },
+    {
+      "op": "set",
+      "element": "CreateOrderFor/ValidTotal",
+      "properties": {
+        "condition": "Total >= 0"
+      }
+    },
+    {
+      "op": "addWidgets",
+      "screen": "Orders",
+      "parent": "HasOrders",
+      "area": "falseBranch",
+      "widgets": [
+        {
+          "type": "Text",
+          "text": "Edited empty state"
+        }
+      ]
+    },
+    {
+      "op": "insertNodes",
+      "action": "Orders/RefreshCaption",
+      "after": "Start",
+      "flow": [
+        {
+          "kind": "assign",
+          "name": "ClearCaption",
+          "assign": {
+            "Caption": "\"\""
+          }
+        }
+      ]
+    },
+    {
+      "op": "set",
+      "element": "Order/Total",
+      "properties": {
+        "description": "Updated by edits fixture"
+      }
+    },
+    {
+      "op": "set",
+      "element": "Orders/RecentOrders",
+      "properties": {
+        "maxRecords": "3"
+      }
+    },
+    {
+      "op": "insertNodes",
+      "action": "CreateOrderFor",
+      "after": "ValidTotal",
+      "connector": "true",
+      "flow": [
+        {
+          "kind": "assign",
+          "name": "BranchAudit",
+          "assign": {
+            "AuditTotal": "Total"
+          },
+          "next": "Prepare"
+        }
+      ]
+    },
+    {
+      "op": "insertNodes",
+      "action": "SumCustomerOrders",
+      "after": "Loop",
+      "connector": "cycle",
+      "flow": [
+        {
+          "kind": "assign",
+          "name": "CycleAudit",
+          "assign": {
+            "Sum": "Sum"
+          }
+        }
+      ]
+    },
+    {
+      "op": "set",
+      "element": "CreateOrderFor/RaiseError[0]",
+      "properties": {
+        "exception": "InvalidOrder"
+      }
+    },
+    {
+      "op": "rename",
+      "element": "Orders/RecentOrders",
+      "to": "LatestOrders"
+    }
+  ]
+}

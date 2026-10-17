@@ -1,0 +1,201 @@
+using System.Diagnostics;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+
+namespace OmlCli;
+
+// Client for the MCP server built into Service Studio 11.55.91+ (Edit > MCP Configuration > Start MCP Server).
+// Publishing and refreshing references need the live Service Studio session, so these commands drive it there.
+static class Studio
+{
+    static readonly int Port = int.TryParse(Environment.GetEnvironmentVariable("OML_STUDIO_PORT"), out var p) ? p : 41820;
+    static readonly string Url = $"http://127.0.0.1:{Port}/mcp";
+    // The token is an authorization secret: keep it in the temp folder, never in a project.
+    static readonly string TokenFile = Path.Combine(Path.GetTempPath(), "oml-cli", $"studio-token-{Port}");
+    static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(15) }; // a publish can take minutes
+    static int nextId;
+
+    const string ManualPublish = "Publish it manually instead: open the module in Service Studio and use 1-Click Publish.";
+    const string ManualRefresh = "Refresh them manually instead: in Service Studio open Manage Dependencies and use Refresh All.";
+
+    public static object Status() => Guard("Reading Service Studio's open modules", "Check Edit > MCP Configuration in Service Studio.", () =>
+    {
+        Connect();
+        return new { url = Url, apps = Call("listApps", input: null)["apps"] };
+    });
+
+    public static int Publish(string target) => Guard("Publishing through Service Studio", ManualPublish, () =>
+    {
+        var name = OpenModule(target);
+        var result = Call("omlPublish", new JsonObject { ["eSpaceName"] = name });
+        var published = Flag(result, "published", "omlPublish");
+        Cli.Emit(new { module = name, published, result, manualStep = published ? null : ManualPublish });
+        return published ? 0 : 1;
+    });
+
+    public static int References(string target) => Guard("Refreshing references through Service Studio", ManualRefresh, () =>
+    {
+        var name = OpenModule(target);
+        var result = Call("omlRefreshReferences", new JsonObject { ["eSpaceName"] = name });
+        var hasErrors = Flag(result, "hasErrors", "omlRefreshReferences");
+        Cli.Emit(new
+        {
+            module = name, result, manualStep = hasErrors ? ManualRefresh : null,
+            next = "The refreshed module is open in Service Studio; save or publish it there.",
+        });
+        return hasErrors ? 1 : 0;
+    });
+
+    // publish/references use Service Studio's Beta MCP write tools, which may change in a later release. Whatever
+    // breaks (tool renamed, result reshaped, non-JSON reply), fail with one clear message and the manual step.
+    static T Guard<T>(string what, string manualStep, Func<T> run)
+    {
+        const string beta = "This uses Service Studio's built-in MCP server, whose write tools are a Beta feature and may change between Service Studio releases.";
+        try { return run(); }
+        catch (CliError e) when (e.ExitCode == 2)
+        {
+            throw new CliError($"{what} failed: {e.Message} {manualStep}", 2);
+        }
+        catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException or KeyNotFoundException
+                                       or HttpRequestException or TaskCanceledException)
+        {
+            throw new CliError($"{what} failed: unexpected reply from Service Studio ({e.GetType().Name}: {e.Message}). {beta} {manualStep}", 2);
+        }
+    }
+
+    static bool Flag(JsonNode result, string field, string tool) =>
+        result[field] is JsonValue v && v.TryGetValue<bool>(out var flag) ? flag
+            : throw new CliError($"{tool} returned no '{field}' field (got: {Shorten(result.ToJsonString())}); " +
+                                 "Service Studio's MCP tool may have changed in this release.", 2);
+
+    static string Shorten(string text) => text.Length <= 300 ? text : text[..300] + "...";
+
+    // A module name must already be open. A file is opened in Service Studio first, unless a module with
+    // the same name is already open: then publishing would act on that copy, not on this file.
+    static string OpenModule(string target)
+    {
+        Connect();
+        if (!target.EndsWith(".oml", StringComparison.OrdinalIgnoreCase))
+            return IsOpen(target) ? target : throw new CliError($"Module '{target}' is not open in Service Studio. Open it, or pass its .oml file.", 2);
+
+        var path = Path.GetFullPath(target);
+        if (!File.Exists(path)) throw new CliError($"File not found: {path}", 2);
+        string name;
+        using (var m = Model.Load(path)) name = ((OutSystems.Model.Applications.IModule)m).Name;
+        if (IsOpen(name))
+            throw new CliError($"A module named '{name}' is already open in Service Studio, so this file would not be the one used. " +
+                               $"Close it there and run again, or run 'oml publish {name}' to use the open copy.", 2);
+        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); // .oml opens in Service Studio
+        for (var waited = 0; waited < 180; waited += 2)
+        {
+            Thread.Sleep(2000);
+            if (IsOpen(name)) return name;
+        }
+        throw new CliError($"Service Studio did not open '{name}' within 3 minutes.", 2);
+    }
+
+    static bool IsOpen(string name) =>
+        (Call("listApps", input: null)["apps"] as JsonArray ?? new()).Any(a =>
+            a?["name"]?.GetValue<string>() == name && a["isOpen"]?.GetValue<bool>() == true);
+
+    static string? token;
+
+    static void Connect()
+    {
+        if (token is not null) return;
+        try
+        {
+            Rpc("initialize", new JsonObject
+            {
+                ["protocolVersion"] = "2025-06-18",
+                ["capabilities"] = new JsonObject(),
+                ["clientInfo"] = new JsonObject { ["name"] = "oml-cli", ["version"] = "1" },
+            });
+        }
+        catch (HttpRequestException e)
+        {
+            throw new CliError($"Service Studio's MCP server is not reachable at {Url} ({e.Message}). Open a module in Service Studio, " +
+                               "then Edit > MCP Configuration > Start MCP Server. Set OML_STUDIO_PORT for another port.", 2);
+        }
+        Notify("notifications/initialized");
+        token = File.Exists(TokenFile) ? File.ReadAllText(TokenFile).Trim() : null;
+        if (string.IsNullOrEmpty(token)) NewToken();
+    }
+
+    // Service Studio shows the user an approval dialog naming this client; the call returns once they answer.
+    static void NewToken()
+    {
+        Console.Error.WriteLine("Approve 'oml-cli' in the Service Studio dialog...");
+        var result = Rpc("tools/call", new JsonObject
+        {
+            ["name"] = "createSessionToken",
+            ["arguments"] = new JsonObject { ["clientName"] = "oml-cli" },
+        });
+        if (result["isError"]?.GetValue<bool>() == true)
+            throw new CliError("Service Studio did not approve oml-cli: " + Text(result), 2);
+        token = Text(result).Trim();
+        Directory.CreateDirectory(Path.GetDirectoryName(TokenFile)!);
+        File.WriteAllText(TokenFile, token);
+    }
+
+    // Every tool but listApps wraps its arguments in "input"; every tool takes the token.
+    static JsonNode Call(string tool, JsonObject? input, bool retried = false)
+    {
+        var args = new JsonObject { ["sessionToken"] = token };
+        if (input is not null) args["input"] = input;
+        JsonNode result;
+        try { result = Rpc("tools/call", new JsonObject { ["name"] = tool, ["arguments"] = args }); }
+        catch (CliError e) when (!retried && e.Message.Contains("session token", StringComparison.OrdinalIgnoreCase))
+        {
+            NewToken(); // stale after a Service Studio restart or a revoke; ask once, never loop
+            return Call(tool, input, retried: true);
+        }
+        if (result["isError"]?.GetValue<bool>() == true) throw new CliError($"{tool}: {Shorten(Text(result))}", 2);
+        if (result["structuredContent"] is { } structured) return structured;
+        var text = Text(result);
+        try { return JsonNode.Parse(text) ?? new JsonObject(); }
+        catch (JsonException) { throw new CliError($"{tool} returned text instead of JSON: {Shorten(text)}", 2); }
+    }
+
+    static string Text(JsonNode result) =>
+        string.Concat((result["content"] as JsonArray ?? new()).Select(c => c?["text"]?.GetValue<string>()));
+
+    static JsonNode Rpc(string method, JsonObject parameters)
+    {
+        var response = Post(new JsonObject { ["jsonrpc"] = "2.0", ["id"] = ++nextId, ["method"] = method, ["params"] = parameters });
+        if (response?["error"] is { } error)
+        {
+            var tool = parameters["name"]?.GetValue<string>();
+            var message = error["message"]?.ToString() ?? error.ToJsonString();
+            // -32601/-32602: unknown method or tool; it may have been renamed or removed in this release.
+            var unknown = error["code"]?.ToString() is "-32601" or "-32602"
+                          && !message.Contains("session token", StringComparison.OrdinalIgnoreCase);
+            throw new CliError(tool is not null && unknown
+                ? $"Service Studio does not accept the tool '{tool}' ({message}); it may have been renamed or removed in this release."
+                : $"{tool ?? method}: {message}", 2);
+        }
+        return response?["result"] ?? throw new CliError($"{method}: empty response", 2);
+    }
+
+    static void Notify(string method) => Post(new JsonObject { ["jsonrpc"] = "2.0", ["method"] = method });
+
+    // The endpoint wants both content types and answers JSON or SSE ("data: {...}" lines).
+    static JsonNode? Post(JsonObject body)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, Url)
+        {
+            Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+        using var response = Http.Send(request);
+        var text = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+        var json = text.TrimStart().StartsWith('{') ? text
+            : string.Join("", text.Split('\n').Where(l => l.StartsWith("data:")).Select(l => l[5..].Trim()));
+        if (!response.IsSuccessStatusCode && !json.TrimStart().StartsWith('{'))
+            throw new CliError($"HTTP {(int)response.StatusCode} {response.ReasonPhrase} from {Url}: {Shorten(text)}", 2);
+        return json.Length == 0 ? null : JsonNode.Parse(json);
+    }
+}

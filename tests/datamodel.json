@@ -1,0 +1,25 @@
+{
+  // three related entities, a DTO, an exception and an action signature
+  "exceptions": ["InvalidOrder"],
+  "entities": [
+    { "name": "Customer", "attributes": [
+        { "name": "Name", "type": "Text", "length": 100, "mandatory": true },
+        { "name": "Email", "type": "Email", "length": 250 } ] },
+    { "name": "Order", "attributes": [
+        { "name": "CustomerId", "type": "Customer Identifier", "mandatory": true },
+        { "name": "Total", "type": "Decimal", "length": 37, "decimals": 2, "default": "0" },
+        { "name": "PlacedOn", "type": "Date Time" } ] },
+    { "name": "OrderLine", "attributes": [
+        { "name": "OrderId", "type": "Order Identifier", "mandatory": true },
+        { "name": "Quantity", "type": "Integer", "default": "1" } ] }
+  ],
+  "structures": [
+    { "name": "OrderDto", "attributes": [
+        { "name": "Id", "type": "Order Identifier" },
+        { "name": "Lines", "type": "List of OrderLine" } ] }
+  ],
+  "serverActions": [
+    { "name": "FetchOrder", "inputs": [ { "name": "OrderId", "type": "Order Identifier", "mandatory": true } ],
+      "outputs": [ { "name": "Order", "type": "OrderDto" } ] }
+  ]
+}

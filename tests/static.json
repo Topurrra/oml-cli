@@ -1,0 +1,10 @@
+{
+  "staticEntities": [{ "name": "Status", "attributes": [{ "name": "Color", "length": 30 }],
+    "records": [{ "identifier": "Active", "label": "Active", "order": 1, "isActive": true, "values": { "Color": "\"#16a34a\"" } },
+                { "identifier": "Inactive", "label": "Inactive", "order": 2, "isActive": false }] }],
+  "entities": [{ "name": "Item", "attributes": [{ "name": "StatusId", "type": "Status Identifier" }] }],
+  "clientActions": [{ "name": "DefaultStatus", "outputs": [{ "name": "Id", "type": "Status Identifier" }],
+    "flow": [{ "kind": "assign", "assign": { "Id": "Entities.Status.Active" } }] }],
+  "blocks": [{ "name": "Styled", "styleSheet": ".static-test { color: green; }", "actions": [
+    { "name": "Ready", "flow": [{ "kind": "javaScript", "name": "Motion", "javaScript": "/* static self-test */ void 0;" }] }], "onReady": "Ready" }]
+}

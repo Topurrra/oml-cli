@@ -1,0 +1,275 @@
+{
+  "entities": [
+    {
+      "name": "Customer",
+      "attributes": [
+        {
+          "name": "Name",
+          "type": "Text"
+        }
+      ]
+    },
+    {
+      "name": "Order",
+      "attributes": [
+        {
+          "name": "CustomerId",
+          "type": "Customer Identifier"
+        },
+        {
+          "name": "Total",
+          "type": "Decimal"
+        }
+      ]
+    }
+  ],
+  "serverActions": [
+    {
+      "name": "QueryTotals",
+      "flow": [
+        {
+          "kind": "aggregate",
+          "name": "Totals",
+          "sources": [
+            "Order",
+            "Customer"
+          ],
+          "joins": [
+            {
+              "type": "only with",
+              "left": "Order",
+              "right": "Customer",
+              "condition": "Order.CustomerId = Customer.Id"
+            }
+          ],
+          "groupBy": [
+            "Order.CustomerId"
+          ],
+          "aggregates": [
+            {
+              "name": "Total",
+              "function": "Sum",
+              "attribute": "Order.Total"
+            },
+            {
+              "name": "Average",
+              "function": "Avg",
+              "attribute": "Order.Total"
+            },
+            {
+              "name": "Lowest",
+              "function": "Min",
+              "attribute": "Order.Total"
+            },
+            {
+              "name": "Highest",
+              "function": "Max",
+              "attribute": "Order.Total"
+            },
+            {
+              "name": "Number",
+              "function": "Count",
+              "attribute": "Order.Id"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "screens": [
+    {
+      "name": "Orders",
+      "locals": [
+        {
+          "name": "SelectedCustomer",
+          "type": "Customer Identifier"
+        }
+      ],
+      "aggregates": [
+        {
+          "name": "JoinedOrders",
+          "sources": [
+            "Order",
+            "Customer"
+          ],
+          "joins": [
+            {
+              "type": "with or without",
+              "left": "Order",
+              "right": "Customer",
+              "condition": "Order.CustomerId = Customer.Id"
+            }
+          ],
+          "calculated": [
+            {
+              "name": "Label",
+              "expression": "Customer.Name + \" (\" + Order.Total + \")\""
+            }
+          ],
+          "maxRecords": 50
+        },
+        {
+          "name": "GroupedOrders",
+          "sources": [
+            "Order"
+          ],
+          "groupBy": [
+            "Order.CustomerId"
+          ],
+          "aggregates": [
+            {
+              "name": "Total",
+              "function": "Sum",
+              "attribute": "Order.Total"
+            }
+          ]
+        },
+        {
+          "name": "FullOrders",
+          "sources": [
+            "Order",
+            "Customer"
+          ],
+          "joins": [
+            {
+              "type": "with",
+              "left": "Order",
+              "right": "Customer",
+              "condition": "Order.CustomerId = Customer.Id"
+            }
+          ]
+        }
+      ],
+      "dataActions": [
+        {
+          "name": "LoadSummary",
+          "outputs": [
+            {
+              "name": "Value",
+              "type": "Integer"
+            }
+          ],
+          "flow": [
+            {
+              "kind": "assign",
+              "assign": {
+                "Value": "1"
+              }
+            }
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "name": "RefreshOrders",
+          "flow": [
+            {
+              "kind": "refreshData",
+              "name": "Reload",
+              "dataSource": "JoinedOrders"
+            },
+            {
+              "kind": "refreshData",
+              "name": "ReloadSummary",
+              "dataSource": "LoadSummary"
+            },
+            {
+              "kind": "switch",
+              "name": "Choose",
+              "cases": [
+                {
+                  "condition": "SelectedCustomer <> NullIdentifier()",
+                  "next": "GoDetail"
+                },
+                {
+                  "condition": "JoinedOrders.List.Empty",
+                  "next": "End"
+                }
+              ],
+              "otherwise": "Done"
+            },
+            {
+              "kind": "destination",
+              "name": "GoDetail",
+              "screen": "Detail",
+              "args": {
+                "CustomerId": "SelectedCustomer"
+              }
+            },
+            {
+              "kind": "end",
+              "name": "Done"
+            }
+          ]
+        }
+      ],
+      "widgets": [
+        {
+          "type": "TableRecords",
+          "source": "JoinedOrders.List",
+          "row": [
+            {
+              "type": "RowCell",
+              "children": [
+                {
+                  "type": "Link",
+                  "name": "DetailLink",
+                  "onClick": "Detail",
+                  "args": {
+                    "CustomerId": "JoinedOrders.List.Current.Order.CustomerId"
+                  },
+                  "children": [
+                    {
+                      "type": "Expression",
+                      "value": "JoinedOrders.List.Current.Label"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "Button",
+          "name": "DetailButton",
+          "onClick": "Detail",
+          "args": {
+            "CustomerId": "SelectedCustomer"
+          },
+          "children": [
+            {
+              "type": "Text",
+              "text": "Detail"
+            }
+          ]
+        },
+        {
+          "type": "Button",
+          "onClick": "RefreshOrders",
+          "children": [
+            {
+              "type": "Text",
+              "text": "Refresh"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Detail",
+      "inputs": [
+        {
+          "name": "CustomerId",
+          "type": "Customer Identifier",
+          "mandatory": true
+        }
+      ],
+      "widgets": [
+        {
+          "type": "Expression",
+          "value": "CustomerId"
+        }
+      ]
+    }
+  ]
+}

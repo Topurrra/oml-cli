@@ -1,0 +1,8 @@
+{ "entities": [ { "name": "Item", "attributes": [ { "name": "Label", "length": 50 } ] } ],
+  "serviceActions": [
+    { "name": "AddItem", "inputs": [ { "name": "Label", "type": "Text", "mandatory": true } ], "outputs": [ { "name": "Id", "type": "Item Identifier" } ],
+      "locals": [ { "name": "Rec", "type": "Item" } ],
+      "flow": [
+        { "kind": "assign", "name": "Fill", "assign": { "Rec.Label": "Label" } },
+        { "kind": "execute", "action": "CreateItem", "args": { "Source": "Rec" } },
+        { "kind": "assign", "name": "Out", "assign": { "Id": "CreateItem.Id" } } ] } ] }

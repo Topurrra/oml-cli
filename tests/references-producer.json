@@ -1,0 +1,9 @@
+{
+  "entities": [{ "name": "Customer", "public": true, "attributes": [{ "name": "Name" }] }],
+  "structures": [{ "name": "OrderDto", "public": true, "attributes": [{ "name": "CustomerId", "type": "Customer Identifier" }] }],
+  "serverActions": [{ "name": "GetCustomerById", "public": true, "inputs": [{ "name": "Id", "type": "Customer Identifier" }], "flow": [] }, { "name": "PrivateAction", "flow": [] }],
+  "clientActions": [{ "name": "ClientHello", "public": true, "flow": [] }],
+  "blocks": [{ "name": "CustomerCard", "flow": "ProducerFlow", "widgets": [{ "type": "Text", "text": "Customer" }] }],
+  "roles": [{ "name": "SupportRole", "public": true }],
+  "edits": [{ "op": "set", "element": "CustomerCard", "properties": { "public": true } }]
+}

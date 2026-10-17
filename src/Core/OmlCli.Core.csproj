@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- Service Studio's own assemblies disagree on library versions at compile time; at run time the
+         launcher's load context resolves them, so the conflict warning is noise. -->
+    <MSBuildWarningsAsMessages>MSB3277</MSBuildWarningsAsMessages>
+    <SS Condition="'$(SS)' == ''">C:\Program Files\OutSystems\Service Studio 11\Service Studio</SS>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\JsonOutput.cs" Link="JsonOutput.cs" />
+    <Compile Include="..\AssetFiles.cs" Link="AssetFiles.cs" />
+    <!-- Compile-time only. At run time every one of these, and whatever they depend on,
+         comes from the installed Service Studio through the launcher's load context. -->
+    <Reference Include="$(SS)\OutSystems.Model.V1.dll" Private="false" />
+    <Reference Include="$(SS)\SkiaSharp.dll" Private="false" />
+    <Reference Include="$(SS)\Svg.Skia.dll" Private="false" />
+    <Reference Include="$(SS)\Svg.Model.dll" Private="false" />
+    <Reference Include="$(SS)\ShimSkiaSharp.dll" Private="false" />
+    <Reference Include="$(SS)\ServiceStudio.PluginAPI.dll" Private="false" />
+    <Reference Include="$(SS)\ServiceStudio.Framework.dll" Private="false" />
+    <Reference Include="$(SS)\ServiceStudio.Common.dll" Private="false" />
+    <Reference Include="$(SS)\OutSystems.Model.Plugins.dll" Private="false" />
+    <Reference Include="$(SS)\Plugins\ServiceStudio\ServiceStudio.Plugin.NRWidgets.dll" Private="false" />
+  </ItemGroup>
+</Project>

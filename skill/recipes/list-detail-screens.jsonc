@@ -1,0 +1,16 @@
+// Build registered-only Product list/detail screens with the module's LayoutTopMenu.
+// Base: entity-with-crud output on ref/falcon.oml; use its own LayoutTopMenu and handler.
+// Rename Product, Products, ProductDetail and layout names to match your module.
+// Related keys: screens, template, entity, layout, access, actions. Save validates on server.
+{
+  "screens": [
+    { "name": "Products", "template": "list", "entity": "Product", "layout": "LayoutTopMenu",
+      "access": { "anonymous": false, "registered": true } },
+    { "name": "ProductDetail", "template": "detail", "entity": "Product", "layout": "LayoutTopMenu",
+      "access": { "anonymous": false, "registered": true },
+      "actions": [{ "name": "Save", "flow": [
+        { "kind": "execute", "action": "Product_CreateOrUpdate", "args": { "Product": "FetchProductRecords.List.Current.Product" } },
+        { "kind": "destination", "screen": "Products" }
+      ] }] }
+  ]
+}

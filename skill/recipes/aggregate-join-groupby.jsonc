@@ -1,0 +1,24 @@
+// Build a joined, filtered, sorted aggregate with Sum and Count per category.
+// Base: fresh CrossDevice. Rename Category/Product and their expressions together.
+// Related keys: sources, joins, filters, sorts, groupBy, aggregates, maxRecords.
+{
+  "entities": [
+    { "name": "Category", "attributes": [{ "name": "Name" }] },
+    { "name": "Product", "attributes": [
+      { "name": "CategoryId", "type": "Category Identifier" }, { "name": "Price", "type": "Decimal" }
+    ] }
+  ],
+  "serverActions": [{ "name": "CategoryTotals", "public": true,
+    "outputs": [{ "name": "CategoryCount", "type": "Integer" }], "flow": [
+    { "kind": "aggregate", "name": "Totals", "sources": ["Product", "Category"],
+      "joins": [{ "type": "only with", "left": "Product", "right": "Category", "condition": "Product.CategoryId = Category.Id" }],
+      "filters": ["Product.Price >= 0"],
+      "sorts": [{ "attribute": "Product.CategoryId", "descending": false }],
+      "groupBy": ["Product.CategoryId"],
+      "aggregates": [
+        { "name": "TotalPrice", "function": "Sum", "attribute": "Product.Price" },
+        { "name": "ProductCount", "function": "Count", "attribute": "Product.Id" }
+      ], "maxRecords": 50 },
+    { "kind": "assign", "assign": { "CategoryCount": "Totals.List.Length" } }
+  ] }]
+}

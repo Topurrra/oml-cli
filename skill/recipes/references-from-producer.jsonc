@@ -1,0 +1,14 @@
+// Run oml find first; ask the user to approve the producer elements before use.
+// Base: fresh CrossDevice. Replace producer path and RecipeProducer qualified names.
+// Producer must export public Product and Product_GetById(Id: Product Identifier).
+// Related keys: references, qualified types, aggregate sources, execute.action.
+{
+  "references": [{ "producer": "tmp/recipes/producer.oml", "elements": ["Product", "Product_GetById"] }],
+  "serverActions": [{ "name": "UseCatalog", "public": true, "inputs": [{ "name": "Id", "type": "RecipeProducer.Product Identifier" }],
+    "outputs": [{ "name": "ProductCount", "type": "Integer" }],
+    "flow": [
+      { "kind": "aggregate", "name": "Products", "sources": ["RecipeProducer.Product"], "maxRecords": 10 },
+      { "kind": "execute", "action": "RecipeProducer.Product_GetById", "args": { "Id": "Id" } },
+      { "kind": "assign", "assign": { "ProductCount": "Products.List.Length" } }
+    ] }]
+}

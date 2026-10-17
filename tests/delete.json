@@ -1,0 +1,10 @@
+{
+  "entities": [
+    { "name": "UnusedEntity", "public": true, "attributes": [{ "name": "Name" }] },
+    { "name": "KeptEntity", "attributes": [{ "name": "UnusedColumn", "type": "Decimal" }, { "name": "KeptColumn" }] }
+  ],
+  "edits": [
+    { "op": "delete", "element": "KeptEntity/UnusedColumn", "allowDataLoss": true },
+    { "op": "delete", "element": "UnusedEntity", "allowDataLoss": true }
+  ]
+}

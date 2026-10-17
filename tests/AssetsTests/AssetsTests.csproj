@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RollForward>LatestMajor</RollForward>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <SS Condition="'$(SS)' == ''">C:\Program Files\OutSystems\Service Studio 11\Service Studio</SS>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="$(SS)\SkiaSharp.dll" Private="false" />
+    <Reference Include="$(SS)\Svg.Skia.dll" Private="false" />
+    <Reference Include="$(SS)\Svg.Model.dll" Private="false" />
+    <Reference Include="$(SS)\ShimSkiaSharp.dll" Private="false" />
+  </ItemGroup>
+</Project>

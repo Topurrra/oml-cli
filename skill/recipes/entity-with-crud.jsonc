@@ -1,0 +1,22 @@
+// Build Product, a static ProductStatus, and checked save/delete actions.
+// Base: fresh CrossDevice. Rename Product and all matching types/actions together.
+// Related keys: entities, staticEntities, exceptions, serverActions, flow.
+{
+  "staticEntities": [{ "name": "ProductStatus", "public": true, "records": [{ "identifier": "Active", "label": "Active" }] }],
+  "entities": [{ "name": "Product", "public": true, "attributes": [
+    { "name": "Name", "length": 100, "mandatory": true },
+    { "name": "StatusId", "type": "ProductStatus Identifier" }
+  ] }],
+  "exceptions": ["InvalidProduct"],
+  "serverActions": [
+    { "name": "Product_CreateOrUpdate", "public": true, "inputs": [{ "name": "Product", "type": "Product", "mandatory": true }],
+      "outputs": [{ "name": "Id", "type": "Product Identifier" }], "flow": [
+        { "kind": "if", "name": "ValidName", "condition": "Trim(Product.Name) <> \"\"", "true": "Save", "false": "Invalid" },
+        { "kind": "execute", "name": "Save", "action": "CreateOrUpdateProduct", "args": { "Source": "Product" } },
+        { "kind": "assign", "name": "ReturnId", "assign": { "Id": "Save.Id" }, "next": "End" },
+        { "kind": "raiseException", "name": "Invalid", "exception": "InvalidProduct", "message": "\"Name is required\"" }
+      ] },
+    { "name": "Product_Delete", "public": true, "inputs": [{ "name": "Id", "type": "Product Identifier", "mandatory": true }],
+      "flow": [{ "kind": "execute", "action": "DeleteProduct", "args": { "Id": "Id" } }] }
+  ]
+}

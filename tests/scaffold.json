@@ -1,0 +1,29 @@
+{
+  "entities": [
+    { "name": "Customer", "attributes": [ { "name": "Name", "type": "Text", "length": 80 } ] },
+    { "name": "Order", "attributes": [
+      { "name": "Name", "type": "Text", "length": 80, "mandatory": true },
+      { "name": "Total", "type": "Decimal" },
+      { "name": "IsActive", "type": "Boolean" },
+      { "name": "DueDate", "type": "Date" },
+      { "name": "CustomerId", "type": "Customer Identifier" }
+    ] }
+  ],
+  "blocks": [
+    { "name": "LocalLayout", "widgets": [
+      { "type": "Placeholder", "name": "Title" },
+      { "type": "Placeholder", "name": "Actions" },
+      { "type": "Placeholder", "name": "MainContent" },
+      { "type": "Placeholder", "name": "Footer" }
+    ] }
+  ],
+  "screens": [
+    { "name": "Orders", "template": "list", "entity": "Order", "layout": "LocalLayout",
+      "title": [ { "type": "Text", "text": "Orders" } ],
+      "placeholders": { "Actions": [ { "type": "Text", "text": "Order management" } ], "Footer": [ { "type": "Text", "text": "Footer" } ] }
+    },
+    { "name": "OrderDetail", "template": "detail", "entity": "Order", "layout": "LocalLayout" },
+    { "name": "BareOrders", "template": "list", "entity": "Order" },
+    { "name": "CustomOrders", "template": "list", "entity": "Order", "widgets": [ { "type": "Text", "text": "Override" } ] }
+  ]
+}

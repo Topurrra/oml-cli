@@ -1,0 +1,26 @@
+{
+  "entities": [{ "name": "Order", "attributes": [{ "name": "Name" }] }],
+  "roles": [{ "name": "OrderManager", "description": "Manages orders", "persistent": true }],
+  "siteProperties": [{ "name": "MaxItems", "type": "Integer", "default": "50", "multiTenant": false }],
+  "serverActions": [
+    { "name": "CleanupOldOrders", "locals": [{ "name": "Limit", "type": "Integer" }],
+      "flow": [{ "kind": "assign", "name": "ReadLimit", "assign": { "Limit": "Site.MaxItems" } }] },
+    { "name": "CheckAccess", "flow": [{ "kind": "execute", "action": "CheckOrderManagerRole", "args": { "UserId": "NullIdentifier()" } }] },
+    { "name": "GrantAccess", "flow": [{ "kind": "execute", "action": "GrantOrderManagerRole", "args": { "UserId": "NullIdentifier()" } }] },
+    { "name": "RevokeAccess", "flow": [{ "kind": "execute", "action": "RevokeOrderManagerRole", "args": { "UserId": "NullIdentifier()" } }] }
+  ],
+  "timers": [{ "name": "NightlyCleanup", "action": "CleanupOldOrders", "schedule": "WhenPublished", "timeout": 20, "priority": "Normal", "description": "Cleanup" }],
+  "screens": [{ "name": "ReviewOrder", "inputs": [{ "name": "OrderId", "type": "Order Identifier" }],
+    "access": { "anonymous": false, "registered": false, "roles": ["OrderManager"] } }],
+  "edits": [{ "op": "setAccess", "screen": "MainFlow/ReviewOrder", "roles": ["OrderManager"] }],
+  "processes": [{ "name": "ApproveOrder", "launchOn": "Order", "detail": "\"Order \" + OrderId",
+    "inputs": [{ "name": "Approved", "type": "Boolean", "default": "True" }],
+    "flow": [
+      { "kind": "start", "name": "Start", "next": "Review" },
+      { "kind": "humanActivity", "name": "Review", "destination": "ReviewOrder", "args": { "OrderId": "OrderId" }, "roles": ["OrderManager"], "instructions": "Review this order" },
+      { "kind": "automaticActivity", "name": "RecordReview", "action": "CleanupOldOrders" },
+      { "kind": "decision", "name": "WasApproved", "condition": "Approved", "true": "ApprovedEnd", "false": "RejectedEnd" },
+      { "kind": "end", "name": "ApprovedEnd" },
+      { "kind": "end", "name": "RejectedEnd" }
+    ] }]
+}

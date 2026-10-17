@@ -1,0 +1,4 @@
+# Store text files with LF in git; checkouts follow each developer's settings.
+* text=auto
+*.ps1 text eol=crlf
+*.oml binary

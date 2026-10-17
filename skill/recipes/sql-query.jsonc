@@ -1,0 +1,16 @@
+// Build parameterized SQL with entity output and a For Each reading its rows.
+// Base: fresh CrossDevice. Rename Product and matching SQL/expression names together.
+// Related keys: sql, params, outputs, maxRecords, forEach, cycle, next.
+// Model validation does not execute SQL. Test the query in your target environment.
+{
+  "entities": [{ "name": "Product", "attributes": [{ "name": "Name", "length": 100 }] }],
+  "serverActions": [{ "name": "SearchProducts", "public": true, "inputs": [{ "name": "Search" }],
+    "outputs": [{ "name": "LastName" }], "flow": [
+      { "kind": "sql", "name": "Matches",
+        "sql": "SELECT {Product}.* FROM {Product} WHERE {Product}.[Name] LIKE @Pattern",
+        "params": [{ "name": "Pattern", "type": "Text", "value": "\"%\" + Search + \"%\"", "expandInline": false }],
+        "outputs": ["Product"], "maxRecords": 50 },
+      { "kind": "forEach", "name": "Loop", "recordList": "Matches.List", "cycle": "CopyName", "next": "End" },
+      { "kind": "assign", "name": "CopyName", "assign": { "LastName": "Matches.List.Current.Product.Name" }, "next": "Loop" }
+    ] }]
+}

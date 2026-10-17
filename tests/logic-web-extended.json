@@ -1,0 +1,11 @@
+{
+  "sessionVariables":[{"name":"RequestCount","type":"Integer","default":"0"}],
+  "serverActions":[{"name":"BeginRequest","flow":[
+    {"kind":"assign","name":"CountRequest","assign":{"Session.RequestCount":"Session.RequestCount + 1"}},
+    {"kind":"exceptionHandler","name":"OnError","exception":"AllExceptions","abortTransaction":true,"logError":true}
+  ]}],
+  "systemEvents":{"onSessionStart":"BeginRequest","onBeginWebRequest":"BeginRequest"},
+  "screens":[{"name":"ExportFile","actions":[{"name":"GetFile","locals":[{"name":"Content","type":"Binary Data"}],"flow":[
+    {"kind":"download","name":"DownloadFile","fileContent":"Content","fileName":"\"export.bin\"","mimeType":"\"application/octet-stream\"","saveToDisk":true}
+  ]}]}]
+}

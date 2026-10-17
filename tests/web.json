@@ -1,0 +1,38 @@
+{
+  "entities": [{ "name": "WebItem", "attributes": [{ "name": "Name", "length": 100 }] }],
+  "blocks": [{ "name": "WebCard", "flow": "Common", "inputs": [{ "name": "Caption" }],
+    "locals": [{ "name": "Ready", "type": "Boolean" }],
+    "preparation": [{ "kind": "assign", "name": "Initialize", "assign": { "Ready": "True" } }],
+    "widgets": [{ "type": "Container", "name": "Card", "children": [{ "type": "Expression", "value": "Caption" }] }] }],
+  "screens": [
+    { "name": "WebItems", "title": "\"Web items\"", "locals": [{ "name": "ItemName" }, { "name": "Item", "type": "WebItem" }],
+      "preparation": [{ "kind": "aggregate", "name": "FetchItems", "sources": ["WebItem"], "maxRecords": 10 }],
+      "actions": [{ "name": "Save", "flow": [
+        { "kind": "assign", "name": "SetName", "assign": { "Item.Name": "ItemName" } },
+        { "kind": "execute", "action": "CreateOrUpdateWebItem", "args": { "Source": "Item" } }
+      ] }],
+      "widgets": [
+        { "type": "Container", "name": "Editor", "style": "\"editor\"", "children": [
+          { "type": "Input", "name": "NameInput", "variable": "ItemName" },
+          { "type": "Button", "name": "SaveButton", "onClick": "Save", "children": [{ "type": "Text", "text": "Save" }] }
+        ] },
+        { "type": "BlockInstance", "name": "Summary", "sourceBlock": "WebCard", "args": { "Caption": "\"Summary\"" } },
+        { "type": "If", "condition": "not FetchItems.List.Empty", "trueBranch": [
+          { "type": "TableRecords", "name": "ItemsTable", "source": "FetchItems.List",
+            "headerRow": [{ "type": "HeaderCell", "children": [{ "type": "Text", "text": "Name" }] }],
+            "row": [{ "type": "RowCell", "children": [
+              { "type": "Link", "name": "OpenDetail", "onClick": "WebDetail", "args": { "ItemId": "FetchItems.List.Current.WebItem.Id" },
+                "children": [{ "type": "Expression", "value": "FetchItems.List.Current.WebItem.Name" }] }
+            ] }] }
+        ], "falseBranch": [{ "type": "Text", "text": "No items" }] },
+        { "type": "ListRecords", "name": "ItemsList", "source": "FetchItems.List", "children": [
+          { "type": "Expression", "value": "FetchItems.List.Current.WebItem.Name" }
+        ] },
+        { "type": "Form", "name": "ItemForm", "source": "Item", "rows": [
+          { "type": "Row", "cells": [{ "type": "Cell", "children": [{ "type": "Text", "text": "Edit item" }] }] }
+        ] }
+      ] },
+    { "name": "WebDetail", "inputs": [{ "name": "ItemId", "type": "WebItem Identifier" }],
+      "widgets": [{ "type": "Expression", "value": "ItemId" }] }
+  ]
+}

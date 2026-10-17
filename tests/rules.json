@@ -1,0 +1,160 @@
+{
+  "entities": [
+    {
+      "name": "RuleEntity",
+      "attributes": [
+        {
+          "name": "Value",
+          "length": 50
+        }
+      ]
+    }
+  ],
+  "staticEntities": [
+    {
+      "name": "RuleStatus",
+      "attributes": [
+        {
+          "name": "Color"
+        }
+      ],
+      "records": [
+        {
+          "identifier": "Active"
+        }
+      ]
+    }
+  ],
+  "structures": [
+    {
+      "name": "RuleDto",
+      "attributes": [
+        {
+          "name": "Caption"
+        }
+      ]
+    }
+  ],
+  "serverActions": [
+    {
+      "name": "RuleAction",
+      "inputs": [
+        {
+          "name": "Input"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Output"
+        }
+      ],
+      "locals": [
+        {
+          "name": "Scratch"
+        }
+      ],
+      "flow": [
+        {
+          "kind": "assign",
+          "name": "Copy",
+          "assign": {
+            "Scratch": "Input"
+          }
+        },
+        {
+          "kind": "sql",
+          "name": "Read",
+          "sql": "SELECT 'ok'",
+          "outputs": [
+            "RuleDto"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RuleTimerAction"
+    }
+  ],
+  "clientActions": [
+    {
+      "name": "RuleClient",
+      "inputs": [
+        {
+          "name": "Input"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Output"
+        }
+      ]
+    }
+  ],
+  "screens": [
+    {
+      "name": "RuleScreen"
+    }
+  ],
+  "blocks": [
+    {
+      "name": "RuleBlock"
+    }
+  ],
+  "exceptions": [
+    "RuleError"
+  ],
+  "roles": [
+    {
+      "name": "RuleRole"
+    }
+  ],
+  "siteProperties": [
+    {
+      "name": "RuleProperty"
+    }
+  ],
+  "timers": [
+    {
+      "name": "RuleTimer",
+      "action": "RuleTimerAction"
+    }
+  ],
+  "restClients": [
+    {
+      "name": "RuleApi",
+      "baseUrl": "https://example.com",
+      "actions": [
+        {
+          "name": "GetValue",
+          "url": "/value"
+        }
+      ]
+    }
+  ],
+  "restServices": [
+    {
+      "name": "RuleService",
+      "actions": [
+        {
+          "name": "GetValue"
+        }
+      ]
+    }
+  ],
+  "processes": [
+    {
+      "name": "RuleProcess",
+      "flow": [
+        {
+          "kind": "start",
+          "name": "Start",
+          "next": "End"
+        },
+        {
+          "kind": "end",
+          "name": "End"
+        }
+      ]
+    }
+  ]
+}
