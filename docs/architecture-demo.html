@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<!-- Copyright (c) 2026 OutSystems. Adapted from outsystems-app-architecture template under the MIT License. Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture</title>
+<style>
+:root { color-scheme: dark; --bg:#0a0a0f; --panel:#11111a; --card:#161620; --card2:#1c1c28; --line:#353548; --text:#f5f5f7; --muted:#aaaabb; --red:#ff6476; --ui:#ff9bac; --core:#8abbff; --foundation:#59dfb6; --edge:#85859c; --group0:#b6a0ff; --group1:#f5bd60; --group2:#64cee9; --group3:#e49cdd; }
+:root[data-theme="light"] { color-scheme:light; --bg:#f4f5f9; --panel:#fff; --card:#fff; --card2:#eef0f6; --line:#b8becf; --text:#202332; --muted:#515b70; --red:#bc233a; --ui:#a52c52; --core:#2457ad; --foundation:#087755; --edge:#65728a; --group0:#7053b7; --group1:#956000; --group2:#087591; --group3:#a13e97; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+button,input,summary { font:inherit; } button,summary { cursor:pointer; }
+button,input { color:var(--text); background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px 12px; }
+button:hover { border-color:var(--red); } :focus-visible { outline:3px solid var(--core); outline-offset:3px; }
+header { display:flex; align-items:center; gap:16px; padding:20px 26px; border-bottom:1px solid var(--line); background:linear-gradient(180deg,var(--panel),var(--bg)); flex-wrap:wrap; }
+.mark { display:grid; place-items:center; width:42px; height:42px; background:linear-gradient(135deg,#ff3d52,#c42030); border-radius:11px; color:white; font-size:23px; font-weight:800; box-shadow:0 6px 20px #ff3d522e; }
+header > div:nth-child(2) { min-width:0; flex:1 1 420px; }
+h1 { margin:0; font-size:22px; letter-spacing:-.03em; overflow-wrap:anywhere; } h2 { font-size:17px; margin:0 0 12px; } h3 { font-size:14px; margin:20px 0 8px; } p { margin:6px 0 12px; }
+.sub,.hint { color:var(--muted); font-size:12px; } .tools { margin-left:auto; display:flex; gap:10px; align-items:center; flex-wrap:wrap; } input { width:250px; max-width:100%; }
+.stats { display:flex; gap:10px; padding:14px 26px; flex-wrap:wrap; }
+.stat { flex:1; min-width:110px; background:linear-gradient(180deg,var(--card),var(--card2)); border:1px solid var(--line); border-left:3px solid var(--accent,var(--core)); border-radius:10px; padding:8px 14px; }
+.stat b { display:block; font-size:24px; line-height:1.3; } .stat span { color:var(--muted); font-size:12px; }
+main { display:grid; grid-template-columns:minmax(0,1fr) 350px; margin:0 26px 20px; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+.canvas-wrap { min-width:0; background:radial-gradient(ellipse at center,#ff3d5208,transparent 65%); }
+.toolbar { padding:10px 14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; border-bottom:1px solid var(--line); } .toolbar .hint { margin-left:auto; }
+#graph { width:100%; height:650px; display:block; touch-action:none; cursor:grab; } #graph:active { cursor:grabbing; }
+#graph text { fill:var(--text); font-family:inherit; } .band { fill:var(--panel); stroke:var(--line); } .band-title { font-size:21px; font-weight:700; } .band-note { font-size:13px; fill:var(--muted)!important; }
+.app-group { fill:none; stroke-width:1.6; } .app-label { font-size:13px; font-weight:600; }
+.node { cursor:pointer; } .node rect { fill:var(--card); stroke-width:1.6; } .node .name { font-size:14px; font-weight:650; } .node .meta { font-size:11px; fill:var(--muted)!important; } .node.external rect { fill:var(--card2); stroke-dasharray:5 4; } .node.selected rect,.node:focus-visible rect { stroke:var(--red); stroke-width:3; }
+.edge { fill:none; stroke:var(--edge); stroke-width:1.5; opacity:.7; } .edge.weak { stroke-dasharray:6 5; } .edge.violation { stroke:var(--red); stroke-width:2; } .edge.active { opacity:1; stroke-width:2.5; }
+.faded { opacity:.13!important; } .node.match rect { stroke:var(--red); stroke-width:3; }
+.legend { display:flex; flex-wrap:wrap; gap:10px 18px; padding:12px 16px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
+.legend i { display:inline-block; vertical-align:middle; width:19px; border-top:2px solid var(--edge); margin-right:5px; } .legend .weak { border-top-style:dashed; } .legend .violation { border-color:var(--red); } .legend .external { border:1px dashed var(--muted); height:12px; }
+#details { background:var(--panel); padding:18px; border-left:1px solid var(--line); max-height:770px; overflow:auto; overflow-wrap:anywhere; }
+#details h2 { margin-top:10px; } .detail-section { border-top:1px solid var(--line); padding-top:8px; margin-top:16px; } ul { margin:6px 0; padding-left:19px; } li { margin:4px 0; }
+dl { margin:0; display:grid; grid-template-columns:1fr auto; gap:4px 12px; } dt { color:var(--muted); } dd { margin:0; }
+.link { padding:2px 6px; text-align:left; color:var(--core); } #search-results { margin:0 26px 12px; } #search-results:empty { display:none; } #search-results button { margin:3px; }
+.findings { margin:20px 26px 28px; } .findings-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; } .severity { border:1px solid var(--line); border-radius:10px; padding:16px; background:var(--panel); }
+.finding { border-top:1px solid var(--line); padding:12px 0; } .finding button { width:100%; text-align:left; font-weight:600; } .finding p { font-size:13px; } .finding .fix { color:var(--muted); } .high { color:var(--red); } .medium { color:var(--ui); } .low { color:var(--core); }
+footer { padding:0 26px 22px; color:var(--muted); font-size:12px; } .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+@media(max-width:1000px) { main { grid-template-columns:1fr; } #details { border-left:0; border-top:1px solid var(--line); max-height:500px; } .findings-grid { grid-template-columns:1fr; } }
+@media print { :root,:root[data-theme] { --bg:white; --panel:#fafafa; --card:white; --card2:#eee; --line:#999; --text:#111; --muted:#444; --red:#ac1730; --ui:#9a244a; --core:#2457ad; --foundation:#087755; --edge:#666; } body { font-size:11px; } header { padding:8px; } .tools,.toolbar,#search-results,#reset { display:none; } main { display:block; margin:8px 0; border:0; } #graph { height:auto; aspect-ratio:var(--graph-ratio,1.5); } .node,.edge { opacity:1!important; } #details { max-height:none; overflow:visible; border:0; } .stats { padding:8px 0; } .findings { margin:12px 0; } .findings-grid { display:block; } .severity { margin-bottom:12px; } .finding { break-inside:avoid; } footer { padding:4px 0; } }
+</style>
+</head>
+<body>
+<header><a href="index.html" style="color:inherit;text-underline-offset:3px">Back to oml</a><div class="mark" aria-hidden="true">A</div><div><h1 id="title">Architecture</h1><div class="sub" id="generated"></div></div><div class="tools"><label class="sr-only" for="search">Search module or element name</label><input id="search" type="search" placeholder="Search module or element…" autocomplete="off"><button id="theme" aria-label="Switch color theme">Theme</button></div></header>
+<section class="stats" aria-label="Architecture counts" id="stats"></section>
+<div id="search-results" role="region" aria-label="Search results" aria-live="polite"></div>
+<main><section class="canvas-wrap" aria-label="Three-layer architecture canvas"><div class="toolbar"><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button><button id="fit" aria-label="Fit all modules">Fit</button><button id="reset">Reset selection</button><span class="hint">Scroll / pinch to zoom · drag to pan · + − 0 and arrow keys · Esc resets</span></div><svg id="graph" tabindex="0" role="group" aria-label="Module dependencies. Arrows point from a module to the module it uses."><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--edge)"/></marker><marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--red)"/></marker></defs><g id="bands"></g><g id="edges"></g><g id="nodes"></g></svg><div class="legend" aria-label="Legend"><span style="color:var(--ui)">● End-user</span><span style="color:var(--core)">● Core</span><span style="color:var(--foundation)">● Foundation</span><span><i></i>Strong: data, logic or blocks</span><span><i class="weak"></i>Weak: shared appearance or resources</span><span><i class="violation"></i>Finding</span><span><i class="external"></i>External module</span><span>Arrow → module being used</span></div></section><aside id="details" aria-label="Selected module details"><h2>Explore the architecture</h2><p>Select a module to see what it does, what it uses, and who uses it.</p><p class="hint">The three layers separate user experiences, business logic, and shared building blocks. Read the canvas from top to bottom. Colored outlines group modules from the same application.</p></aside></main>
+<section class="findings" aria-labelledby="findings-title"><h2 id="findings-title">What needs attention</h2><p class="hint">Select a finding to locate its modules. Each finding explains the impact and a possible next step.</p><div id="findings" class="findings-grid"></div></section>
+<footer>Generated by oml · Offline architecture snapshot · External modules show references only; their contents were not inspected.</footer>
+<script type="application/json" id="oml-architecture">{
+  "schema": 1,
+  "generatedAt": "2026-10-17T12:00:00Z",
+  "omlVersion": "0.8.0",
+  "input": {
+    "sources": [
+      "exports/CustomerExperience.oap",
+      "exports/Operations.oap",
+      "exports/SharedPlatform.oap"
+    ],
+    "apps": [],
+    "team": null
+  },
+  "applications": [
+    {
+      "name": "Customer Experience",
+      "modules": [
+        "Shop_Portal",
+        "Support_UI",
+        "Orders_CS",
+        "Customers_Core",
+        "Commerce_Theme"
+      ]
+    },
+    {
+      "name": "Operations",
+      "modules": [
+        "Operations_App",
+        "Inventory_CS",
+        "Shipping_API",
+        "Warehouse_BL",
+        "ERP_IS"
+      ]
+    },
+    {
+      "name": "Shared Platform",
+      "modules": [
+        "Shared_CW",
+        "Identity_CS",
+        "Audit_Lib",
+        "Common_Lib",
+        "Design_Th"
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "name": "Shop_Portal",
+      "application": "Customer Experience",
+      "external": false,
+      "kind": "Reactive",
+      "layer": "EndUser",
+      "layerReason": "suffix _Portal",
+      "description": "Customers browse products, place orders and track delivery.",
+      "counts": {
+        "entities": 0,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 0,
+        "serviceActions": 0,
+        "clientActions": 6,
+        "screens": 2,
+        "blocks": 2,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [],
+        "blocks": [],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [],
+      "screens": [
+        "Home",
+        "OrderDetails"
+      ],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Support_UI",
+      "application": "Customer Experience",
+      "external": false,
+      "kind": "Traditional Web",
+      "layer": "EndUser",
+      "layerReason": "suffix _UI",
+      "description": "Support staff view customer requests. Literal example: \u003c/script\u003e\u003cscript\u003ewindow.untrustedExecuted=true\u003c/script\u003e \u0026 \u003cb\u003etext\u003c/b\u003e.",
+      "counts": {
+        "entities": 0,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 1,
+        "serviceActions": 0,
+        "clientActions": 6,
+        "screens": 1,
+        "blocks": 2,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [
+          "OpenSupportRequest"
+        ],
+        "blocks": [],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [],
+      "screens": [
+        "Dashboard"
+      ],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Orders_CS",
+      "application": "Customer Experience",
+      "external": false,
+      "kind": "Service",
+      "layer": "Core",
+      "layerReason": "suffix _CS",
+      "description": "Stores orders and applies pricing, payment and fulfilment rules.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 0,
+        "structures": 1,
+        "serverActions": 155,
+        "serviceActions": 2,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 1,
+        "processes": 1,
+        "siteProperties": 0,
+        "roles": 1
+      },
+      "public": {
+        "entities": [
+          "Order"
+        ],
+        "actions": [
+          "GetOrder",
+          "SaveOrder",
+          "RepriceLegacyOrder"
+        ],
+        "blocks": [],
+        "structures": [
+          "OrderSummary"
+        ],
+        "staticEntities": []
+      },
+      "entities": [
+        {
+          "name": "Order",
+          "public": true,
+          "attributes": 6,
+          "references": [
+            "Customer"
+          ]
+        }
+      ],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [
+        "CloseExpiredOrders"
+      ],
+      "processes": [
+        "ApproveLargeOrder"
+      ]
+    },
+    {
+      "name": "Customers_Core",
+      "application": "Customer Experience",
+      "external": false,
+      "kind": "Service",
+      "layer": "Core",
+      "layerReason": "suffix _Core",
+      "description": "Customers Core provides shared capabilities for Customer Experience.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 0,
+        "structures": 1,
+        "serverActions": 12,
+        "serviceActions": 2,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 1
+      },
+      "public": {
+        "entities": [
+          "Customer"
+        ],
+        "actions": [
+          "GetCustomer",
+          "SaveCustomer"
+        ],
+        "blocks": [],
+        "structures": [
+          "CustomerSummary"
+        ],
+        "staticEntities": []
+      },
+      "entities": [
+        {
+          "name": "Customer",
+          "public": true,
+          "attributes": 6,
+          "references": []
+        }
+      ],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Commerce_Theme",
+      "application": "Customer Experience",
+      "external": false,
+      "kind": "Library",
+      "layer": "Foundation",
+      "layerReason": "suffix _Theme",
+      "description": "Commerce Theme provides shared capabilities for Customer Experience.",
+      "counts": {
+        "entities": 0,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 0,
+        "serviceActions": 0,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 3,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [],
+        "blocks": [],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Operations_App",
+      "application": "Operations",
+      "external": false,
+      "kind": "Mobile",
+      "layer": "EndUser",
+      "layerReason": "suffix _App",
+      "description": "Operations App provides shared capabilities for Operations.",
+      "counts": {
+        "entities": 0,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 0,
+        "serviceActions": 0,
+        "clientActions": 6,
+        "screens": 1,
+        "blocks": 2,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [],
+        "blocks": [],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [],
+      "screens": [
+        "Dashboard"
+      ],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Inventory_CS",
+      "application": "Operations",
+      "external": false,
+      "kind": "Service",
+      "layer": "Core",
+      "layerReason": "suffix _CS",
+      "description": "Inventory CS provides shared capabilities for Operations.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 1,
+        "structures": 1,
+        "serverActions": 12,
+        "serviceActions": 2,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 1
+      },
+      "public": {
+        "entities": [
+          "Inventory"
+        ],
+        "actions": [
+          "GetInventory",
+          "SaveInventory",
+          "ReserveStock"
+        ],
+        "blocks": [],
+        "structures": [
+          "InventorySummary"
+        ],
+        "staticEntities": [
+          "StockState"
+        ]
+      },
+      "entities": [
+        {
+          "name": "Inventory",
+          "public": true,
+          "attributes": 6,
+          "references": []
+        }
+      ],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Shipping_API",
+      "application": "Operations",
+      "external": false,
+      "kind": "Service",
+      "layer": "Core",
+      "layerReason": "suffix _API",
+      "description": "Shipping API provides shared capabilities for Operations.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 0,
+        "structures": 1,
+        "serverActions": 12,
+        "serviceActions": 2,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 1,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 1
+      },
+      "public": {
+        "entities": [
+          "Shipping"
+        ],
+        "actions": [
+          "GetShipping",
+          "SaveShipping",
+          "CreateShipment"
+        ],
+        "blocks": [],
+        "structures": [
+          "ShippingSummary"
+        ],
+        "staticEntities": []
+      },
+      "entities": [
+        {
+          "name": "Shipping",
+          "public": true,
+          "attributes": 6,
+          "references": []
+        }
+      ],
+      "screens": [],
+      "restExposed": [
+        {
+          "name": "Shipments",
+          "methods": 4
+        }
+      ],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Warehouse_BL",
+      "application": "Operations",
+      "external": false,
+      "kind": "Service",
+      "layer": "Core",
+      "layerReason": "suffix _BL",
+      "description": "Warehouse BL provides shared capabilities for Operations.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 0,
+        "structures": 1,
+        "serverActions": 12,
+        "serviceActions": 2,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 1
+      },
+      "public": {
+        "entities": [
+          "Warehouse"
+        ],
+        "actions": [
+          "GetWarehouse",
+          "SaveWarehouse",
+          "AllocateShipment"
+        ],
+        "blocks": [],
+        "structures": [
+          "WarehouseSummary"
+        ],
+        "staticEntities": []
+      },
+      "entities": [
+        {
+          "name": "Warehouse",
+          "public": true,
+          "attributes": 6,
+          "references": []
+        }
+      ],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "ERP_IS",
+      "application": "Operations",
+      "external": false,
+      "kind": "Service",
+      "layer": "Core",
+      "layerReason": "suffix _IS",
+      "description": "Connects warehouse operations to the ERP service.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 0,
+        "structures": 1,
+        "serverActions": 12,
+        "serviceActions": 2,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 1,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 1
+      },
+      "public": {
+        "entities": [
+          "ERP"
+        ],
+        "actions": [
+          "GetERP",
+          "SaveERP",
+          "SendToERP"
+        ],
+        "blocks": [],
+        "structures": [
+          "ERPSummary"
+        ],
+        "staticEntities": []
+      },
+      "entities": [
+        {
+          "name": "ERP",
+          "public": true,
+          "attributes": 6,
+          "references": []
+        }
+      ],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [
+        {
+          "name": "WarehouseERP",
+          "methods": 5,
+          "baseUrl": "https://erp.example.invalid/api"
+        }
+      ],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Shared_CW",
+      "application": "Shared Platform",
+      "external": false,
+      "kind": "Reactive",
+      "layer": "EndUser",
+      "layerReason": "suffix _CW",
+      "description": "Shared CW provides shared capabilities for Shared Platform.",
+      "counts": {
+        "entities": 0,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 0,
+        "serviceActions": 0,
+        "clientActions": 6,
+        "screens": 1,
+        "blocks": 2,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [],
+        "blocks": [
+          "StatusBadge"
+        ],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [],
+      "screens": [
+        "Dashboard"
+      ],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Identity_CS",
+      "application": "Shared Platform",
+      "external": false,
+      "kind": "Reactive",
+      "layer": "Core",
+      "layerReason": "suffix _CS",
+      "description": "Identity CS provides shared capabilities for Shared Platform.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 0,
+        "structures": 1,
+        "serverActions": 12,
+        "serviceActions": 2,
+        "clientActions": 0,
+        "screens": 1,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 1
+      },
+      "public": {
+        "entities": [
+          "Identity"
+        ],
+        "actions": [
+          "GetIdentity",
+          "SaveIdentity",
+          "Authorize"
+        ],
+        "blocks": [],
+        "structures": [
+          "IdentitySummary"
+        ],
+        "staticEntities": []
+      },
+      "entities": [
+        {
+          "name": "Identity",
+          "public": true,
+          "attributes": 6,
+          "references": []
+        }
+      ],
+      "screens": [
+        "ManageUsers"
+      ],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Audit_Lib",
+      "application": "Shared Platform",
+      "external": false,
+      "kind": "Reactive",
+      "layer": "Foundation",
+      "layerReason": "suffix _Lib",
+      "description": "Writes technical audit events. Currently also owns business audit records.",
+      "counts": {
+        "entities": 1,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 1,
+        "serviceActions": 0,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [
+          "WriteEvent"
+        ],
+        "blocks": [],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [
+        {
+          "name": "BusinessAudit",
+          "public": false,
+          "attributes": 7,
+          "references": []
+        }
+      ],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Common_Lib",
+      "application": "Shared Platform",
+      "external": false,
+      "kind": "Library",
+      "layer": "Foundation",
+      "layerReason": "suffix _Lib",
+      "description": "Common Lib provides shared capabilities for Shared Platform.",
+      "counts": {
+        "entities": 0,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 1,
+        "serviceActions": 0,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 0,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [
+          "FormatDate"
+        ],
+        "blocks": [],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "Design_Th",
+      "application": "Shared Platform",
+      "external": false,
+      "kind": "Library",
+      "layer": "Foundation",
+      "layerReason": "suffix _Th",
+      "description": "Design Th provides shared capabilities for Shared Platform.",
+      "counts": {
+        "entities": 0,
+        "staticEntities": 0,
+        "structures": 0,
+        "serverActions": 0,
+        "serviceActions": 0,
+        "clientActions": 0,
+        "screens": 0,
+        "blocks": 3,
+        "restExposed": 0,
+        "restConsumed": 0,
+        "timers": 0,
+        "processes": 0,
+        "siteProperties": 0,
+        "roles": 0
+      },
+      "public": {
+        "entities": [],
+        "actions": [],
+        "blocks": [],
+        "structures": [],
+        "staticEntities": []
+      },
+      "entities": [],
+      "screens": [],
+      "restExposed": [],
+      "restConsumed": [],
+      "timers": [],
+      "processes": []
+    },
+    {
+      "name": "OutSystemsUI",
+      "external": true,
+      "layer": "Foundation",
+      "layerReason": "known platform module",
+      "application": "(external)"
+    },
+    {
+      "name": "System",
+      "external": true,
+      "layer": "Foundation",
+      "layerReason": "known platform module",
+      "application": "(external)"
+    },
+    {
+      "name": "Crypto.xif",
+      "external": true,
+      "layer": "Foundation",
+      "layerReason": "extension producer",
+      "application": "(external)"
+    }
+  ],
+  "edges": [
+    {
+      "from": "Shop_Portal",
+      "to": "Orders_CS",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "Entity",
+          "name": "Order"
+        },
+        {
+          "kind": "ServerAction",
+          "name": "SaveOrder"
+        },
+        {
+          "kind": "Structure",
+          "name": "OrderSummary"
+        }
+      ]
+    },
+    {
+      "from": "Shop_Portal",
+      "to": "Customers_Core",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "Entity",
+          "name": "Customer"
+        }
+      ]
+    },
+    {
+      "from": "Shop_Portal",
+      "to": "Commerce_Theme",
+      "strong": false,
+      "elements": [
+        {
+          "kind": "Theme",
+          "name": "Commerce"
+        }
+      ]
+    },
+    {
+      "from": "Shop_Portal",
+      "to": "Support_UI",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "OpenSupportRequest"
+        }
+      ]
+    },
+    {
+      "from": "Support_UI",
+      "to": "Customers_Core",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "GetCustomer"
+        }
+      ]
+    },
+    {
+      "from": "Operations_App",
+      "to": "Inventory_CS",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "Entity",
+          "name": "Inventory"
+        },
+        {
+          "kind": "ServerAction",
+          "name": "GetInventory"
+        }
+      ]
+    },
+    {
+      "from": "Operations_App",
+      "to": "Shipping_API",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServiceAction",
+          "name": "CreateShipment"
+        }
+      ]
+    },
+    {
+      "from": "Operations_App",
+      "to": "Design_Th",
+      "strong": false,
+      "elements": [
+        {
+          "kind": "Theme",
+          "name": "Design"
+        }
+      ]
+    },
+    {
+      "from": "Orders_CS",
+      "to": "Inventory_CS",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "ReserveStock"
+        }
+      ]
+    },
+    {
+      "from": "Inventory_CS",
+      "to": "Orders_CS",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "GetOrder"
+        }
+      ]
+    },
+    {
+      "from": "Shipping_API",
+      "to": "Warehouse_BL",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "AllocateShipment"
+        }
+      ]
+    },
+    {
+      "from": "Warehouse_BL",
+      "to": "ERP_IS",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServiceAction",
+          "name": "SendToERP"
+        }
+      ]
+    },
+    {
+      "from": "ERP_IS",
+      "to": "Common_Lib",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "FormatDate"
+        }
+      ]
+    },
+    {
+      "from": "Orders_CS",
+      "to": "Identity_CS",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "Authorize"
+        }
+      ]
+    },
+    {
+      "from": "Identity_CS",
+      "to": "System",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "Role",
+          "name": "Registered"
+        },
+        {
+          "kind": "Entity",
+          "name": "User"
+        }
+      ]
+    },
+    {
+      "from": "Audit_Lib",
+      "to": "Orders_CS",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "Entity",
+          "name": "Order"
+        }
+      ]
+    },
+    {
+      "from": "Orders_CS",
+      "to": "Audit_Lib",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "WriteEvent"
+        }
+      ]
+    },
+    {
+      "from": "Customers_Core",
+      "to": "Common_Lib",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "FormatDate"
+        }
+      ]
+    },
+    {
+      "from": "Shared_CW",
+      "to": "OutSystemsUI",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "Block",
+          "name": "Badge"
+        }
+      ]
+    },
+    {
+      "from": "Shop_Portal",
+      "to": "Shared_CW",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "Block",
+          "name": "StatusBadge"
+        }
+      ]
+    },
+    {
+      "from": "Design_Th",
+      "to": "OutSystemsUI",
+      "strong": false,
+      "elements": [
+        {
+          "kind": "Theme",
+          "name": "OutSystemsUI"
+        },
+        {
+          "kind": "Script",
+          "name": "Accessibility"
+        }
+      ]
+    },
+    {
+      "from": "Common_Lib",
+      "to": "Crypto.xif",
+      "strong": true,
+      "elements": [
+        {
+          "kind": "ServerAction",
+          "name": "Encrypt"
+        }
+      ]
+    },
+    {
+      "from": "Support_UI",
+      "to": "System",
+      "strong": false,
+      "elements": [
+        {
+          "kind": "Role",
+          "name": "Registered"
+        },
+        {
+          "kind": "Image",
+          "name": "Logo"
+        }
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "upward-reference",
+      "severity": "high",
+      "title": "Audit library depends on business data",
+      "modules": [
+        "Audit_Lib",
+        "Orders_CS"
+      ],
+      "detail": "Audit_Lib is in Foundation but uses Order from Core. A shared technical service now depends on a specific business domain.",
+      "fix": "Pass a simple audit message into the library instead of importing the Order entity."
+    },
+    {
+      "id": "side-reference-enduser",
+      "severity": "high",
+      "title": "User experiences depend on each other",
+      "modules": [
+        "Shop_Portal",
+        "Support_UI",
+        "Shared_CW"
+      ],
+      "detail": "Shop_Portal calls an action in Support_UI and uses a block from Shared_CW. Strong dependencies between End-user modules make their releases harder to separate.",
+      "fix": "Move the shared support action into Core. Review whether the reusable status block belongs in a Foundation library."
+    },
+    {
+      "id": "cycle",
+      "severity": "high",
+      "title": "Orders and inventory depend on each other",
+      "modules": [
+        "Orders_CS",
+        "Inventory_CS",
+        "Orders_CS"
+      ],
+      "detail": "Cycle: Orders_CS → Inventory_CS → Orders_CS. These modules cannot evolve independently.",
+      "fix": "Move stock reservation coordination into a separate Core service, with dependencies in one direction."
+    },
+    {
+      "id": "core-ui",
+      "severity": "medium",
+      "title": "Identity mixes user screens and business logic",
+      "modules": [
+        "Identity_CS"
+      ],
+      "detail": "Identity_CS contains the ManageUsers screen. Core services are harder to reuse when they include a user experience.",
+      "fix": "Move ManageUsers into an End-user module and keep identity rules in Core."
+    },
+    {
+      "id": "foundation-business",
+      "severity": "medium",
+      "title": "Audit library stores business records",
+      "modules": [
+        "Audit_Lib"
+      ],
+      "detail": "Audit_Lib owns the non-static BusinessAudit entity. Business data in Foundation couples technical services to business rules.",
+      "fix": "Move BusinessAudit into a Core audit service and keep generic logging in the library."
+    },
+    {
+      "id": "unused-public",
+      "severity": "low",
+      "title": "A legacy order action has no input consumers",
+      "modules": [
+        "Orders_CS"
+      ],
+      "detail": "RepriceLegacyOrder is public but no other input module uses it. It expands the interface that must be maintained.",
+      "fix": "Check consumers outside this snapshot, then make the action private or remove it if no longer needed."
+    },
+    {
+      "id": "large-module",
+      "severity": "low",
+      "title": "Order management has grown large",
+      "modules": [
+        "Orders_CS"
+      ],
+      "detail": "Orders_CS contains more than 150 actions, screens and entities. A large module is harder to understand and change safely.",
+      "fix": "Consider separating pricing, order storage and fulfilment along clear business responsibilities."
+    },
+    {
+      "id": "missing-description",
+      "severity": "low",
+      "title": "Shipping has undocumented public elements",
+      "modules": [
+        "Shipping_API"
+      ],
+      "detail": "Three public elements have no description. Consumers must inspect their implementation to understand the contract.",
+      "fix": "Describe the purpose, inputs and expected results of the public shipping elements."
+    }
+  ]
+}</script>
+<script>
+'use strict';
+(() => {
+const D = JSON.parse(document.getElementById('oml-architecture').textContent);
+const $ = id => document.getElementById(id);
+const modules = (D.modules || []).slice().sort((a,b) => compare(a.name,b.name));
+const edges = D.edges || [], findings = D.findings || [];
+const byName = new Map(modules.map(m => [m.name,m]));
+const layers = [['EndUser','End-user','Screens and experiences that people use.','--ui'],['Core','Core','Business rules and data shared by user experiences.','--core'],['Foundation','Foundation','Reusable technical services, themes and building blocks.','--foundation']];
+function compare(a,b) { return a < b ? -1 : a > b ? 1 : 0; }
+function el(tag,text,cls,parent) { const n=document.createElement(tag); if(text!==undefined)n.textContent=text; if(cls)n.className=cls; if(parent)parent.append(n); return n; }
+function svg(tag,attrs,parent) { const n=document.createElementNS('http://www.w3.org/2000/svg',tag); for(const [k,v] of Object.entries(attrs || {}))n.setAttribute(k,v); if(parent)parent.append(n); return n; }
+function st(text,x,y,cls,parent) { const n=svg('text',{x,y,class:cls},parent); n.textContent=text; return n; }
+function fitText(node,text,width) { const chars=Array.from(text); node.textContent=text; while(chars.length&&node.getComputedTextLength()>width) { chars.pop(); node.textContent=chars.join('')+'…'; } }
+function button(text,fn,parent) { const b=el('button',text,'link',parent); b.addEventListener('click',fn); return b; }
+function theme(value) { document.documentElement.dataset.theme=value; $('theme').textContent=value==='dark'?'Light theme':'Dark theme'; $('theme').setAttribute('aria-pressed',String(value==='light')); }
+let saved; try { saved=localStorage.getItem('oml-architecture-theme'); } catch {}
+theme(saved==='light'||saved==='dark'?saved:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+$('theme').onclick=()=>{ const t=document.documentElement.dataset.theme==='dark'?'light':'dark'; theme(t); try { localStorage.setItem('oml-architecture-theme',t); } catch {} };
+const appNames=(D.applications || []).map(a=>a.name);
+$('title').textContent=appNames.length?appNames.join(' · ')+' — Architecture':'Architecture'; document.title=$('title').textContent;
+$('generated').textContent='Generated '+(D.generatedAt || '—')+' · oml '+(D.omlVersion || '—');
+for(const [label,count,color] of [['Input modules',modules.filter(m=>!m.external).length,'--core'],['Applications',appNames.length,'--ui'],['Dependencies',edges.length,'--foundation'],['External modules',modules.filter(m=>m.external).length,'--core'],...['high','medium','low'].map(s=>[s[0].toUpperCase()+s.slice(1)+' findings',findings.filter(f=>f.severity===s).length,s==='high'?'--red':'--core'])]) { const box=el('div',undefined,'stat',$('stats')); box.style.setProperty('--accent',`var(${color})`); el('b',count,undefined,box); el('span',label,undefined,box); }
+// Fixed shelves within each band. Dependency barycenters determine the stable order;
+// application outlines stay intact, and cards wrap rather than growing a long row.
+let ranks=new Map(modules.map((m,i)=>[m.name,i]));
+for(let pass=0;pass<4;pass++) { const scores=new Map(modules.map(m=>{const ns=edges.filter(e=>e.from===m.name||e.to===m.name).map(e=>ranks.get(e.from===m.name?e.to:e.from)).filter(v=>v!==undefined); return [m.name,ns.length?ns.reduce((a,b)=>a+b,0)/ns.length:ranks.get(m.name)];})); modules.sort((a,b)=>scores.get(a.name)-scores.get(b.name)||compare(a.name,b.name)); ranks=new Map(modules.map((m,i)=>[m.name,i])); }
+const positions=new Map(), nodeViews=new Map(), edgeViews=[];
+const innerWidth=1280, extX=innerWidth+42, cardW=214, cardH=70, gap=18;
+let y=12;
+for(const [layer,label,note,color] of layers) {
+ const start=y, band=svg('g',{},$('bands'));
+ const bg=svg('rect',{x:8,y:start,width:innerWidth+300,height:200,rx:12,class:'band'},band);
+ st(label,28,start+32,'band-title',band).style.fill=`var(${color})`;
+ st(note,28,start+56,'band-note',band);
+ const own=modules.filter(m=>!m.external&&m.layer===layer), apps=[...new Set(own.map(m=>m.application || '(no application)'))];
+ let x=28, rowY=start+82, rowH=0;
+ apps.forEach(app=>{
+  const ms=own.filter(m=>(m.application || '(no application)')===app);
+  const cols=Math.min(3,ms.length===4?2:ms.length), width=cols*(cardW+gap)+14, height=Math.ceil(ms.length/cols)*(cardH+gap)+44;
+  if(x+width>innerWidth&&x>28) { x=28; rowY+=rowH+22; rowH=0; }
+  const appIndex=Math.max(0,appNames.indexOf(app)), stroke=`var(--group${appIndex%4})`;
+  svg('rect',{x,y:rowY,width,height,rx:10,class:'app-group',stroke},band);
+  const appLabel=st(app,x+12,rowY+23,'app-label',band); appLabel.style.fill=stroke; fitText(appLabel,app,width-24);
+  svg('title',{},appLabel).textContent=app;
+  ms.forEach((m,i)=>positions.set(m.name,{x:x+12+(i%cols)*(cardW+gap),y:rowY+36+Math.floor(i/cols)*(cardH+gap),m,color}));
+  x+=width+20; rowH=Math.max(rowH,height);
+ });
+ const ext=modules.filter(m=>m.external&&m.layer===layer);
+ if(ext.length)st('External · not in input',extX,start+84,'app-label',band);
+ ext.forEach((m,i)=>positions.set(m.name,{x:extX,y:start+98+i*(cardH+gap),m,color}));
+ const end=Math.max(start+170,rowY+rowH+20,start+98+ext.length*(cardH+gap));
+ bg.setAttribute('height',end-start); y=end+18;
+}
+// Treat only dependency findings as edge violations; unrelated module warnings do not color edges.
+function violation(e) { return findings.some(f=>['upward-reference','side-reference-enduser','cycle'].includes(f.id) && (f.id==='cycle' ? (f.modules || []).some((n,i,a)=>n===e.from&&a[(i+1)%a.length]===e.to) : (f.modules || []).includes(e.from)&&(f.modules || []).includes(e.to))); }
+for(const [i,e] of edges.entries()) {
+ const a=positions.get(e.from), b=positions.get(e.to); if(!a||!b)continue;
+ const same=a.m.layer===b.m.layer;
+ let path;
+ if(same) { const ax=a.x+cardW/2,bx=b.x+cardW/2, lift=Math.min(a.y,b.y)-22-(i%5)*6; path=`M${ax},${a.y} C${ax},${lift} ${bx},${lift} ${bx},${b.y}`; if(a===b)path=`M${a.x+cardW-30},${a.y} C${a.x+cardW+40},${a.y-55} ${a.x+cardW+40},${a.y+35} ${a.x+cardW},${a.y+35}`; }
+ else { const down=b.y>a.y, ax=a.x+cardW/2, ay=a.y+(down?cardH:0), bx=b.x+cardW/2, by=b.y+(down?0:cardH), mid=(ay+by)/2; path=`M${ax},${ay} C${ax},${mid} ${bx},${mid} ${bx},${by}`; }
+ const bad=violation(e), n=svg('path',{d:path,class:'edge'+(!e.strong?' weak':'')+(bad?' violation':''),'marker-end':`url(#${bad?'arrow-red':'arrow'})`},$('edges'));
+ svg('title',{},n).textContent=e.from+' uses '+e.to+': '+(e.elements || []).map(v=>v.kind+' '+v.name).join(', '); edgeViews.push({n,e});
+}
+for(const m of modules) {
+ const p=positions.get(m.name); if(!p)continue;
+ const g=svg('g',{class:'node'+(m.external?' external':''),tabindex:0,role:'button','aria-label':`${m.name}, ${m.layer}, ${m.application || ''}${m.external?', external':''}`,transform:`translate(${p.x},${p.y})`},$('nodes'));
+ svg('rect',{width:cardW,height:cardH,rx:9,stroke:`var(${p.color})`},g);
+ fitText(st(m.name,12,26,'name',g),m.name,cardW-24); st(m.external?'External producer':m.kind || 'Unknown',12,47,'meta',g);
+ const count=findings.filter(f=>(f.modules || []).includes(m.name)).length;
+ if(count)st(`${count} !`,cardW-34,59,'meta',g).style.fill='var(--red)';
+ svg('title',{},g).textContent=m.name+(m.description?' — '+m.description:'');
+ g.addEventListener('click',()=>select(m.name)); g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select(m.name);}});
+ g.addEventListener('focus',()=>{ if(!printing&&g.matches(':focus-visible'))zoomTo([m.name],false); });
+ nodeViews.set(m.name,g);
+}
+const graph=$('graph'), world={x:0,y:0,w:innerWidth+320,h:y};
+graph.style.setProperty('--graph-ratio',String(world.w/world.h));
+let view={...world}, selected=new Set(), activeName=null, printing=false;
+function update() { graph.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`); }
+function bounds(names) { const ps=names.map(n=>positions.get(n)).filter(Boolean); if(!ps.length)return null; const x=Math.min(...ps.map(p=>p.x))-45,y=Math.min(...ps.map(p=>p.y))-45; return {x,y,w:Math.max(...ps.map(p=>p.x+cardW))-x+45,h:Math.max(...ps.map(p=>p.y+cardH))-y+45}; }
+function fitBox(b) { const ratio=(graph.clientWidth || 1000)/(graph.clientHeight || 650), w=Math.max(b.w,b.h*ratio),h=w/ratio; view={x:b.x+(b.w-w)/2,y:b.y+(b.h-h)/2,w,h}; update(); }
+function zoomTo(names,close=true) { const b=bounds(names); if(b) { if(!close){b.x-=120;b.y-=100;b.w+=240;b.h+=200;} fitBox(b); } }
+function zoom(factor,cx=graph.clientWidth/2,cy=graph.clientHeight/2) { const r=graph.getBoundingClientRect(),nx=cx/r.width,ny=cy/r.height,f=Math.max(240/view.w,Math.min(world.w*5/view.w,factor)); view={x:view.x+view.w*nx*(1-f),y:view.y+view.h*ny*(1-f),w:view.w*f,h:view.h*f};update(); }
+function highlight(names) { selected=new Set(names); const related=new Set(names); if(activeName)edges.forEach(e=>{if(e.from===activeName||e.to===activeName){related.add(e.from);related.add(e.to);}}); for(const [name,n] of nodeViews) {n.classList.toggle('faded',selected.size>0&&!related.has(name));n.classList.toggle('selected',selected.has(name));n.setAttribute('aria-pressed',String(selected.has(name)));} edgeViews.forEach(({n,e})=>{const on=activeName?e.from===activeName||e.to===activeName:selected.has(e.from)&&selected.has(e.to);n.classList.toggle('faded',selected.size>0&&!on);n.classList.toggle('active',selected.size>0&&on);}); }
+function section(title,parent=$('details')) {const s=el('section',undefined,'detail-section',parent);el('h3',title,undefined,s);return s;}
+function list(title,items,line=v=>typeof v==='string'?v:JSON.stringify(v)) { const s=section(title);if(!items.length){el('p','None recorded.','hint',s);return;}const ul=el('ul',undefined,undefined,s);items.forEach(v=>el('li',line(v),undefined,ul)); }
+function renderFinding(f,parent) { const box=el('article',undefined,'finding',parent); button(f.title || f.id,()=>{activeName=null;highlight(f.modules || []);zoomTo(f.modules || []);},box);el('p',f.detail || '',undefined,box);el('p','Suggested fix: '+(f.fix || ''),'fix',box); el('div',(f.modules || []).join(' · '),'hint',box); }
+function connections(title,es,out) { const s=section(title); if(!es.length)el('p','None recorded.','hint',s); es.forEach(e=>{const n=out?e.to:e.from;button(n,()=>select(n),s);el('div',(e.strong?'Strong':'Weak')+' · '+(e.elements || []).map(v=>v.kind+': '+v.name).join(', '),'hint',s);}); }
+function select(name) {
+ const m=byName.get(name);if(!m)return; activeName=name;highlight([name]);zoomTo([name],false);
+ const d=$('details'); d.replaceChildren();el('h2',m.name,undefined,d);el('p',`${m.layer} · ${m.layerReason || 'No reason recorded'}`,undefined,d);el('p','Application: '+(m.application || '(no application)'),undefined,d);
+ el('p',m.external?'External producer. Only its name and inferred layer are known.':m.description || 'No module description recorded.',undefined,d);
+ if(!m.external) {
+  const counts=section('Contents'), dl=el('dl',undefined,undefined,counts);Object.entries(m.counts || {}).forEach(([k,v])=>{el('dt',k.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase()),undefined,dl);el('dd',v,undefined,dl);});
+  const pub=Object.entries(m.public || {}).flatMap(([k,vs])=>(vs || []).map(v=>k+': '+v));list('Public elements',pub);
+  list('Entities',m.entities || [],e=>`${e.name}${e.public?' (public)':''} · ${e.attributes} attributes${(e.references || []).length?' · refers to '+e.references.join(', '):''}`);
+  list('Screens',m.screens || []);list('REST exposed',m.restExposed || [],r=>`${r.name} · ${r.methods} methods`);list('REST consumed',m.restConsumed || [],r=>`${r.name} · ${r.methods} methods${r.baseUrl?' · '+r.baseUrl:''}`);list('Timers',m.timers || []);list('Processes',m.processes || []);
+ }
+ connections('Uses',edges.filter(e=>e.from===name),true);connections('Used by',edges.filter(e=>e.to===name),false);
+ const fs=section('Findings for this module'), matches=findings.filter(f=>(f.modules || []).includes(name)); if(!matches.length)el('p','No findings.','hint',fs);matches.forEach(f=>renderFinding(f,fs));
+}
+for(const s of ['high','medium','low']) { const fs=findings.filter(f=>f.severity===s),box=el('section',undefined,'severity',$('findings'));el('h3',`${s[0].toUpperCase()+s.slice(1)} priority · ${fs.length}`,s,box);if(!fs.length)el('p','No findings.','hint',box);fs.forEach(f=>renderFinding(f,box)); }
+function reset() { activeName=null;highlight([]);$('search').value='';search();$('details').replaceChildren();el('h2','Explore the architecture',undefined,$('details'));el('p','Select a module to see its contents and dependencies.',undefined,$('details'));fitBox(world); }
+function search() { const q=$('search').value.trim().toLowerCase(),result=$('search-results');result.replaceChildren();let count=0;for(const m of modules) { const names=[m.name,...Object.values(m.public || {}).flat(),...(m.entities || []).map(e=>e.name),...(m.screens || []),...(m.timers || []),...(m.processes || []),...(m.restExposed || []).map(r=>r.name),...(m.restConsumed || []).map(r=>r.name),...edges.filter(e=>e.from===m.name).flatMap(e=>(e.elements || []).map(v=>v.name))];const match=q&&names.some(n=>String(n).toLowerCase().includes(q));const n=nodeViews.get(m.name);if(n)n.classList.toggle('match',Boolean(match));if(match){count++;button(m.name,()=>select(m.name),result);}}if(q)el('span',`${count} matching modules`,'hint',result); }
+$('search').addEventListener('input',search);$('reset').onclick=reset;$('fit').onclick=()=>fitBox(world);$('zoom-in').onclick=()=>zoom(.8);$('zoom-out').onclick=()=>zoom(1.25);
+graph.addEventListener('wheel',e=>{e.preventDefault();const r=graph.getBoundingClientRect();zoom(Math.exp(Math.max(-.3,Math.min(.3,e.deltaY*.002))),e.clientX-r.left,e.clientY-r.top);},{passive:false});
+const pointers=new Map();let drag=null,pinch=null,moved=false;
+graph.addEventListener('pointerdown',e=>{ if(e.button!==0)return; pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});moved=false;if(pointers.size===1) {drag={x:e.clientX,y:e.clientY,v:{...view}};if(!e.target.closest('.node'))graph.setPointerCapture(e.pointerId);} if(pointers.size===2){ const ps=[...pointers.values()];pinch=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y); } });
+graph.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;const old=pointers.get(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}); if(drag?Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>3:Math.abs(e.clientX-old.x)+Math.abs(e.clientY-old.y)>2)moved=true;if(pointers.size===2){const ps=[...pointers.values()],dist=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y),r=graph.getBoundingClientRect();if(pinch&&dist)zoom(pinch/dist,(ps[0].x+ps[1].x)/2-r.left,(ps[0].y+ps[1].y)/2-r.top);pinch=dist;} else if(drag&&moved){view={...drag.v,x:drag.v.x-(e.clientX-drag.x)*drag.v.w/graph.clientWidth,y:drag.v.y-(e.clientY-drag.y)*drag.v.h/graph.clientHeight};update();} });
+function release(e){pointers.delete(e.pointerId);drag=null;pinch=null;}
+graph.addEventListener('pointerup',release);graph.addEventListener('pointercancel',release);graph.addEventListener('lostpointercapture',release);graph.addEventListener('click',e=>{if(moved){e.stopImmediatePropagation();moved=false;}},true);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){reset();return;}if(e.target instanceof Element&&e.target.matches('input,textarea'))return;if(!graph.contains(document.activeElement)&&document.activeElement!==graph)return;let used=true;switch(e.key){case '+':case '=':zoom(.8);break;case '-':zoom(1.25);break;case '0':fitBox(world);break;case 'ArrowLeft':view.x-=view.w*.08;update();break;case 'ArrowRight':view.x+=view.w*.08;update();break;case 'ArrowUp':view.y-=view.h*.08;update();break;case 'ArrowDown':view.y+=view.h*.08;update();break;default:used=false;}if(used)e.preventDefault();});
+let beforePrint;window.addEventListener('beforeprint',()=>{printing=true;beforePrint={...view};view={...world};update();});window.addEventListener('afterprint',()=>{printing=false;if(beforePrint){view=beforePrint;update();}});
+window.addEventListener('resize',()=>fitBox(world));fitBox(world);
+})();
+</script>
+</body>
+</html>

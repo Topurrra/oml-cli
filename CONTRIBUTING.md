@@ -110,3 +110,19 @@ oml version
 
 Remove credentials and confidential data before sharing a report.
 Keep error message texts and element paths unchanged when possible.
+
+## Website
+
+Open `docs/index.html` in a browser to preview the site. It uses plain HTML, CSS and JavaScript. No website build is needed.
+
+To regenerate the architecture demo, remove the existing `docs/architecture-demo.html` first (the renderer refuses overwrites). Run from the repository root:
+
+```powershell
+$env:PATH="$env:USERPROFILE\.dotnet;$env:PATH"
+dotnet build src -c Release
+src\bin\Release\net8.0\oml.exe architecture-render tests\architecture-sample.json docs\architecture-demo.html
+```
+
+The demo uses the CLI's own page template and the checked-in sample. It needs no model command or server connection. Keep its license notice. An optional "Back to oml" link may be added to the generated header without changing the template.
+
+GitHub Pages serves `docs/` from `main`. Configure Settings → Pages → Deploy from a branch → main, /docs.

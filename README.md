@@ -6,6 +6,8 @@ It never edits OML XML.
 Describe changes in a spec. Apply the spec to a staged file, review it, then install it over the source file.
 You can use the CLI directly or give [skill/SKILL.md](skill/SKILL.md) to an AI agent.
 
+Website: [topurrra.github.io/oml-cli](https://topurrra.github.io/oml-cli/).
+
 ## Install
 
 ### Option 1: Download a release
