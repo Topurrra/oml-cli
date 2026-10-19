@@ -1,0 +1,333 @@
+{
+  "blocks": [
+    {
+      "name": "PvInner",
+      "inputs": [
+        {
+          "name": "Heading",
+          "type": "Text",
+          "default": "\"Inner heading\""
+        }
+      ],
+      "styleSheet": ".pv-inner { padding: 4px; border: 1px solid var(--pv-line); }",
+      "widgets": [
+        {
+          "type": "Container",
+          "name": "InnerRoot",
+          "style": "\"pv-inner\"",
+          "children": [
+            {
+              "type": "Expression",
+              "value": "Heading"
+            },
+            {
+              "type": "Placeholder",
+              "name": "Content"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "PvCard",
+      "inputs": [
+        {
+          "name": "Title",
+          "type": "Text",
+          "default": "\"Hello preview\""
+        },
+        {
+          "name": "Count",
+          "type": "Integer",
+          "default": "3"
+        }
+      ],
+      "styleSheet": ".pv-card { min-height: 120px; color: var(--pv-text); background: var(--pv-bg); }\n.pv-card canvas { width: 100%; height: 100%; }",
+      "onRender": "RenderCard",
+      "actions": [
+        {
+          "name": "RenderCard",
+          "flow": [
+            {
+              "kind": "javaScript",
+              "name": "Mark",
+              "inputs": [
+                {
+                  "name": "RootId",
+                  "type": "Text"
+                },
+                {
+                  "name": "Label",
+                  "type": "Text"
+                }
+              ],
+              "args": {
+                "RootId": "PvRoot.Id",
+                "Label": "Title"
+              },
+              "javaScript": "document.getElementById($parameters.RootId).setAttribute('data-pv', $parameters.Label);"
+            }
+          ]
+        },
+        {
+          "name": "Tap",
+          "flow": [
+            {
+              "kind": "assign",
+              "name": "Bump",
+              "assign": {
+                "Clicks": "Clicks + 1"
+              }
+            }
+          ]
+        }
+      ],
+      "widgets": [
+        {
+          "type": "Container",
+          "name": "PvRoot",
+          "style": "\"pv-card\"",
+          "children": [
+            {
+              "type": "Expression",
+              "name": "TitleText",
+              "value": "Title"
+            },
+            {
+              "type": "Link",
+              "name": "OpenLink",
+              "children": [
+                {
+                  "type": "Text",
+                  "text": "Open details"
+                }
+              ],
+              "onClick": "Tap"
+            },
+            {
+              "type": "Button",
+              "name": "GoButton",
+              "style": "\"btn btn-primary\"",
+              "children": [
+                {
+                  "type": "Text",
+                  "text": "Go"
+                }
+              ],
+              "onClick": "Tap"
+            },
+            {
+              "type": "BlockInstance",
+              "name": "InnerOne",
+              "sourceBlock": "PvInner",
+              "args": {
+                "Heading": "\"Nested heading\""
+              },
+              "placeholders": {
+                "Content": [
+                  {
+                    "type": "Text",
+                    "text": "Slot text"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "locals": [
+        {
+          "name": "Clicks",
+          "type": "Integer"
+        }
+      ]
+    },
+    {
+      "name": "PvBad",
+      "styleSheet": "body { margin: 0; }\n.pv-bad { color: #ff0000; border: 1px solid var(--pv-line); }",
+      "onRender": "RenderBad",
+      "actions": [
+        {
+          "name": "RenderBad",
+          "flow": [
+            {
+              "kind": "javaScript",
+              "name": "Draw",
+              "inputs": [
+                {
+                  "name": "RootId",
+                  "type": "Text"
+                }
+              ],
+              "args": {
+                "RootId": "BadRoot.Id"
+              },
+              "javaScript": "var c = document.createElement('canvas'); c.getContext('2d'); window.addEventListener('resize', function(){}); missingFunction();"
+            }
+          ]
+        },
+        {
+          "name": "Noop",
+          "flow": []
+        }
+      ],
+      "widgets": [
+        {
+          "type": "Container",
+          "name": "BadRoot",
+          "style": "\"pv-bad\"",
+          "children": [
+            {
+              "type": "Link",
+              "name": "BadLink",
+              "onClick": "Noop"
+            },
+            {
+              "type": "Text",
+              "text": "Demo content"
+            },
+            {
+              "type": "Popup",
+              "name": "BadPopup",
+            "showPopup": "False",
+              "children": [
+                {
+                  "type": "Text",
+                  "text": "Popup text"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "entities": [
+    {
+      "name": "PvItem",
+      "attributes": [
+        {
+          "name": "Name",
+          "type": "Text",
+          "length": 50
+        },
+        {
+          "name": "Done",
+          "type": "Boolean"
+        }
+      ]
+    }
+  ],
+  "screens": [
+    {
+      "name": "PvScreen",
+      "title": "\"Preview screen\"",
+      "styleSheet": ".pv-screen { padding: 8px; }",
+      "inputs": [
+        {
+          "name": "Query",
+          "type": "Text",
+          "default": "\"abc\""
+        }
+      ],
+      "aggregates": [
+        {
+          "name": "GetItems",
+          "sources": [
+            "PvItem"
+          ],
+          "maxRecords": 10
+        }
+      ],
+      "widgets": [
+        {
+          "type": "Container",
+          "name": "ScreenRoot",
+          "style": "\"pv-screen\"",
+          "children": [
+            {
+              "type": "Expression",
+              "name": "QueryText",
+              "value": "Query"
+            },
+            {
+              "type": "Expression",
+              "name": "FormulaText",
+              "value": "Query + \"!\""
+            },
+            {
+              "type": "Input",
+              "name": "QueryInput",
+              "variable": "Query"
+            },
+            {
+              "type": "BlockInstance",
+              "name": "CardOne",
+              "sourceBlock": "PvCard",
+              "args": {
+                "Title": "\"From screen\"",
+                "Count": "5"
+              }
+            },
+            {
+              "type": "If",
+              "condition": "Query = \"\"",
+              "trueBranch": [
+                {
+                  "type": "Text",
+                  "text": "True branch text"
+                }
+              ],
+              "falseBranch": [
+                {
+                  "type": "Text",
+                  "text": "False branch text"
+                }
+              ]
+            },
+            {
+              "type": "TableRecords",
+              "name": "ItemTable",
+              "source": "GetItems.List",
+              "headerRow": [
+                {
+                  "type": "HeaderCell",
+                  "children": [
+                    {
+                      "type": "Text",
+                      "text": "Name"
+                    }
+                  ]
+                }
+              ],
+              "row": [
+                {
+                  "type": "RowCell",
+                  "children": [
+                    {
+                      "type": "Expression",
+                      "value": "GetItems.List.Current.PvItem.Name"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "edits": [
+    {
+      "op": "addWidgets",
+      "screen": "PvBad",
+      "parent": "BadLink",
+      "widgets": [
+        {
+          "type": "Text",
+          "text": "Copy spec"
+        }
+      ]
+    }
+  ]
+}

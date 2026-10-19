@@ -56,6 +56,8 @@ catch { $fail++; Write-Host "FAIL recipes checks: $_" }
 try { & (Join-Path $PSScriptRoot "packages-check.ps1") -Oml $oml -Tmp $tmp } catch { $fail++; Write-Host "FAIL packages checks: $_" }
 try { & (Join-Path $PSScriptRoot 'assets-check.ps1') -Oml $oml -Tmp $tmp } catch { $fail++; Write-Host "FAIL assets checks: $_" }
 try { & (Join-Path $PSScriptRoot 'architecture-check.ps1') -Oml $oml -Tmp $tmp } catch { $fail++; Write-Host "FAIL architecture checks: $_" }
+try { & (Join-Path $PSScriptRoot 'preview-check.ps1') -Oml $oml -Tmp $tmp }
+catch { $fail++; Write-Host "FAIL preview checks: $_" }
 try { & (Join-Path $PSScriptRoot 'architecture-page-check.ps1') -Oml $oml -Tmp $tmp }
 catch { $fail++; Write-Host "FAIL architecture page: $_" }
 & $oml selftest | ConvertFrom-Json | ForEach-Object { if (-not $_.passed) { $fail++; Write-Host "FAIL selftest"; $_ | ConvertTo-Json -Depth 8 } else { Write-Host "ok   selftest" } }

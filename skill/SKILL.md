@@ -108,6 +108,7 @@ The CLI runs a cached self-test on a disposable module for each installed build.
 | `oml find` | Which module owns an element. |
 | `oml openapi` | Export exposed REST APIs as OpenAPI 3.0.3 JSON; reports placeholders to fill. |
 | `oml architecture` | Read application/module layers, dependencies and findings into HTML and optional JSON. |
+| `oml preview` | Render a block or screen to HTML (and a PNG) so you can see it. Run it for all UI work. |
 | `oml tree` | Exact object paths for `edits`. |
 | `oml validate` | Errors, and warnings with `--warnings`. |
 | `oml apply` | Run a spec into a staged copy. |
@@ -267,5 +268,6 @@ Read these files only when the task needs them.
 | [rules.md](rules.md) | Always, before you change a module. |
 | [reference/commands.md](reference/commands.md) | You need full usage or options of a command. |
 | [reference/spec.md](reference/spec.md) | Your recipe does not show a needed spec key. |
+| [reference/ui-checklist.md](reference/ui-checklist.md) | You build or change a block or screen. Read it before you report UI work as done. |
 | [reference/model-api.md](reference/model-api.md) | You extend `oml` itself or work directly with the Model API. |
 | [reference/odc.md](reference/odc.md) | The module is in ODC, not O11. |

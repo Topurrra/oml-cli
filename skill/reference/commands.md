@@ -23,6 +23,7 @@ oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has
 oml census <module.oml>
 oml architecture [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--out <file.html>] [--json <file.json>]
 oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
+oml preview <module.oml> <Block|Screen> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>]
 oml tree <module.oml> <ElementName>   (object tree of one action, screen, entity, ...)
 oml validate <module.oml> [--warnings]
 oml apply <source.oml> <spec.json> <staged-out.oml>
@@ -273,3 +274,70 @@ Uses typed API paths, verbs, descriptions, Receive In / Send In, wire names, man
 Repeat `--server` for environment base URLs. Otherwise the server uses `https://<FILL: hostname>/<Module>/rest/<Api>` (the model base path when available). Fill version, contact, license, terms of service, documentation, missing descriptions, and Custom authentication details. Search `<FILL:`; every example leaf is also in `placeholders`, including numbers, booleans, and dates. Report paths use dots and array indexes, for example `paths./orders/{Id}.get.responses.200.content.application/json.example.Total`.
 
 Exposed REST has no typed request/response format setting on this build; Text bodies use `text/plain`, other bodies use `application/json`. Success defaults to `200`, without content for no body output. Runtime status overrides and callbacks are not inferred. Error responses share `OutSystemsError`, assumed to be `{ "Errors": [string], "StatusCode": integer }`; installed documentation did not confirm the shape. `401` appears only for authenticated APIs. Static entity IDs are omitted from enums because the typed static record contract exposes symbolic identifiers and expressions, not runtime numeric IDs. Unknown types have an unconstrained schema with an OutSystems type description. Recursive example cycles use a placeholder string that needs a valid example supplied by the user.
+
+## Preview
+
+`oml preview <module.oml> <Block|Screen> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>]`
+
+Renders one block or screen to one self-contained static HTML file, so you can see it before you publish. It reads the widget tree with the typed model and never changes the module. Default output: `<Element>.preview.html` in the current folder. Existing `--out` and `--screenshot` files are refused. Stdout is the compact JSON report.
+
+Use it for layout, texts, CSS and JavaScript. It is not a pixel copy of the published app: OutSystems UI is not available, so its classes (`card`, `btn`, layouts, icons) look plain. Reactive and Mobile modules are the target. Traditional Web screens go through the same reader; widgets it does not know are listed in `unsupported`.
+
+How widgets become HTML. The widget Name is the `id` and the Style Classes are the `class`.
+
+| Widget | HTML |
+|---|---|
+| Container, Form, Label, List, ListItem | `div`, `form`, `label` |
+| Text | The text. |
+| Expression | A string literal shows its text. An input parameter shows the `--arg` value, else its default value, else `{InputName}`. A `+` join of those also works. Anything else shows as `{expression}` in a muted span. |
+| Link, Button | `a`, `button` with the child widgets. |
+| Image | `img` for an external URL. A resource image is a grey box with its name. |
+| Icon | `i` with the Style Classes and the icon class. |
+| AdvancedHtml | Its Tag (`div` if it is missing or unsafe). |
+| Input, TextArea, Dropdown, Checkbox, Switch, RadioButton | The matching form element. A Dropdown has 3 sample options. |
+| If | The true branch only. The report notes it. |
+| List, TableRecords | The row template repeated 3 times. A table has its header row. |
+| Placeholder | A dashed box with the placeholder name and sample text. When a block instance gives content, that content is rendered instead. |
+| Block instance, same module | The block is rendered inline and recursively, up to 5 levels. Arguments and placeholder content are passed. Cycles are not expanded. |
+| Block instance, other module | A `div` whose class is the block name, with its placeholder content inside. Layouts and OutSystems UI blocks are not drawn. |
+| Any other widget | A labelled box with its children. The kind and its count are listed in `unsupported`. |
+
+A widget with Visible set to the literal `False` gets the `hidden` attribute. Extended properties with a literal value become HTML attributes (`class` is merged). Names that start with `on` and `id` are skipped.
+
+CSS in the file, in this order: a small neutral base stylesheet (system font, spacing, plain buttons and tables), the module default theme (only if it is local to the module), then the stylesheet of the element and of each same-module block that was rendered. External CSS is not loaded.
+
+`--theme light|dark` (default `light`) sets `data-theme` on `<html>` and a matching base colour. Static HTML cannot emulate `prefers-color-scheme`, so only CSS that reads `[data-theme]` or CSS variables changes with the theme. `--width <px>` (default 1200) is the width of the frame around the content. Use 390 for a phone. `--height <px>` (default 900) is the screenshot height.
+
+`--arg Name=<expression>` sets an input parameter of the element. Use an OutSystems literal, for example `--arg Count=3`, `--arg Active=True` or a quoted text. Other text is used as plain text and the report says so. An unknown name reports the inputs.
+
+JavaScript. For the element and every rendered same-module block, the JavaScript nodes of the OnInitialize, OnReady and OnRender actions are found by following the connectors from Start. Each node body is emitted as `function($parameters, $actions, $roles, $public){ ... }` and called after DOMContentLoaded, once for each rendered instance of the block. `$parameters` is built from the node arguments:
+
+- `<WidgetName>.Id` becomes the id of the rendered element.
+- An input parameter becomes its `--arg` or default value.
+- A simple literal (text, number, True, False) becomes that value. Any other expression becomes `null`.
+
+`$actions`, `$roles` and `$public` are empty objects behind a Proxy. An unknown call is logged to the console and does not throw. Each call is wrapped in try/catch. Errors, window errors and unhandled promise rejections are written to a red panel at the bottom of the page and to `window.__omlPreviewErrors` (an array). The page also sets `data-oml-errors="<count>"` on `<html>`. A headless browser with `--dump-dom` prints the DOM after the scripts ran, so a script can read that attribute. The real OutSystems id differs (for example `b2-Root`). The preview uses the widget Name, so code that tests `!element.id` behaves differently. Client actions that an OnRender action calls are not followed.
+
+`--screenshot <file.png>` runs Edge or Chrome headless (`--headless=new`) if one is installed in the usual Program Files or LocalAppData folders. Set `OML_BROWSER` to a browser `.exe` to choose another. The page is captured about one second after load, so animations are near their start. The browser window has a frame and a minimum width of about 500 px, so the command first reads the real page size and then sizes the window to match. The PNG can be about 25 px wider and 90 px taller than `--width` and `--height`; the page area has the exact size. A frame narrower than 500 px is laid out at about 500 px for media queries. With a screenshot, the report also has `javaScriptErrors` (`count` and `messages`) and `horizontalOverflow` (the content is wider than the frame). If no browser is found or it fails, `screenshot` is `null` (omitted in compact output) and `screenshotNote` says why. The exit code stays 0.
+
+Report fields: `html`, `screenshot`, `screenshotNote`, `element`, `kind` (Block or Screen), `theme`, `width`, `widgets` (distinct widgets rendered), `blocksRendered` (names, one per instance), `unsupported` (`kind` and `count`), `javaScriptNodes` (distinct nodes), `javaScriptErrors`, `horizontalOverflow`, `notes`, `checklist`.
+
+`checklist` has six automatic checks. Each has `id`, `name`, `ok` and `detail`. A failed check never fails the command; fix what `detail` names.
+
+| Id | Fails when |
+|---|---|
+| a | A Link or Button text is `link` or `Button`, or starts with it and has more text glued on (`linkCopy spec`). The toolbox seeds that text and the spec must replace it. |
+| b | The JavaScript calls `getContext(` and the root Container has no `height`, `min-height` or `aspect-ratio` rule on its class. |
+| c | A Text or literal Expression says "Demo content" or "Lorem ipsum". |
+| d | The CSS uses `var(--...)` somewhere and also has colour values (hex, `rgb()`, `hsl()`) in declarations without `var()`. `detail` has the count. |
+| e | A JavaScript node adds a `window` or `document` listener with no matching `removeEventListener` for the same event in the same node. |
+| f | A rule targets a global element (`body`, `html`, `*`, a bare `button`, `a`, `input`, ...) with no class, id or attribute. `:root` is allowed. |
+
+The checks read the strings of one render. They help, but they do not replace looking at the screenshot. See [ui-checklist.md](ui-checklist.md).
+
+```powershell
+oml preview Staged.oml FxCard --theme light --screenshot light.png
+oml preview Staged.oml FxCard --theme dark --width 390 --screenshot dark-390.png --arg Title=Hello
+```
+
+Exit 0 when the file was written. Exit 2 for an unknown element, a bad option or an existing output.

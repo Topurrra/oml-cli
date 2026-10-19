@@ -24,6 +24,7 @@ public static class Cli
         oml census <module.oml>
         oml architecture [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--out <file.html>] [--json <file.json>]
         oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
+        oml preview <module.oml> <Block|Screen> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>]
         oml tree <module.oml> <ElementName>   (object tree of one action, screen, entity, ...)
         oml validate <module.oml> [--warnings]
         oml apply <source.oml> <spec.json> <staged-out.oml>
@@ -54,7 +55,7 @@ public static class Cli
         {
             var command = args.FirstOrDefault();
             if (command is null or "help" || args.Contains("--help") || args.Contains("-h")) { Console.WriteLine(Usage); return 0; }
-            if (command is "new" or "inspect" or "census" or "validate" or "apply" or "install")
+            if (command is "new" or "inspect" or "census" or "validate" or "apply" or "install" or "preview")
                 SelfTest.EnsurePassed();
             switch (command)
             {
@@ -101,6 +102,7 @@ public static class Cli
                 case "extension": return Extensions.Run(args);
                 case "templates": return Emit(Templates.List());
                 case "openapi" when args.Count >= 2: return OpenApi.Run(args);
+                case "preview" when args.Count >= 3: return Preview.Run(args);
                 case "new" when args.Count >= 2:
                     if (args.Contains("--from-template")) {
                         if (Opt(args, "--from-template") is not { } from || from.StartsWith("--") || args.Contains("--template"))

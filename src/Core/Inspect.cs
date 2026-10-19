@@ -72,7 +72,7 @@ static class Inspect
 
     internal static bool IsBlock(object o) => o.GetType().GetInterfaces().Any(i => i.Name is "IBlockSignature" or "IMobileBlockSignature" or "IWebBlockSignature");
 
-    static IEnumerable<(string flow, IObjectSignature screen)> Screens(IESpace m) =>
+    internal static IEnumerable<(string flow, IObjectSignature screen)> Screens(IESpace m) =>
         m.MobileFlows.SelectMany(f => f.Nodes.Where(s => s is IScreenSignature || IsBlock(s)).Select(s => (f.Name, (IObjectSignature)s)))
         .Concat(m.WebFlows.SelectMany(f => f.Nodes.Where(s => s is IScreenSignature || IsBlock(s)).Select(s => (f.Name, (IObjectSignature)s))));
 

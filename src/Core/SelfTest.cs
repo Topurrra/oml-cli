@@ -133,6 +133,7 @@ static partial class SelfTest
 
             RestSelfTest.Run(blank, dir, failures);
             OpenApiTest(blank, dir, failures);
+            PreviewTest(blank, dir, failures);
             StaticTest(blank, dir, failures);
             SqlDeletionSelfTest.Run(blank, dir, failures);
             RulesTest(blank, dir, failures);

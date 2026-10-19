@@ -126,3 +126,14 @@ src\bin\Release\net8.0\oml.exe architecture-render tests\architecture-sample.jso
 The demo uses the CLI's own page template and the checked-in sample. It needs no model command or server connection. Keep its license notice. An optional "Back to oml" link may be added to the generated header without changing the template.
 
 GitHub Pages serves `docs/` from `main`. Configure Settings → Pages → Deploy from a branch → main, /docs.
+
+## Project layout
+
+| Folder or file | Contents |
+|---|---|
+| `src/` | C# launcher, LifeTime client, project files, and shared version settings. |
+| `src/Core/` | Typed model host, spec builders, inspection, validation, preview, architecture, self-test, and CLI commands. |
+| `tests/` | JSON fixtures, PowerShell regression checks, and the LifeTime mock. |
+| `skill/` | The agent skill: `SKILL.md`, `rules.md`, the Copilot file, `recipes/`, and `reference/`. |
+| `docs/` | The website, served by GitHub Pages. |
+| `licenses/` and `THIRD-PARTY-NOTICES.md` | Licenses of adapted third-party code. |

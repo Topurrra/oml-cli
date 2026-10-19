@@ -38,6 +38,7 @@ Edit O11 `.oml` modules with `<repo>/src/bin/Release/net8.0/oml.exe`, or `oml` o
 4. Do not write comments in `styleSheet` or `javaScript` values: they cost tokens and `apply` removes them. Use `/*! ... */` only for a required license notice.
 5. Run `oml apply <source.oml> <spec.jsonc> <new-staged.oml>`. JSONC comments are allowed; trailing commas are not. Expressions use OutSystems syntax. Text expressions need escaped quotes.
 6. On failure, fix only what `problems` or `newErrors` reports, including `reopenNewErrors`. Read new warnings too. Use another new staged path.
+For UI work, run `oml preview` (light and dark, desktop and 390 px) and follow `skill/reference/ui-checklist.md` before you report done.
 7. Run `oml describe <new-staged.oml> <Element>` to check logic, arguments, and access. Run `oml validate <new-staged.oml> --warnings`. Model validation does not run SQL, HTTP, timers, or browser behavior; test these in the target environment.
 8. Show the result and staged path. Ask before `install` or `publish`.
 
