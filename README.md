@@ -21,6 +21,22 @@ Website: [topurrra.github.io/oml-cli](https://topurrra.github.io/oml-cli/) · [R
 
 Full command list: [skill/reference/commands.md](skill/reference/commands.md). All spec keys: [skill/reference/spec.md](skill/reference/spec.md).
 
+## Commands by audience
+
+Developers work in Service Studio. Most commands are for AI agents, so agents can work faster and with fewer tokens.
+
+| Group | Commands | Used by |
+|---|---|---|
+| Converters | `font woff2`, `font batch`, `image`, `image batch` | Developers |
+| REST | `openapi` | Developers |
+| Architecture | `architecture` | Developers, architects |
+| Read a module | `inspect`, `describe`, `find`, `census`, `tree` | Agents |
+| Change a module | `new`, `apply`, `install`, `validate`, `translations export` | Agents |
+| UI | `preview` | Agents, sometimes developers |
+| Packages | `app list`, `app extract`, `app pack`, `extension inspect`, `extension new`, `templates` | Agents, sometimes developers |
+| Publish and deploy | `studio`, `publish`, `references`, `lt` | Agents, after you confirm |
+| Diagnostics | `version`, `selftest`, `api`, `widgets` | Agents, maintainers |
+
 ## Benchmarks
 
 Same task, same module, same model on both sides. The OutSystems MCP side used Service Studio's MCP server with the official OutSystems skill for O11. Each row is one run, so treat the numbers as a direction, not a guarantee.
@@ -87,6 +103,57 @@ The skill is the `skill/` folder: instructions, rules, recipes and references.
 - **Other agents:** give them `skill/SKILL.md` and keep `skill/reference/` readable.
 
 Tell the agent where `oml` and the module file are. The agent then works in a loop: read the module (`inspect`, `describe`, `find`) → copy a recipe into a spec → `apply` to a new staged file → `validate` and `describe` → for UI, `preview` in light and dark → fix and repeat. It asks you before anything that changes a real module or an environment.
+
+### How to give tasks to an agent
+
+A good task says four things: **which module file**, **what to build or change**, **which elements from other modules to use** (as `Module.Element`), and **what the agent may not do**. The agent cannot guess which action or block of another module you mean, so name it.
+
+```text
+Module: C:\Work\Orders.oml. Add an entity Invoice (Number Text 20 mandatory,
+Amount Decimal, IssuedOn Date) with Invoice_CreateOrUpdate and Invoice_Delete
+server actions, and a Reactive list screen InvoiceList using the module's layout.
+Stage the result and validate it. Do not install or publish.
+```
+
+```text
+In C:\Work\Orders.oml, change the server action Order_Save: before saving,
+call Customers_CS.Customer_Validate with the order's CustomerId. The producer
+module file is C:\Work\Customers_CS.oml. Show me the changed flow with
+oml describe before you install anything.
+```
+
+```text
+Explain what the screen OrderDetail in C:\Work\Orders.oml does: data it
+loads, actions it calls, and who can open it. Do not change anything.
+```
+
+```text
+Build a reusable block StatusBadge (input Status Text) in C:\Work\Orders.oml:
+green for "Paid", orange for "Pending", grey otherwise. Use theme variables.
+Preview it in light and dark and at phone width, follow the UI checklist,
+and send me the screenshots.
+```
+
+```text
+The changes in C:\Work\Orders.staged.oml are ready. Compare them with
+C:\Work\Orders.oml, summarise what changed, then install after I say yes,
+and publish it through Service Studio.
+```
+
+```text
+Export the exposed REST API OrdersApi of C:\Work\Orders.oml as OpenAPI.
+Then list the placeholders I must fill in.
+```
+
+```text
+Make an architecture report for all .oap files in C:\Exports\Payments-team
+and explain the three most important findings.
+```
+
+Tips:
+- One task per message works best. Big features: split them (data model first, then logic, then screens).
+- Say "do not install or publish" when you only want a staged result to review.
+- If the agent reports a refusal from the production rules (for example deleting an existing entity), do that step yourself in Service Studio.
 
 ## Production rules
 
