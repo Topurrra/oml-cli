@@ -17,5 +17,12 @@
     <!-- `oml spec` prints sections of these two files; embedding them keeps it working from a release zip. -->
     <EmbeddedResource Include="..\skill\reference\spec.md" LogicalName="OmlCli.spec.md" />
     <EmbeddedResource Include="..\skill\SKILL.md" LogicalName="OmlCli.SKILL.md" />
+    <!-- `oml dashboard`: its page, and the skill pages it shows. -->
+    <EmbeddedResource Include="Dashboard\web\*" LogicalName="OmlCli.web.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\skill\rules.md" LogicalName="OmlCli.rules.md" />
+    <EmbeddedResource Include="..\skill\reference\ui-checklist.md" LogicalName="OmlCli.ui-checklist.md" />
+    <EmbeddedResource Include="..\skill\recipes\*.jsonc" LogicalName="OmlCli.recipes.%(Filename)%(Extension)" />
+    <!-- Double-click shortcut that starts `oml dashboard`. -->
+    <None Include="oml-dashboard.cmd" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

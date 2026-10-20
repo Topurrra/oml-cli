@@ -2,6 +2,12 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.3.0
+
+- Add `oml dashboard [--port N] [--no-open]`: a local web dashboard for developers, with a light and dark theme. Pages: setup check (`doctor`) and Service Studio status, module explorer (`inspect`, `describe`, `find`, pull from Service Studio), preview gallery with the UI checks, prompt builder for agent tasks, recipe gallery, font and image conversion with downloads, OpenAPI export with a form for the `<FILL:` placeholders, architecture pages, read-only LifeTime, agent activity from the usage log, a command cookbook, the production rules and UI checklist, and browser-only developer tools (JSON, spec check, Base64, URL, JWT, GUID, Unix time, diff, regex, colour contrast, CSS). Every action shows its CLI command.
+- The dashboard listens on 127.0.0.1 only and needs a random key in every request; it checks the Host and Origin headers, and has no endpoint that installs, publishes, refreshes references or writes to LifeTime. `oml-dashboard.cmd` next to `oml.exe` starts it with a double-click.
+- `tests/dashboard-check.ps1` checks the dashboard's security rules and endpoints and takes light and dark screenshots of three pages.
+
 ## 1.2.0
 
 - The skill has one fixed "Standard loop" for agents: read in one `oml run` call, `spec check` and `apply --describe-created` in one call, one preview call per screen, a 4-8 call budget, and no unexplained new warnings. Measured on a 24-component task (Haiku 5.5, 3 runs each): 55% lower cost and 42% fewer turns than 1.1.0.

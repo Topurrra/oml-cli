@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>oml dashboard</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<script src="theme.js"></script>
+<link rel="stylesheet" href="app.css">
+<script src="data.js" defer></script>
+<script src="tools.js" defer></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#page-title">Skip to content</a>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand-row">
+      <a class="brand" href="#/home" aria-label="oml dashboard home"><span class="brand-mark" aria-hidden="true">&gt;_</span><span>oml <span class="brand-sub">dashboard</span></span></a>
+      <button id="menu-toggle" class="icon-button menu-toggle" type="button" aria-expanded="false" aria-controls="nav" aria-label="Show pages">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+    <nav id="nav" aria-label="Pages"></nav>
+    <div class="sidebar-foot">
+      <span id="version" class="muted small"></span>
+      <button id="stop" class="link-button small" type="button">Stop dashboard</button>
+    </div>
+  </aside>
+  <div class="main-wrap">
+    <header class="topbar">
+      <div class="topbar-text">
+        <p id="page-group" class="eyebrow"></p>
+        <h1 id="page-title" tabindex="-1">oml dashboard</h1>
+        <p id="page-desc" class="muted"></p>
+      </div>
+      <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch color theme">
+        <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14A8.5 8.5 0 0 1 10 4a8.5 8.5 0 1 0 10 10Z"/></svg>
+      </button>
+    </header>
+    <main id="page" aria-labelledby="page-title"></main>
+  </div>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<noscript><p class="noscript">The oml dashboard needs JavaScript.</p></noscript>
+</body>
+</html>

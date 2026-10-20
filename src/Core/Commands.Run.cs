@@ -93,7 +93,7 @@ public static partial class Cli
     }
 
     // One step with its own stdout and stderr writers. A step cannot take the run down: a crash becomes exit code 2.
-    static (int code, string stdout, string stderr, long ms) RunStep(string[] step)
+    static (int code, string stdout, string stderr, long ms) RunStep(string[] step, Func<string[], int>? command = null)
     {
         var (output, error) = (new StringWriter(), new StringWriter());
         var (previousOut, previousError) = (Console.Out, Console.Error);
@@ -101,7 +101,7 @@ public static partial class Cli
         Console.SetError(error);
         var watch = Stopwatch.StartNew();
         int code;
-        try { code = RunStepCommand(step); }
+        try { code = (command ?? RunStepCommand)(step); }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
             Emit(new { error = $"{e.GetType().Name}: {e.Message}" });
@@ -114,8 +114,25 @@ public static partial class Cli
             Console.SetError(previousError);
         }
         var (stdout, stderr) = (output.ToString(), error.ToString());
-        UsageLog.Record(step, code, watch.ElapsedMilliseconds, Encoding.UTF8.GetByteCount(stdout), stdout, stderr, inRun: true);
+        if (command is null) UsageLog.Record(step, code, watch.ElapsedMilliseconds, Encoding.UTF8.GetByteCount(stdout), stdout, stderr, inRun: true);
         return (code, stdout, stderr, watch.ElapsedMilliseconds);
+    }
+
+    // `oml dashboard`: one read command with its own output, called from the launcher's single command thread.
+    // Modules it only reads stay open for the next call, as in a run. Not logged: these are a person's clicks, not agent turns.
+    // The launcher allows only read commands; this refusal is the second lock on the same door.
+    static readonly string[] DashboardAllowed = ["describe", "find", "image", "inspect", "openapi", "preview", "architecture", "studio", "pull", "version"];
+
+    public static string[] Capture(string serviceStudioDir, string[] step)
+    {
+        Model.ServiceStudioDir = serviceStudioDir;
+        Model.ShareModules = true;
+        Model.TrimShared();
+        var (code, stdout, stderr, _) = RunStep(step, s =>
+            !DashboardAllowed.Contains(s[0]) || (s[0] == "architecture" && s.Contains("--team")) ? Refuse($"'{s[0]}' is not available in the dashboard.")
+            : s[0] == "image" ? ImageAssets.Run(s[1..])
+            : Run(serviceStudioDir, s));
+        return [code.ToString(), stdout, stderr];
     }
 
     static int RunStepCommand(string[] step)

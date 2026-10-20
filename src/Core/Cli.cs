@@ -48,6 +48,7 @@ public static partial class Cli
         oml widgets             (registered widget descriptors)
         oml selftest   (build check; also runs by itself on a Service Studio build not seen before)
         oml doctor [--text] [--selftest]   (checks the setup and says what to fix)
+        oml dashboard [--port N] [--no-open]   (local web dashboard for developers; reads only, on 127.0.0.1)
         oml log summary [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; set OML_LOG=1 to write the log)
         Output is compact JSON on stdout. Global --pretty includes empty fields and indents. Exit 0 ok, 1 model/validation failure, 2 usage/environment.
         """;

@@ -47,6 +47,7 @@ oml api <TypeName...>   (members of model/plugin types on the installed build)
 oml widgets             (registered widget descriptors)
 oml selftest   (build check; also runs by itself on a Service Studio build not seen before)
 oml doctor [--text] [--selftest]   (checks the setup and says what to fix)
+oml dashboard [--port N] [--no-open]   (local web dashboard for developers; reads only, on 127.0.0.1)
 oml log summary [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; set OML_LOG=1 to write the log)
 Output is compact JSON on stdout. Global --pretty includes empty fields and indents. Exit 0 ok, 1 model/validation failure, 2 usage/environment.
 ```
@@ -245,6 +246,20 @@ The `module` spec object runs in the data phase. It supports `description`, `jav
 Unknown keys and refused writes become problems and prevent saving. Name, key, and activation code cannot be changed by this object.
 `inspect.module` reports these settings, the module key, DBMS, and icon byte size.
 See [module settings](spec.md#module-settings) for an example.
+
+#### Dashboard
+
+`oml dashboard [--port N] [--no-open]` starts a local web dashboard for developers and opens it in the default browser. It runs until Ctrl+C (or "Stop dashboard" on the page). `oml-dashboard.cmd` next to `oml.exe` starts it with a double-click. It is for people; agents keep using the commands.
+
+The first stdout line is JSON: `{"url": "http://127.0.0.1:<port>/?key=<key>", "workFolder": "..."}`. The port is random unless `--port` (1024-65535) is given; a busy fixed port exits 2.
+
+- **Pages:** Home (`doctor`, `studio`), Module explorer (`inspect --own`, `describe`, `find`, `pull`), Preview gallery (`preview`, optional `--screenshot`), Prompt builder, Recipe gallery, Fonts and images (`font batch`, `image batch`), OpenAPI (`openapi`, with a form for `<FILL:` placeholders), Architecture (`architecture`), LifeTime (`lt environments`, `lt apps`, `lt status`), Agent activity (the usage log and `log summary`), Command cookbook, Rules and checklist, Developer tools (in the browser only). Each action shows its CLI command.
+- **Reads only.** The dashboard has no endpoint for `install`, `publish`, `references`, `apply`, `run` or a LifeTime write (`tag`, `deploy`, `abort`, `continue`). `pull` saves a copy and leaves the open module unchanged.
+- **No Service Studio dialog on its own.** Home only checks that Service Studio's MCP server answers (the `doctor` check: an MCP initialize, no session). Listing the open modules (`studio`) and `pull` ask Service Studio for a session, which shows its "allow the connection" dialog once, so they run only when you click their button.
+- **Security.** It listens on 127.0.0.1 only. Every API request must send the key from the address in the `X-Oml-Key` header, else 403. The `Host` header must be `127.0.0.1:<port>` or `localhost:<port>`, a cross-site `Origin` is refused, and there are no CORS headers. The page has a strict Content Security Policy. Generated HTML (previews, architecture pages) is shown in a sandboxed frame from a short-lived random address. The LifeTime token is read from the environment of the dashboard's process and never sent to the page; there is no token field.
+- **Files.** Paths you type are only read. Pulled modules, OpenAPI files and architecture pages go to a new folder per action under `%LOCALAPPDATA%\oml-cli\dashboard`, so nothing is overwritten. Uploaded fonts and images (at most 200 MB per request) go to a new temporary folder that is deleted after the answer.
+- **Commands run one at a time** in the dashboard process, so Service Studio's model loads once and a module that was read stays open for the next click (as in `oml run`). A long command (a large architecture page) makes the next ones wait.
+- Dashboard commands are not written to the usage log: the log is for agent work.
 
 #### Setup check
 

@@ -24,6 +24,7 @@ public static class Program
         if (filtered.FirstOrDefault() == "font") return FontAssets.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "doctor") return Doctor.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "spec") return SpecCommand.Run(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "dashboard") return Dashboard.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "architecture" && filtered.Contains("--team"))
             return LifeTime.Architecture(args, RunCore);
         return RunCore(args);
@@ -34,20 +35,13 @@ public static class Program
         var filtered = args.Where(a => a != "--pretty").ToArray();
 
         var ss = Locations.ServiceStudio;
-        if (!File.Exists(Path.Combine(ss, "OutSystems.Model.V1.dll")))
+        if (CoreProblem(ss) is { } problem)
         {
-            Console.Error.WriteLine($"Service Studio not found at {ss}. Set OML_SERVICE_STUDIO.");
-            return 2;
-        }
-        if (RequiredRuntimeMajor(ss) is { } major && major > Environment.Version.Major)
-        {
-            Console.Error.WriteLine($"This Service Studio runs on .NET {major}, but the newest .NET runtime here is " +
-                                    $"{Environment.Version.Major}. {RuntimeInstallHint(major)}");
+            Console.Error.WriteLine(problem);
             return 2;
         }
 
-        var context = new ServiceStudioContext(ss, Path.Combine(AppContext.BaseDirectory, "OmlCli.Core.dll"));
-        var core = context.LoadFromAssemblyName(new AssemblyName("OmlCli.Core"));
+        var core = LoadCore(ss);
         if (filtered.FirstOrDefault() == "image")
         {
             var imageRun = core.GetType("OmlCli.ImageAssets", throwOnError: true)!.GetMethod("Run")!;
@@ -59,6 +53,20 @@ public static class Program
         var run = cli.GetMethod("Run")!;
         return (int)run.Invoke(null, new object[] { ss, args })!;
     }
+
+    // Why Core cannot load from this Service Studio folder, or null when it can.
+    internal static string? CoreProblem(string ss)
+    {
+        if (!File.Exists(Path.Combine(ss, "OutSystems.Model.V1.dll"))) return $"Service Studio not found at {ss}. Set OML_SERVICE_STUDIO.";
+        if (RequiredRuntimeMajor(ss) is { } major && major > Environment.Version.Major)
+            return $"This Service Studio runs on .NET {major}, but the newest .NET runtime here is {Environment.Version.Major}. {RuntimeInstallHint(major)}";
+        return null;
+    }
+
+    // One load context per process: `oml dashboard` calls Core many times and must not load Service Studio again each time.
+    static Assembly? core;
+    internal static Assembly LoadCore(string ss) => core ??=
+        new ServiceStudioContext(ss, Path.Combine(AppContext.BaseDirectory, "OmlCli.Core.dll")).LoadFromAssemblyName(new AssemblyName("OmlCli.Core"));
 
     internal static string RuntimeInstallHint(int major) => $"Install it: winget install Microsoft.DotNet.Runtime.{major}";
 

@@ -43,7 +43,7 @@ Run a real LifeTime smoke test before relying on deployment behavior.
 
 1. Setup, one at a time: it builds the blank modules (`r0`, `s0`, `w0`) and the producer module in `tmp/base`.
 2. Parallel lane: up to `-Throttle` units at once. Each unit runs in its own `pwsh` process with its own work folder `tmp/<unit>` (a copy of `tmp/base`) and its own `TEMP`. A unit can wait for other units (`-After`). A unit that makes `out-*.oml` files that others read publishes them into `tmp/base` (`-Publish`).
-3. Alone lane, one at a time, after the parallel lane: `lifetime-check` (local port, mock server, `OML_LIFETIME_*` variables), `doctor-check` (sets `OML_*` variables, reads machine-wide state), `log-check` (writes the default usage log), `preview-check` and `architecture-page-check` (headless browser with timeouts, flaky under load) and `selftest` (long, heavy, records the build as checked).
+3. Alone lane, one at a time, after the parallel lane: `lifetime-check` (local port, mock server, `OML_LIFETIME_*` variables), `doctor-check` (sets `OML_*` variables, reads machine-wide state), `log-check` (writes the default usage log), `preview-check`, `architecture-page-check` and `dashboard-check` (headless browser with timeouts, flaky under load; the dashboard check also binds a local port) and `selftest` (long, heavy, records the build as checked).
 
 Output is printed per unit in the order of the list in the script, with the unit's time. Read the exit code and every `FAIL` line.
 
@@ -103,6 +103,24 @@ If publishing stops partway through, inspect the local and remote tag and releas
 
 See [the Model API reference](skill/reference/model-api.md) before changing model construction.
 
+## Dashboard
+
+`oml dashboard` lives in the launcher, in `src/Dashboard/`:
+
+| File | Contents |
+|---|---|
+| `Dashboard.cs` | The `HttpListener` server on 127.0.0.1, the key, `Host` and `Origin` checks, static files, sandboxed views, and `Oml(...)`: the one way the dashboard runs a command. |
+| `DashboardApi.cs` | One handler per action of the page. Each checks its input and builds the arguments of a normal `oml` command. |
+| `web/` | The page: `index.html`, `theme.js` (theme before first paint, script error count), `app.css`, `app.js` (shell, API client, pages), `tools.js` (browser-only tools), `data.js` (cookbook). Embedded into `oml.exe` at build time, so rebuild after a change. |
+
+How a command runs: `Oml(...)` queues it on one worker thread. Launcher commands (`doctor`, `spec`, `font`, `lt`, `log`) run with `Console.Out` captured; model commands go through `Cli.Capture` in Core (`src/Core/Commands.Run.cs`), which is `oml run`'s step runner with modules kept open between calls. Core refuses any command that is not on its dashboard list, as a second lock behind the API.
+
+To add a page:
+
+1. If it needs the server, add a case to the `switch` in `DashboardApi.Api` and a handler that checks its input (`ModuleFile`, `UserPath`, `ElementName`) and calls `Oml(...)`. Only read commands; never add `install`, `publish`, `references`, `apply`, `run` or a LifeTime write. Outputs a person keeps go to `NewWorkFolder(...)`; intermediate files go to a temporary folder that the handler deletes.
+2. In `web/app.js`, add `page('<id>', '<group>', '<Title>', '<one-line description>', async main => { ... })` in the order it should appear in the sidebar, and an icon path under the same id in `ICONS`. Build elements with `h()`, run actions with `task(...)`, and show each command with `cli(data.cli)`.
+3. Add a check to `tests/dashboard-check.ps1`, build, look at the screenshots in `tmp/dashboard-check/`, and run the suite.
+
 ## Rules
 
 - Add no new dependencies.
@@ -155,6 +173,7 @@ GitHub Pages serves `docs/` from `main`. Configure Settings → Pages → Deploy
 | Folder or file | Contents |
 |---|---|
 | `src/` | C# launcher, LifeTime client, project files, and shared version settings. |
+| `src/Dashboard/` | `oml dashboard`: the local web server, its API and the embedded page (`web/`). |
 | `src/Core/` | Typed model host, spec builders, inspection, validation, preview, architecture, self-test, and CLI commands. |
 | `tests/` | JSON fixtures, PowerShell regression checks, and the LifeTime mock. |
 | `skill/` | The agent skill: `SKILL.md`, `rules.md`, the Copilot file, `recipes/`, and `reference/`. |

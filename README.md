@@ -6,6 +6,21 @@ You describe a change in a JSON spec, apply it to a new staged file, check it, a
 
 Website: [topurrra.github.io/oml-cli](https://topurrra.github.io/oml-cli/) · [Releases](https://github.com/Topurrra/oml-cli/releases) · [Changelog](CHANGELOG.md)
 
+## Dashboard
+
+Not a terminal person? `oml dashboard` opens a local web page with the same tools.
+
+![The oml dashboard home page: setup check, Service Studio status and links to every page](docs/dashboard.png)
+
+*Screenshot: `docs/dashboard.png`, the Home page in the dark theme.*
+
+Start it with `oml dashboard`, or double-click `oml-dashboard.cmd` next to `oml.exe`. It opens your browser; keep its window open, and press Ctrl+C there to stop it. `--port N` picks the port, `--no-open` does not open the browser.
+
+What it can do: check your setup (`doctor`), browse a module and read what each element does (`inspect`, `describe`, `find`), pull the module open in Service Studio, show previews of every screen and block in light and dark, build a clear task for an AI agent, browse the recipes, convert fonts and images, export and fill in OpenAPI files, make architecture pages, read LifeTime, show what agents ran (usage log), and a set of small developer tools (JSON, Base64, JWT, regex, colour contrast, ...). Every action shows the CLI command, with a copy button.
+
+Security: it listens on 127.0.0.1 only, with a random key in its address that every request must send; other sites cannot call it.
+It only reads: it never installs, publishes, refreshes references, or tags or deploys in LifeTime, and the LifeTime token stays in the environment, never in the page.
+
 ## What it covers
 
 | Area | What `oml` does |
@@ -27,6 +42,7 @@ Developers work in Service Studio. Most commands are for AI agents, so agents ca
 
 | Group | Commands | Used by |
 |---|---|---|
+| Dashboard | `dashboard` | Developers |
 | Converters | `font woff2`, `font batch`, `image`, `image batch` | Developers |
 | REST | `openapi` | Developers |
 | Architecture | `architecture` | Developers, architects |

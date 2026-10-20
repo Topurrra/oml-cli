@@ -12,6 +12,7 @@
 #        preview-check       starts headless Edge/Chrome with timeouts; CPU load from other units would make it flaky
 #        architecture-page-check  same: headless browser with a 20 s window
 #        log-check           appends to and trims the person's default usage log (OML_LOG=1)
+#        dashboard-check     binds a local port for oml dashboard and starts headless Edge/Chrome for screenshots
 #        selftest            long, CPU heavy, and it records the build as checked in %LOCALAPPDATA%
 #      Processes are already separate, so most would be safe in parallel; they stay alone for load and shared-state reasons.
 # Output is printed per unit in the order of the list below (the order of the old script), not in finish order.
@@ -207,6 +208,10 @@ Unit 'preview-check' -Alone {
 Unit 'architecture-page-check' -Alone {
   try { & (Join-Path $tests 'architecture-page-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL architecture page: $_" }
+}
+Unit 'dashboard-check' -Alone {
+  try { & (Join-Path $tests 'dashboard-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL dashboard checks: $_" }
 }
 Unit 'selftest' -Alone {
   & $oml selftest | ConvertFrom-Json | ForEach-Object { if (-not $_.passed) { $global:fail++; Write-Host "FAIL selftest"; Write-Host ($_ | ConvertTo-Json -Depth 8) } else { Write-Host "ok   selftest" } }
