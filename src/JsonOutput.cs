@@ -9,6 +9,9 @@ static class JsonOutput
     static readonly JsonSerializerOptions Compact = new() { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
     static readonly JsonSerializerOptions Indented = new(Compact) { WriteIndented = true };
 
+    // A built JSON tree as it is, with empty values kept (Serialize drops them).
+    public static string Write(JsonNode node) => node.ToJsonString(Pretty ? Indented : Compact);
+
     public static string Serialize(object value, bool progress = false)
     {
         var node = JsonSerializer.SerializeToNode(value, Compact);

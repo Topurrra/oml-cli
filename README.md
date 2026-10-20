@@ -15,7 +15,7 @@ Website: [topurrra.github.io/oml-cli](https://topurrra.github.io/oml-cli/) · [R
 | Check UI | `preview` renders a block or screen to HTML, takes light/dark and phone-width screenshots, and runs automatic UI checks. |
 | Architecture | `architecture` makes one zoomable HTML page from a folder of `.oap`/`.oml` files or a LifeTime team: applications, modules, End-user/Core/Foundation layers, dependencies and findings. |
 | REST | `openapi` exports exposed REST APIs as OpenAPI 3.0.3, with `<FILL:` placeholders for contact, servers and examples. |
-| Publish and deploy | 1-Click Publish and Refresh All through Service Studio's MCP server; LifeTime API v2 tags and deployments. |
+| Service Studio and deploy | `pull` saves the module open in Service Studio to a file (no manual export); 1-Click Publish and Refresh All through Service Studio's MCP server; LifeTime API v2 tags and deployments. |
 | Packages | List, extract and pack `.oap`/`.osp`; inspect and create `.xif` extensions. |
 | Assets | Fonts to WOFF2; convert, resize and shrink images. `apply` removes comments from CSS and JavaScript (license notices stay). |
 
@@ -31,11 +31,11 @@ Developers work in Service Studio. Most commands are for AI agents, so agents ca
 | REST | `openapi` | Developers |
 | Architecture | `architecture` | Developers, architects |
 | Read a module | `inspect`, `describe`, `find`, `census`, `tree` | Agents |
-| Change a module | `new`, `apply`, `install`, `validate`, `translations export` | Agents |
+| Change a module | `new`, `apply`, `spec`, `run`, `install`, `validate`, `translations export` | Agents |
 | UI | `preview` | Agents, sometimes developers |
 | Packages | `app list`, `app extract`, `app pack`, `extension inspect`, `extension new`, `templates` | Agents, sometimes developers |
-| Publish and deploy | `studio`, `publish`, `references`, `lt` | Agents, after you confirm |
-| Diagnostics | `version`, `selftest`, `api`, `widgets` | Agents, maintainers |
+| Service Studio and deploy | `studio`, `pull`, `publish`, `references`, `lt` | Agents; publish and deploy after you confirm |
+| Diagnostics | `version`, `selftest`, `doctor`, `log`, `api`, `widgets` | Agents, maintainers |
 
 ## Benchmarks
 
@@ -62,6 +62,15 @@ Same task, same module, same model on both sides. The OutSystems MCP side used S
 
 Why: output is similar, because both sides write the same CSS and JavaScript. MCP needs more turns, and every turn reads the context again. Parallel MCP agents all edit the one module open in Service Studio; `oml` agents each work on their own files.
 
+**oml 1.1.0 vs 1.2.0** (the same large task, 1 agent, same module, Haiku 5.5, 3 runs each, averages):
+
+| | Cost | Time | Turns | Result |
+|---|---:|---:|---:|---|
+| oml 1.1.0 | $0.80 | 864 s | 64 | 24/24, 0 errors |
+| **oml 1.2.0** | **$0.36** | **615 s** | **37** | 24/24, 0 errors |
+
+1.2.0 gives agents a fixed loop that batches commands into fewer tool calls. One 1.2.0 run left unexplained warnings, so the skill now requires fixing or explaining every new warning; one run with that rule cost $0.81 with 0 warnings, so the cost with the rule still needs more runs. Re-run any of these with [tests/bench](tests/bench/README.md).
+
 ## Install
 
 **Prerequisites:** Windows, Service Studio 11, and the .NET 8 runtime (the SDK to build from source). Publishing and reference refresh need Service Studio 11.55.91 or later with its MCP server started (**Edit > MCP Server > Start MCP server**).
@@ -77,6 +86,8 @@ oml version
 ```
 
 For a Service Studio folder other than the default, set `OML_SERVICE_STUDIO` and build with `-p:SS="<that folder>"`. On a new Service Studio build, `oml` first runs a short self-test and stops if it fails.
+
+Run `oml doctor` to check your setup.
 
 ## Quick start
 
@@ -102,7 +113,9 @@ The skill is the `skill/` folder: instructions, rules, recipes and references.
 - **Claude Code:** copy the `skill/` folder to `%USERPROFILE%\.claude\skills\outsystems-oml\`.
 - **Other agents:** give them `skill/SKILL.md` and keep `skill/reference/` readable.
 
-Tell the agent where `oml` and the module file are. The agent then works in a loop: read the module (`inspect`, `describe`, `find`) → copy a recipe into a spec → `apply` to a new staged file → `validate` and `describe` → for UI, `preview` in light and dark → fix and repeat. It asks you before anything that changes a real module or an environment.
+Tell the agent where `oml` and the module file are. No file yet? Open the module in Service Studio and let the agent run `oml pull`. The agent then works in a loop: read the module (`inspect`, `describe`, `find`) → copy a recipe into a spec → `apply` to a new staged file → `validate` and `describe` → for UI, `preview` in light and dark → fix and repeat. It asks you before anything that changes a real module or an environment.
+
+To keep agents from reading the whole spec reference, `oml spec <key>` prints only the section for one key (15-60 lines) and `oml spec check <spec.json>` finds typos, wrong types and bad flow targets in milliseconds, before `apply`. `oml spec schema` writes a JSON Schema for autocomplete in VS Code.
 
 ### How to give tasks to an agent
 

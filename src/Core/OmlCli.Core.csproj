@@ -12,6 +12,8 @@
     <EmbeddedResource Include="Architecture\template.html" LogicalName="OmlCli.Architecture.template.html" />
     <Compile Include="..\JsonOutput.cs" Link="JsonOutput.cs" />
     <Compile Include="..\AssetFiles.cs" Link="AssetFiles.cs" />
+    <Compile Include="..\Locations.cs" Link="Locations.cs" />
+    <Compile Include="..\UsageLog.cs" Link="UsageLog.cs" />
     <!-- Compile-time only. At run time every one of these, and whatever they depend on,
          comes from the installed Service Studio through the launcher's load context. -->
     <Reference Include="$(SS)\OutSystems.Model.V1.dll" Private="false" />

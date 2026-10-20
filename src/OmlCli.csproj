@@ -13,4 +13,9 @@
     <!-- Built and copied next to oml.exe, but never loaded by the default context (see Program.cs). -->
     <ProjectReference Include="Core\OmlCli.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- `oml spec` prints sections of these two files; embedding them keeps it working from a release zip. -->
+    <EmbeddedResource Include="..\skill\reference\spec.md" LogicalName="OmlCli.spec.md" />
+    <EmbeddedResource Include="..\skill\SKILL.md" LogicalName="OmlCli.SKILL.md" />
+  </ItemGroup>
 </Project>

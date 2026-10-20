@@ -29,6 +29,15 @@ function Apply-Spec($source, $spec, $name) {
 function Recipe($name, $source) {
   Apply-Spec $source (Join-Path $repo "skill/recipes/$name.jsonc") $name
 }
+# Prove the logic is wired: describe one element and require every pattern in its text.
+function Assert-Describe($module, $element, [string[]]$patterns) {
+  $d = & $Oml describe $module $element | ConvertFrom-Json
+  if ($LASTEXITCODE -ne 0 -or -not $d.text) { throw "describe failed: $element" }
+  foreach ($p in $patterns) {
+    if ($d.text -notmatch [regex]::Escape($p)) { throw "describe $element lacks '$p'`n$($d.text)" }
+  }
+  Write-Host "ok   describe $element"
+}
 Push-Location $repo
 try {
   $base = New-Base RecipeConsumer
@@ -53,6 +62,22 @@ try {
   foreach ($name in @('aggregate-join-groupby','rest-client','sql-query')) {
     $null = Recipe $name $base
   }
+  $form = Recipe 'form-with-validation' $uiBase
+  Assert-Describe $form Contact_Save @('raise InvalidContact', 'call CreateOrUpdateContact')
+  Assert-Describe $form ContactForm @('call RecipeUi.Contact_Save', 'on exception InvalidContact', 'set NameError')
+  $dropdown = Recipe 'dropdown-from-static' $uiBase
+  Assert-Describe $dropdown Task_Add @('call CreateTask')
+  Assert-Describe $dropdown Tasks @('Dropdown PriorityInput variable=NewTask.PriorityId', 'call RecipeUi.Task_Add', 'refresh FetchTasks', 'TaskPriority.Label')
+  $paging = Recipe 'list-search-paging' $uiBase
+  Assert-Describe $paging Customers @('like "%" + SearchText', 'order by Customer.Name', 'max PageSize', 'set StartIndex = StartIndex + PageSize', 'refresh FetchCustomers')
+  $api = Recipe 'expose-rest-api' $base
+  Assert-Describe $api 'OrderApi/GetOrder' @('GET /orders/{Id}', 'call RecipeConsumer.Order_Get')
+  Assert-Describe $api 'OrderApi/PlaceOrder' @('POST /orders', 'call RecipeConsumer.Order_Place')
+  Assert-Describe $api Order_Place @('call CreateOrder', 'raise InvalidOrder')
+  $roleScreen = Recipe 'role-protected-screen' $uiBase
+  Assert-Describe $roleScreen AuditReport_Load @('call RecipeUi.CheckAuditorRole', 'raise NotAuthorized')
+  Assert-Describe $roleScreen AuditReport @('roles Auditor')
+  Assert-Describe $roleScreen Home @('If condition=IsAuditor', 'Link onClick=AuditReport')
   $producerBase = New-Base RecipeProducer
   $producerSpec = Join-Path $run 'producer.json'
   '{"entities":[{"name":"Product","public":true,"attributes":[{"name":"Name"}]}],"serverActions":[{"name":"Product_GetById","public":true,"inputs":[{"name":"Id","type":"Product Identifier"}],"outputs":[{"name":"Product","type":"Product"}],"flow":[{"kind":"aggregate","name":"Match","sources":["Product"],"filters":["Product.Id = Id"],"maxRecords":1},{"kind":"assign","assign":{"Product":"Match.List.Current.Product"}}]}]}' | Set-Content $producerSpec

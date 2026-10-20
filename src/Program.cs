@@ -12,8 +12,18 @@ public static class Program
     {
         JsonOutput.Pretty = args.Contains("--pretty");
         var filtered = args.Where(a => a != "--pretty").ToArray();
+        if (filtered.FirstOrDefault() == "log" && !filtered.Contains("--help") && !filtered.Contains("-h"))
+            return UsageLog.Summary(filtered.Skip(1).ToArray());
+        // OML_LOG: one line per command, written after it ends. Without the variable nothing is wrapped or written.
+        return UsageLog.Enabled ? UsageLog.Measure(filtered, () => Dispatch(args, filtered)) : Dispatch(args, filtered);
+    }
+
+    static int Dispatch(string[] args, string[] filtered)
+    {
         if (filtered.FirstOrDefault() == "lt") return LifeTime.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "font") return FontAssets.Run(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "doctor") return Doctor.Run(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "spec") return SpecCommand.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "architecture" && filtered.Contains("--team"))
             return LifeTime.Architecture(args, RunCore);
         return RunCore(args);
@@ -23,8 +33,7 @@ public static class Program
     {
         var filtered = args.Where(a => a != "--pretty").ToArray();
 
-        var ss = Environment.GetEnvironmentVariable("OML_SERVICE_STUDIO")
-                 ?? @"C:\Program Files\OutSystems\Service Studio 11\Service Studio";
+        var ss = Locations.ServiceStudio;
         if (!File.Exists(Path.Combine(ss, "OutSystems.Model.V1.dll")))
         {
             Console.Error.WriteLine($"Service Studio not found at {ss}. Set OML_SERVICE_STUDIO.");
@@ -33,7 +42,7 @@ public static class Program
         if (RequiredRuntimeMajor(ss) is { } major && major > Environment.Version.Major)
         {
             Console.Error.WriteLine($"This Service Studio runs on .NET {major}, but the newest .NET runtime here is " +
-                                    $"{Environment.Version.Major}. Install it: winget install Microsoft.DotNet.Runtime.{major}");
+                                    $"{Environment.Version.Major}. {RuntimeInstallHint(major)}");
             return 2;
         }
 
@@ -44,11 +53,16 @@ public static class Program
             var imageRun = core.GetType("OmlCli.ImageAssets", throwOnError: true)!.GetMethod("Run")!;
             return (int)imageRun.Invoke(null, new object[] { filtered.Skip(1).Concat(JsonOutput.Pretty ? new[] { "--pretty" } : []).ToArray() })!;
         }
-        var run = core.GetType("OmlCli.Cli", throwOnError: true)!.GetMethod("Run")!;
+        var cli = core.GetType("OmlCli.Cli", throwOnError: true)!;
+        // `oml run` steps include `spec`, which lives here and needs no Service Studio.
+        cli.GetField("LauncherRun")!.SetValue(null, (Func<string[], int>)SpecCommand.Run);
+        var run = cli.GetMethod("Run")!;
         return (int)run.Invoke(null, new object[] { ss, args })!;
     }
 
-    static int? RequiredRuntimeMajor(string ss)
+    internal static string RuntimeInstallHint(int major) => $"Install it: winget install Microsoft.DotNet.Runtime.{major}";
+
+    internal static int? RequiredRuntimeMajor(string ss)
     {
         try
         {

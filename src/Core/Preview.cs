@@ -68,7 +68,7 @@ static class Preview
                 throw new CliError($"Output already exists: {p}. Use a new output path, or delete that file first.", 2);
         if (string.Equals(html, png, StringComparison.OrdinalIgnoreCase)) throw new CliError("--out and --screenshot must be different files.", 2);
 
-        using var module = Model.Load(Path.GetFullPath(positional[0]));
+        using var open = Model.Borrow(Path.GetFullPath(positional[0])); var module = open.Module;
         var result = Render(module, element, overrides, theme, w);
         try
         {

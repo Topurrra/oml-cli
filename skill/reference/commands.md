@@ -18,7 +18,7 @@ oml extension inspect <file.xif>
 oml extension new <out.xif> --name <Name> [--spec <spec.json>]
 oml templates           (local template/sample modules and bundles)
 oml inspect <module.oml> [--own] [--only entities,structures,actions,screens,blocks,references,timers,roles,processes,rest,static,siteProperties]
-oml describe <module.oml> <Element> [--depth N] [--in <folder|file.oml>]...
+oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]...
 oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
 oml census <module.oml>
 oml architecture [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--out <file.html>] [--json <file.json>]
@@ -26,7 +26,11 @@ oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [-
 oml preview <module.oml> <Block|Screen> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>]
 oml tree <module.oml> <ElementName>   (object tree of one action, screen, entity, ...)
 oml validate <module.oml> [--warnings]
-oml apply <source.oml> <spec.json> <staged-out.oml>
+oml apply <source.oml> <spec.json>... <staged-out.oml> [--describe A,B,...] [--describe-created]
+oml spec [<key>]                   (reference for one spec key; no key lists them. Runs without Service Studio)
+oml spec check <spec.json>        (checks a spec's shape without Service Studio; exit 1 on problems)
+oml spec schema [--out <file.json>] [--force]   (JSON Schema for spec files)
+oml run <steps.json> [--continue]   (several commands in one process, so Service Studio loads once; "-" reads the steps from stdin)
 oml translations export <module.oml> <file> [--format Excel|xlsx|ResX]
 oml install <staged.oml> <target.oml>
 
@@ -42,12 +46,14 @@ oml image batch <folder> [same options] [--out folder]
 oml api <TypeName...>   (members of model/plugin types on the installed build)
 oml widgets             (registered widget descriptors)
 oml selftest   (build check; also runs by itself on a Service Studio build not seen before)
+oml doctor [--text] [--selftest]   (checks the setup and says what to fix)
+oml log summary [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; set OML_LOG=1 to write the log)
 Output is compact JSON on stdout. Global --pretty includes empty fields and indents. Exit 0 ok, 1 model/validation failure, 2 usage/environment.
 ```
 
 All commands use compact JSON by default. Null fields and empty arrays or objects are omitted.
 Use `--pretty` at any position for indented JSON with empty fields. This also works with `oml lt`.
-`inspect --own` omits references. `--only` keeps the named sections.
+`inspect --own` omits references. `--only` keeps the named sections; give several in one call, comma separated: `oml inspect m.oml --own --only entities,actions,screens`.
 `actions` includes server, service, and client actions. `rest` includes clients and services. `static` means static entities.
 Public flags use `public` where the model supports them. Action and exception entries are objects with names.
 
@@ -57,7 +63,74 @@ It shows signatures, locals, calls, exceptions, data sources, and a widget outli
 The widget outline stops after 80 lines and reports the remaining count. SQL text stops after 200 characters.
 `--depth` defaults to `0`: called actions have signatures only. A positive depth adds available bodies.
 Use repeated `--in` options for producer files or folders. Missing bodies stay as signatures.
+Give several names to describe them in one call: `oml describe m.oml Order SaveOrder Orders`. The module loads once and the output is an array, one entry per name. A name that does not resolve gives an entry `{"element", "error"}` and exit 1. One name keeps the single-object output.
 Unknown node kinds keep their kind and name. The output describes the model; it does not run the logic.
+
+#### Several commands in one process: oml run
+
+Every `oml` command loads Service Studio's model again, 2 to 4 seconds each. `oml run` runs a list of commands in one process: the model loads once, and a module that a step only reads stays open for the next step.
+
+```json
+{ "steps": [
+  ["inspect", "App.oml", "--own", "--only", "entities"],
+  ["describe", "App.oml", "Order_Save"],
+  ["apply", "App.oml", "spec.json", "App.staged.oml", "--describe", "Order"],
+  ["validate", "App.staged.oml", "--warnings"]
+] }
+```
+
+`oml run steps.json` reads the file. `oml run -` reads the same JSON from stdin. Each step is exactly the argument list of a normal command. Comments and trailing commas are allowed in the file.
+
+The output is compact JSON: `{"results": [{"step": 1, "args": [...], "exitCode": 0, "output": <the command's own JSON>, "ms": 123}], "ms": <total>}`. A step that prints text (such as `spec <key>`) has a string `output`. Text on stderr goes to `stderr` in the result.
+
+- **Cache.** Modules are kept by full path and file write time. A file that changed on disk loads again. A module that `apply` wrote is new to the next step. `apply` always loads its source fresh, because it changes it.
+- **Exit codes.** A step with exit code 2 (usage or environment) stops the run, unless you add `--continue`; the output then has `stoppedAfterStep`. A step with exit code 1 does not stop it. The exit code of `oml run` is the highest step code. Note that `describe` with one unknown name exits 2 (with several names it exits 1), so add `--continue` when a later step does not depend on it.
+- **Allowed:** `inspect`, `describe`, `find`, `census`, `tree`, `validate`, `apply`, `preview`, `openapi`, `architecture` (not `--team`), `spec`.
+- **Refused with exit code 2:** `install`, `publish`, `references`, `pull`, `lt` and `run` itself. They need a person's confirmation or are not model work. Run them as their own commands. Any other command is refused as not supported.
+
+#### Usage log
+
+Set `OML_LOG=1` to append one JSON line per command to `%LOCALAPPDATA%\oml-cli\usage.jsonl`. Set `OML_LOG=<file>` to write to that file. Without the variable (or with `0`) nothing is written. The log stays on your machine; oml sends nothing.
+
+A line has `ts` (UTC), `cmd` (the command, with the verb for `lt`, `app`, `spec check` and similar), `exit`, `ms`, `bytes` (size of the output), `module` (the file name of the first `.oml`, `.oap`, `.osp` or `.xif` argument, no folder) and, for a failure, `error`: the first problem message, folders and secrets removed, cut to 200 characters. Steps inside `oml run` get their own lines with `run: true`. Arguments, spec contents, tokens, environment values and folders are never written. A message can repeat an element name that you typed.
+
+`oml log summary [--file <usage.jsonl>]` prints, per command: `count`, `failures`, `medianMs` and the five most common failure messages (`topFailures`). It shows where turns are lost, such as a command that fails again and again with the same message. Without `--file` it reads `OML_LOG` (when that is a file) or the default file.
+
+#### Spec reference, check and schema
+
+These three commands run in the launcher and need no Service Studio. They answer in milliseconds.
+Use them to read less and to catch spec mistakes before `apply`.
+
+```text
+oml spec                       list every spec key, one line each
+oml spec entities              print only the "Data model" section of skill/reference/spec.md
+oml spec aggregate             also: screens, edits, sql, restClients, tidyFlows, keepComments, assign, forEach, ...
+oml spec check my-spec.json    check the shape of a spec
+oml spec schema --out spec.schema.json
+```
+
+- `oml spec <key>` prints plain Markdown for one key, node kind or section title (case-insensitive), then a last line `Full reference: skill/reference/spec.md#<anchor>`.
+  An unknown key exits 2 and lists the closest names. The text is embedded in `oml.exe` at build time, so the docs folder does not have to be present.
+- `oml spec check <spec.json>` prints `{"ok":true,"problems":[]}` and exits 0, or lists problems and exits 1. Each problem has a `path` such as `entities[0].attributes[2].lenght` and a `message` such as `unknown key 'lenght'; did you mean 'length'?`.
+  It parses JSONC like `apply` (comments allowed, trailing commas refused) and checks that every key exists at its level, value types match, required fields are present (`name` for entities, attributes, actions, screens, ...), flow node `kind` values and edit `op` values are known, and `next`, `true`, `false`, `cycle`, `otherwise` and switch `cases[].next` name a node in the same flow.
+  It does not need a module, so it cannot tell whether an entity, action or screen named in an expression exists. `apply` checks that.
+- The key and type knowledge is read by reflection from the `Spec` record types in `src/Core`, so it follows `apply`. `oml spec --verify` checks that every key in the `SKILL.md` index still leads to a heading in `spec.md`.
+- `oml spec schema` prints a JSON Schema (draft 2020-12) for spec files, or writes it with `--out` (an existing file needs `--force`). It is built from the same record types.
+  Top-level keys carry the one-line description from the `SKILL.md` key index.
+
+JSON Schema in VS Code gives autocomplete and live errors for unknown keys and wrong types. Either add `"$schema"` to the first level of a spec (`apply` ignores it):
+
+```json
+{ "$schema": "./spec.schema.json", "entities": [] }
+```
+
+or map spec files in `.vscode/settings.json`:
+
+```json
+{ "json.schemas": [ { "fileMatch": ["*.spec.json", "specs/*.jsonc"], "url": "./spec.schema.json" } ] }
+```
+
+Regenerate the schema after you update `oml`. The schema checks shape only; `oml spec check` also checks node targets, node kinds and edit operations.
 
 #### Font and image assets
 
@@ -127,6 +200,11 @@ Most results are JSON on stdout. Usage and launcher diagnostics can appear on st
 Exit `0` means success. Exit `1` means failure or attention is needed. Exit `2` means usage or environment failure.
 Pre-save problems prevent the final staged save. Post-reopen errors can return exit `1` with `saved: true`.
 Read `reopenNewErrors` and the exit code before accepting a staged file.
+
+`apply` already reports errors and warnings (`problems`, `newErrors`, `reopenNewErrors`, `warnings`, `newWarnings`), so run `validate` only before `install`.
+To check the result in the same call, add `--describe A,B,...` (describes each named element of the staged file, same output as `oml describe`) and `--describe-created` (describes the elements the spec created, at most 10; `describeCreatedMore` counts the rest). The report then has `describe`, an object keyed by name. Names that do not resolve go to `describeErrors` and do not fail the apply.
+Give several specs to apply work split into parts in one run: `oml apply src.oml data.json logic.json ui.json staged.oml`. The last argument is the output. Arrays are joined per key, objects are merged, and the report adds `specs`. Two specs that set different values for one scalar, or that create the same element name in one list, are refused with `saved: false` and a problem naming both files. The `edits`, `references`, `copy`, `translate`, `locales` and `tidyFlows` lists are joined without a name check.
+A spec with an unknown key (at any typed level) or a wrong value type is refused before the module loads. The problem gives the path, a `did you mean` hint when a known key is one or two letters away, and a short example for the key. Keys starting with `_` or `$` are free for notes.
 The shorthand `oml validate --warnings` omits the required module path. Use the full form in the usage block.
 
 #### Packages, templates, and extensions
@@ -168,14 +246,35 @@ Unknown keys and refused writes become problems and prevent saving. Name, key, a
 `inspect.module` reports these settings, the module key, DBMS, and icon byte size.
 See [module settings](spec.md#module-settings) for an example.
 
+#### Setup check
+
+`oml doctor` checks the setup and says what to fix. It works even when Service Studio does not load.
+It runs these checks, in this order. Each one has a `status` (`ok`, `warn`, `fail` or `skip`), a `detail`, and a `fix` when it is not `ok`.
+
+| Check | What it looks at |
+|---|---|
+| serviceStudio | The Service Studio folder (`OML_SERVICE_STUDIO`, or the default) and its version. |
+| dotnet | The running .NET runtime, against the one Service Studio needs. |
+| model | Service Studio's model API assemblies load. |
+| selfTest | The self-test passed on this Service Studio build. |
+| studioMcp | Service Studio's MCP server answers. It must be 11.55.91 or later for publish. Optional. |
+| lifeTime | `OML_LIFETIME_HOST` and `OML_LIFETIME_TOKEN`. The token is never printed. |
+| browser | Edge or Chrome for `oml preview --screenshot`. `OML_BROWSER` wins. |
+| path | The folder of `oml` is on PATH. |
+
+`ok` is `false` when any check fails. The exit code is `0` when nothing fails, and `1` otherwise.
+`--text` prints one line per check, with the fix below each warning or failure.
+`--selftest` runs the self-test now. Without it, the check reads the saved result. It never calls LifeTime.
+
 #### Service Studio publishing and reference refresh
 
 Requires Service Studio 11.55.91 or later, running with its MCP server started.
-Use **Edit > MCP Configuration > Start MCP Server**. The default port is 41820; override it with `OML_STUDIO_PORT`.
+Use **Edit > MCP Server > Start MCP server**. The default port is 41820; override it with `OML_STUDIO_PORT`.
 
 | Command | Behavior |
 |---|---|
 | studio | Checks the connection and lists open modules. |
+| pull | Saves the module open in Service Studio to an `.oml` file (default `<Module>.oml`; `--out` for another path). Needs Service Studio 11.55.93 or later. Opens an edit session, saves the working copy with an empty change, copies it, and ends the session; nothing is merged, so the open module does not change. Refuses an existing output file, and refuses when another agent already has an edit session on the module (Service Studio allows one). With several open modules, name the one to pull. |
 | publish | Calls `omlPublish`. Opens a file first. Refuses file-based publish if a same-named module is already open. |
 | references | Calls `omlRefreshReferences` for Refresh All. Does not add references or write the passed file. Save or publish the open module. |
 

@@ -31,16 +31,39 @@ Build first, then run:
 pwsh -NoProfile -File tests/regress.ps1
 ```
 
-Exit `0` means pass. The suite creates disposable modules under `tmp/` and replaces its temporary `.oml` files.
+Exit `0` means pass. The exit code is the number of failed checks. The suite needs PowerShell 7 and clears `tmp/` when it starts.
+`-Throttle N` sets how many checks run at once (default 4).
 It applies JSON fixtures, checks saved models, tests LifeTime against a local mock, and runs the self-test.
 LifeTime tests do not contact a real server.
 Run a real LifeTime smoke test before relying on deployment behavior.
+
+### How the suite runs
+
+`tests/regress.ps1` splits the work into units. A unit is one fixture apply or one `*-check.ps1` script.
+
+1. Setup, one at a time: it builds the blank modules (`r0`, `s0`, `w0`) and the producer module in `tmp/base`.
+2. Parallel lane: up to `-Throttle` units at once. Each unit runs in its own `pwsh` process with its own work folder `tmp/<unit>` (a copy of `tmp/base`) and its own `TEMP`. A unit can wait for other units (`-After`). A unit that makes `out-*.oml` files that others read publishes them into `tmp/base` (`-Publish`).
+3. Alone lane, one at a time, after the parallel lane: `lifetime-check` (local port, mock server, `OML_LIFETIME_*` variables), `doctor-check` (sets `OML_*` variables, reads machine-wide state), `log-check` (writes the default usage log), `preview-check` and `architecture-page-check` (headless browser with timeouts, flaky under load) and `selftest` (long, heavy, records the build as checked).
+
+Output is printed per unit in the order of the list in the script, with the unit's time. Read the exit code and every `FAIL` line.
+
+### Add a regression check
+
+1. Write `tests/<name>-check.ps1`. Take `$Oml` and `$Tmp` as parameters. Put every file in `$Tmp`. It is your own folder, a copy of the shared base modules. Throw (or call `Write-Error`) on failure.
+2. In `tests/regress.ps1` add a `Unit '<name>' { ... }` where the script is listed, in the order you want its output. Copy the pattern of a neighbour: `try { & (Join-Path $tests '<name>-check.ps1') $oml $tmp } catch { $global:fail++; Write-Host "FAIL ...: $_" }`.
+3. The body sees `$oml`, `$tests`, `$tmp`, `$reactive`, `$service`, `$web`. Count failures with `$global:fail++`.
+4. Parallel is the default. Add `-After 'other-unit'` if you read a file another unit makes. Add `-Alone` only if the check changes machine-wide state, binds a fixed port, needs a quiet machine or is long and heavy. Put the reason in the comment at the top of `regress.ps1`.
+5. Do not write outside `$Tmp`, and do not rely on files made by another unit unless you declare it with `-After`.
 
 To run the build capability check alone:
 
 ```powershell
 oml selftest
 ```
+
+## Benchmarks
+
+`tests/bench/` holds the reproducible benchmark behind the README's benchmark section: the OutSystems MCP side against `oml`, run through Claude Code. A run uses real API usage and needs Service Studio for the MCP side, so it is not part of the regression suite. Read [tests/bench/README.md](tests/bench/README.md) before you run it, and use `-DryRun` first to check the plan.
 
 ## Releasing
 

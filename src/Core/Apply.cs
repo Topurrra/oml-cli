@@ -34,16 +34,25 @@ record Spec(List<RecordSpec>? Entities = null, List<RecordSpec>? Structures = nu
     List<ThemeSpec>? Themes = null, List<ContentFileSpec>? Resources = null,
     List<FolderSpec>? Folders = null, List<string>? TidyFlows = null);
 
+/// `--describe` names and `--describe-created` for `oml apply`: the report then carries describe output.
+record ApplyOptions(List<string> Describe, bool DescribeCreated);
+
 static class Apply
 {
-    public static int Run(string source, string specPath, string output)
+    const int DescribeCreatedCap = 10;
+    static readonly string[] DescribableKinds = ["entity", "structure", "static entity", "serverAction", "serviceAction", "clientAction", "screen", "block"];
+
+    public static int Run(string source, IReadOnlyList<string> specPaths, string output, ApplyOptions? options = null)
     {
-        var (code, report) = Execute(source, specPath, output);
+        var (code, report) = Execute(source, specPaths, output, options);
         Cli.Emit(report);
         return code;
     }
 
-    public static (int code, object report) Execute(string source, string specPath, string output)
+    public static (int code, object report) Execute(string source, string specPath, string output) =>
+        Execute(source, [specPath], output, null);
+
+    public static (int code, object report) Execute(string source, IReadOnlyList<string> specPaths, string output, ApplyOptions? options)
     {
         source = Path.GetFullPath(source);
         output = Path.GetFullPath(output);
@@ -51,26 +60,58 @@ static class Apply
             throw new CliError("Output must differ from source; install with 'oml install' after review.", 2);
         if (File.Exists(output)) throw new CliError($"Staged output already exists: {output}. Use a new output path, or delete that file first.", 2);
 
+        var many = specPaths.Count > 1;
+        var parts = specPaths.Select(p =>
+        {
+            try
+            {
+                return (file: p, node: System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(p),
+                    documentOptions: new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip }));
+            }
+            catch (JsonException e) { throw new CliError($"Invalid spec JSON{(many ? $" in {p}" : "")}: {e.Message}", 2); }
+        }).ToList();
+        System.Text.Json.Nodes.JsonNode? json;
+        try { json = many ? SpecMerge.Merge(parts.Select(p => (Path.GetFileName(p.file), p.node)).ToList()) : parts[0].node; }
+        catch (SpecMerge.Conflict c) { return (1, new { saved = false, specs = specPaths, problems = new[] { c.Message } }); }
+
+        if (SpecHelp.UnknownKeys(json) is { Count: > 0 } unknown) return (1, new { saved = false, phase = "spec", problems = unknown });
         Spec spec;
         var commentsRemoved = 0;
         try
         {
-            var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(specPath),
-                documentOptions: new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip });
             var keep = json?["keepComments"]?.GetValueKind() == JsonValueKind.True
                        || json?["KeepComments"]?.GetValueKind() == JsonValueKind.True;
             if (!keep) commentsRemoved = Minify.Spec(json);
             spec = json?.Deserialize<Spec>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                    ?? throw new CliError("Empty spec.", 2);
         }
-        catch (JsonException e) { throw new CliError($"Invalid spec JSON: {e.Message}", 2); }
+        catch (JsonException e) { return (1, new { saved = false, phase = "spec", problems = new[] { SpecHelp.TypeProblem(e) } }); }
 
         var m = Model.Load(source);
-        try { return Execute(spec, m, output, commentsRemoved); }
+        try { return Execute(spec, m, output, commentsRemoved, many ? specPaths : null, options); }
         finally { m.Dispose(); }
     }
 
-    static (int code, object report) Execute(Spec spec, IESpace m, string output, int commentsRemoved)
+    // Describes the named elements, then the created ones (capped), of the saved module.
+    static (Dictionary<string, object>? described, object[]? errors, int? more) DescribeResults(IESpace saved, ApplyOptions? options, List<string> created)
+    {
+        if (options is null) return (null, null, null);
+        var names = options.Describe.Distinct().ToList();
+        int? more = null;
+        if (options.DescribeCreated)
+        {
+            var all = created.Select(c => DescribableKinds.FirstOrDefault(k => c.StartsWith(k + " ")) is { } k ? c[(k.Length + 1)..] : null)
+                .OfType<string>().Except(names).Distinct().ToList();
+            names.AddRange(all.Take(DescribeCreatedCap));
+            if (all.Count > DescribeCreatedCap) more = all.Count - DescribeCreatedCap;
+        }
+        if (names.Count == 0) return (null, null, null);
+        var results = Describe.Many(saved, names, 0, [], collectErrors: true);
+        var described = names.Zip(results).Where(x => x.Second is not Describe.DescribeError).ToDictionary(x => x.First, x => x.Second);
+        return (described, results.OfType<Describe.DescribeError>().Cast<object>().ToArray(), more);
+    }
+
+    static (int code, object report) Execute(Spec spec, IESpace m, string output, int commentsRemoved, IReadOnlyList<string>? specs, ApplyOptions? options)
     {
         var rules = new ProductionRules(m);
         var flowLayoutBefore = FlowLayout.Capture(m);
@@ -222,13 +263,15 @@ static class Apply
         }
 
         Model.Save(m, output);
-        using var reopened = Model.Load(output);
+        using var open = Model.Borrow(output); var reopened = open.Module; // an `oml run` keeps it for the next command
         var reopenNew = Subtract(Model.Errors(reopened), baseline);
         // Warnings do not block a save, but a type mismatch warning can still mean a wrong model: report them.
         var newWarnings = Subtract(Model.Warnings(reopened), baselineWarnings);
+        var (described, describeErrors, describeMore) = DescribeResults(reopened, options, created);
         return (reopenNew.Length == 0 ? 0 : 1, new
         {
             saved = true,
+            specs,
             staged = output,
             commentsRemoved = commentsRemoved > 0 ? commentsRemoved : (int?)null, // characters stripped from styleSheet/javaScript
             created,
@@ -238,6 +281,9 @@ static class Apply
             baselineErrors = baseline.Length,
             reopenNewErrors = Model.Grouped(reopenNew),
             newWarnings = Model.Grouped(newWarnings),
+            describe = described,
+            describeErrors,
+            describeCreatedMore = describeMore,
             next = "Review, then 'oml install' the staged file over the source and publish it from Service Studio.",
         });
     }

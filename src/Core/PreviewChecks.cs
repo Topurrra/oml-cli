@@ -100,19 +100,9 @@ static class PreviewBrowser
 {
     internal sealed record Outcome(string? Screenshot, string? Note, object? JavaScriptErrors, bool? HorizontalOverflow);
 
-    static string? Find()
-    {
-        var env = Environment.GetEnvironmentVariable("OML_BROWSER");
-        if (!string.IsNullOrEmpty(env)) return File.Exists(env) ? env : null;
-        var roots = new[] { Environment.GetEnvironmentVariable("ProgramFiles(x86)"), Environment.GetEnvironmentVariable("ProgramFiles"),
-            Environment.GetEnvironmentVariable("LocalAppData") }.Where(r => !string.IsNullOrEmpty(r));
-        var tails = new[] { @"Microsoft\Edge\Application\msedge.exe", @"Google\Chrome\Application\chrome.exe" };
-        return tails.SelectMany(t => roots.Select(r => Path.Combine(r!, t))).FirstOrDefault(File.Exists);
-    }
-
     internal static Outcome Capture(string html, string png, int width, int height)
     {
-        var browser = Find();
+        var browser = Locations.BrowserPath();
         if (browser is null)
             return new Outcome(null, "No Edge or Chrome found in the usual Program Files folders (set OML_BROWSER to a browser .exe). Open the HTML file in a browser.", null, null);
         var profile = Path.Combine(Path.GetTempPath(), "oml-preview-" + Guid.NewGuid().ToString("N"));

@@ -39,7 +39,13 @@ static class Describe
     static bool EntityAction(object o) => o.GetType().GetInterfaces().Any(i => i.Name.Contains("EntityAction"))
         || o.GetType().Name.Contains("EntityAction");
 
-    public static object Run(IESpace m, string path, int depth, List<string> searchIn)
+    internal sealed record DescribeError(string element, string error);
+
+    public static object Run(IESpace m, string path, int depth, List<string> searchIn) => Many(m, [path], depth, searchIn, collectErrors: false)[0];
+
+    // One load of the module and of each producer file, however many elements are described.
+    // collectErrors: a name that does not resolve becomes a DescribeError entry instead of failing the call.
+    public static List<object> Many(IESpace m, IReadOnlyList<string> paths, int depth, List<string> searchIn, bool collectErrors)
     {
         var producers = new List<IESpace>();
         try
@@ -48,8 +54,21 @@ static class Describe
             {
                 var full = Path.GetFullPath(input);
                 IEnumerable<string> files = Directory.Exists(full) ? Directory.EnumerateFiles(full, "*.oml", SearchOption.AllDirectories).Order(StringComparer.Ordinal) : new[] { full };
-                foreach (var file in files.Distinct(StringComparer.OrdinalIgnoreCase)) producers.Add(Model.Load(file));
+                foreach (var file in files.Distinct(StringComparer.OrdinalIgnoreCase)) producers.Add(Model.LoadShared(file));
             }
+            var results = new List<object>();
+            foreach (var path in paths)
+                try { results.Add(One(m, path, depth, producers)); }
+                catch (ModelError e) when (collectErrors) { results.Add(new DescribeError(path, e.Message)); }
+            return results;
+        }
+        finally { foreach (var p in producers) Model.Release(p); }
+    }
+
+    static object One(IESpace m, string path, int depth, List<IESpace> producers)
+    {
+        try
+        {
             IObjectSignature root;
             var own = ((OutSystems.Model.Applications.IModule)m).Name;
             if (path.StartsWith(own + ".", StringComparison.Ordinal)) path = path[(own.Length + 1)..];
@@ -70,7 +89,6 @@ static class Describe
         }
         catch (System.Reflection.TargetInvocationException e)
         { throw new ModelError($"describe '{path}': {(e.InnerException ?? e).Message}"); }
-        finally { foreach (var p in producers) p.Dispose(); }
     }
 
     sealed class Writer

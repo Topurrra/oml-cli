@@ -1,0 +1,55 @@
+// Build a static entity with records, a Dropdown bound to it on a screen, and a table that shows each row's label.
+// Base: a copy of your Reactive module with LayoutTopMenu and a handler. Rename TaskPriority, Task and Tasks together.
+// Related keys: staticEntities, records, Dropdown (variable, list, labels, values), joins, refreshData, TableRecords.
+// Dropdown labels and values name the option record (TaskPriority.Label), not FetchPriorities.List.Current.TaskPriority.Label.
+{
+  "staticEntities": [{ "name": "TaskPriority", "records": [
+    { "identifier": "Low", "label": "Low", "order": 1 },
+    { "identifier": "Medium", "label": "Medium", "order": 2 },
+    { "identifier": "High", "label": "High", "order": 3 }
+  ] }],
+  "entities": [{ "name": "Task", "attributes": [
+    { "name": "Title", "length": 100, "mandatory": true },
+    { "name": "PriorityId", "type": "TaskPriority Identifier", "mandatory": true, "default": "Entities.TaskPriority.Medium" }
+  ] }],
+  "serverActions": [{ "name": "Task_Add", "inputs": [{ "name": "Task", "type": "Task", "mandatory": true }], "flow": [
+    { "kind": "if", "name": "ValidTitle", "condition": "Trim(Task.Title) <> \"\"", "true": "Create", "false": "End" },
+    { "kind": "execute", "name": "Create", "action": "CreateTask", "args": { "Source": "Task" } }
+  ] }],
+  "screens": [{ "name": "Tasks", "layout": "LayoutTopMenu", "access": { "anonymous": false, "registered": true },
+    "title": [{ "type": "Text", "text": "Tasks" }],
+    "locals": [{ "name": "NewTask", "type": "Task" }],
+    "aggregates": [
+      { "name": "FetchPriorities", "sources": ["TaskPriority"], "sorts": [{ "attribute": "TaskPriority.Order" }] },
+      { "name": "FetchTasks", "sources": ["Task", "TaskPriority"],
+        "joins": [{ "type": "only with", "left": "Task", "right": "TaskPriority", "condition": "Task.PriorityId = TaskPriority.Id" }],
+        "sorts": [{ "attribute": "Task.Id", "descending": true }], "maxRecords": 50 }
+    ],
+    "actions": [{ "name": "AddTask", "flow": [
+      { "kind": "execute", "name": "Create", "action": "Task_Add", "args": { "Task": "NewTask" } },
+      { "kind": "assign", "name": "Reset", "assign": { "NewTask.Title": "\"\"" } },
+      { "kind": "refreshData", "name": "Reload", "dataSource": "FetchTasks" }
+    ] }],
+    "widgets": [
+      { "type": "Form", "name": "TaskForm", "style": "\"card padding-m\"", "children": [
+        { "type": "Label", "children": [{ "type": "Text", "text": "Title" }] },
+        { "type": "Input", "name": "TitleInput", "variable": "NewTask.Title", "mandatory": "True", "maxLength": 100, "prompt": "\"What needs doing?\"" },
+        { "type": "Label", "children": [{ "type": "Text", "text": "Priority" }] },
+        { "type": "Dropdown", "name": "PriorityInput", "variable": "NewTask.PriorityId", "mandatory": "True",
+          "list": "FetchPriorities.List", "labels": "TaskPriority.Label", "values": "TaskPriority.Id" },
+        { "type": "Button", "onClick": "AddTask", "style": "\"btn btn-primary\"", "children": [{ "type": "Text", "text": "Add task" }] }
+      ] },
+      { "type": "If", "condition": "FetchTasks.List.Empty",
+        "trueBranch": [{ "type": "Text", "text": "No tasks yet. Add the first one above." }],
+        "falseBranch": [{ "type": "TableRecords", "name": "TaskTable", "source": "FetchTasks.List", "style": "\"table\"",
+          "headerRow": [
+            { "type": "HeaderCell", "children": [{ "type": "Text", "text": "Title" }] },
+            { "type": "HeaderCell", "children": [{ "type": "Text", "text": "Priority" }] }
+          ],
+          "row": [
+            { "type": "RowCell", "children": [{ "type": "Expression", "value": "FetchTasks.List.Current.Task.Title" }] },
+            { "type": "RowCell", "children": [{ "type": "Expression", "value": "FetchTasks.List.Current.TaskPriority.Label" }] }
+          ] }] }
+    ]
+  }]
+}

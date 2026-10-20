@@ -15,6 +15,11 @@ Use a new staged output path for each apply. Do not edit the source module.
 | [sql-query.jsonc](sql-query.jsonc) | Parameterized SQL, entity output, loop | Fresh CrossDevice |
 | [web-screen.jsonc](web-screen.jsonc) | Preparation, table, save button/action | Fresh WebResponsive; see warning below |
 | [timer-role-site-property.jsonc](timer-role-site-property.jsonc) | Timer, role-only screen, site property | UI base |
+| [form-with-validation.jsonc](form-with-validation.jsonc) | Contact form, client messages, server check and exception | UI base |
+| [dropdown-from-static.jsonc](dropdown-from-static.jsonc) | Static entity, Dropdown bound to it, label table | UI base |
+| [list-search-paging.jsonc](list-search-paging.jsonc) | Search filter, sort, Previous/Next paging, empty state | UI base |
+| [expose-rest-api.jsonc](expose-rest-api.jsonc) | Exposed GET (path) and POST (body); see `oml openapi` | Fresh CrossDevice |
+| [role-protected-screen.jsonc](role-protected-screen.jsonc) | Role-only screen, server role check, role-only link | UI base |
 
 Create a blank base with `oml new tmp/base.oml --kind CrossDevice` (or `WebResponsive`).
 Then run `oml apply tmp/base.oml skill/recipes/sql-query.jsonc tmp/sql.staged.oml`.
@@ -22,7 +27,7 @@ Set `TEMP` and `TMP` to your worktree's `tmp` folder before running model comman
 
 For the UI recipes, use a copy of your own Reactive module as the UI base. It needs `LayoutTopMenu` with the Title, Actions and MainContent placeholders, and a configured exception handler.
 Apply entity-with-crud, then list-detail-screens, then edit-existing-flow, each to a new staged file.
-Apply timer-role-site-property separately to another copy of the UI base.
+Apply timer-role-site-property, form-with-validation, dropdown-from-static, list-search-paging and role-protected-screen separately, each to its own copy of the UI base. Each adds its own entities, so none needs the CRUD chain.
 Use the module's own `LayoutTopMenu`, not a guessed producer block.
 `tests/recipes-check.ps1` builds such a UI base itself, so every recipe runs in every clone.
 A local layout alone works on blank CrossDevice, but does not provide an exception handler.

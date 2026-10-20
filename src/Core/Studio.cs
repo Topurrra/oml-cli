@@ -6,12 +6,12 @@ using System.Text.Json.Nodes;
 
 namespace OmlCli;
 
-// Client for the MCP server built into Service Studio 11.55.91+ (Edit > MCP Configuration > Start MCP Server).
+// Client for the MCP server built into Service Studio 11.55.91+ (Edit > MCP Server > Start MCP server).
 // Publishing and refreshing references need the live Service Studio session, so these commands drive it there.
 static class Studio
 {
-    static readonly int Port = int.TryParse(Environment.GetEnvironmentVariable("OML_STUDIO_PORT"), out var p) ? p : 41820;
-    static readonly string Url = $"http://127.0.0.1:{Port}/mcp";
+    static readonly int Port = Locations.StudioPort;
+    static readonly string Url = Locations.StudioUrl;
     // The token is an authorization secret: keep it in the temp folder, never in a project.
     static readonly string TokenFile = Path.Combine(Path.GetTempPath(), "oml-cli", $"studio-token-{Port}");
     static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(15) }; // a publish can take minutes
@@ -20,7 +20,7 @@ static class Studio
     const string ManualPublish = "Publish it manually instead: open the module in Service Studio and use 1-Click Publish.";
     const string ManualRefresh = "Refresh them manually instead: in Service Studio open Manage Dependencies and use Refresh All.";
 
-    public static object Status() => Guard("Reading Service Studio's open modules", "Check Edit > MCP Configuration in Service Studio.", () =>
+    public static object Status() => Guard("Reading Service Studio's open modules", "Check Edit > MCP Server in Service Studio.", () =>
     {
         Connect();
         return new { url = Url, apps = Call("listApps", input: null)["apps"] };
@@ -47,6 +47,62 @@ static class Studio
         });
         return hasErrors ? 1 : 0;
     });
+
+    const string ManualPull = "Save it manually instead: in Service Studio, save the module as an .oml file.";
+
+    // Service Studio 11.55.93+ edit sessions: check out a working copy, save it with an empty change, copy the
+    // saved file, then end the session. Nothing is merged, so the live module never changes.
+    public static int Pull(string? module, string? output)
+    {
+        // A wrong output path is the user's to fix, not a Service Studio failure: check it before connecting.
+        if (output is not null && File.Exists(Path.GetFullPath(output)))
+            throw new CliError($"Output already exists: {Path.GetFullPath(output)}. Use a new output path, or delete that file first.", 2);
+        return Guard("Pulling the open module from Service Studio", ManualPull, () => PullOpen(module, output));
+    }
+
+    static int PullOpen(string? module, string? output)
+    {
+        Connect();
+        var open = (Call("listApps", input: null)["apps"] as JsonArray ?? new())
+            .Where(a => a?["isOpen"]?.GetValue<bool>() == true).Select(a => a!["name"]!.GetValue<string>()).ToList();
+        var name = module ?? (open.Count == 1 ? open[0]
+            : throw new CliError(open.Count == 0 ? "No module is open in Service Studio. Open the module first."
+                : $"Several modules are open ({string.Join(", ", open)}). Name the one to pull: oml pull <Module>.", 2));
+        if (!open.Contains(name)) throw new CliError($"Module '{name}' is not open in Service Studio. Open it first.", 2);
+        var path = Path.GetFullPath(output ?? name + ".oml");
+        if (File.Exists(path)) throw new CliError($"Output already exists: {path}. Use a new output path, or delete that file first.", 2);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!); // before the session, so a bad path costs nothing
+
+        var session = new JsonObject { ["eSpaceName"] = name };
+        try { Call("startOmlEditSession", session); }
+        catch (CliError e) when (e.Message.Contains("already", StringComparison.OrdinalIgnoreCase))
+        {
+            // Never end a session another agent started: it would discard that agent's unmerged work.
+            throw new CliError($"Another agent already has an edit session on '{name}', and Service Studio allows only one. " +
+                               "Wait until it ends, then run oml pull again.", 2);
+        }
+        try
+        {
+            var applied = Call("applyModelApiCode", new JsonObject
+            {
+                ["eSpaceName"] = name, ["code"] = "eSpace => { }", ["imports"] = new JsonArray(),
+            });
+            var saved = applied["mutatedOmlPath"]?.GetValue<string>();
+            if (string.IsNullOrEmpty(saved) || !File.Exists(saved))
+                throw new CliError($"applyModelApiCode returned no saved file (got: {Shorten(applied.ToJsonString())}).", 2);
+            File.Copy(saved, path);
+        }
+        finally { Call("endOmlEditSession", new JsonObject { ["eSpaceName"] = name }); }
+
+        string pulled;
+        using (var m = Model.Load(path)) pulled = ((OutSystems.Model.Applications.IModule)m).Name;
+        Cli.Emit(new
+        {
+            module = pulled, file = path, bytes = new FileInfo(path).Length,
+            note = "Taken from the module as it is open in Service Studio now. The open module was not changed.",
+        });
+        return 0;
+    }
 
     // publish/references use Service Studio's Beta MCP write tools, which may change in a later release. Whatever
     // breaks (tool renamed, result reshaped, non-JSON reply), fail with one clear message and the manual step.
@@ -117,7 +173,7 @@ static class Studio
         catch (HttpRequestException e)
         {
             throw new CliError($"Service Studio's MCP server is not reachable at {Url} ({e.Message}). Open a module in Service Studio, " +
-                               "then Edit > MCP Configuration > Start MCP Server. Set OML_STUDIO_PORT for another port.", 2);
+                               "then Edit > MCP Server > Start MCP server. Set OML_STUDIO_PORT for another port.", 2);
         }
         Notify("notifications/initialized");
         token = File.Exists(TokenFile) ? File.ReadAllText(TokenFile).Trim() : null;

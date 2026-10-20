@@ -1,0 +1,38 @@
+// Build a role, a screen only that role can open, a server action that checks the role, and a link shown only to its users.
+// Base: a copy of your Reactive module with LayoutTopMenu and a handler. Rename Auditor, AuditReport and the texts together.
+// Related keys: roles, screens (access with both flags false), serverActions, execute Check<Role>Role (output HasRole), dataActions, onInitialize, If.
+// Roles are granted to users in the platform's user management, not here. Never add Anonymous or Registered to widen access.
+// The link is hidden for other users, but the screen's access and the server check enforce the rule; keep both.
+{
+  "roles": [{ "name": "Auditor", "persistent": true }],
+  "exceptions": ["NotAuthorized"],
+  "serverActions": [{ "name": "AuditReport_Load", "public": true, "outputs": [{ "name": "Summary", "type": "Text" }], "flow": [
+    { "kind": "execute", "name": "Check", "action": "CheckAuditorRole", "args": { "UserId": "GetUserId()" } },
+    { "kind": "if", "name": "IsAuditor", "condition": "Check.HasRole", "true": "Build", "false": "Denied" },
+    { "kind": "assign", "name": "Build", "assign": { "Summary": "\"All records reviewed\"" }, "next": "End" },
+    { "kind": "raiseException", "name": "Denied", "exception": "NotAuthorized", "message": "\"Auditor role required\"" }
+  ] }],
+  "screens": [
+    { "name": "AuditReport", "layout": "LayoutTopMenu", "access": { "anonymous": false, "registered": false, "roles": ["Auditor"] },
+      "title": [{ "type": "Text", "text": "Audit report" }],
+      "dataActions": [{ "name": "LoadReport", "outputs": [{ "name": "Report", "type": "Text" }], "flow": [
+        { "kind": "execute", "name": "Load", "action": "AuditReport_Load" },
+        { "kind": "assign", "name": "Copy", "assign": { "Report": "Load.Summary" } }
+      ] }],
+      "widgets": [{ "type": "Container", "style": "\"card padding-m\"", "children": [{ "type": "Expression", "value": "LoadReport.Report" }] }] },
+    { "name": "Home", "layout": "LayoutTopMenu", "access": { "anonymous": false, "registered": true },
+      "title": [{ "type": "Text", "text": "Home" }],
+      "locals": [{ "name": "IsAuditor", "type": "Boolean" }],
+      "onInitialize": "CheckAccess",
+      "actions": [{ "name": "CheckAccess", "flow": [
+        { "kind": "execute", "name": "Check", "action": "CheckAuditorRole", "args": { "UserId": "GetUserId()" } },
+        { "kind": "assign", "name": "Remember", "assign": { "IsAuditor": "Check.HasRole" } }
+      ] }],
+      "widgets": [
+        { "type": "Text", "text": "Welcome back." },
+        { "type": "If", "condition": "IsAuditor", "trueBranch": [
+          { "type": "Link", "onClick": { "destination": "AuditReport" }, "children": [{ "type": "Text", "text": "Open the audit report" }] }
+        ] }
+      ] }
+  ]
+}

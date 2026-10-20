@@ -10,7 +10,8 @@ public static class Program
 {
     public static int Main(string[] args)
     {
-        var ss = Environment.GetEnvironmentVariable("OML_SERVICE_STUDIO") ?? @"C:\Program Files\OutSystems\Service Studio 11\Service Studio";
+        // An empty value counts as unset: another check can leave the variable empty in a shared session.
+        var ss = Environment.GetEnvironmentVariable("OML_SERVICE_STUDIO") is { Length: > 0 } set ? set : @"C:\Program Files\OutSystems\Service Studio 11\Service Studio";
         var context = new GraphicsContext(ss);
         var assembly = context.LoadFromAssemblyPath(typeof(Program).Assembly.Location);
         try { assembly.GetType("AssetChecks")!.GetMethod("Run")!.Invoke(null, [args]); return 0; }

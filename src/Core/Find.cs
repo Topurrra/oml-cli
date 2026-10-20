@@ -19,7 +19,7 @@ static class Finder
         {
             var path = Path.GetFullPath(modulePath);
             seen.Add(path);
-            using var m = Model.Load(path);
+            using var borrowed = Model.Borrow(path); var m = borrowed.Module;
             var own = ((OutSystems.Model.Applications.IModule)m).Name;
             foreach (var (owner, element) in Refs.All(m))
                 if (Model.NameOf(element) is { } n && pattern.IsMatch(n))
@@ -34,7 +34,7 @@ static class Finder
             if (!seen.Add(file)) continue;
             try
             {
-                using var m = Model.Load(file);
+                using var m = Model.Load(file); // a folder scan: do not keep every file open
                 var own = ((OutSystems.Model.Applications.IModule)m).Name;
                 foreach (var (owner, element) in Refs.All(m).Where(c => c.owner == own))
                     if (Model.NameOf(element) is { } n && pattern.IsMatch(n))

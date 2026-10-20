@@ -85,6 +85,52 @@ static class Model
         return Services().LoadESpace(File.ReadAllBytes(path), null, null, null);
     }
 
+    // `oml run` keeps the modules it only reads, keyed by full path, file write time and length, so the next
+    // command on the same file skips the load. A file that changed on disk (an `apply` output is a new file) reloads.
+    // Code that changes a module must use Load, never Borrow.
+    public static bool ShareModules;
+    const int SharedKeep = 8;
+    static readonly List<(string path, long ticks, long length, IESpace module)> shared = new();
+
+    public static Borrowed Borrow(string path) => new(LoadShared(path));
+
+    public static IESpace LoadShared(string path)
+    {
+        if (!ShareModules) return Load(path);
+        var info = new FileInfo(path);
+        if (!info.Exists) return Load(path); // throws the usual "File not found"
+        var i = shared.FindIndex(s => string.Equals(s.path, info.FullName, StringComparison.OrdinalIgnoreCase));
+        if (i >= 0)
+        {
+            var hit = shared[i];
+            if (hit.ticks == info.LastWriteTimeUtc.Ticks && hit.length == info.Length) return hit.module;
+            hit.module.Dispose();
+            shared.RemoveAt(i);
+        }
+        var module = Load(path);
+        shared.Add((info.FullName, info.LastWriteTimeUtc.Ticks, info.Length, module));
+        return module;
+    }
+
+    // A shared module stays open for the next command; any other module is closed now.
+    public static void Release(IESpace module)
+    {
+        if (!shared.Any(s => ReferenceEquals(s.module, module))) module.Dispose();
+    }
+
+    // Between commands of one `oml run`: close the oldest shared modules beyond the keep limit.
+    public static void TrimShared()
+    {
+        while (shared.Count > SharedKeep) { shared[0].module.Dispose(); shared.RemoveAt(0); }
+    }
+
+    public static void EndSharing()
+    {
+        ShareModules = false;
+        foreach (var s in shared) s.module.Dispose();
+        shared.Clear();
+    }
+
     public static void Save(IESpace module, string path) => ((IModule)module).Save(path, false);
 
     public static IValidationMessage[] Errors(IESpace module) =>
@@ -182,4 +228,11 @@ static class Model
 class CliError(string message, int exitCode = 1) : Exception(message)
 {
     public int ExitCode { get; } = exitCode;
+}
+
+// A module that may be shared with the next command of an `oml run`; disposing it closes it only when it is not shared.
+readonly struct Borrowed(IESpace module) : IDisposable
+{
+    public IESpace Module => module;
+    public void Dispose() => Model.Release(module);
 }

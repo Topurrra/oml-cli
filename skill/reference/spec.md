@@ -264,6 +264,8 @@ Switch branches use separate columns, loop bodies run to the right, and exceptio
 the main flow. Shared joins and End nodes sit below their incoming branches. Layout changes positions
 through the typed Model API; it keeps the connectors and expressions.
 
+#### tidyFlows
+
 Use the root key `tidyFlows` to move the nodes of selected existing flows without changing their logic:
 
 ```json
@@ -278,6 +280,8 @@ to replace the selected flows' node positions. Comments stay fixed; nodes avoid 
 Layout uses Studio's default `(3196, 800)` origin, `2660` spacing and `914 × 928` node bounds,
 with extra room for labels. The typed API does not expose rendered text bounds, so very long labels
 or expanded comments can extend beyond the reserved space.
+
+#### Actions and flow nodes
 
 | Scope | Keys | Meaning |
 |---|---|---|
@@ -571,6 +575,17 @@ Object events explicitly select a destination:
 { "type": "Link", "onClick": { "destination": "OrderDetail", "args": { "OrderId": "FetchOrderRecords.List.Current.Order.Id" } },
   "children": [{ "type": "Text", "text": "Open" }] }
 ```
+
+#### Known model behaviour (Reactive)
+
+Checked while building the recipes in `skill/recipes/`. Follow these to avoid failed applies and warnings:
+- An Input widget has no settable valid flag or validation message. Show form errors with an `If` and a Container under the input, as `form-with-validation.jsonc` does.
+- `GetExceptionMessage()` does not exist. In an exception handler, read `<HandlerName>.ExceptionMessage`.
+- `List`/`ListItem` can fail with "On Click must be set" on the seeded `rightActions`. Use `TableRecords` for simple lists.
+- An aggregate accepts `startIndex` together with `maxRecords` for paging.
+- A role creates `Check<Role>Role`, which takes `UserId` and returns `HasRole`.
+- Calling entity CRUD actions from a client action gives a security warning. Call a server action that calls them.
+- Comparing a Long Integer with an entity identifier gives a warning. Convert with `LongIntegerToIdentifier`.
 
 ### Traditional Web UI
 

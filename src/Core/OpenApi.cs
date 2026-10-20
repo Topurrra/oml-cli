@@ -42,7 +42,7 @@ static class OpenApi
             else if (option == "--out" && output is null) output = value;
             else throw new CliError($"Duplicate option {option}.", 2);
         }
-        using var module = Model.Load(Path.GetFullPath(args[1]));
+        using var open = Model.Borrow(Path.GetFullPath(args[1])); var module = open.Module;
         return Cli.Emit(Write(module, api, output, servers));
     }
 

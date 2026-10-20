@@ -1,11 +1,10 @@
-using System.Security.Cryptography;
 using OutSystems.Model;
-using OutSystems.Model.Enumerations;
-using OutSystems.Model.UI;
 
 namespace OmlCli;
 
-public static class Cli
+// Usage text, argument helpers, Emit, error handling and the dispatch table. Each command group's handlers live in
+// Commands.Read.cs, Commands.Change.cs, Commands.Studio.cs and Commands.Assets.cs.
+public static partial class Cli
 {
     const string Usage = """
         oml version
@@ -19,7 +18,7 @@ public static class Cli
         oml extension new <out.xif> --name <Name> [--spec <spec.json>]
         oml templates           (local template/sample modules and bundles)
         oml inspect <module.oml> [--own] [--only entities,structures,actions,screens,blocks,references,timers,roles,processes,rest,static,siteProperties]
-        oml describe <module.oml> <Element> [--depth N] [--in <folder|file.oml>]...
+        oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]...
         oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
         oml census <module.oml>
         oml architecture [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--out <file.html>] [--json <file.json>]
@@ -27,11 +26,16 @@ public static class Cli
         oml preview <module.oml> <Block|Screen> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>]
         oml tree <module.oml> <ElementName>   (object tree of one action, screen, entity, ...)
         oml validate <module.oml> [--warnings]
-        oml apply <source.oml> <spec.json> <staged-out.oml>
+        oml apply <source.oml> <spec.json>... <staged-out.oml> [--describe A,B,...] [--describe-created]
+        oml spec [<key>]                   (reference for one spec key; no key lists them. Runs without Service Studio)
+        oml spec check <spec.json>        (checks a spec's shape without Service Studio; exit 1 on problems)
+        oml spec schema [--out <file.json>] [--force]   (JSON Schema for spec files)
+        oml run <steps.json> [--continue]   (several commands in one process, so Service Studio loads once; "-" reads the steps from stdin)
         oml translations export <module.oml> <file> [--format Excel|xlsx|ResX]
         oml install <staged.oml> <target.oml>
 
         oml studio                          (Service Studio's MCP server: reachable? open modules)
+        oml pull [Module] [--out file.oml]  (save the module open in Service Studio to a file; needs 11.55.93+)
         oml publish <Module | file.oml>     (1-Click Publish through Service Studio)
         oml references <Module | file.oml>  (Refresh All references through Service Studio)
         oml lt environments|apps|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lt' for usage)
@@ -43,8 +47,30 @@ public static class Cli
         oml api <TypeName...>   (members of model/plugin types on the installed build)
         oml widgets             (registered widget descriptors)
         oml selftest   (build check; also runs by itself on a Service Studio build not seen before)
+        oml doctor [--text] [--selftest]   (checks the setup and says what to fix)
+        oml log summary [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; set OML_LOG=1 to write the log)
         Output is compact JSON on stdout. Global --pretty includes empty fields and indents. Exit 0 ok, 1 model/validation failure, 2 usage/environment.
         """;
+
+    // A handler returns null when the arguments do not fit its command; Run then prints the usage and exits 2.
+    delegate int? Handler(List<string> args);
+
+    static readonly Dictionary<string, Handler> Dispatch = new()
+    {
+        // Commands.Read.cs
+        ["version"] = CmdVersion, ["selftest"] = CmdSelfTest, ["api"] = CmdApi, ["widgets"] = CmdWidgets,
+        ["find"] = CmdFind, ["inspect"] = CmdInspect, ["describe"] = CmdDescribe, ["tree"] = CmdTree,
+        ["census"] = CmdCensus, ["validate"] = CmdValidate, ["openapi"] = CmdOpenApi, ["preview"] = CmdPreview,
+        ["architecture"] = CmdArchitecture, ["architecture-render"] = CmdArchitectureRender,
+        // Commands.Change.cs
+        ["new"] = CmdNew, ["apply"] = CmdApply, ["install"] = CmdInstall,
+        // Commands.Run.cs
+        ["run"] = CmdRun,
+        // Commands.Studio.cs
+        ["studio"] = CmdStudio, ["pull"] = CmdPull, ["publish"] = CmdPublish, ["references"] = CmdReferences,
+        // Commands.Assets.cs
+        ["app"] = CmdApp, ["extension"] = CmdExtension, ["templates"] = CmdTemplates, ["translations"] = CmdTranslations,
+    };
 
     public static int Run(string serviceStudioDir, string[] argv)
     {
@@ -57,107 +83,9 @@ public static class Cli
             if (command is null or "help" || args.Contains("--help") || args.Contains("-h")) { Console.WriteLine(Usage); return 0; }
             if (command is "new" or "inspect" or "census" or "validate" or "apply" or "install" or "preview")
                 SelfTest.EnsurePassed();
-            switch (command)
-            {
-                case "architecture-render" when args.Count == 3:
-                {
-                    var output = Path.GetFullPath(args[2]);
-                    if (File.Exists(output)) throw new CliError($"Output already exists: {output}. Use a new output path, or delete that file first.", 2);
-                    try
-                    {
-                        var html = ArchitecturePage.Render(File.ReadAllText(args[1]));
-                        using var file = new FileStream(output, FileMode.CreateNew, FileAccess.Write);
-                        using var writer = new StreamWriter(file, new System.Text.UTF8Encoding(false));
-                        writer.Write(html);
-                    }
-                    catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-                    { throw new CliError(e.Message, 2); }
-                    return Emit(new { output });
-                }
-                case "version":
-                    var build = Model.InstalledBuild();
-                    return Emit(new { oml = typeof(Cli).Assembly.GetName().Version?.ToString(3), serviceStudio = build,
-                        selfTestPassed = SelfTest.Passed(build), runtime = Environment.Version.ToString() });
-                case "api" when args.Count >= 2: return Emit(Api.Types(args.Skip(1)));
-                case "widgets": return Emit(Api.Widgets());
-                case "find" when args.Count >= 2:
-                {
-                    var searchIn = new List<string>();
-                    string? module = null;
-                    for (var i = 2; i < args.Count; i++)
-                        if (args[i] == "--in" && i + 1 < args.Count) searchIn.Add(args[++i]);
-                        else module = args[i];
-                    if (module is null && searchIn.Count == 0) throw new CliError("Give a module .oml, --in <folder or .oml>, or both.", 2);
-                    return Emit(Finder.Find(args[1], module, searchIn));
-                }
-                case "studio": return Emit(Studio.Status());
-                case "publish" when args.Count == 2: return Studio.Publish(args[1]);
-                case "references" when args.Count == 2: return Studio.References(args[1]);
-                case "selftest":
-                    var (code, report) = SelfTest.Run();
-                    Emit(report);
-                    return code;
-                case "app": return Packages.Run(args);
-                case "architecture": return Architecture.Run(args);
-                case "extension": return Extensions.Run(args);
-                case "templates": return Emit(Templates.List());
-                case "openapi" when args.Count >= 2: return OpenApi.Run(args);
-                case "preview" when args.Count >= 3: return Preview.Run(args);
-                case "new" when args.Count >= 2:
-                    if (args.Contains("--from-template")) {
-                        if (Opt(args, "--from-template") is not { } from || from.StartsWith("--") || args.Contains("--template"))
-                            throw new CliError("--from-template requires a .oml path and cannot be combined with --template", 2);
-                        return TemplateCreation.Run(args[1], from, Opt(args, "--name"), Opt(args, "--kind"));
-                    }
-                    if (args.Contains("--template") && Opt(args, "--template") is null)
-                        throw new CliError("--template requires a template name or exported .oml path.", 2);
-                    return Opt(args, "--template") is { } template ? Templates.New(args[1], template, Opt(args, "--name"))
-                        : New(args[1], Opt(args, "--name"), Opt(args, "--kind"));
-                case "inspect" when args.Count >= 2:
-                {
-                    string? only = null;
-                    var own = false;
-                    for (var i = 2; i < args.Count; i++)
-                    {
-                        if (args[i] == "--own") { own = true; continue; }
-                        if (args[i] == "--only" && i + 1 < args.Count) { only = args[++i]; continue; }
-                        throw new CliError("inspect accepts --own and --only <sections>.", 2);
-                    }
-                    using var module = Load(args[1]);
-                    return Emit(Inspect.Filter(module, own, only));
-                }
-                case "describe" when args.Count >= 3:
-                {
-                    var depth = 0;
-                    var searchIn = new List<string>();
-                    for (var i = 3; i < args.Count; i++)
-                    {
-                        if (args[i] == "--depth" && i + 1 < args.Count && int.TryParse(args[++i], out depth) && depth >= 0) continue;
-                        if (args[i] == "--in" && i + 1 < args.Count) { searchIn.Add(args[++i]); continue; }
-                        throw new CliError("describe requires --depth N (non-negative) or --in <folder|file.oml>.", 2);
-                    }
-                    using var module = Load(args[1]);
-                    return Emit(Describe.Run(module, args[2], depth, searchIn));
-                }
-                case "tree" when args.Count == 3: return Emit(Inspect.Tree(Load(args[1]), args[2]));
-                case "census" when args.Count == 2: return Emit(Inspect.Census(Load(args[1])));
-                case "validate" when args.Count is 2 or 3:
-                {
-                    var module = Load(args[1]);
-                    var errors = Model.Errors(module);
-                    var warnings = args.Contains("--warnings") ? Model.Warnings(module) : null;
-                    Emit(new { errorCount = errors.Length, errors = Model.Grouped(errors),
-                               warningCount = warnings?.Length, warnings = warnings is null ? null : Model.Grouped(warnings) });
-                    return errors.Length == 0 ? 0 : 1;
-                }
-                case "apply" when args.Count == 4: return Apply.Run(args[1], args[2], args[3]);
-                case "translations" when args.Count is 4 or 6 && args[1] == "export":
-                    return Content.Export(args[2], args[3], Opt(args, "--format"));
-                case "install" when args.Count == 3: return Install(args[1], args[2]);
-                default:
-                    Console.Error.WriteLine(Usage);
-                    return 2;
-            }
+            if (Dispatch.TryGetValue(command, out var handler) && handler(args) is { } code) return code;
+            Console.Error.WriteLine(Usage);
+            return 2;
         }
         catch (ModelError e) { Emit(new { error = e.Message }); return 2; }
         catch (CliError e)
@@ -165,6 +93,13 @@ public static class Cli
             Emit(new { error = e.Message });
             return e.ExitCode;
         }
+    }
+
+    // `oml doctor --selftest`: the same self-test as `oml selftest`, returned as JSON and not printed.
+    public static string SelfTestReport(string serviceStudioDir)
+    {
+        Model.ServiceStudioDir = serviceStudioDir;
+        return JsonOutput.Serialize(SelfTest.Run().report);
     }
 
     public static int Emit(object value)
@@ -181,54 +116,6 @@ public static class Cli
 
     static IESpace Load(string path) => Model.Load(Path.GetFullPath(path));
 
-    static int New(string outPath, string? name, string? kind)
-    {
-        outPath = Path.GetFullPath(outPath);
-        if (File.Exists(outPath)) throw new CliError($"Output already exists: {outPath}. Use a new output path, or delete that file first.", 2);
-        var services = Model.Services();
-        var segmentation = Enum.Parse<SegmentationKind>(kind ?? "WebResponsive", ignoreCase: true);
-        name ??= Path.GetFileNameWithoutExtension(outPath);
-        using var module = services.CreateESpace(segmentation, name, "", false, services.NewKey());
-        Model.Save(module, outPath);
-        return Emit(new { created = outPath, name, kind = segmentation.ToString() });
-    }
-
-    // Backup, copy, reopen-verify, restore on failure (skill section 16).
-    static int Install(string staged, string target)
-    {
-        staged = Path.GetFullPath(staged);
-        target = Path.GetFullPath(target);
-        if (!File.Exists(staged) || !File.Exists(target)) throw new CliError("Both staged and target must exist.", 2);
-        if (string.Equals(staged, target, StringComparison.OrdinalIgnoreCase)) throw new CliError("Staged and target are the same file.", 2);
-
-        var stagedErrors = Model.Errors(Load(staged));
-        if (stagedErrors.Length > 0)
-            throw new CliError($"Staged module has {stagedErrors.Length} validation errors; refusing to install.");
-
-        var backup = $"{target}.{DateTime.Now:yyyyMMdd-HHmmss}.bak";
-        if (File.Exists(backup)) throw new CliError($"Backup already exists: {backup}", 2);
-        var targetHash = Hash(target);
-        File.Copy(target, backup);
-        if (Hash(backup) != targetHash) throw new CliError("Backup hash mismatch; nothing installed.", 2);
-
-        File.Copy(staged, target, overwrite: true);
-        try
-        {
-            if (Hash(target) != Hash(staged)) throw new CliError("Installed hash differs from staged.");
-            var errors = Model.Errors(Load(target));
-            if (errors.Length > 0) throw new CliError($"Installed module reopened with {errors.Length} errors.");
-        }
-        catch
-        {
-            File.Copy(backup, target, overwrite: true);
-            throw;
-        }
-        return Emit(new { installed = target, backup, sha256 = Hash(target) });
-    }
-
-    static string Hash(string path)
-    {
-        using var stream = File.OpenRead(path);
-        return Convert.ToHexString(SHA256.HashData(stream));
-    }
+    // For commands that only read the module: an `oml run` may keep it open for the next command (see Model.Borrow).
+    static Borrowed Open(string path) => Model.Borrow(Path.GetFullPath(path));
 }

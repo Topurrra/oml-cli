@@ -8,8 +8,7 @@ namespace OmlCli;
 // CRUD call, raise), a client action, a block, and a screen with widgets, events and a table. A build that passes is remembered.
 static partial class SelfTest
 {
-    static readonly string Store = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "oml-cli", "selftest-passed.txt");
+    static readonly string Store = Locations.SelfTestRecord;
 
     const string Spec = """
         {
@@ -142,6 +141,8 @@ static partial class SelfTest
             ReferencesTest(blank, dir, failures);
             QualifiedNamesTest(blank, dir, failures);
             MinifyTest(blank, dir, failures);
+            RunCommandTest(blank, dir, failures);
+            TurnsTest(blank, dir, failures);
             PackageSelfTest.Run(blank, dir, failures);
             LogicTest(blank, dir, failures);
             FlowLayoutTest(blank, dir, failures);

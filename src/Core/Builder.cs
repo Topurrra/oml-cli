@@ -130,7 +130,11 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         typeof(OutSystems.Model.Logic.Nodes.IActionNode).Assembly.GetTypes().FirstOrDefault(t =>
             t.IsInterface && t.Namespace == "OutSystems.Model.Logic.Nodes"
             && t.Name.Equals($"I{kind}Node", StringComparison.OrdinalIgnoreCase))
-        ?? throw new ModelError($"unknown node kind '{kind}' (see 'oml api \"OutSystems.Model.Logic.Nodes.I*Node\"')");
+        ?? throw new ModelError($"unknown node kind '{kind}' (see 'oml api \"OutSystems.Model.Logic.Nodes.I*Node\"'){SpecHelp.Hint(kind, NodeKinds())}");
+
+    static IEnumerable<string> NodeKinds() => typeof(OutSystems.Model.Logic.Nodes.IActionNode).Assembly.GetTypes()
+        .Where(t => t.IsInterface && t.Namespace == "OutSystems.Model.Logic.Nodes" && t.Name.StartsWith("I") && t.Name.EndsWith("Node"))
+        .Select(t => char.ToLowerInvariant(t.Name[1]) + t.Name[2..^4]).Where(k => k.Length > 0).Distinct();
 
     void Flow(object action, List<JsonElement> spec, string label, object? after = null, string connector = "Target", object? successor = null, bool connectEntry = true)
     {

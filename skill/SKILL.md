@@ -5,6 +5,8 @@ description: Use oml to inspect, change, and validate OutSystems 11 modules thro
 
 # OutSystems module work
 
+**For every change task, follow the Standard loop in section 5.** It keeps a task to 4–8 tool calls.
+
 ## 1. What this skill is and when to use it
 
 Use this skill for O11 module inspection, data models, logic, UI, integrations, publishing, and LifeTime deployment.
@@ -104,21 +106,25 @@ The CLI runs a cached self-test on a disposable module for each installed build.
 |---|---|
 | `oml new` | New module: by kind, `--template`, or `--from-template`. |
 | `oml inspect`, `census` | Module overview. Use `--own` and `--only` to cut output. |
-| `oml describe` | What an existing action, screen or block does. Read it before you change one. |
+| `oml describe` | What an existing action, screen or block does. Read it before you change one. Takes several names. |
 | `oml find` | Which module owns an element. |
 | `oml openapi` | Export exposed REST APIs as OpenAPI 3.0.3 JSON; reports placeholders to fill. |
 | `oml architecture` | Read application/module layers, dependencies and findings into HTML and optional JSON. |
 | `oml preview` | Render a block or screen to HTML (and a PNG) so you can see it. Run it for all UI work. |
 | `oml tree` | Exact object paths for `edits`. |
 | `oml validate` | Errors, and warnings with `--warnings`. |
-| `oml apply` | Run a spec into a staged copy. |
+| `oml apply` | Run a spec, or several specs for work split into parts, into a staged copy. |
+| `oml spec` | `oml spec <key>` prints one key's reference; `oml spec check <spec.json>` checks a spec before `apply`; `oml spec schema` writes a JSON Schema. |
+| `oml run` | Several commands on the same module in one process: `oml run steps.json` (or `-` for stdin) loads Service Studio once and keeps the module open; 3 to 6 commands cost about one. See reference/commands.md. |
 | `oml install` | Copy a staged file over the target. Confirm first. |
 | `oml translations export` | Export module translations. |
 | `oml app`, `oml extension`, `oml templates` | `.oap`/`.osp` packages, `.xif` extensions, local templates. |
-| `oml studio`, `publish`, `references` | Service Studio MCP: open modules, 1-Click Publish, Refresh All. Confirm first. |
+| `oml studio`, `pull`, `publish`, `references` | Service Studio MCP: open modules, save the open module to a file, 1-Click Publish, Refresh All. Confirm publish and refresh first. |
 | `oml lt` | LifeTime API v2: environments, apps, tag, deploy, status. Confirm every change. |
 | `oml font`, `oml image` | Convert fonts to WOFF2; convert, resize and shrink images. No module needed. |
 | `oml api`, `widgets`, `selftest` | Model types, widget descriptors, build check. |
+| `oml doctor` | Setup check: Service Studio, .NET, model API, MCP server, LifeTime settings, browser, PATH. Run it when a command fails for setup reasons. |
+| `oml log summary` | Opt-in local usage log (`OML_LOG=1`): per command count, failures, median ms and top failure messages. Shows where turns are lost. |
 
 Output is compact JSON. Add `--pretty` only for humans. Exit 0 ok, 1 model or validation failure, 2 usage or environment.
 Read [reference/commands.md](reference/commands.md) for full usage, options and examples.
@@ -167,6 +173,11 @@ Copy a recipe and read its base-module notes. See [recipes/README.md](recipes/RE
 | [sql-query.jsonc](recipes/sql-query.jsonc) | SQL parameter, entity output, loop. |
 | [web-screen.jsonc](recipes/web-screen.jsonc) | Web Preparation, table, save action. |
 | [timer-role-site-property.jsonc](recipes/timer-role-site-property.jsonc) | Timer, role access, site property. |
+| [form-with-validation.jsonc](recipes/form-with-validation.jsonc) | Reactive form, client checks with messages, server save raising a user exception. |
+| [dropdown-from-static.jsonc](recipes/dropdown-from-static.jsonc) | Static entity, bound Dropdown, table showing the label. |
+| [list-search-paging.jsonc](recipes/list-search-paging.jsonc) | Search, sort, Previous/Next paging, empty state. |
+| [expose-rest-api.jsonc](recipes/expose-rest-api.jsonc) | Exposed GET (path) and POST (body) calling server actions. |
+| [role-protected-screen.jsonc](recipes/role-protected-screen.jsonc) | Role-only screen, server role check, link shown only to the role. |
 
 ## 5. Workflow
 
@@ -174,43 +185,38 @@ Content keys and the `translations export` command use the typed API. Copy runs 
 `translate.text` is a module resource ID, such as `MandatoryInput`. Image widgets can reference new images in the same spec.
 On 11.55.92 direct translation storage works, but file export/import refuses in the headless host. See the spec reference for format limits.
 
-1. Resolve source and staged absolute paths. Record the source hash. Check the version, inspect the module, and record baseline errors.
+### Standard loop (follow it exactly; every tool call costs a full turn)
 
-   ```text
-   oml version
-   oml inspect <module.oml> --own
-   oml describe <module.oml> <Element>
-   oml validate <module.oml> --warnings
-   oml census <module.oml>
-   ```
+Put several commands in ONE tool call: chain them with `;` in one shell command, or list them in one `oml run` file. One call that runs 3 commands costs 1 turn; 3 calls cost 3 turns.
 
-2. Find and confirm any element needed from another module. Use its approved qualified name.
-3. Write one spec for the requested data, actions, UI, and edits. Follow [rules.md](rules.md): add, do not rename or delete existing elements.
-4. Apply to a new staged path:
+0. No `.oml` file? Ask the user to open the module in Service Studio, then `oml pull --out <Module>.oml`.
+1. **Read (1 call).** Write `read.json` and run it:
+   `{ "steps": [ ["inspect","<module.oml>","--own","--only","entities,actions,screens,blocks"], ["describe","<module.oml>","<ElementToChange>","<OtherElement>"] ] }`
+   then `oml run read.json`. Only describe elements you will change or call. Producer files: add `--in <folder|file.oml>`.
+   Need an element from another module? Add `["find","<Name>","<module.oml>","--in","<producer folder|file.oml>"]` to the same file, show the user the candidates, and ask which to use (even for one match). Use its `Module.Name`.
+2. **Write the spec (no tool call to read docs if a recipe fits).** Copy the closest recipe from `skill/recipes/`. For a key no recipe shows, run `oml spec <key>` (one key only; never read `skill/reference/spec.md` whole). Put ALL requested elements in one spec. For many similar elements (for example 20 blocks), generate the spec with a small script, then check it, instead of applying elements one by one.
+3. **Check, apply and see the result (1 call):**
+   `oml spec check <spec.json>; oml apply <source.oml> <spec.json> <new-staged.oml> --describe-created`
+   The apply report already contains `problems`, `newErrors`, `reopenNewErrors`, `warnings` and `newWarnings`, and the described elements. Do not run `validate`, `inspect` or `describe` again after a good apply.
+   **A good apply means `saved: true`, no `newErrors`, and no `newWarnings`.** Every new warning is a real defect until you prove otherwise (for example "input parameter is never used in JavaScript" means the block ignores that input). Fix each one, or explain each remaining one to the user. Never report done with unexplained new warnings.
+4. **Fix (only if needed, 1 call per attempt).** Change only what the report names (new errors and new warnings), then repeat step 3 with a NEW staged path. Never retry an unchanged spec.
+5. **UI work: preview once per screen or block group (1 call):** write `preview.json` with steps `["preview","<staged.oml>","<Screen>","--theme","light","--out","<Screen>.light.html","--screenshot","<Screen>.light.png"]` and `["preview","<staged.oml>","<Screen>","--theme","dark","--width","390","--out","<Screen>.dark-390.html","--screenshot","<Screen>.dark-390.png"]` (each step needs its own `--out`), run `oml run preview.json`, look at both PNGs and the report's `checklist`, fix, and preview again only if you changed the UI. Follow `skill/reference/ui-checklist.md`.
+6. **Report.** Show the staged path and what was built. Ask before `install` or `publish`; run `oml validate <staged.oml> --warnings` only right before `install`.
 
-   ```text
-   oml apply <source.oml> <spec.json> <staged.oml>
-   ```
+A normal task needs 4 to 8 tool calls. If you are past 12, stop and check whether you are repeating reads or applying one element at a time.
 
-5. Read saved, problems, newErrors, reopenNewErrors, warnings, and newWarnings.
-   If `"saved": false`, fix the spec before retrying. Never retry unchanged.
-   If a staged file remains after failure, inspect it but do not install it.
-6. Inspect the staged file and verify wiring:
+Do not write comments in `styleSheet` or `javaScript` values: they cost tokens and `apply` removes them. Use `/*! ... */` only for a required license notice.
+JSONC comments are allowed in specs; trailing commas are not. Expressions use OutSystems syntax; text literals need escaped quotes. For work split into parts (several agents), pass every part before the output: `oml apply <source.oml> <part1.json> <part2.json> <new-staged.oml>`.
 
-   ```text
-   oml inspect <staged.oml>
-   oml tree <staged.oml> <path>
-   oml validate <staged.oml> --warnings
-   ```
+After the loop:
 
-7. Run a semantic verifier for the requested behavior and boundary fixtures. Check that the source hash is unchanged.
-8. Show changes, remaining issues, staged path, installed build, and required runtime tests to the user.
-9. After confirmation, install. Report the backup path and hash. Installation requires zero total validation errors.
-10. After confirmation, publish or refresh references through the Beta Service Studio MCP tools.
+1. Show changes, remaining issues, staged path, installed build, and required runtime tests to the user.
+2. After confirmation, install. Report the backup path and hash. Installation requires zero total validation errors.
+3. After confirmation, publish or refresh references through the Beta Service Studio MCP tools.
     If unavailable, report the required manual Service Studio step.
-11. For deployment, list applications and show selected tags, keys, modifications, and environments.
+4. For deployment, list applications and show selected tags, keys, modifications, and environments.
     Obtain confirmation for the exact mutation. Retain the deployment key and report its terminal status.
-12. Test compilation, database persistence, permissions, timers, REST calls, and browser behavior in the target environment as applicable.
+5. Test compilation, database persistence, permissions, timers, REST calls, and browser behavior in the target environment as applicable.
 
 ## 6. Troubleshooting
 
@@ -249,7 +255,7 @@ Use this table for CLI work. reference/model-api.md §17 covers typed host imple
 | Publish fails with "Invalid compiler output. Object reference not set to an instance of an object" | On 11.55.92, generic Identifier types on Id caused this failure. | Use LongIntegerType for entity Id and IntegerType for static Id. Current CLI uses these types. |
 | Link/Button displays "linkOverview" | Seeded Text "link" remains beside explicit children. | Current CLI removes seeded children when children is supplied. Verify the staged tree. |
 | File-based publish refuses an open module | Open copy would be published instead of the file. | Close that copy, or explicitly select the open module by name. |
-| Publish status Blocked | Automatic merge and publish approval is missing. | Ask the user to enable it in Edit > MCP Configuration. |
+| Publish status Blocked | Automatic merge and publish approval is missing. | Ask the user to enable it in Edit > MCP Server. |
 | Save passes but publish fails | Compilation and runtime validation are separate. | Fix the typed model or dependency; test in the target environment. |
 | LifeTime credentials missing or HTTP 401/403 | Environment values or service-account permissions are wrong. | Set credentials securely and check permissions. Server error bodies are not echoed because they may reflect the token. |
 | LifeTime HTTPS or redirect failure | Certificate, connection, or redirect refusal. | Fix the endpoint or certificate. Never use test HTTP settings for real LifeTime. |

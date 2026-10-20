@@ -1,0 +1,50 @@
+// Build an exposed REST API with GET (path parameter) and POST (JSON body) methods that call server actions.
+// Base: fresh CrossDevice. Rename Order, OrderApi and the structures together; new elements only, so a published API keeps its consumers.
+// Related keys: structures, restServices, actions, location (url, body), flow, execute. Authentication stays at the plugin default (None); set it in Service Studio.
+// Export the contract for consumers with: oml openapi <staged.oml> <file.json>   (see commands.md, openapi).
+{
+  "exceptions": ["InvalidOrder"],
+  "entities": [{ "name": "Order", "attributes": [
+    { "name": "Product", "length": 100, "mandatory": true },
+    { "name": "Quantity", "type": "Integer", "mandatory": true },
+    { "name": "Status", "length": 20 }
+  ] }],
+  "structures": [
+    { "name": "OrderRequest", "public": true, "attributes": [{ "name": "Product" }, { "name": "Quantity", "type": "Integer" }] },
+    { "name": "OrderResponse", "public": true, "attributes": [{ "name": "Id", "type": "Long Integer" }, { "name": "Product" }, { "name": "Quantity", "type": "Integer" }, { "name": "Status" }] }
+  ],
+  "serverActions": [
+    { "name": "Order_Get", "public": true, "inputs": [{ "name": "Id", "type": "Order Identifier", "mandatory": true }],
+      "outputs": [{ "name": "Response", "type": "OrderResponse" }], "flow": [
+        { "kind": "aggregate", "name": "Match", "sources": ["Order"], "filters": ["Order.Id = Id"], "maxRecords": 1 },
+        { "kind": "assign", "name": "Map", "assign": {
+          "Response.Id": "Match.List.Current.Order.Id", "Response.Product": "Match.List.Current.Order.Product",
+          "Response.Quantity": "Match.List.Current.Order.Quantity", "Response.Status": "Match.List.Current.Order.Status" } }
+      ] },
+    { "name": "Order_Place", "public": true, "inputs": [{ "name": "Request", "type": "OrderRequest", "mandatory": true }],
+      "outputs": [{ "name": "Response", "type": "OrderResponse" }], "locals": [{ "name": "NewOrder", "type": "Order" }], "flow": [
+        { "kind": "if", "name": "ValidQuantity", "condition": "Request.Quantity > 0 and Trim(Request.Product) <> \"\"", "true": "Fill", "false": "Invalid" },
+        { "kind": "assign", "name": "Fill", "assign": { "NewOrder.Product": "Request.Product", "NewOrder.Quantity": "Request.Quantity", "NewOrder.Status": "\"Received\"" } },
+        { "kind": "execute", "name": "Save", "action": "CreateOrder", "args": { "Source": "NewOrder" } },
+        { "kind": "assign", "name": "Map", "assign": {
+          "Response.Id": "Save.Id", "Response.Product": "NewOrder.Product", "Response.Quantity": "NewOrder.Quantity", "Response.Status": "NewOrder.Status" }, "next": "End" },
+        { "kind": "raiseException", "name": "Invalid", "exception": "InvalidOrder", "message": "\"Product and a positive quantity are required\"" }
+      ] }
+  ],
+  "restServices": [{ "name": "OrderApi", "actions": [
+    { "name": "GetOrder", "method": "GET", "url": "/orders/{Id}",
+      "inputs": [{ "name": "Id", "type": "Long Integer", "location": "url" }],
+      "outputs": [{ "name": "Response", "type": "OrderResponse" }],
+      "flow": [
+        { "kind": "execute", "name": "Read", "action": "Order_Get", "args": { "Id": "LongIntegerToIdentifier(Id)" } },
+        { "kind": "assign", "name": "Return", "assign": { "Response": "Read.Response" } }
+      ] },
+    { "name": "PlaceOrder", "method": "POST", "url": "/orders",
+      "inputs": [{ "name": "Request", "type": "OrderRequest", "location": "body" }],
+      "outputs": [{ "name": "Response", "type": "OrderResponse" }],
+      "flow": [
+        { "kind": "execute", "name": "Place", "action": "Order_Place", "args": { "Request": "Request" } },
+        { "kind": "assign", "name": "Return", "assign": { "Response": "Place.Response" } }
+      ] }
+  ] }]
+}
