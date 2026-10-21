@@ -2,6 +2,10 @@
 // Base: a copy of your Reactive module with LayoutTopMenu and a handler. Rename Customer, Customers and the attributes together.
 // Related keys: aggregates (filters, sorts, maxRecords, startIndex), locals, refreshData, onChange, enabled, If.
 // The sort is fixed in the aggregate. The search matches part of the name; change the filter for other fields.
+// With OutSystems UI, replace the Pager container by its Pagination block and handle its OnNavigate event:
+//   { "type": "BlockInstance", "sourceBlock": "OutSystemsUI.Pagination", "args": { "StartIndex": "StartIndex", "MaxRecords": "PageSize",
+//     "TotalCount": "LongIntegerToInteger(FetchCustomers.Count)" }, "events": { "OnNavigate": "GoToPage" } }
+//   and a screen action GoToPage with input NewStartIndex (Integer): assign StartIndex = NewStartIndex, then refreshData.
 {
   "entities": [{ "name": "Customer", "attributes": [
     { "name": "Name", "length": 100, "mandatory": true },

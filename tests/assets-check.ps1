@@ -80,7 +80,8 @@ foreach ($case in @(@('first-frame.gif',1,1),@('tiny.bmp',2,1))) {
     Check-Asset @('image',"$assetDir\$($case[0]).png","$($case[1])","$($case[2])")
 }
 Refuse-Asset @('image',"$assetDir\tiny.bmp",'--force') 'cannot encode'
-Refuse-Asset @('image',"$assetDir\flat.png",'--to','svg','--force') 'Tracing raster'
+$traced = Run-Asset @('image',"$assetDir\flat.png",'--to','svg','--out',"$assetDir\flat.traced.svg",'--force')
+if ($traced.details.mode -ne 'trace' -or $traced.details.colors -ne 1) { throw "Flat PNG trace: $($traced | ConvertTo-Json -Compress -Depth 5)" }
 Refuse-Asset @('image',"$assetDir\flat.png",'--quality','101') 'between'
 Refuse-Asset @('image',"$assetDir\flat.png",'--out',"$assetDir\no-upscale.png") 'exists'
 Refuse-Asset @('image',"$assetDir\flat.png",'--max-width','0') 'between'

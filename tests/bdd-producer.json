@@ -1,0 +1,23 @@
+{
+  "exceptions": ["InvalidQuantity"],
+  "structures": [ { "name": "OrderLine", "public": true, "attributes": [ { "name": "Sku" }, { "name": "Quantity", "type": "Integer" } ] } ],
+  "entities": [ { "name": "Country", "public": true, "identifier": "Code", "attributes": [ { "name": "Code", "type": "Text" }, { "name": "Label" } ] } ],
+  "serverActions": [
+    { "name": "PlaceOrder", "public": true,
+      "inputs": [ { "name": "CustomerName", "type": "Text", "mandatory": true }, { "name": "Quantity", "type": "Integer", "mandatory": true },
+                  { "name": "Express", "type": "Boolean" }, { "name": "Line", "type": "OrderLine" }, { "name": "Extra", "type": "OrderLine" },
+                  { "name": "Attachment", "type": "Binary Data" } ],
+      "outputs": [ { "name": "OrderNumber", "type": "Text" }, { "name": "Total", "type": "Decimal" }, { "name": "Receipt", "type": "OrderLine" } ],
+      "flow": [
+        { "kind": "if", "name": "Valid", "condition": "Quantity > 0", "true": "Compute", "false": "Invalid" },
+        { "kind": "assign", "name": "Compute", "assign": { "OrderNumber": "\"ORD-\" + CustomerName + Line.Sku + If(Attachment = NullBinary(), \"\", \"+\")", "Total": "If(Express, Quantity * 3.5, Quantity * 2.5)", "Receipt": "Extra" } },
+        { "kind": "execute", "action": "AuditOrder", "next": "End" },
+        { "kind": "raiseException", "name": "Invalid", "exception": "InvalidQuantity", "message": "\"Quantity must be positive\"" } ] },
+    { "name": "CancelOrder", "public": true,
+      "inputs": [ { "name": "OrderNumber", "type": "Text", "mandatory": true }, { "name": "CancelledOn", "type": "Date" }, { "name": "CountryCode", "type": "Country Identifier", "mandatory": true } ],
+      "flow": [ { "kind": "if", "name": "Known", "condition": "OrderNumber <> \"\" and CancelledOn <> #1900-01-01# and CountryCode <> NullTextIdentifier()", "true": "End", "false": "Unknown" },
+        { "kind": "raiseException", "name": "Unknown", "exception": "InvalidQuantity", "message": "\"Unknown order \" + OrderNumber" } ] },
+    { "name": "AuditOrder", "flow": [ { "kind": "end" } ] },
+    { "name": "Ping", "public": true, "flow": [ { "kind": "end" } ] }
+  ]
+}

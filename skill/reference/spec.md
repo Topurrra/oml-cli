@@ -6,9 +6,12 @@ Every top-level key is optional. The parser accepts JSON comments but rejects tr
 Use the documented camelCase spelling, especially inside raw node, widget, and platform objects.
 Typed spec records accept case-insensitive property names. Raw object key checks can be case-sensitive.
 
-Creation lists reuse existing names. Existing attributes are never retyped, and existing static records are not updated.
-Existing actions, screens, blocks, integrations, timers, processes, roles, and site properties need explicit edits to change them.
-Reused entities, structures, and static entities still apply the spec's `public` value and any supplied `description`.
+Creation lists reuse existing names. Listing an existing element: new parts are added under the same rules as addParts; changed settings are refused.
+New parts are attributes, static records, action inputs, outputs and locals, screen or block inputs, locals, aggregates, data actions, actions, events and event inputs, REST methods, and lifecycle handlers (such as `onParametersChanged`) the screen or block does not set yet.
+A refused setting names the key and the edit op to use; settings of roles, site properties, timers, REST methods and module variables are compared too. A supplied `description` is applied, and an input's `mandatory` is set (rule 4 decides).
+An existing flow is compared by node names and node count only (comments do not count). UI settings are replaced (rule 3), and the report's `changed` lists them: a different `styleSheet` of a screen, block, email or theme, a text `title` of a screen, and new `requiredScripts`. Widgets, placeholders, layout, processes and other email settings are not compared: the report's `warnings` name what was not applied and the op that changes it (`replaceWidgets`, `addWidgets`). A restated screen or block aggregate is compared by `sources`, `maxRecords`, `fetch`, `timeout` and `onAfterFetch`; change filters, joins and sorts with edits.
+An omitted `public` keeps the element's setting. `"public": true` makes an existing element public (also images, scripts and resources; a theme only through `edits.set`); `false` on any existing public element is refused (rule 4). The report's `changed` lists each existing element made public, by any path (`public of entity Sector`). A server action that becomes public, new or existing, adds a `PublicServerAction` new warning: confirm it with the user (rule 7). Service actions get no warning, because other modules call them by design; exposed REST methods have no public setting. A creation-list spec applied again on its own result saves and changes nothing.
+Rule 4 is checked on every path (creation lists, `addVariables`, `addParts`, `set`): on an existing public element apply refuses a new mandatory input, an input made mandatory, a type change, any input change on a public client action or Reactive or Mobile block or screen, a new output except on server and service actions, and a type change of an event input on a public block.
 Edits are ordered operations. Repeating them is not an idempotent desired-state update.
 
 Field notation in this reference names a nested key or an accepted value:
@@ -30,6 +33,36 @@ Use the complete JSON examples below when writing a spec.
 For example, variable: expression means a variable key whose value contains an OutSystems expression.
 A tree Api/Method lookup means the Api/Method path used by the tree command.
 
+### Spec keys
+
+One row per top-level key: what it creates or changes, and the section of this file that describes it. `oml spec` prints this list; `oml spec <key>` prints the section.
+
+| Key | What it creates or changes | Section |
+|---|---|---|
+| `module` | Description, JavaScript, PNG icon, user provider and tenancy flags, existing default theme. | Module settings |
+| `entities`, `structures`, `exceptions` | Data model. New entities get an `Id`. Entity `indexes`, identifier and options. | Data model |
+| `staticEntities` | Static entities with records. | Static entities |
+| `references`, `referenceAliases`, `removeUnusedDependencies` | Elements from producer modules, local names for them, and removal of unused ones. | References and aliases |
+| `serverActions`, `serviceActions`, `clientActions` | Actions with inputs, outputs, locals and a `flow`. | Logic and flows |
+| `tidyFlows` | Move nodes in existing flows selected by element paths or name patterns. | Logic and flows |
+| `clientVariables`, `sessionVariables`, `systemEvents` | Module state and calls from platform lifecycle events. Module kind limits apply. | Module variables and system events |
+| `onException`, `globalExceptionHandler`, flow `exceptionHandler` | Separate exception paths and a Reactive global handler. | Exception handling |
+| `flow` nodes `aggregate` | Sources, joins, filters, sorts, group by (with group filters and sorts), calculated attributes, fetch, cache. | Queries |
+| `flow` node `sql` | SQL statements with typed parameters and outputs. | SQL |
+| `restClients`, `restServices` | Consumed and exposed REST APIs. | REST |
+| `timers`, `roles`, `processes`, `siteProperties` | Platform elements, screen `access`. | Platform elements |
+| `screens`, `blocks` (Reactive, Mobile) | Screens, blocks, aggregates, actions, events, widgets. | Reactive UI and Mobile UI |
+| `events`, `triggerEvent`, `onParametersChanged` | Block events: declare on a block, fire with a node, handle on each block instance. | Block events |
+| `emails`, flow node `sendEmail` | Reactive emails and sending them from a server action. | Emails |
+| `screens`, `blocks` (Traditional Web) | Web screens with `preparation` and web widgets. | Traditional Web UI |
+| `layout`, `placeholders`, `template` | Layout blocks and generated list or detail screens. | Layouts and scaffolding |
+| `edits` | Changes to existing elements. | Edits |
+| `edits` with `delete` | Deletion of elements created earlier in the same spec. Existing elements are refused (see rules.md). | Deletion |
+| `copy` | Clipboard copy from read-only modules; explicit dependencies; IPP checks. | Copy, translations, resources, and folders |
+| `locales`, `translate`, `translations` | Locales and module resource translations; file import where the host supports it. | Copy, translations, resources, and folders |
+| `keepComments` | Keep comments in `styleSheet` and `javaScript` (removed by default). | Comments in styleSheet and javaScript |
+| `images`, `scripts`, `themes`, `resources`, `folders`, `requiredScripts` | Content files, styles, folders, and screen/block script requirements. | Copy, translations, resources, and folders |
+
 ### Module settings
 
 `module` changes supported module settings during the data phase. Every field is optional.
@@ -49,10 +82,10 @@ It does not rename the module or change its key or activation code.
 ```
 
 `description` and `javaScript` are literal strings. The flags are booleans.
-`icon` reads PNG bytes from a path relative to the CLI working directory.
+`icon` reads PNG bytes from a file path: relative to the spec's folder when the file is there, else to the CLI working directory.
 `defaultTheme` is the exact name of an existing theme, including themes from module references.
 The CLI selects the Traditional Web or Reactive/Mobile theme property for the module kind.
-Missing or ambiguous themes, unsupported fields (including `dbms`), invalid icons, and model refusals are problems.
+Missing or ambiguous themes, unsupported fields (including `dbms`, and `styleSheet`: a module has no style sheet, so use a theme), invalid icons, and model refusals are problems.
 Any problem prevents saving. `inspect.module` reports the values and icon byte size after reopening.
 
 ### Data model
@@ -60,14 +93,29 @@ Any problem prevents saving. `inspect.module` reports the values and icon byte s
 | Scope | Keys | Meaning |
 |---|---|---|
 | Root | `entities`, `structures` | Arrays of record definitions. |
-| Record | `name`, `attributes`, `public`, `description` | Name; attribute array; public defaults false; optional description. |
+| Record | `name`, `attributes`, `public`, `description` | Name; attribute array; public (new records: model default, private); optional description. |
 | Attribute | `name`, `type`, `length`, `decimals`, `mandatory`, `default`, `description`, `deleteRule` | Type defaults Text; mandatory defaults false; default is an expression. Identifier delete rule accepts Protect, Delete, or Ignore; defaults Protect. |
+| Entity | `identifier`, `autoNumber`, `labelAttribute`, `orderByAttribute`, `isActiveAttribute`, `exposeReadOnly`, `updateBehavior` | New entities; on an existing entity they must equal its values. Attribute names, booleans, and `changedAttributes` or `allAttributes`. |
+| Entity | `indexes` | Array of `{ "name", "attributes", "unique" }`. Name defaults to `IX_<A>_<B>`; unique defaults false. |
 | Root | `exceptions` | Array of user exception names. |
-| Variable | `name`, `type`, `mandatory`, `default`, `description` | Shared variable shape. Type defaults Text; mandatory defaults false. |
+| Variable | `name`, `type`, `mandatory`, `default`, `description` | Shared variable shape. Type defaults Text. An input without `mandatory` is mandatory, as in Service Studio; set `"mandatory": false` for an optional input. Process inputs and extension parameters are optional unless set. Locals ignore `mandatory`. |
 
-New entities get auto-number `Long Integer` `Id`, assigned as `IdentifierAttribute`.
+New entities get auto-number `Long Integer` `Id`, assigned as `IdentifierAttribute`. On a new entity, an attribute
+named `Id` in the spec sets the type of that `Id`; a type other than Integer or Long Integer gets no auto number.
 They need at least one other attribute. Entity attributes require basic or Identifier types.
 Structures can also contain entity, structure, and list types.
+
+`identifier` makes one of the entity's attributes the identifier and removes the default `Id`; the identifier becomes mandatory.
+`autoNumber` sets auto number on the identifier (default: true for `Id`, false otherwise; only Integer or Long Integer).
+Entities created by oml get Expose Read Only Yes and Update Behavior All Attributes (the model API defaults on 11.55.93).
+The OutSystems docs list No and Changed Attributes as the defaults, so entities made in Service Studio may differ; set both keys when it matters.
+With `changedAttributes`, an update writes only the attributes assigned after the record was read; a record built in logic
+or copied whole updates nothing. Do not set `exposeReadOnly: false` on a public entity unless the user asks (rule 7).
+Index column order is the `attributes` order. Index names use ASCII letters, digits and `_`. Unknown or repeated attributes are problems.
+On an existing entity, indexes and attributes are added; an existing index with the same name is reused only when it is equal.
+New non-unique indexes are fine. A unique index on an existing entity adds a `UniqueIndexOnExistingEntity` new warning: publish fails if production has
+duplicate values, so ask the user to check for duplicates first.
+The other entity keys must match the existing values, or apply refuses them (rule 5), also through `edits.set`.
 
 Types use Service Studio names: `Text`, `Integer`, `Long Integer`, `Decimal`, `Boolean`, `Date`, `Time`, `Date Time`,
 `Email`, `Phone Number`, `Currency`, `Binary Data`, `<Entity> Identifier`, `List of <type>`, or a record name.
@@ -78,7 +126,7 @@ An expression's text literal must include its OutSystems quotes:
   "entities": [{ "name": "Customer", "attributes": [
     { "name": "Name", "length": 100, "mandatory": true },
     { "name": "Email", "type": "Email", "length": 250 }
-  ] }],
+  ], "indexes": [{ "attributes": ["Email"], "unique": true }] }],
   "structures": [{ "name": "OrderDto", "attributes": [
     { "name": "Caption", "default": "\"Hello\"" }
   ] }],
@@ -144,7 +192,7 @@ Existing signatures are not refreshed. Any import refusal prevents saving.
 Use the producer version deployed in the target environment. A mismatch can cause publish failure or stale references.
 After publishing the producer, refresh references through Service Studio.
 The CLI does no tenant lookup, download, module-signature resolution, or IPP bypass.
-See reference/model-api.md §13.1 for the API contract.
+See reference/model-api.md section 13.1 for the API contract.
 
 Names can use `Module.Name` for actions, blocks, screens, entities, structures, roles, and types.
 Examples include `CoreServices.Customer Identifier` and `List of CoreServices.Customer`.
@@ -158,13 +206,30 @@ Refused or silently renamed aliases become problems.
 
 #### Comments in styleSheet and javaScript
 
-`apply` removes comments from every `styleSheet` and `javaScript` value before it builds anything:
+`apply` removes comments from every inline `styleSheet` and `javaScript` value before it builds anything (a value read from a file keeps them, see Code from files):
 
 - CSS: `/* ... */` comments are removed. `/*! ... */` comments stay (use them for license notices).
 - JavaScript: `/* ... */` comments and lines that start with `//` are removed. A `//` after code on the same line stays, because it can be part of a URL or a regular expression.
 - Text inside quotes is never changed.
 - The report shows `commentsRemoved` (number of characters).
 - Set `"keepComments": true` at the top of the spec to keep all comments.
+
+#### Code from files
+
+`javaScript`, `styleSheet`, `sql`, `expression` and `value` can be `{ "file": "relative/path" }` instead of a string. The value is the file's text: read as UTF-8 (or UTF-16 with a BOM), the BOM removed, nothing else changed, so quotes, backslashes, template literals and unicode stay as written. Comments in a file are kept (`keepComments` is only for inline text). Service Studio stores line ends as LF.
+
+```json
+{ "clientActions": [{ "name": "RenderChart", "flow": [
+    { "kind": "javaScript", "name": "Draw", "javaScript": { "file": "code/chart.js" } } ] }],
+  "blocks": [{ "name": "Chart", "styleSheet": { "file": "code/chart.css" } }] }
+```
+
+- The path is relative to the spec file's folder. With several specs (`oml apply` with more spec files, or `oml run`), each spec reads its own files.
+- The file must be inside the spec's folder or below it. An absolute path, a drive, a `:`, a `..` that leaves the folder, and a symbolic link or junction on the way to the file are refused. A hard link cannot be told from a normal file and is not detected.
+- Refused too: a folder, a Windows device name as the base name before the first dot (`NUL`, `nul.js`, `CON`, ...), a file over 2 MB, text that is not valid UTF-8 or UTF-16, and a NUL character (U+0000).
+- Keys that start with `_` or `$` are notes; a file value there is not read.
+- `oml spec check` reports these problems and a file value on another key. Apply refuses the same before it loads the module.
+- Other path keys are different: `images`, `scripts` and `resources` (`file`), `module.icon`, `copy` (`from`) and `translations` (`import`) take a plain path, not `{ "file": ... }`. A relative path there means a file in the spec's folder when one exists, else in the CLI working folder; an absolute path is allowed. When both folders have the file with different content, the spec's is used and `warnings` says so. `references` paths use the working folder only. A theme's `styleSheet` takes CSS text, a plain path or `{ "file": ... }`.
 
 #### Remove unused dependencies
 
@@ -181,7 +246,7 @@ This is the same as **Remove Unused Dependencies** in the Service Studio module 
 - Like every `apply`, the result is a staged file, and nothing is saved when new errors appear.
 ### Module variables and system events
 
-`clientVariables` and `sessionVariables` are additive arrays. Each item has `name`, `type` (default `Text`), and optional `default` expression. Existing names are reused without changes. New variables exist before any action expression is bound.
+`clientVariables` and `sessionVariables` are additive arrays. Each item has `name`, `type` (default `Text`), and optional `default` expression. Existing names are reused; a different `type` or `default` is refused. New variables exist before any action expression is bound.
 
 ```json
 {
@@ -195,7 +260,7 @@ This is the same as **Remove Unused Dependencies** in the Service Studio module 
 
 Reactive/Mobile supports client variables. Traditional Web supports session variables, read and written as `Session.Name`. Service Studio 11.55.92 refuses session variables in Reactive and Service modules. Optional `isSecure` is accepted only when the installed variable API exposes that property. This build does not; supplying it reports a problem.
 
-`systemEvents` maps event names to action names. `onApplicationReady` and `onApplicationResume` call a client action in Reactive/Mobile. `onSessionStart` and `onBeginWebRequest` call a server action in Traditional Web. Qualified `Module.Action` names work for referenced actions. The CLI creates a Start, Execute and End body for each event. The action must need no mandatory arguments. Existing events are refused; edit their flow instead. Unsupported module kinds, wrong action types and unknown event names report problems and prevent saving. Reactive application events need a Screen to execute at runtime.
+`systemEvents` maps event names to action names. `onApplicationReady` and `onApplicationResume` call a client action in Reactive/Mobile. `onSessionStart` and `onBeginWebRequest` call a server action in Traditional Web. Qualified `Module.Action` names work for referenced actions. The CLI creates a Start, Execute and End body for each event. The action must need no mandatory arguments. An existing event that already calls the same action is reused; another one is refused: edit its flow instead. Unsupported module kinds, wrong action types and unknown event names report problems and prevent saving. Reactive application events need a Screen to execute at runtime.
 
 ### Exception handling
 
@@ -250,9 +315,30 @@ These use the installed typed node API and the normal expression-last order:
 | `download` | `fileContent`, `fileName`, `mimeType`, optional `saveToDisk` | Expressions; terminal node. Verified in Traditional Web screen actions. |
 | `excelToRecordList` | `fileContent`, `sheetName`, `dataType`: `List of <record type>` | Expressions plus list type. Verified in server actions. |
 | `recordListToExcel` | `recordList`, `attributeSelection`: array of field paths such as `Label` | At least one field is required. Selections bind after the list expression. |
-| `sendEmail` | `email`, `from`, `to`, optional `cc`, `bcc`, `logContent`, `args` | Requires an existing Traditional Web Email screen. Address values are expressions; args map input names to expressions. |
+| `sendEmail` | `email`, `from`, `to`, optional `cc`, `bcc`, `logContent` (Traditional Web only), `args` | Reactive: server actions only. Address values are expressions; args map email input names to expressions. See Emails. |
 
-The installed API has no Reactive Email screen or Reactive SendEmail contract. This CLI does not create Email screens. Use a Traditional Web module that already contains the Email screen. Missing screens, unsupported node scopes and model refusals prevent saving. These checks verify the saved model; they do not send email, process a workbook, or download a file at runtime.
+Missing elements, unsupported node scopes and model refusals prevent saving. These checks verify the saved model; they do not send email, process a workbook, or download a file at runtime.
+
+### Emails
+
+`emails` creates Reactive and Mobile emails in a UI flow (default `Emails`, created if missing):
+`[{ "name", "subject", "flow", "inputs", "locals", "widgets", "styleSheet", "description" }]`. `subject` is required and is an expression.
+
+- An email sees only its own inputs and locals. Load data in the server action and pass it as inputs.
+- Allowed widgets: Container, Expression, If, Image, Link, List, TableRecords (with HeaderCell and RowCell), Text. Apply refuses any other widget, at any depth.
+- Keep the CSS small. Mail clients clip large mails. oml creates no email theme, so the flow uses the module's default theme. In Service Studio, give the email flow a light theme, not the OutSystems UI theme.
+- Traditional Web: `emails` is refused. Create the Email screen in Service Studio; `sendEmail` can send it.
+
+`sendEmail` sends an email from a server action. In Reactive and Mobile, the model API cannot place a Send Email node in any server action. oml creates Service Studio's own send action for the email once, `Send<Email>`, with the inputs `From`, `To`, `CC`, `BCC` and the email's inputs. Each `sendEmail` node becomes a call to it. An email input named From, To, CC or BCC is refused.
+
+```json
+{ "emails": [{ "name": "Welcome", "subject": "\"Welcome \" + Name", "inputs": [{ "name": "Name", "type": "Text" }],
+    "widgets": [{ "type": "Expression", "value": "\"Hello \" + Name" }] }],
+  "serverActions": [{ "name": "SendWelcome", "inputs": [{ "name": "To", "type": "Email" }, { "name": "Name", "type": "Text" }],
+    "flow": [{ "kind": "sendEmail", "email": "Welcome", "from": "\"team@example.com\"", "to": "To", "args": { "Name": "Name" } }] }] }
+```
+
+Sending only queues the mail. SMTP is set up in Service Center. Use a From address of your own mail domain. `oml preview <module> <Email>` renders an email; `describe` shows its subject and widgets. See `recipes/send-email.jsonc`.
 
 ### Logic and flows
 
@@ -277,7 +363,7 @@ or a case-sensitive name/path pattern with `*`. `"*"` selects all local editable
 nested flows. Use the qualified paths from `oml tree` when names are ambiguous. Empty entries,
 paths to non-flow elements, and patterns with no matches are errors. This is an explicit request
 to replace the selected flows' node positions. Comments stay fixed; nodes avoid their default bounds.
-Layout uses Studio's default `(3196, 800)` origin, `2660` spacing and `914 × 928` node bounds,
+Layout uses Studio's default `(3196, 800)` origin, `2660` spacing and `914 x 928` node bounds,
 with extra room for labels. The typed API does not expose rendered text bounds, so very long labels
 or expanded comments can extend beyond the reserved space.
 
@@ -358,15 +444,24 @@ Use these keys on a flow aggregate or screen aggregate:
 | `sources` | Array of entity names. |
 | `joins` | Array with type, left, right, condition. Endpoints name entries in sources. |
 | `filters` | Array of Boolean expressions. |
-| `sorts` | Array with attribute expression and optional descending boolean. |
-| `groupBy` | Array of attribute expressions. |
+| `sorts` | Array with attribute expression, optional descending and dynamic booleans. |
+| `groupBy` | Array of expressions, or `{ "attribute", "as" }` objects to name the group. |
 | `aggregates` | Output definitions with name, function, attribute. Functions: Count, Sum, Avg, Min, Max; case-insensitive. |
 | `calculated` | Pre-group attributes with name and expression. |
-| `maxRecords` | Number or expression string. |
+| `groupFilters`, `groupSorts`, `groupCalculated` | After grouping: filters (HAVING), sorts, and calculated attributes. They use group and aggregate names. |
+| `maxRecords`, `startIndex` | Number or expression string. |
+| `fetch` | Screen and block aggregates: `atStart` (default) or `onDemand` (runs only on refreshData). |
+| `onAfterFetch` | Screen and block aggregates: name of a screen action of the same screen or block to run after each fetch. |
+| `cacheInMinutes` | Whole number of minutes the server keeps the result. Aggregates in server actions only; screen and block aggregates refuse it. |
+| `timeout` | Whole number of seconds; any aggregate. |
 
 `joins.type`: `only with` = Inner; `with or without` = Left; `with` = Full.
 Joins are explicit. Even Count needs an attribute, such as `Order.Id`.
 Grouped output comes from groupBy and aggregates. Output names must be unique; automatic renames become problems.
+A group's name (ASCII letters, digits and `_`) is the attribute name of a plain path (`Order.CustomerId` gives `CustomerId`). For any other
+expression it is the first and last names in it (`Year(Order.PlacedOn)` gives `YearPlacedOn`); set `as` for a better name.
+Read grouped rows by name: `GetTotals.List.Current.BirthYear`. A dynamic sort is a Text expression evaluated at run time,
+such as a local `SortBy` holding `"Order.Total DESC"`; a plain sort names an attribute.
 The CLI binds source and join references before query expressions.
 
 ```json
@@ -379,6 +474,17 @@ The CLI binds source and join references before query expressions.
   "calculated": [{ "name": "Label", "expression": "Customer.Name" }], "maxRecords": 50
 }
 ```
+
+```json
+{
+  "kind": "aggregate", "name": "ByYear", "sources": ["Order"], "cacheInMinutes": 10,
+  "groupBy": [{ "attribute": "Year(Order.PlacedOn)", "as": "Year" }],
+  "aggregates": [{ "name": "Orders", "function": "Count", "attribute": "Order.Id" }],
+  "groupFilters": ["Orders > 1"], "groupSorts": [{ "attribute": "Year", "descending": true }]
+}
+```
+
+Change an existing aggregate with the edit ops `addToAggregate`, `set` and `delete` (see Edits).
 
 Tree includes join endpoints/types, aggregate functions, refresh/navigation/event ref, and argument parameter ref.
 Switch connector targets come from Link. Tree uses node labels when Name is absent.
@@ -486,7 +592,7 @@ Timer defaults are 20 minutes and Normal priority. Prefer actions without inputs
 Timer schedules are raw strings:
 
 ```json
-{ "timers": [{ "name": "NightlyCleanup", "action": "CleanupOldOrders", "schedule": "WhenPublished", "timeout": 20, "priority": "Normal" }] }
+{ "timers": [{ "name": "NightlyCleanup", "action": "Timer_CleanupOldOrders", "schedule": "WhenPublished", "timeout": 20, "priority": "Normal" }] }
 ```
 
 `"WhenPublished"` schedules on publish. `""` means unscheduled and reads back null.
@@ -536,19 +642,22 @@ Inspect reports platform names and key fields, including generated role actions.
 | Scope | Keys | Meaning |
 |---|---|---|
 | Root | `screens`, `blocks` | UI elements in a named flow. |
-| Screen/block | name, flow, title, inputs, locals, aggregates, dataActions, actions, widgets | Flow defaults MainFlow and is created if missing. String title is an expression. |
-| Lifecycle | onInitialize, onReady, onRender, onDestroy | Names of actions owned by the screen/block. |
+| Screen/block | name, flow, title, inputs, locals, aggregates, dataActions, actions, widgets, public | Flow defaults MainFlow and is created if missing. String title is an expression. `public` makes a block usable by other modules. |
+| Lifecycle | onInitialize, onReady, onRender, onDestroy; block only: onParametersChanged | Names of actions owned by the screen/block. On an existing screen or block (listed again or `addParts`), an unset handler is set; a creation list reports it in `changed`. Changing a set one in a creation list is refused (use `set`). |
+| Block events | events (block), triggerEvent (flow node), events (BlockInstance) | See Block events below. |
 | Styling and access | styleSheet, isDefault, access | Raw CSS; true selects the landing screen; access uses the platform shape. |
 | Layout/scaffold | layout, placeholders, template, entity | See layouts below. |
 | Widget | type, name, children, content area arrays | Built-in type or registered descriptor type. |
 | Widget property | value, variable, source, style, visible, enabled, mandatory, prompt, text, sourceBlock | Uses installed setters/properties. Expression properties need OutSystems expressions. |
 | Widget event | onClick, onChange, other installed events; args | Action name, screen name, or destination object. Arguments bind by parameter name. |
-| BlockInstance | sourceBlock, args, placeholders | Source block, input expressions, named placeholder content. |
+| BlockInstance | sourceBlock, args, placeholders, events | Source block, input expressions, named placeholder content, event handlers. |
+| Label | targetWidget | Name of the input it describes, in the same screen, block or email (`""` clears it; also in `edits.set`). See Edits. |
 
 Data actions and screen actions use the action shape. Data-action outputs replace the seeded Out1.
+Data actions also take `fetch` (`atStart` or `onDemand`), `timeout` (seconds) and `onAfterFetch` (a screen action of the same screen or block). See `aggregate-on-demand-detail.jsonc`.
 Preparation is refused for Reactive/Mobile. Use aggregates or lifecycle actions.
 Explicit layout or widgets replaces starter widgets on newly created elements.
-`styleSheet` also works through `edits.set`. JavaScript flow nodes use the logic keys above.
+`styleSheet` also works through `edits.set`. `styleSheet` replaces the whole sheet: read the current one with `oml describe <module.oml> <Screen> --css` and edit it (apply warns when a sheet loses more than half or drops selectors). JavaScript flow nodes use the logic keys above.
 
 Built-ins include If, Text, and BlockInstance.
 Registered Reactive types include Container, Expression, Input, TextArea, Checkbox, Switch, Dropdown, Button, Link, Form,
@@ -576,10 +685,44 @@ Object events explicitly select a destination:
   "children": [{ "type": "Text", "text": "Open" }] }
 ```
 
+#### Block events
+
+A block tells its parent that something happened with an event. Reactive and Mobile only.
+
+- `events` on a block: `[{ "name", "mandatory" (default true), "inputs", "description" }]`. Inputs carry data to the parent.
+- `triggerEvent` flow node: `{ "kind": "triggerEvent", "event": "<event>", "args": { ... } }`. Only in a client action of the block that owns the event; anywhere else apply refuses it.
+- `events` on a BlockInstance: `{ "<event>": "<action>" }` or `{ "<event>": { "action": "<action>", "args": { ... } } }`. The handler is a client action of the screen or block that holds the instance. A handler input with no arg gets the event input of the same name. Args are expressions; they can use the event's inputs. A handler input that is neither in args nor an event input is refused.
+- A mandatory event must have a handler on every instance. Apply refuses an instance without one and names the event.
+- Existing blocks (`addParts` edit): a new event on an existing public block is refused (rule 4: it changes the block's signature for other modules). On an existing block that is not public, a new event must be `"mandatory": false`, because its existing instances have no handler. Renaming or deleting an existing event, and making an existing optional event mandatory, are refused.
+- `onParametersChanged` on a block names a block action. It runs when the parent changes an input of the block, not on the first render: also call the action from `onReady`.
+
+```json
+{ "blocks": [{ "name": "Picker", "inputs": [{ "name": "ItemId", "type": "Integer" }],
+    "events": [{ "name": "OnSelect", "inputs": [{ "name": "Id", "type": "Integer", "mandatory": true }] }],
+    "actions": [{ "name": "Select", "flow": [{ "kind": "triggerEvent", "event": "OnSelect", "args": { "Id": "ItemId" } }] }],
+    "widgets": [{ "type": "Button", "onClick": "Select", "children": [{ "type": "Text", "text": "Pick" }] }] }],
+  "screens": [{ "name": "Home", "locals": [{ "name": "Picked", "type": "Integer" }],
+    "actions": [{ "name": "PickedItem", "inputs": [{ "name": "Id", "type": "Integer" }], "flow": [{ "kind": "assign", "assign": { "Picked": "Id" } }] }],
+    "widgets": [{ "type": "BlockInstance", "sourceBlock": "Picker", "args": { "ItemId": "7" }, "events": { "OnSelect": "PickedItem" } }] }] }
+```
+
+Re-run `SetX` when input `Status` changes. `SetX` can hold an `assign` (as here) or a `javaScript` node. For an existing block, list it again with the new action and handler, or use `addParts`:
+
+```json
+{ "blocks": [{ "name": "StatusBadge", "inputs": [{ "name": "Status", "type": "Text" }], "locals": [{ "name": "Css", "type": "Text" }],
+    "onReady": "SetX", "onParametersChanged": "SetX",
+    "actions": [{ "name": "SetX", "flow": [{ "kind": "assign", "assign": { "Css": "If(Status = \"Done\", \"badge-green\", \"badge-grey\")" } }] }],
+    "widgets": [{ "type": "Container", "style": "Css", "children": [{ "type": "Expression", "value": "Status" }] }] }] }
+```
+
+Events of referenced blocks work the same way. The OutSystems UI `Pagination` block has the event `OnNavigate` with input `NewStartIndex`:
+`{ "type": "BlockInstance", "sourceBlock": "OutSystemsUI.Pagination", "args": { "StartIndex": "StartIndex", "MaxRecords": "PageSize", "TotalCount": "LongIntegerToInteger(FetchCustomers.Count)" }, "events": { "OnNavigate": "GoToPage" } }`
+with a screen action `GoToPage` (input `NewStartIndex`, Integer) that assigns `StartIndex` and refreshes the aggregate. oml's tests do not cover OutSystems UI. To read the block's inputs and events, describe it in the producer module file (`oml describe OutSystemsUI.oml Pagination`); `describe` of a referenced block in the consumer is not supported. `describe` shows events, `trigger` lines and `event` handlers on instances. See `recipes/block-popup-event.jsonc`.
+
 #### Known model behaviour (Reactive)
 
 Checked while building the recipes in `skill/recipes/`. Follow these to avoid failed applies and warnings:
-- An Input widget has no settable valid flag or validation message. Show form errors with an `If` and a Container under the input, as `form-with-validation.jsonc` does.
+- Form validation: in a client action, an `assign` node can set `<Input>.Valid` to `False` and `<Input>.ValidationMessage` to a text. The input then shows the message. `<Form>.Valid` is `False` when any input in the form is invalid. `<Form>.Valid` is read-only: assigning it is a model error. oml leaves a Button's On Click Built-in Validations at Yes (the default), so empty mandatory inputs and values of the wrong type are marked before the action runs. See `form-with-validation.jsonc`.
 - `GetExceptionMessage()` does not exist. In an exception handler, read `<HandlerName>.ExceptionMessage`.
 - `List`/`ListItem` can fail with "On Click must be set" on the seeded `rightActions`. Use `TableRecords` for simple lists.
 - An aggregate accepts `startIndex` together with `maxRecords` for paging.
@@ -702,18 +845,19 @@ Existing entity, static entity, and structure attributes cannot change DataType,
 | `insertNodes` | action, after, connector, flow | Insert a nonempty flow at an outgoing connector. Final implicit next inherits the old successor. |
 | `addExceptionHandler` | action, flow | Add a separate handler entry and path. Flow must start with exceptionHandler. |
 | `addWidgets` | screen, parent, area, index, widgets | Append by default. Parent is relative to screen/block; area defaults children. Index is zero-based. |
-| `addParts` | screen, inputs, locals, aggregates, dataActions, actions, lifecycle keys; other supported screen parts | Adds through the shared screen builder. Names must be free. |
+| `replaceWidgets` | at, area, widgets | Replaces all widgets inside the element at `at` (a screen, block, email, widget or placeholder path); that element stays. Same widget spec as creation. Area as in addWidgets. |
+| `addParts` | screen, inputs, locals, aggregates, dataActions, actions, lifecycle keys; other supported screen parts | Adds through the shared screen builder. Names must be free. Block `events` follow the existing-block rule in Block events. |
 | `addVariables` | action, inputs, outputs, locals | Adds variables; names must be free. |
 | `setAccess` | screen, anonymous, registered, roles | Replaces access memberships. Omitted flags false, roles empty. |
 | `set` | element, properties | Property map uses interface-first reflection, expression setters, and reference lookup. |
 | `rename` | element, to | Refuses existing protected elements, occupied names, or model renaming. Use instead of setting Name. |
 | `delete` | element, allowDataLoss for data | See deletion rules below. |
+| `addToAggregate` | aggregate, sources, joins, filters, sorts, groupBy, aggregates, calculated, group keys | Adds parts to an existing aggregate with the query keys. |
+| `setArgs` | element, args | Sets arguments of a call, navigation or other node by parameter name. A number or true/false is used as the expression. |
 
-For If or For Each insertion, connector is required: true, false, cycle, or next, as supported.
-The sequence connector alias also means next.
+For If or For Each insertion, connector is required: true, false, cycle, or next (alias sequence), as supported.
 Explicit targets can name existing or inserted nodes. End and Raise Exception terminate normally.
-Widget area can be children, trueBranch, falseBranch, row, or headerRow. Indexed insertion preserves list order.
-Absent parent means the screen/block root. For plugin widgets, children uses the first placeholder.
+Widget area can be children, trueBranch, falseBranch, row, or headerRow; indexed insertion keeps list order. Absent parent means the screen/block root; for plugin widgets, children uses the first placeholder.
 
 ```json
 { "edits": [
@@ -733,11 +877,44 @@ Absent parent means the screen/block root. For plugin widgets, children uses the
 
 The example assumes the named action, nodes, screen, Header container, aggregate, and role already exist.
 
+`replaceWidgets` keeps the element at `at` (its name, style and events) and replaces every widget inside it. Use it to restyle or rebuild part of an existing screen without a rebuild; a deeper `at` replaces less. A layout placeholder's path has its name, for example `ContactForm/MainContent` (copy it from `oml tree`). The report's `changed` lists `widgets of <at>`.
+It is refused, before anything changes, when a removed widget is used outside the replaced part, for example `NameInput.Valid` in a screen action; the problem names each widget and where it is used. An expression finds a widget by name, so a new widget with the same name keeps that usage working: keep the name in `widgets`, or change the usage first. The new widget must be the same kind (an Input stays an Input): `NameInput.Valid` would mean something else, so a used name given to another kind is refused ("NameInput was an Input, now a Container"). Other references to a removed widget point at the widget itself and are always refused, for example a Label's target widget: first point the Label at another widget.
+A Label takes `"targetWidget": "<widget name>"` (`""` clears it), the input it describes, in a widget spec and in `set` (`{ "op": "set", "element": "Home/NameLabel", "properties": { "targetWidget": "NameInput" } }`). The name is looked up in the same screen, block or email, after all its widgets exist. `describe` and `tree` show it. When replaceWidgets removes a Label with a target and no new Label names that target, `warnings` says so.
+
+```json
+{ "edits": [
+  { "op": "replaceWidgets", "at": "ContactForm/ContactFormBody", "widgets": [
+    { "type": "Container", "style": "\"columns2\"", "children": [
+      { "type": "Input", "name": "NameInput", "variable": "NewContact.Name", "mandatory": "True" },
+      { "type": "Input", "name": "EmailInput", "variable": "NewContact.Email", "inputType": "Email" } ] },
+    { "type": "Button", "onClick": "Save", "style": "\"btn btn-primary\"", "children": [{ "type": "Text", "text": "Save" }] } ] }
+] }
+```
+
+Change aggregate parts with `set` on their tree paths: Filter `condition`, AttributeSort `attribute` or `sortDirection`
+(Ascending, Descending), JoinCondition `condition` or `joinType` (Inner, Left, Full), CalculatedAttribute `value`.
+Remove them with `delete`. Parts added by `addToAggregate` exist only at the end of the apply; change them in a later apply.
+Group-level parts sit under a second CombineSources (for example `Q/CombineSources1/Filter[0]`); copy the path from `oml tree`.
+Deleting a filter, sort or group of a grouped aggregate can drop its source; oml refuses such a delete (the model
+removes the source without a validation error). A delete of internal structure (AddSource, CombineSources) is refused,
+and a delete the model fails on is a problem. Do these in Service Studio.
+
+```json
+{ "edits": [
+  { "op": "addToAggregate", "aggregate": "GetOrderTotals/Totals", "filters": ["Order.Total > 0"],
+    "sorts": [{ "attribute": "Order.PlacedOn", "descending": true }] },
+  { "op": "set", "element": "GetOrderTotals/Totals/Orders/JoinCondition[0]", "properties": { "joinType": "Left" } },
+  { "op": "setArgs", "element": "LoadReport/GetOrderTotals", "args": { "Year": "Year(CurrDate())" } }
+] }
+```
+
 Paths use slash-separated scopes: `Action/Node`, `Screen/Widget`, `Screen/ScreenAction/Node`, or `Flow/Screen/...`.
-Each segment searches breadth-first within its parent. Multiple matches at the shallowest level are refused.
-Qualify the parent to resolve ambiguity. Tree accepts the same paths.
+Each segment searches breadth-first within its parent. From the module, this module's own top-level element wins;
+when it does not hold the rest of the path, the path fails (it does not fall through to a deeper or referenced element).
+`Kind:Name` (`Screen:Orders`) and `Module.Name` qualify a name. An ambiguous path is refused with an exact path for
+every candidate; copy one. Edits refuse elements of referenced modules. Tree accepts the same paths. See "Element paths" in `commands.md`.
 Unnamed elements use `Kind[index]`, indexed from zero among siblings of that kind.
-For example: `Orders/Header/Button[0]/Text[0]`. Copy the emitted path; indexes can change after edits.
+For example: `Orders/Header/Button[0]/Text[0]`. Copy the emitted path; indexes can change after edits. Flow nodes and action or instance arguments have a fixed order on every load.
 Labels persist where supported. Raise Exception on Service Studio 11.55.92 needs an index path after reopening.
 
 ### Deletion
@@ -757,7 +934,7 @@ A flow node is reconnected only with exactly one incoming and one outgoing conne
 
 ### Copy, translations, resources, and folders
 
-These keys use the installed typed API. All file paths are relative to the CLI working directory, or absolute.
+These keys use the installed typed API. A relative file path means a file in the spec's folder when one exists, else in the CLI working folder; an absolute path is allowed. The example's `assets/...` paths are next to the spec.
 Copy runs after explicit reference imports and before data and logic creation. Resources and themes also exist before widgets are built.
 Locales, translation imports, translation writes, and folders run after logic and edits, in that order.
 
@@ -783,11 +960,11 @@ Locales, translation imports, translation writes, and folders run after logic an
 | `translations` | `{ "import": "ModuleLanguage.ka-GE.resX" }` calls `LoadTextResources`. Refusals prevent saving. On 11.55.92 the headless host refuses ResX format detection, so file round trips are unavailable. Use `translate` for module resource IDs. |
 | `images` | `name`, `file`, optional `public` (false). Uses `CreateImage`. SVG and PNG were verified; the API also lists Jpg, Gif, and Ico. Invalid files are problems. Image widgets can reference the image in the same spec. |
 | `scripts` | `name`, `file`, optional `public` (false). Sets `JavaScript` to the file text. Screens and blocks accept `requiredScripts`, an array of script names. |
-| `themes` | `name`, `styleSheet`, optional `baseTheme`. `styleSheet` is CSS text or an existing file path. Creates a Web theme in Traditional Web modules, otherwise a Mobile theme. Does not select the module default theme. |
+| `themes` | `name`, optional `styleSheet` and `baseTheme`. `styleSheet` is CSS text, an existing file path, or `{ "file": ... }`; a value that looks like a path (`theme.css`, `css/app.css`) but names no file is refused. A new theme without `styleSheet` starts empty. Creates a Web theme in Traditional Web modules, otherwise a Mobile theme. Does not select the module default theme. |
 | `resources` | `name`, `file`, optional `public` (false). Stores the exact file bytes. |
 | `folders` | `name`, `area`, `elements` paths. Reuses folders with the same area and name. Moves elements by their typed `Folder` property. `entities` is an alias for `ServerEntities`. Other areas match installed `ESpaceTreeFolder` names without case sensitivity: `serverActions`, `clientActions`, `serviceActions`, `structures`, `images`, `resources`, `scripts`, `themes`, `siteProperties`, `timers`, `roles`, `processes`, and others listed by `oml api ESpaceTreeFolder`. Rejects elements outside the requested area. |
 
-Image, script, resource, and theme creation lists reuse existing names without updating their content.
+Image, script and resource creation lists reuse existing names without updating their content. An existing theme takes a different `styleSheet` and `baseTheme` (UI, rule 3); the report's `changed` lists `styleSheet of theme <name>` and `baseTheme of theme <name>`. Left out, they keep the theme's values. A module has no style sheet of its own: put module-wide CSS in a theme.
 `inspect.content` lists content, locales, module translations, and folder entries. `tree` shows `folder`, `requiredScripts`, and image `ref` values.
 
 Export text resources with:

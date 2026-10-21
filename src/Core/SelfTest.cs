@@ -71,17 +71,56 @@ static partial class SelfTest
     public static bool Passed(string build) =>
         File.Exists(Store) && File.ReadAllLines(Store).Contains(build);
 
+    // True while Run is on the stack. Its `oml run` step calls commands that call EnsurePassed; on a build not
+    // recorded yet that started the self-test again inside itself, without end (1.2.0 to 1.3.0).
+    static bool running;
+
+    // A self-test that never ends (a Service Studio call that waits forever) must not hang the caller.
+    // OML_SELFTEST_LIMIT_SECONDS is for tests only.
+    static TimeSpan Limit => TimeSpan.FromSeconds(
+        int.TryParse(Environment.GetEnvironmentVariable("OML_SELFTEST_LIMIT_SECONDS"), out var s) && s > 0 ? s : 600);
+
+    // Set by `oml dashboard` (Cli.Capture): a self-test past its limit must not end the server. EnsurePassed then fails
+    // the command with Abandoned, and the dashboard refuses every later command with it, because the self-test may
+    // still hold the model.
+    public static bool KeepProcess;
+    public static string? Abandoned { get; private set; }
+
+    static void Abandon(string build, TimeSpan limit)
+    {
+        if (KeepProcess) return;
+        // Console.Out may be captured by an `oml run` step, so write to the real standard output.
+        using (var stdout = new StreamWriter(Console.OpenStandardOutput()))
+            stdout.WriteLine(JsonOutput.Serialize(new { error = $"The self-test on Service Studio {build} did not finish in {limit.TotalSeconds:0} s, so oml stopped. "
+                + "If Service Studio was just updated, open it once, wait until it has started, close it, and retry. If it stops again, run oml doctor --text and report the output." }));
+        Environment.Exit(2);
+    }
+
     public static void EnsurePassed()
     {
+        if (Abandoned is { } stopped) throw new CliError(stopped, 2);
         var build = Model.InstalledBuild();
-        if (Passed(build)) return;
+        if (running || Passed(build)) return;
         Console.Error.WriteLine($"Service Studio {build} not checked on this machine yet; running self-test...");
-        var (code, report) = Run();
+        var (code, report) = KeepProcess ? RunWithin(build) : Run();
         if (code != 0)
         {
             Cli.Emit(report);
             throw new CliError($"Self-test failed on Service Studio {build}; the model API changed in a way the CLI does not handle yet. See the report above.", 2);
         }
+    }
+
+    // The dashboard's self-test: on another thread, so that a self-test past its limit fails this command instead of
+    // ending the process. The late self-test thread is left to finish or hang on its own.
+    static (int code, object report) RunWithin(string build)
+    {
+        var limit = Limit;
+        var task = Task.Run(Run);
+        if (!task.Wait(limit))
+            throw new CliError(Abandoned = $"The self-test on Service Studio {build} did not finish in {limit.TotalSeconds:0} s. The dashboard keeps running, but it refuses "
+                + "model commands until you restart it. If Service Studio was just updated, open it once, wait until it has started, close it, and restart oml dashboard. "
+                + "If it stops again, run oml doctor --text and report the output.", 2);
+        return task.GetAwaiter().GetResult();
     }
 
     public static (int code, object report) Run()
@@ -90,6 +129,9 @@ static partial class SelfTest
         var dir = Path.Combine(Path.GetTempPath(), "oml-selftest-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var failures = new List<string>();
+        var limit = Limit;
+        using var watchdog = new System.Threading.Timer(_ => Abandon(build, limit), null, limit, Timeout.InfiniteTimeSpan);
+        running = true;
         try
         {
             var services = Model.Services();
@@ -141,13 +183,23 @@ static partial class SelfTest
             ReferencesTest(blank, dir, failures);
             QualifiedNamesTest(blank, dir, failures);
             MinifyTest(blank, dir, failures);
+            FileValuesTest(blank, dir, failures);
             RunCommandTest(blank, dir, failures);
             TurnsTest(blank, dir, failures);
             PackageSelfTest.Run(blank, dir, failures);
             LogicTest(blank, dir, failures);
             FlowLayoutTest(blank, dir, failures);
             ContentSelfTest.Run(blank, dir, failures);
+            FormValidationTest(blank, dir, failures);
+            EventsTest(blank, dir, failures);
+            EventsFollowUpTest(blank, dir, failures);
+            DataTest(blank, dir, failures);
             ArchitectureTest(Path.Combine(dir, "built.oml"), failures);
+            CheckSelfTest.Run(blank, dir, failures);
+            ReviewSelfTest.Run(blank, dir, failures);
+            HistoryTest(Path.Combine(dir, "built.oml"), dir, failures);
+            ReadersTest(blank, failures);
+            TestScaffoldTest(dir, failures);
 
             // A clash with a generated CRUD action must be refused, not renamed.
             File.WriteAllText(spec, """{ "entities": [ { "name": "Order", "attributes": [{ "name": "Name" }] } ], "serverActions": [ { "name": "GetOrder" } ] }""");
@@ -223,6 +275,7 @@ static partial class SelfTest
         }
         finally
         {
+            running = false;
             try { Directory.Delete(dir, recursive: true); } catch (IOException) { }
         }
 

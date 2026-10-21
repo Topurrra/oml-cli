@@ -6,6 +6,10 @@ window.omlCookbook = [
     ['oml doctor --selftest', 'Check your setup and run the self-test on this Service Studio build now.'],
     ['oml dashboard', 'Open this dashboard in your browser.'],
     ['oml dashboard --port 5050 --no-open', 'Start the dashboard on port 5050 without opening the browser.'],
+    ['oml dashboard --module C:\\Work\\Orders.oml', 'Open the dashboard with this module in the Module explorer.'],
+    ['oml setup', 'Add oml entries to the Explorer right-click menu (fonts, images, .oml files, folders). On Windows 11: Show more options.'],
+    ['oml setup --status', 'List the Explorer entries and whether they are installed.'],
+    ['oml setup --remove', 'Remove the Explorer entries that oml setup added, and nothing else.'],
     ['oml selftest', 'Run the build check on the installed Service Studio.'],
   ] },
   { group: 'Read a module', items: [

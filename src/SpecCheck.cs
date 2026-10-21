@@ -52,7 +52,7 @@ static class SpecShapes
     {
         "assign", "if", "forEach", "switch", "aggregate", "sql", "execute", "refreshData", "destination", "raiseException",
         "end", "jsonDeserialize", "jsonSerialize", "javaScript", "exceptionHandler", "comment", "message", "download",
-        "excelToRecordList", "recordListToExcel", "sendEmail",
+        "excelToRecordList", "recordListToExcel", "sendEmail", "triggerEvent",
     };
 
     public static readonly string[] ProcessKinds = { "humanActivity", "automaticActivity", "decision", "end", "start" };
@@ -62,6 +62,7 @@ static class SpecShapes
     {
         ["execute"] = new[] { "action" }, ["if"] = new[] { "condition", "true", "false" },
         ["destination"] = new[] { "screen" }, ["raiseException"] = new[] { "exception" },
+        ["triggerEvent"] = new[] { "event" }, ["sendEmail"] = new[] { "email", "from", "to" },
     };
 
     // Edit operations (spec.md, "Edits"; the switch in src/Core/Edits.cs). Typed: the rest of the keys follow that record.
@@ -73,18 +74,24 @@ static class SpecShapes
         ["setAccess"] = new(new[] { "screen" }, new string[0], "AccessSpec"),
         ["insertNodes"] = new(new[] { "action", "after", "flow" }, new[] { "connector" }),
         ["addWidgets"] = new(new[] { "screen", "widgets" }, new[] { "parent", "area", "index" }),
+        ["replaceWidgets"] = new(new[] { "at", "widgets" }, new[] { "area" }),
         ["addVariables"] = new(new[] { "action" }, new string[0], "ActionSpec"),
         ["addParts"] = new(new[] { "screen" }, new string[0], "ScreenSpec"),
         ["set"] = new(new[] { "element", "properties" }, new string[0]),
         ["rename"] = new(new[] { "element", "to" }, new string[0]),
         ["delete"] = new(new[] { "element" }, new[] { "allowDataLoss" }),
+        ["addToAggregate"] = new(new[] { "aggregate" }, new[] { "sources", "joins", "filters", "sorts", "groupBy", "aggregates", "calculated", "groupFilters", "groupSorts", "groupCalculated" }),
+        ["setArgs"] = new(new[] { "element", "args" }, new string[0]),
     };
 
     // Value type of the non-string keys of an edit.
     public static readonly Dictionary<string, JsonValueKind> EditValueKinds = new()
     {
         ["flow"] = JsonValueKind.Array, ["widgets"] = JsonValueKind.Array, ["properties"] = JsonValueKind.Object,
-        ["index"] = JsonValueKind.Number, ["allowDataLoss"] = JsonValueKind.True,
+        ["index"] = JsonValueKind.Number, ["allowDataLoss"] = JsonValueKind.True, ["args"] = JsonValueKind.Object,
+        ["sources"] = JsonValueKind.Array, ["joins"] = JsonValueKind.Array, ["filters"] = JsonValueKind.Array, ["sorts"] = JsonValueKind.Array,
+        ["groupBy"] = JsonValueKind.Array, ["aggregates"] = JsonValueKind.Array, ["calculated"] = JsonValueKind.Array,
+        ["groupFilters"] = JsonValueKind.Array, ["groupSorts"] = JsonValueKind.Array, ["groupCalculated"] = JsonValueKind.Array,
     };
 }
 
@@ -118,6 +125,8 @@ sealed class SpecChecker
         JsonDocument doc;
         try { doc = JsonDocument.Parse(text, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip }); }
         catch (JsonException e) { return new[] { ("$", $"Invalid spec JSON: {e.Message}") }; }
+        if (JsonOutput.UnpairedSurrogatePath(System.Text.Json.Nodes.JsonNode.Parse(text, documentOptions: new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip })) is { } bad) // the same check as apply
+        { doc.Dispose(); return new[] { (bad, JsonOutput.UnpairedSurrogate) }; }
         using (doc) checker.Record(doc.RootElement, SpecModel.Root, "", root: true);
         return checker.Problems;
     }
@@ -208,7 +217,14 @@ sealed class SpecChecker
                     }
                 }
                 break;
-            case RawKind.Named: var n = 0; foreach (var p in list.EnumerateArray()) Named(p, Item(path, n++)); break;
+            case RawKind.Named:
+                var n = 0;
+                foreach (var p in list.EnumerateArray())
+                {
+                    var at = Item(path, n++);
+                    if (Named(p, at) && member == "Aggregates") Query(p, at);
+                }
+                break;
             case RawKind.Widgets: Widgets(list, path); break;
             case RawKind.Edits: Edits(list, path); break;
         }
@@ -220,6 +236,14 @@ sealed class SpecChecker
         if (!item.TryGetProperty("name", out var name)) { Add(path, "missing required key 'name'"); return false; }
         if (name.ValueKind != JsonValueKind.String) { Expect(Key(path, "name"), "a string", name); return false; }
         return true;
+    }
+
+    // The objects inside an aggregate's lists (sorts, groupBy, joins, ...): the same check apply runs, read from Core.
+    void Query(JsonElement aggregate, string path)
+    {
+        var found = (List<string>)SpecModel.Type("QueryShapes").GetMethod("Problems", BindingFlags.NonPublic | BindingFlags.Static)!
+            .Invoke(null, new object[] { aggregate })!;
+        foreach (var problem in found) Add(path, problem);
     }
 
     void Widgets(JsonElement list, string path)
@@ -264,6 +288,7 @@ sealed class SpecChecker
                 foreach (var key in required.Where(r => !n.TryGetProperty(r, out _))) Add(at, $"missing required key '{key}' for kind '{kind}'");
             if (n.TryGetProperty("name", out var nm) && nm.ValueKind != JsonValueKind.String) Expect(Key(at, "name"), "a string", nm);
             if (n.TryGetProperty("assign", out var assign) && assign.ValueKind != JsonValueKind.Object) Expect(Key(at, "assign"), "an object", assign);
+            if (kind?.Equals("aggregate", StringComparison.OrdinalIgnoreCase) == true) Query(n, at);
 
             // A node's name defaults to its kind; an execute node's to the called action.
             var name = nm.ValueKind == JsonValueKind.String ? nm.GetString()!
@@ -334,6 +359,10 @@ sealed class SpecChecker
                 if (e.TryGetProperty("flow", out var flow) && flow.ValueKind == JsonValueKind.Array)
                     Flow(flow, Key(at, "flow"), process: false, targets: false); // targets may name nodes already in the action
             if (e.TryGetProperty("widgets", out var widgets) && widgets.ValueKind == JsonValueKind.Array) Widgets(widgets, Key(at, "widgets"));
+            if (op.GetString() == "addToAggregate") Query(e, at);
+            if (op.GetString() == "setArgs" && e.TryGetProperty("args", out var args) && args.ValueKind == JsonValueKind.Object)
+                foreach (var a in args.EnumerateObject().Where(a => a.Value.ValueKind is not (JsonValueKind.String or JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)))
+                    Expect(Key(Key(at, "args"), a.Name), "an expression string, a number or true/false", a.Value);
         }
     }
 }
@@ -375,6 +404,10 @@ static class SpecSchema
     static JsonObject For(Type type, string member, JsonObject defs)
     {
         type = SpecModel.Unwrap(type);
+        // Code keys also take { "file": "relative/path" } (spec.md, "Code from files").
+        if (type == typeof(string) && SpecFiles.Keys.Contains(member, StringComparer.OrdinalIgnoreCase))
+            return new JsonObject { ["oneOf"] = new JsonArray(new JsonObject { ["type"] = "string" }, new JsonObject { ["type"] = "object",
+                ["required"] = new JsonArray("file"), ["properties"] = new JsonObject { ["file"] = new JsonObject { ["type"] = "string" } }, ["additionalProperties"] = false }) };
         if (type == typeof(string)) return new JsonObject { ["type"] = "string" };
         if (type == typeof(bool)) return new JsonObject { ["type"] = "boolean" };
         if (type == typeof(int)) return new JsonObject { ["type"] = "integer" };

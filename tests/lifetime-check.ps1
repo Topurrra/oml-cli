@@ -70,6 +70,18 @@ try {
     Assert ($r.args -notcontains '--team') 'Remove team flag'
     Assert ($r.files.Count -eq 2 -and $r.files[0].bytes -eq 13 -and $r.files[1].bytes -eq 15) 'Both current OAP files downloaded'
     Assert (!(Test-Path -LiteralPath $downloadFolder)) 'Temporary downloads removed after debug exit'
+    # oml check --team uses the same download and rewrite; its fallback names its own command.
+    $rules = Join-Path $Tmp 'check-rules.json'; '{"rules":[]}' | Set-Content $rules
+    $r = (& $Oml check --team Commerce --rules $rules 2> $progress) | ConvertFrom-Json
+    Assert ($LASTEXITCODE -eq 0 -and $r.args[0] -eq 'check' -and $r.args[1] -eq '--in' -and (($r.args[3..6]) -join '|') -eq "--team-label|Commerce|--rules|$rules") 'Check team rewrite'
+    # Bad check input is refused before anything is downloaded.
+    $existing = Join-Path $Tmp 'existing-report.html'; 'x' | Set-Content $existing
+    $refused = (& $Oml check --team Commerce --out $existing 2> $progress) | ConvertFrom-Json
+    Assert ($LASTEXITCODE -eq 2 -and $refused.error -like 'Output already exists:*' -and !$refused.args) 'Check team input checked before download'
+    $refused = (& $Oml check --team Commerce --rules (Join-Path $Tmp 'missing-rules.json') 2> $progress) | ConvertFrom-Json
+    Assert ($LASTEXITCODE -eq 2 -and $refused.error -like 'Rules file *') 'Check team rules file checked before download'
+    $null = & $Oml check --team missing 2> $progress
+    Assert ($LASTEXITCODE -eq 2 -and (Get-Content -LiteralPath $progress -Raw).Trim() -match 'run: oml check --in <folder>$') 'Check team fallback message'
     $failures = @{missing='matching team';Forbidden='403';NoDownload='404';Unsafe='safe package download URL';Redirect='302';Partial='404';Malformed='invalid LifeTime response';Empty='no applications'}
     foreach ($team in $failures.Keys) {
         $message = Invoke-Architecture @('--team',$team)

@@ -32,7 +32,7 @@ partial class Builder
     {
         string Required(string key) => edit.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String
             ? v.GetString()! : throw new ModelError($"'{key}' is required");
-        IObjectSignature Find(string key) => ElementPaths.Resolve(m, Required(key));
+        IObjectSignature Find(string key) => ElementPaths.Resolve(m, Required(key), write: true);
         T Read<T>() => JsonSerializer.Deserialize<T>(edit.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
         switch (Required("op"))
         {
@@ -93,6 +93,47 @@ partial class Builder
                 }
                 break;
             }
+            case "replaceWidgets":
+            {
+                // The element at "at" stays (its name, style and events); every widget inside it is replaced.
+                var at = Find("at");
+                var screen = new[] { at }.Concat(Ancestors(at)).FirstOrDefault(o => o is OutSystems.Model.UI.IScreenSignature or OutSystems.Model.UI.IBlockSignature or OutSystems.Model.UI.IEmail)
+                    ?? throw new ModelError("'at' must be the path of a screen, block or email, or of a widget or placeholder inside one");
+                var area = edit.TryGetProperty("area", out var a) ? a.GetString()! : "children";
+                var container = area != "children" ? Reflect.Get(at, area) ?? throw new ModelError($"no content area '{area}'")
+                    : ReferenceEquals(at, screen) ? screen : Content(at);
+                if (!edit.TryGetProperty("widgets", out var given) || given.ValueKind != JsonValueKind.Array) throw new ModelError("'widgets' must be an array of widgets");
+                if (screen is OutSystems.Model.UI.IEmail) foreach (var w in given.EnumerateArray()) EmailWidget(w);
+                if (Reflect.Get(container, "Widgets") is not System.Collections.IEnumerable current || !Reflect.Has(container, "CreateWidget"))
+                    throw new ModelError($"'{Required("at")}' holds no widgets; set 'at' to a screen, block, email, widget or placeholder (paths in 'oml tree')");
+                var old = current.OfType<IObjectSignature>().ToList();
+                var (broken, rebound) = WidgetUsages(old, WidgetNames(given));
+                if (broken.Count > 0)
+                    throw new ModelError($"refused: replaceWidgets at '{Required("at")}' would break what uses the widgets it removes: {string.Join("; ", broken)}. "
+                        + "Change those usages first (edits set or delete), or replace a smaller part with a deeper \"at\".");
+                // A removed Label's link to its input, unless a new Label in "widgets" names the same target.
+                var links = old.SelectMany(ProductionRules.Walk).Select(w => (label: w, target: Reflect.Get(w, "TargetWidget") as IObjectSignature))
+                    .Where(l => l.target is not null).Select(l => (label: Model.NameOf(l.label) ?? "a Label", target: Model.NameOf(l.target!) ?? "")).ToList();
+                var targets = WidgetNames(given, "targetWidget");
+                foreach (var (labelName, targetName) in links.Where(l => !targets.Contains(l.target)))
+                    Warnings.Add($"replaceWidgets at '{Required("at")}' removed the Label {labelName}, which pointed at {targetName}; no new Label has \"targetWidget\": \"{targetName}\", so that input lost its label link (screen readers use it)");
+                foreach (var w in old) rules.Delete(w);
+                foreach (var w in old) w.Delete();
+                var handlers = Elements(Reflect.Get(screen, "ScreenActions")).ToDictionary(x => Model.NameOf(x)!, x => x);
+                var made = new List<IObjectSignature>();
+                foreach (var widget in given.EnumerateArray()) if (Widget(container, widget, label, handlers) is IObjectSignature w) made.Add(w);
+                // An expression finds the new widget by name; it must be the same kind, or Name.Valid, Name.Id ... change meaning.
+                var now = made.SelectMany(ProductionRules.Walk).Where(w => Model.NameOf(w) is not null).GroupBy(w => Model.NameOf(w)!).ToDictionary(g => g.Key, g => g.First());
+                var retyped = rebound.Where(r => !now.TryGetValue(r.name, out var w) || ElementPaths.Kind(w) != r.kind)
+                    .Select(r => now.TryGetValue(r.name, out var w)
+                        ? $"{r.name} was {Article(r.kind)} {r.kind}, now {Article(ElementPaths.Kind(w))} {ElementPaths.Kind(w)}; used by {r.users}"
+                        : $"{r.name} was {Article(r.kind)} {r.kind} and no new widget has that name; used by {r.users}").ToList();
+                if (retyped.Count > 0)
+                    throw new ModelError($"refused: replaceWidgets at '{Required("at")}' gives a used widget name to another kind of widget: {string.Join("; ", retyped)}. Keep the kind; if the new kind is intended, rename the widget or update the usages in the same spec.");
+                // One entry per element, however the spec writes its path (Home/Box, MainFlow/Home/Box).
+                if (replacedAt.Add(at)) Change($"widgets of {Required("at")}");
+                break;
+            }
             case "addVariables":
             {
                 var action = Find("action");
@@ -103,6 +144,23 @@ partial class Builder
                 break;
             }
             case "addParts": ScreenParts(Find("screen"), Read<ScreenSpec>(), label); break;
+            case "addToAggregate":
+            {
+                // Adds to an existing aggregate with the creation keys. Change or remove its parts with set and delete.
+                var aggregate = Find("aggregate");
+                if (Reflect.Get(aggregate, "AsDatabaseAggregate") is null) throw new ModelError("aggregate must be the path of an aggregate, such as Action/GetOrders or Screen/GetOrders");
+                if (edit.EnumerateObject().Select(p => p.Name).FirstOrDefault(k => k is not ("op" or "aggregate") && (!QueryKeys.Contains(k) || k is "name" or "maxRecords" or "fetch" or "onAfterFetch" or "timeout" or "cacheInMinutes")) is { } other)
+                    throw new ModelError($"addToAggregate does not take '{other}'; change aggregate properties with set");
+                Aggregate(aggregate, edit, label);
+                break;
+            }
+            case "setArgs":
+            {
+                var node = Find("element");
+                if (!edit.TryGetProperty("args", out var args) || args.ValueKind != JsonValueKind.Object) throw new ModelError("'args' must be an object of parameter name to expression");
+                Defer(node, ($"{label}.args", () => Arguments(node, args)));
+                break;
+            }
             case "set":
             {
                 var target = Find("element");
@@ -110,7 +168,10 @@ partial class Builder
                 {
                     rules.Set(target, p.Name, p.Value);
                     if (p.Name.Equals("name", StringComparison.OrdinalIgnoreCase)) throw new ModelError("use rename to change names");
-                    Queue(label, m, target, p.Name, p.Value);
+                    // At once, not with the expressions: a later edit (replaceWidgets) must see the new target.
+                    if (p.Name.Equals("targetWidget", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.String)
+                        TargetWidget(target, p.Value.GetString()!);
+                    else Queue(label, m, target, p.Name, p.Value);
                 }
                 break;
             }
@@ -120,11 +181,11 @@ partial class Builder
                 rules.Rename(target);
                 var wanted = Required("to");
                 var name = (Reflect.Property(target, "Name", writable: true) ?? Reflect.Property(target, "Label", writable: true)) ?? throw new ModelError("element cannot be renamed");
-                if (target.Parent is { } parent && ElementPaths.Children(parent).Any(c => !ReferenceEquals(c, target) && Model.NameOf(c) == wanted))
-                    throw new ModelError($"name '{wanted}' already exists in this parent");
+                if (target.Parent is { } parent && ElementPaths.Children(parent).FirstOrDefault(c => !ReferenceEquals(c, target) && Model.NameOf(c) == wanted) is { } sibling)
+                    throw new ModelError($"name '{wanted}' already exists in this parent: {NameClash.Describe(sibling)}");
                 name.SetValue(target, wanted);
                 if (aggregateNames.ContainsKey(target)) aggregateNames[target] = wanted;
-                if (Model.NameOf(target) != wanted) throw new ModelError($"name taken; model renamed to '{Model.NameOf(target)}' instead of '{wanted}'");
+                if (Model.NameOf(target) != wanted) throw new ModelError($"{NameClash.Taken(target, wanted)}; model renamed to '{Model.NameOf(target)}' instead of '{wanted}'");
                 break;
             }
             case "delete":
@@ -145,12 +206,117 @@ partial class Builder
                         throw new ModelError("flow node deletion requires exactly one incoming and one outgoing connector");
                     Connect(incoming[0].from, incoming[0].property, outgoing[0].to);
                 }
-                target.Delete();
+                // Deleting a filter, sort or group of a grouped aggregate can drop its source, with no validation error.
+                // Inside an aggregate, check that every other part is still there.
+                var db = Ancestors(target).Select(a => Reflect.Get(a, "AsDatabaseAggregate")).FirstOrDefault(a => a is not null);
+                var all = db is null ? new List<(object part, string what)>() : AggregateParts(db).ToList();
+                if (db is not null && !all.Any(p => ReferenceEquals(p.part, target)))
+                    throw new ModelError($"'{Required("element")}' is internal structure of an aggregate; delete its sources, joins, filters, sorts, groups or attributes instead");
+                var parts = all.Where(p => !ReferenceEquals(p.part, target)).ToList();
+                try { target.Delete(); }
+                catch (Exception e) when (e is not ModelError)
+                {
+                    throw new ModelError($"the model could not delete '{Required("element")}' ({Innermost(e).Message}); do it in Service Studio");
+                }
+                if (db is not null)
+                {
+                    HashSet<object> after;
+                    try { after = AggregateParts(db).Select(p => p.part).ToHashSet(); }
+                    catch (Exception e) when (e is not ModelError)
+                    {
+                        throw new ModelError($"deleting '{Required("element")}' left the aggregate unreadable ({Innermost(e).Message}); do it in Service Studio");
+                    }
+                    if (parts.FirstOrDefault(p => ((IObjectSignature)p.part).WasDeleted || !after.Contains(p.part)) is { what: { } lost })
+                        throw new ModelError($"deleting '{Required("element")}' would also remove {lost} (a model side effect); do it in Service Studio");
+                }
                 break;
             }
             default: throw new ModelError($"unknown edit op '{Required("op")}'");
         }
         created.Add(label);
+    }
+
+    // What uses the widgets a replaceWidgets removes, from outside them. An expression finds a widget by name, so a new
+    // widget with the same name (and kind, checked after the build) keeps it working: those are "rebound". Any other
+    // reference (a Label's target widget, ...) points at the old widget itself and always breaks.
+    (List<string> broken, List<(string name, string kind, string users)> rebound) WidgetUsages(List<IObjectSignature> removed, HashSet<string> kept)
+    {
+        var inside = removed.SelectMany(ProductionRules.Walk).ToHashSet();
+        var broken = new SortedSet<string>(StringComparer.Ordinal);
+        var rebound = new List<(string, string, string)>();
+        foreach (var widget in inside)
+        {
+            if (Reflect.Property(widget, "Referers") is null) throw new ModelError($"cannot safely inspect usages of {widget.GetType().Name} on this build");
+            var users = Elements(Reflect.Get(widget, "Referers")).OfType<IObjectSignature>()
+                .Where(u => !u.WasDeleted && !inside.Contains(u) && !Ancestors(u).Any(inside.Contains)).ToList();
+            if (users.Count == 0) continue;
+            var name = Model.NameOf(widget) ?? ElementPaths.Kind(widget);
+            var expressions = users.Where(u => u is IExpression).Select(UsagePath).Distinct().Order(StringComparer.Ordinal).ToList();
+            var references = users.Where(u => u is not IExpression).Select(UsagePath).Distinct().Order(StringComparer.Ordinal).ToList();
+            if (references.Count > 0)
+                broken.Add($"{name} is the target of {string.Join(", ", references)} (a reference to this widget itself, which a new widget of the same name does not take over; first point it at another widget, for a Label with set \"targetWidget\": \"<name>\")");
+            if (expressions.Count == 0) continue;
+            if (Model.NameOf(widget) is { } kept1 && kept.Contains(kept1)) rebound.Add((kept1, ElementPaths.Kind(widget), string.Join(", ", expressions)));
+            else broken.Add($"{name} (used by {string.Join(", ", expressions)}): keep a widget of the same name and kind in \"widgets\"");
+        }
+        return (broken.ToList(), rebound);
+    }
+
+    // The node or widget a usage belongs to, as newErrors name owners (the named path, then Kind[index] when it has no
+    // name), when that path means it alone; else the shortest path that does (an unnamed widget's index path may not).
+    string UsagePath(IObjectSignature user)
+    {
+        var real = new[] { user }.Concat(Ancestors(user)).FirstOrDefault(o => o is IActionNode or OutSystems.Model.UI.IWidgetSignature)
+            ?? new[] { user }.Concat(Ancestors(user)).FirstOrDefault(o => Model.NameOf(o) is not null) ?? user;
+        var named = Model.OwnerName(real) ?? "";
+        return ElementPaths.Best(m, real, Model.NameOf(real) is not null || real.Parent is null ? named : $"{Model.OwnerName(real.Parent)}/{ElementPaths.Segment(real, real.Parent)}");
+    }
+
+    static string Article(string word) => "AEIOU".Contains(char.ToUpperInvariant(word[0])) ? "an" : "a";
+
+    // The names a widget spec gives (or the values of another key, such as targetWidget), at any depth.
+    static HashSet<string> WidgetNames(JsonElement spec, string key = "name")
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        void Walk(JsonElement e)
+        {
+            if (e.ValueKind == JsonValueKind.Array) foreach (var x in e.EnumerateArray()) Walk(x);
+            if (e.ValueKind != JsonValueKind.Object) return;
+            if (e.TryGetProperty("type", out _) && e.TryGetProperty(key, out var n) && n.ValueKind == JsonValueKind.String) names.Add(n.GetString()!);
+            foreach (var p in e.EnumerateObject()) Walk(p.Value);
+        }
+        Walk(spec);
+        return names;
+    }
+
+    // The parts of an aggregate that its result depends on. A grouped aggregate also has a source for the group
+    // itself; its Source getter throws, and it is not a part a person added, so it is left out.
+    static IEnumerable<(object part, string what)> AggregateParts(object db)
+    {
+        foreach (var s in Elements(Reflect.Get(db, "Sources")))
+        {
+            object? source;
+            try { source = Reflect.Get(s, "Source"); }
+            catch (System.Reflection.TargetInvocationException e) when (e.InnerException is InvalidCastException) { continue; }
+            yield return (s, $"its source {Model.NameOf(source!)}");
+        }
+        foreach (var (key, what, text) in new[] { ("Joins", "join", "Condition"), ("Filters", "filter", "Condition"), ("FiltersInGroupBy", "group filter", "Condition"),
+                     ("Sorts", "sort", "Attribute"), ("SortsInGroupBy", "group sort", "Attribute"), ("GroupByAttributes", "group", null),
+                     ("AggregateAttributes", "aggregate attribute", null), ("CalculatedAttributes", "calculated attribute", null),
+                     ("CalculatedAttributesInGroupBy", "group calculated attribute", null) })
+            foreach (var p in Elements(Reflect.Get(db, key)))
+                yield return (p, $"its {what} {(text is null ? Model.NameOf(p) : (Reflect.Get(p, text) as IExpression)?.Text)}");
+    }
+
+    static Exception Innermost(Exception e)
+    {
+        while (e.InnerException is not null) e = e.InnerException;
+        return e;
+    }
+
+    static IEnumerable<IObjectSignature> Ancestors(IObjectSignature o)
+    {
+        for (var p = o.Parent; p is not null; p = p.Parent) yield return p;
     }
 
     static string ConnectorProperty(string connector) => connector.ToLowerInvariant() switch

@@ -42,7 +42,7 @@ static class FlowLayout
             {
                 try
                 {
-                    var owner = ElementPaths.Resolve(m, pattern);
+                    var owner = ElementPaths.Resolve(m, pattern, write: true);
                     if (!flows.Contains(owner)) throw new ModelError($"'{pattern}' is not an editable logic or process flow");
                     selected.Add(owner);
                 }

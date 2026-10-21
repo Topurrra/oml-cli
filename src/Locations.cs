@@ -16,9 +16,11 @@ static class Locations
     public static int StudioPort => int.TryParse(Environment.GetEnvironmentVariable("OML_STUDIO_PORT"), out var p) ? p : 41820;
     public static string StudioUrl => $"http://127.0.0.1:{StudioPort}/mcp";
 
-    // One line per Service Studio build whose self-test passed.
-    public static string SelfTestRecord => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "oml-cli", "selftest-passed.txt");
+    // One line per Service Studio build whose self-test passed. OML_SELFTEST_RECORD (tests only) points it at another
+    // file, so a test that removes the build from the record does not touch the record other oml processes read.
+    public static string SelfTestRecord => Environment.GetEnvironmentVariable("OML_SELFTEST_RECORD") is { Length: > 0 } record
+        ? Path.GetFullPath(record)
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "oml-cli", "selftest-passed.txt");
 
     // Headless Edge or Chrome for `oml preview --screenshot`. OML_BROWSER wins when it is set.
     public static string? BrowserPath()

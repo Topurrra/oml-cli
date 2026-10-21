@@ -5,16 +5,18 @@ using OutSystems.Model.UI.Mobile;
 
 namespace OmlCli;
 
-record VarSpec(string Name, string Type = "Text", bool Mandatory = false, string? Default = null, string? Description = null);
+// Mandatory: null keeps the model default (mandatory, as in Service Studio); true or false sets it.
+record VarSpec(string Name, string Type = "Text", bool? Mandatory = null, string? Default = null, string? Description = null);
 record ActionSpec(string Name, List<VarSpec>? Inputs = null, List<VarSpec>? Outputs = null, List<VarSpec>? Locals = null,
-    List<JsonElement>? Flow = null, bool Public = false, bool Function = false, string? Description = null);
+    List<JsonElement>? Flow = null, bool? Public = null, bool Function = false, string? Description = null);
 record ScreenSpec(string Name, string Flow = "MainFlow", JsonElement? Title = null,
     List<VarSpec>? Inputs = null, List<VarSpec>? Locals = null, List<JsonElement>? Aggregates = null,
-    List<ActionSpec>? DataActions = null, List<ActionSpec>? Actions = null, List<JsonElement>? Widgets = null,
+    List<DataActionSpec>? DataActions = null, List<ActionSpec>? Actions = null, List<JsonElement>? Widgets = null,
     string? OnInitialize = null, string? OnReady = null, string? OnRender = null, string? OnDestroy = null,
     string? Layout = null, Dictionary<string, List<JsonElement>>? Placeholders = null, string? Template = null, string? Entity = null,
     AccessSpec? Access = null, List<JsonElement>? Preparation = null, string? StyleSheet = null, bool IsDefault = false,
-    List<string>? RequiredScripts = null);
+    List<string>? RequiredScripts = null,
+    List<EventSpec>? Events = null, string? OnParametersChanged = null, bool? Public = null);
 
 /// Builds actions, flows, screens and widgets in the order the model needs (skill §9.2):
 /// create everything -> wire references and types -> wire connectors -> widgets -> expressions and arguments.
@@ -47,6 +49,11 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         {
             problems.Add($"{label}: {(e.InnerException ?? e).Message}");
         }
+        // Any other model failure (an internal Service Studio exception) is a problem too, never a crash without a report.
+        catch (Exception e) when (e is not CliError)
+        {
+            problems.Add($"{label}: the model could not do this ({Innermost(e).GetType().Name}: {Innermost(e).Message}); do it in Service Studio");
+        }
     }
 
     // References apply in the reference stage, or at once when that stage has already run (widgets).
@@ -67,9 +74,20 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
     {
         var actual = Model.NameOf(created);
         if (actual == requested) return true;
+        var taken = NameClash.Taken(created, requested);
         ((IObjectSignature)created).Delete();
-        problems.Add($"{label}: name taken (by a generated CRUD action or another element); the model would rename it {actual}");
+        problems.Add($"{label}: {taken}; the model would rename it {actual}");
         return false;
+    }
+
+    // Fresh for a step that cannot go on: the same message, as an error of the step.
+    static void FreshOrThrow(object created, string requested, string what)
+    {
+        var actual = Model.NameOf(created);
+        if (actual == requested) return;
+        var taken = NameClash.Taken(created, requested);
+        ((IObjectSignature)created).Delete();
+        throw new ModelError($"{what} {requested}: {taken}; the model would rename it {actual}");
     }
 
     // ---- actions ----
@@ -79,7 +97,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
     void CreateAction(string kind, ActionSpec s)
     {
         var all = kind switch { "serverAction" => m.ServerActions.Cast<object>(), "serviceAction" => m.ServiceActions, _ => m.ClientActions };
-        if (all.Any(a => Model.NameOf(a) == s.Name)) { existing.Add($"{kind} {s.Name}"); return; }
+        if (all.FirstOrDefault(a => Model.NameOf(a) == s.Name) is { } found) { ReuseAction(kind, found, s); existing.Add($"{kind} {s.Name}"); return; }
         object action = kind switch
         {
             "serverAction" => m.CreateServerAction(s.Name, services.NewKey()),
@@ -87,7 +105,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
             _ => m.CreateClientAction(s.Name, services.NewKey()),
         };
         if (!Fresh(action, s.Name, $"{kind} {s.Name}")) return;
-        if (Reflect.Property(action, "Public", writable: true) is { } pub) pub.SetValue(action, s.Public);
+        if (s.Public is { } isPublic && Reflect.Property(action, "Public", writable: true) is { } pub) pub.SetValue(action, isPublic);
         if (s.Function && Reflect.Property(action, "Function", writable: true) is { } fn) fn.SetValue(action, true);
         Body(action, s, $"{kind} {s.Name}");
         created.Add($"{kind} {s.Name}");
@@ -111,9 +129,11 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
             try
             {
                 var p = Reflect.Call(owner, factory, v.Name, services.NewKey())!;
-                if (!Fresh(p, v.Name, where)) continue;
+                // "block LatticeLoader: local Status: name taken by ...": the label first, as in every problem.
+                var what = factory switch { "CreateInputParameter" => "input", "CreateOutputParameter" => "output", _ => "local" };
+                if (!Fresh(p, v.Name, $"{label}: {what} {v.Name}")) continue;
                 Reflect.Property(p, "DataType", writable: true)!.SetValue(p, type);
-                if (v.Mandatory && Reflect.Property(p, "IsMandatory", writable: true) is { } mand) mand.SetValue(p, true);
+                if (v.Mandatory is { } mandatory && Reflect.Property(p, "IsMandatory", writable: true) is { } mand) mand.SetValue(p, mandatory);
                 if (v.Description is not null && Reflect.Property(p, "Description", writable: true) is { } desc) desc.SetValue(p, v.Description);
                 if (v.Default is not null) Defer(p, ($"{where}.default", () => Reflect.Call(p, "SetDefaultValue", v.Default)));
             }
@@ -124,17 +144,17 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
     // ---- flows ----
 
     static readonly HashSet<string> FlowKeys = new(StringComparer.OrdinalIgnoreCase)
-        { "kind", "name", "next", "true", "false", "cycle", "assign", "action", "args", "sources", "filters", "sorts", "maxRecords", "joins", "groupBy", "aggregates", "calculated", "screen", "dataSource", "cases", "otherwise", "sql", "params", "outputs", "inputs", "attributeSelection" };
+        { "kind", "name", "next", "true", "false", "cycle", "assign", "action", "args", "sources", "filters", "sorts", "maxRecords", "joins", "groupBy", "aggregates", "calculated", "groupFilters", "groupSorts", "groupCalculated", "fetch", "onAfterFetch", "timeout", "cacheInMinutes", "screen", "dataSource", "cases", "otherwise", "sql", "params", "outputs", "inputs", "attributeSelection" };
 
     static Type NodeType(string kind) =>
-        typeof(OutSystems.Model.Logic.Nodes.IActionNode).Assembly.GetTypes().FirstOrDefault(t =>
+        Reflect.Types(typeof(OutSystems.Model.Logic.Nodes.IActionNode).Assembly).FirstOrDefault(t =>
             t.IsInterface && t.Namespace == "OutSystems.Model.Logic.Nodes"
             && t.Name.Equals($"I{kind}Node", StringComparison.OrdinalIgnoreCase))
         ?? throw new ModelError($"unknown node kind '{kind}' (see 'oml api \"OutSystems.Model.Logic.Nodes.I*Node\"'){SpecHelp.Hint(kind, NodeKinds())}");
 
-    static IEnumerable<string> NodeKinds() => typeof(OutSystems.Model.Logic.Nodes.IActionNode).Assembly.GetTypes()
+    static IEnumerable<string> NodeKinds() => Reflect.Types(typeof(OutSystems.Model.Logic.Nodes.IActionNode).Assembly)
         .Where(t => t.IsInterface && t.Namespace == "OutSystems.Model.Logic.Nodes" && t.Name.StartsWith("I") && t.Name.EndsWith("Node"))
-        .Select(t => char.ToLowerInvariant(t.Name[1]) + t.Name[2..^4]).Where(k => k.Length > 0).Distinct();
+        .Select(t => char.ToLowerInvariant(t.Name[1]) + t.Name[2..^4]).Where(k => k.Length > 0).Append("triggerEvent").Distinct();
 
     void Flow(object action, List<JsonElement> spec, string label, object? after = null, string connector = "Target", object? successor = null, bool connectEntry = true)
     {
@@ -154,13 +174,16 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         }
 
         var built = new List<(JsonElement spec, object node, string name, string kind)>();
-        foreach (var n in spec)
+        foreach (var original in spec)
         {
+            var n = original;
             var kind = n.GetProperty("kind").GetString()!;
             var name = n.TryGetProperty("name", out var nm) ? nm.GetString()! : kind;
             var where = $"{label}/{name}";
             try
             {
+                if (kind.Equals("sendEmail", StringComparison.OrdinalIgnoreCase) && !WebUi.IsTraditional(m))
+                    (n, kind) = (ReactiveSendEmail(action, n), "execute");
                 object? callee = null;
                 Type type;
                 if (kind.Equals("execute", StringComparison.OrdinalIgnoreCase))
@@ -171,11 +194,12 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                     type = client ? typeof(OutSystems.Model.Logic.Nodes.IExecuteClientActionNode) : typeof(OutSystems.Model.Logic.Nodes.IExecuteServerActionNode);
                     if (!n.TryGetProperty("name", out _)) name = Model.NameOf(callee) ?? target;
                 }
-                else type = NodeType(kind);
+                else type = kind.Equals("triggerEvent", StringComparison.OrdinalIgnoreCase) ? typeof(OutSystems.Model.Logic.Nodes.ITriggerNode) : NodeType(kind);
 
+                if (type == typeof(OutSystems.Model.Logic.Nodes.ITriggerNode)) TriggerBlock(action);
                 if ((byName.ContainsKey(name) || ambiguous.Contains(name))
                     && !(name == "End" && type == typeof(OutSystems.Model.Logic.Nodes.IEndNode)))
-                    throw new ModelError($"node name '{name}' already exists");
+                    throw new ModelError($"node name '{name}' already exists in this flow{(byName.GetValueOrDefault(name) is IObjectSignature held ? ": " + NameClash.Describe(held) : "")}");
                 // An "End" node reuses the action's existing End, which bare flows and implicit ends also use.
                 var node = name == "End" && type == typeof(OutSystems.Model.Logic.Nodes.IEndNode)
                     ? End() : Reflect.CallGeneric(action, "CreateNode", type, name, services.NewKey())!;
@@ -213,7 +237,8 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 if (kind.Equals("aggregate", StringComparison.OrdinalIgnoreCase)) Aggregate(node, n, where);
                 if (kind.Equals("sql", StringComparison.OrdinalIgnoreCase)) Sql(node, n, where);
                 QueryNode(action, node, n, kind, where);
-                foreach (var p in n.EnumerateObject().Where(p => !FlowKeys.Contains(p.Name)))
+                if (node is OutSystems.Model.Logic.Nodes.ITriggerNode) TriggerEvent(action, node, n);
+                foreach (var p in n.EnumerateObject().Where(p => !FlowKeys.Contains(p.Name) && !(node is OutSystems.Model.Logic.Nodes.ITriggerNode && p.Name == "event")))
                     Queue(where, m, node, p.Name, p.Value);
                 CheckLogicNode(action, node, n, kind, where);
             }
@@ -286,13 +311,22 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         {
             var arg = list.FirstOrDefault(x => Reflect.Get(x, "Parameter") is { } p && Model.NameOf(p) == a.Name)
                       ?? throw new ModelError($"no parameter '{a.Name}'");
-            Reflect.Call(arg, "SetValue", a.Value.GetString());
+            Reflect.Call(arg, "SetValue", a.Value.ValueKind switch
+            {
+                JsonValueKind.String => a.Value.GetString(),
+                JsonValueKind.Number => a.Value.GetRawText(), // a number is its own expression
+                JsonValueKind.True => "True",
+                JsonValueKind.False => "False",
+                _ => throw new ModelError($"argument '{a.Name}' must be an expression string, a number or true/false"),
+            });
         }
     }
 
     void Aggregate(object aggregate, JsonElement spec, string where)
     {
         var db = Reflect.Get(aggregate, "AsDatabaseAggregate") ?? throw new ModelError("not a database aggregate");
+        if (QueryShapes.Problems(spec) is { Count: > 0 } shape) throw new ModelError(string.Join("; ", shape));
+        Numbers(aggregate, spec, where);
         // Sources must exist before join endpoints and query expressions are bound.
         foreach (var source in spec.TryGetProperty("sources", out var ss) ? ss.EnumerateArray() : Enumerable.Empty<JsonElement>())
         {
@@ -303,14 +337,9 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         QueryAttributes(db, spec, where);
         foreach (var filter in spec.TryGetProperty("filters", out var fs) ? fs.EnumerateArray() : Enumerable.Empty<JsonElement>())
             Defer(aggregate, ($"{where}.filters", () => Reflect.Call(db, "CreateFilter", filter.GetString())));
-        foreach (var sort in spec.TryGetProperty("sorts", out var so) ? so.EnumerateArray() : Enumerable.Empty<JsonElement>())
-            Defer(aggregate, ($"{where}.sorts", () =>
-            {
-                var s = Reflect.Call(db, "CreateSort")!;
-                Reflect.Call(s, "SetAttribute", sort.GetProperty("attribute").GetString());
-                if (sort.TryGetProperty("descending", out var desc) && desc.GetBoolean())
-                    Reflect.Property(s, "SortDirection", writable: true)!.SetValue(s, Sort.Descending);
-            }));
+        Sorts(db, spec, "sorts", "CreateSort", where);
+        if (spec.TryGetProperty("fetch", out var fetch)) Fetch(aggregate, fetch.GetString(), where);
+        if (spec.TryGetProperty("onAfterFetch", out var after)) AfterFetch(aggregate, after.GetString(), where);
         if (spec.TryGetProperty("maxRecords", out var max))
             Defer(aggregate, ($"{where}.maxRecords", () => Reflect.Call(aggregate, "SetMaxRecords", max.ToString())));
         // The model auto-names an aggregate from its source and filters (GetOrders -> GetOrdersByCustomerId), as
@@ -332,21 +361,32 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         if (WebUi.IsTraditional(m)) { CreateWebScreen(s, block); return; }
         if (s.Preparation is not null) throw new ModelError("preparation requires a Traditional Web module; use aggregates or lifecycle actions for Reactive/Mobile");
         var label = $"{(block ? "block" : "screen")} {s.Name}";
-        var flow = m.MobileFlows.FirstOrDefault(f => f.Name == s.Flow);
-        if (flow is null)
-        {
-            flow = m.CreateMobileFlow(s.Flow, services.NewKey());
-            created.Add($"flow {s.Flow}");
-        }
-        if (flow.Nodes.Any(n => Model.NameOf(n) == s.Name)) { existing.Add(label); return; }
+        var flow = m.MobileFlows.FirstOrDefault(f => f.Name == s.Flow) ?? NewMobileFlow(s.Flow);
+        if (flow.Nodes.FirstOrDefault(n => Model.NameOf(n) == s.Name) is { } found) { ReuseScreen(found, s, block, label); existing.Add(label); return; }
         object screen = block ? flow.CreateBlock(s.Name, services.NewKey()) : flow.CreateScreen(s.Name, services.NewKey());
         if (!Fresh(screen, s.Name, label)) return;
         created.Add(label);
+        if (s.Public is { } isPublic) Set(screen, "Public", isPublic);
         // A themed screen factory may seed a layout; explicit content replaces that starter tree.
         if (s.Layout is not null || s.Widgets is not null)
             foreach (var seeded in Elements(Reflect.Get(screen, "Widgets")).OfType<IObjectSignature>().ToList()) seeded.Delete();
 
         ScreenParts(screen, s, label);
+    }
+
+    // The model silently renames a flow whose name is taken, for example by a referenced module's MainFlow.
+    IMobileFlow NewMobileFlow(string name)
+    {
+        var flow = m.CreateMobileFlow(name, services.NewKey());
+        if (flow.Name != name)
+        {
+            var given = flow.Name;
+            var holder = NameClash.Holder(flow, name) ?? "an element oml cannot see, for example a flow of a referenced module";
+            flow.Delete();
+            throw new ModelError($"UI flow name '{name}' is taken by {holder}; the model would name it {given}. Set \"flow\" to a free name.");
+        }
+        created.Add($"flow {name}");
+        return flow;
     }
 
     void ScreenParts(object screen, ScreenSpec s, string label)
@@ -360,6 +400,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
             Defer(screen, ($"{label}.title", () => Reflect.Call(screen, "SetTitle", title.GetString())));
         Variables(screen, "CreateInputParameter", s.Inputs, label);
         Variables(screen, "CreateLocalVariable", s.Locals, label);
+        BlockEvents(screen, s.Events, label);
 
         foreach (var a in s.Aggregates ?? new())
         {
@@ -369,7 +410,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 var aggregate = Reflect.Call(screen, "CreateScreenAggregate", false, name, services.NewKey())!;
                 if (!Fresh(aggregate, name, label)) continue;
                 Aggregate(aggregate, a, $"{label}/{name}");
-                foreach (var p in a.EnumerateObject().Where(p => p.Name is not ("name" or "sources" or "filters" or "sorts" or "maxRecords" or "joins" or "groupBy" or "aggregates" or "calculated")))
+                foreach (var p in a.EnumerateObject().Where(p => !QueryKeys.Contains(p.Name)))
                     Queue($"{label}/{name}", m, aggregate, p.Name, p.Value);
             }
             catch (ModelError e) { problems.Add($"{label}/{name}: {e.Message}"); }
@@ -383,6 +424,9 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
             foreach (var seeded in ((System.Collections.IEnumerable)Reflect.Get(action, "OutputParameters")!).Cast<IObjectSignature>().ToList())
                 seeded.Delete();
             Body(action, d, $"{label}/{d.Name}");
+            if (d.Fetch is not null) Fetch(action, d.Fetch, $"{label}/{d.Name}");
+            if (d.Timeout is { } timeout) Set(action, "ServerRequestTimeout", timeout);
+            if (d.OnAfterFetch is not null) AfterFetch(action, d.OnAfterFetch, $"{label}/{d.Name}");
         }
 
         var screenActions = Elements(Reflect.Get(screen, "ScreenActions")).ToDictionary(a => Model.NameOf(a)!, a => a);
@@ -394,10 +438,11 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
             Body(action, a, $"{label}/{a.Name}");
         }
 
-        foreach (var (evt, handler) in new[] { ("OnInitialize", s.OnInitialize), ("OnReady", s.OnReady), ("OnRender", s.OnRender), ("OnDestroy", s.OnDestroy) })
+        foreach (var (evt, handler) in new[] { ("OnInitialize", s.OnInitialize), ("OnReady", s.OnReady), ("OnRender", s.OnRender), ("OnDestroy", s.OnDestroy), ("OnParametersChanged", s.OnParametersChanged) })
             if (handler is not null)
                 references.Add(($"{label}.{evt}", () =>
                 {
+                    if (evt == "OnParametersChanged" && !Inspect.IsBlock(screen)) throw new ModelError("onParametersChanged is only for blocks");
                     var lifecycle = Reflect.Get(screen, evt) ?? throw new ModelError($"no {evt} on this build");
                     var target = screenActions.GetValueOrDefault(handler) ?? throw new ModelError($"no screen action '{handler}'");
                     Reflect.Property(lifecycle, "Destination", writable: true)!.SetValue(lifecycle, target);
@@ -420,7 +465,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
     }
 
     static Type? BuiltinWidget(string type) =>
-        typeof(OutSystems.Model.UI.Mobile.Widgets.IIfWidget).Assembly.GetTypes().FirstOrDefault(t =>
+        Reflect.Types(typeof(OutSystems.Model.UI.Mobile.Widgets.IIfWidget).Assembly).FirstOrDefault(t =>
             t.IsInterface && t.Namespace == "OutSystems.Model.UI.Mobile.Widgets"
             && (t.Name.Equals($"I{type}Widget", StringComparison.OrdinalIgnoreCase)
                 || t.Name.Equals($"IMobile{type}Widget", StringComparison.OrdinalIgnoreCase)));
@@ -472,7 +517,10 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 if (slot is null) { problems.Add($"{where}: unknown placeholder '{area.Name}' in block '{sourceBlock}'"); continue; }
                 foreach (var child in area.Value.EnumerateArray()) Widget(slot, child, label, screenActions);
             }
-        foreach (var p in w.EnumerateObject().Where(p => p.Name is not ("type" or "name" or "args" or "sourceBlock" or "placeholders")))
+        if (widget is OutSystems.Model.UI.Mobile.Widgets.IMobileBlockInstanceWidget)
+            Try($"{where}.events", () => BlockInstanceEvents(widget, w, where, screenActions));
+        else if (w.TryGetProperty("events", out _)) problems.Add($"{where}: events is only for BlockInstance; use onClick, onChange or another event key on other widgets");
+        foreach (var p in w.EnumerateObject().Where(p => p.Name is not ("type" or "name" or "args" or "sourceBlock" or "placeholders" or "events")))
         {
             if (p.Value.ValueKind == JsonValueKind.Array)
             {
@@ -499,10 +547,26 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                     Reflect.Property(evt, "Destination", writable: true)!.SetValue(evt, destination);
                     if (p.Value.TryGetProperty("args", out var eventArgs)) Defer(widget, ($"{where}.{p.Name}.args", () => Arguments(evt, eventArgs)));
                 });
+            else if (p.Name.Equals("targetWidget", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.String)
+                Defer(widget, ($"{where}.targetWidget", () => TargetWidget(widget, p.Value.GetString()!)));
             else
                 Queue(where, m, widget, p.Name, p.Value, referencesDone: true);
         }
         return widget;
+    }
+
+    // A Label's target widget, by name: a widget of the same screen, block or email, found after every widget exists.
+    // An empty name clears the target.
+    static void TargetWidget(object widget, string name)
+    {
+        var property = Reflect.Property(widget, "TargetWidget", writable: true) ?? throw new ModelError("this widget has no target widget (only a Label has one)");
+        if (name.Length == 0) { property.SetValue(widget, null); return; }
+        var owner = Ancestors((IObjectSignature)widget).FirstOrDefault(o => o is OutSystems.Model.UI.IScreenSignature or OutSystems.Model.UI.IBlockSignature or OutSystems.Model.UI.IEmail)
+            ?? throw new ModelError("the widget is not inside a screen, block or email");
+        var hits = ProductionRules.Walk(owner).Where(o => o is OutSystems.Model.UI.IWidgetSignature && !ReferenceEquals(o, widget) && Model.NameOf(o) == name).ToList();
+        if (hits.Count != 1) throw new ModelError(hits.Count == 0 ? $"targetWidget: no widget named '{name}' in {Model.NameOf(owner)}" : $"targetWidget: several widgets named '{name}'");
+        if (!property.PropertyType.IsInstanceOfType(hits[0])) throw new ModelError($"targetWidget: '{name}' is {ElementPaths.Kind(hits[0])}, which a Label cannot target; name an input widget");
+        property.SetValue(widget, hits[0]);
     }
 
     static object Content(object widget) =>

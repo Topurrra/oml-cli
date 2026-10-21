@@ -1,0 +1,98 @@
+{
+ "module": {
+  "description": "Traditional fixture."
+ },
+ "structures": [
+  {
+   "name": "CartDto",
+   "attributes": [
+    {
+     "name": "Caption"
+    }
+   ]
+  }
+ ],
+ "sessionVariables": [
+  {
+   "name": "Cart",
+   "type": "CartDto"
+  }
+ ],
+ "entities": [
+  {
+   "name": "Customer",
+   "attributes": [
+    {
+     "name": "Name"
+    }
+   ]
+  }
+ ],
+ "serverActions": [
+  {
+   "name": "WebSearch",
+   "public": true,
+   "description": "Inline SQL fed by an input.",
+   "inputs": [
+    {
+     "name": "Filter",
+     "description": "SQL condition."
+    }
+   ],
+   "outputs": [
+    {
+     "name": "Count",
+     "type": "Integer",
+     "description": "Rows."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "sql",
+     "name": "Search",
+     "sql": "SELECT {Customer}.* FROM {Customer} WHERE @Condition",
+     "maxRecords": 10,
+     "params": [
+      {
+       "name": "Condition",
+       "value": "Filter",
+       "expandInline": true
+      }
+     ],
+     "outputs": [
+      "Customer"
+     ]
+    },
+    {
+     "kind": "assign",
+     "name": "CountRows",
+     "assign": {
+      "Count": "Search.List.Length"
+     }
+    }
+   ]
+  }
+ ],
+ "screens": [
+  {
+   "name": "Notice",
+   "access": {
+    "anonymous": false,
+    "registered": true
+   },
+   "inputs": [
+    {
+     "name": "Message"
+    }
+   ],
+   "widgets": [
+    {
+     "type": "Expression",
+     "name": "RawMessage",
+     "value": "Message",
+     "escapeContent": false
+    }
+   ]
+  }
+ ]
+}

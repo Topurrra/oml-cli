@@ -1,0 +1,25 @@
+{
+  // Entity options and indexes, aggregate options, group-by aliases and group-level parts. tests/data-check.ps1 reads it.
+  "entities": [
+    { "name": "Country", "public": true, "identifier": "Code", "attributes": [ { "name": "Code", "length": 2 }, { "name": "Name", "length": 100 } ],
+      "indexes": [ { "attributes": ["Name"], "unique": true } ] },
+    { "name": "Person", "labelAttribute": "Name", "isActiveAttribute": "Active", "exposeReadOnly": false,
+      "attributes": [ { "name": "Name" }, { "name": "Active", "type": "Boolean" }, { "name": "BirthDate", "type": "Date" },
+        { "name": "Salary", "type": "Decimal" }, { "name": "CountryId", "type": "Country Identifier" } ],
+      "indexes": [ { "attributes": ["CountryId", "BirthDate"] } ] }
+  ],
+  "structures": [ { "name": "PersonDto", "public": true, "attributes": [ { "name": "Name" } ] } ],
+  "serverActions": [ { "name": "PeopleByYear", "public": true, "outputs": [ { "name": "Years", "type": "Integer" } ], "flow": [
+    { "kind": "aggregate", "name": "ByYear", "sources": ["Person", "Country"], "cacheInMinutes": 10,
+      "joins": [ { "type": "only with", "left": "Person", "right": "Country", "condition": "Person.CountryId = Country.Code" } ],
+      "filters": [ "Person.Active" ],
+      "groupBy": [ { "attribute": "Year(Person.BirthDate)", "as": "BirthYear" }, "Country.Name" ],
+      "aggregates": [ { "name": "People", "function": "Count", "attribute": "Person.Id" }, { "name": "Payroll", "function": "Sum", "attribute": "Person.Salary" } ],
+      "groupFilters": [ "People >= 2" ], "groupSorts": [ { "attribute": "People", "descending": true } ],
+      "groupCalculated": [ { "name": "AverageSalary", "expression": "Payroll / People" } ] },
+    { "kind": "aggregate", "name": "ByCountry", "sources": ["Person"], "filters": [ "Person.Salary > 0" ], "groupBy": [ "Person.CountryId" ],
+      "aggregates": [ { "name": "People", "function": "Count", "attribute": "Person.Id" } ], "groupFilters": [ "People > 1" ] },
+    { "kind": "aggregate", "name": "ByMonth", "sources": ["Person"], "groupBy": [ "Month(Person.BirthDate)", "Person.CountryId" ],
+      "aggregates": [ { "name": "People", "function": "Count", "attribute": "Person.Id" } ], "groupSorts": [ { "attribute": "People" } ] },
+    { "kind": "assign", "assign": { "Years": "ByYear.List.Length + ByCountry.List.Length + ByMonth.List.Length" } } ] } ]
+}

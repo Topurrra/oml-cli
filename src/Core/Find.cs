@@ -14,6 +14,12 @@ static class Finder
         var problems = new List<object>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var modules = new HashSet<string>();
+        using var unreadable = new Unreadable();
+        void Add(Func<object> row, string owner, object element)
+        {
+            if (!Unreadable.Try(owner + "." + Model.NameOf(element), () => matches.Add(row()))) return;
+            modules.Add(owner);
+        }
 
         if (modulePath is not null)
         {
@@ -21,12 +27,9 @@ static class Finder
             seen.Add(path);
             using var borrowed = Model.Borrow(path); var m = borrowed.Module;
             var own = ((OutSystems.Model.Applications.IModule)m).Name;
-            foreach (var (owner, element) in Refs.All(m))
+            foreach (var (owner, element) in Unreadable.Try("elements of " + own, () => Refs.All(m).ToArray(), []))
                 if (Model.NameOf(element) is { } n && pattern.IsMatch(n))
-                {
-                    matches.Add(Row(m, owner, element, owner == own ? "this module" : "referenced", path));
-                    modules.Add(owner);
-                }
+                    Add(() => Row(m, owner, element, owner == own ? "this module" : "referenced", path), owner, element);
         }
 
         foreach (var file in searchIn.SelectMany(Files))
@@ -36,12 +39,9 @@ static class Finder
             {
                 using var m = Model.Load(file); // a folder scan: do not keep every file open
                 var own = ((OutSystems.Model.Applications.IModule)m).Name;
-                foreach (var (owner, element) in Refs.All(m).Where(c => c.owner == own))
+                foreach (var (owner, element) in Unreadable.Try("elements of " + own, () => Refs.All(m).Where(c => c.owner == own).ToArray(), []))
                     if (Model.NameOf(element) is { } n && pattern.IsMatch(n))
-                    {
-                        matches.Add(Row(m, owner, element, "producer file", file));
-                        modules.Add(owner);
-                    }
+                        Add(() => Row(m, owner, element, "producer file", file), owner, element);
             }
             catch (Exception e) when (e is CliError or ModelError or InvalidOperationException or IOException or NotSupportedException)
             {
@@ -49,13 +49,15 @@ static class Finder
             }
         }
 
-        return new
+        var result = System.Text.Json.JsonSerializer.SerializeToNode(new
         {
             name,
             matches,
             hint = modules.Count > 1 ? $"Found in {modules.Count} modules: use the qualified Module.Name in the spec." : null,
             problems,
-        };
+        })!.AsObject();
+        if (unreadable.Items() is { } items) result["unreadable"] = System.Text.Json.JsonSerializer.SerializeToNode(items); // absent, not null, also with --pretty
+        return result;
     }
 
     static IEnumerable<string> Files(string path)
@@ -68,7 +70,7 @@ static class Finder
 
     static object Row(IESpace m, string owner, object element, string source, string file)
     {
-        var kind = element is IObjectSignature o ? o.GetInterface().Name.TrimStart('I').Replace("Signature", "") : element.GetType().Name;
+        var kind = element is IObjectSignature o ? o.GetInterface().Name[1..].Replace("Signature", "") : element.GetType().Name;
         object? Params(string property) => Reflect.Get(element, property) is System.Collections.IEnumerable list
             ? list.Cast<object>().Select(p => new { name = Model.NameOf(p), type = Model.Describe(m, Reflect.Get(p, "DataType") as OutSystems.Model.Types.ITypeSignature) }).ToArray()
             : null;
@@ -77,6 +79,7 @@ static class Finder
             module = owner,
             name = Model.NameOf(element),
             qualified = $"{owner}.{Model.NameOf(element)}",
+            path = element is IObjectSignature target ? ElementPaths.PathTo(m, target) : null, // what describe, tree and edits accept
             kind,
             isPublic = source == "referenced" ? null : Reflect.Get(element, "Public") as bool?, // a reference proxy is never public itself
             inputs = Params("InputParameters"),

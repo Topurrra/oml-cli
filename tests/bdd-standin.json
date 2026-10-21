@@ -1,0 +1,25 @@
+{
+  "exceptions": ["AssertionFailed"],
+  "clientActions": [
+    { "name": "AssertTrue", "public": true,
+      "inputs": [ { "name": "Condition", "type": "Boolean", "mandatory": true }, { "name": "FailureMessage", "type": "Text" } ],
+      "flow": [
+        { "kind": "if", "name": "Passed", "condition": "Condition", "true": "End", "false": "Fail" },
+        { "kind": "raiseException", "name": "Fail", "exception": "AssertionFailed", "message": "FailureMessage" } ] }
+  ],
+  "blocks": [
+    { "name": "BDDScenario", "public": true, "inputs": [ { "name": "Description", "type": "Text", "mandatory": true } ],
+      "widgets": [ { "type": "Expression", "value": "\"Scenario: \" + Description" }, { "type": "Placeholder", "name": "Steps" } ] },
+    { "name": "BDDStep", "public": true, "inputs": [ { "name": "Description", "type": "Text", "mandatory": true } ],
+      "events": [ { "name": "StepAction", "mandatory": true } ],
+      "actions": [ { "name": "RunStep", "flow": [ { "kind": "triggerEvent", "name": "Run", "event": "StepAction" } ] } ],
+      "onReady": "RunStep",
+      "widgets": [ { "type": "Expression", "value": "Description" } ] },
+    { "name": "SetupOrTeardownStep", "public": true, "inputs": [ { "name": "Description", "type": "Text" } ],
+      "events": [ { "name": "StepAction", "mandatory": true } ],
+      "actions": [ { "name": "RunStep", "flow": [ { "kind": "triggerEvent", "name": "Run", "event": "StepAction" } ] } ],
+      "onReady": "RunStep",
+      "widgets": [ { "type": "Expression", "value": "Description" } ] },
+    { "name": "FinalResult", "public": true, "widgets": [ { "type": "Text", "text": "Final result" } ] }
+  ]
+}

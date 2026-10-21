@@ -1,0 +1,55 @@
+// The module before the change for tests/review-check.ps1: one element of every kind oml review compares.
+{
+  "exceptions": ["InvalidOrder"],
+  "entities": [
+    { "name": "Customer", "attributes": [{ "name": "Name", "length": 100, "mandatory": true }, { "name": "Email", "type": "Email" }] },
+    { "name": "Order", "attributes": [
+      { "name": "CustomerId", "type": "Customer Identifier", "mandatory": true },
+      { "name": "Total", "type": "Decimal", "length": 37, "decimals": 2 } ] }
+  ],
+  "staticEntities": [{ "name": "Status", "attributes": [{ "name": "Color", "length": 30 }],
+    "records": [{ "identifier": "Open", "label": "Open", "order": 1, "values": { "Color": "\"green\"" } },
+                { "identifier": "Closed", "label": "Closed", "order": 2 }] }],
+  "structures": [{ "name": "OrderDto", "attributes": [{ "name": "Total", "type": "Decimal" }] }],
+  "roles": [{ "name": "Manager" }],
+  "siteProperties": [{ "name": "MaxItems", "type": "Integer", "default": "50" }],
+  "themes": [{ "name": "AppTheme", "styleSheet": ".title { color: navy; }" }],
+  "restClients": [{ "name": "Weather", "baseUrl": "https://api.example.com", "actions": [
+    { "name": "GetForecast", "method": "GET", "url": "/forecast/{City}", "inputs": [{ "name": "City", "type": "Text", "location": "url" }] } ] }],
+  "restServices": [{ "name": "OrdersApi", "actions": [{ "name": "Ping" }] }],
+  "serverActions": [
+    { "name": "CreateOrderFor", "inputs": [{ "name": "CustomerId", "type": "Customer Identifier", "mandatory": true }, { "name": "Total", "type": "Decimal" }],
+      "outputs": [{ "name": "OrderId", "type": "Order Identifier" }], "locals": [{ "name": "Rec", "type": "Order" }],
+      "flow": [
+        { "kind": "if", "name": "ValidTotal", "condition": "Total >= 0", "true": "Prepare", "false": "Invalid" },
+        { "kind": "assign", "name": "Prepare", "assign": { "Rec.CustomerId": "CustomerId", "Rec.Total": "Total" } },
+        { "kind": "execute", "action": "CreateOrder", "args": { "Source": "Rec" } },
+        { "kind": "assign", "name": "SetOut", "assign": { "OrderId": "CreateOrder.Id" }, "next": "End" },
+        { "kind": "raiseException", "name": "Invalid", "exception": "InvalidOrder", "message": "\"Total must be >= 0\"" } ] },
+    { "name": "SumOrders", "inputs": [{ "name": "CustomerId", "type": "Customer Identifier" }], "outputs": [{ "name": "Sum", "type": "Decimal" }],
+      "flow": [
+        { "kind": "aggregate", "name": "GetOrders", "sources": ["Order"], "filters": ["Order.CustomerId = CustomerId"], "sorts": [{ "attribute": "Order.Id" }], "maxRecords": 50 },
+        { "kind": "forEach", "name": "Loop", "recordList": "GetOrders.List", "cycle": "Add", "next": "End" },
+        { "kind": "assign", "name": "Add", "assign": { "Sum": "Sum + GetOrders.List.Current.Order.Total" }, "next": "Loop" } ] },
+    { "name": "Report", "outputs": [{ "name": "Rows", "type": "List of OrderDto" }],
+      "flow": [{ "kind": "sql", "name": "ReadTotals", "sql": "SELECT {Order}.[Total] FROM {Order}", "outputs": ["OrderDto"], "maxRecords": 100 }] },
+    { "name": "Cleanup", "flow": [] }
+  ],
+  "timers": [{ "name": "Nightly", "action": "Cleanup", "schedule": "WhenPublished", "timeout": 20 }],
+  "processes": [{ "name": "Approval", "flow": [
+    { "kind": "start", "name": "Start", "next": "Notify" },
+    { "kind": "automaticActivity", "name": "Notify", "action": "Cleanup" },
+    { "kind": "end", "name": "Done" } ] }],
+  "clientActions": [{ "name": "FormatTotal", "inputs": [{ "name": "Value", "type": "Decimal" }], "outputs": [{ "name": "Label", "type": "Text" }],
+    "locals": [{ "name": "Prefix", "type": "Text" }],
+    "flow": [{ "kind": "assign", "name": "Build", "assign": { "Label": "Prefix + Value" } }] }],
+  "blocks": [{ "name": "Card", "inputs": [{ "name": "Title", "type": "Text" }], "widgets": [{ "type": "Expression", "name": "CardTitle", "value": "Title" }] }],
+  "screens": [{ "name": "Orders", "title": "\"Orders\"", "access": { "registered": true },
+    "locals": [{ "name": "NewTotal", "type": "Decimal", "default": "0" }],
+    "aggregates": [{ "name": "GetOrders", "sources": ["Order"], "maxRecords": 50 }],
+    "actions": [{ "name": "Save", "flow": [{ "kind": "execute", "action": "CreateOrderFor", "args": { "CustomerId": "NullIdentifier()", "Total": "NewTotal" } }] }],
+    "widgets": [{ "type": "Container", "name": "Header", "children": [
+      { "type": "Expression", "name": "CountText", "value": "\"Orders: \" + GetOrders.Count" },
+      { "type": "Input", "name": "TotalInput", "variable": "NewTotal" },
+      { "type": "Button", "name": "SaveButton", "onClick": "Save", "children": [{ "type": "Text", "text": "Save" }] } ] }] }]
+}

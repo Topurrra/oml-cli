@@ -20,20 +20,27 @@ partial class Builder
             if (!Fresh(flow, s.Flow, $"flow {s.Flow}")) return;
             created.Add($"flow {s.Flow}");
         }
-        if (flow.Nodes.Any(n => Model.NameOf(n) == s.Name)) { existing.Add(label); return; }
+        if (flow.Nodes.FirstOrDefault(n => Model.NameOf(n) == s.Name) is { } found) { ReuseScreen(found, s, block, label); existing.Add(label); return; }
         object screen = block ? flow.CreateBlock(s.Name, services.NewKey()) : flow.CreateScreen(s.Name, services.NewKey());
         if (!Fresh(screen, s.Name, label)) return;
         created.Add(label);
+        if (s.Public is { } isPublic) Set(screen, "Public", isPublic);
         ScreenParts(screen, s, label);
     }
+
+    // Also for an existing Traditional Web screen or block listed again (ReuseScreen).
+    static string? WebLifecycleProblem(ScreenSpec s) =>
+        s.OnInitialize is not null || s.OnReady is not null || s.OnRender is not null || s.OnDestroy is not null
+            ? "Traditional Web uses preparation instead of Reactive lifecycle events"
+        : s.Events is { Count: > 0 } || s.OnParametersChanged is not null
+            ? "events and onParametersChanged are supported for Reactive and Mobile blocks only" : null;
 
     void WebScreenParts(object screen, ScreenSpec s, string label)
     {
         if (s.Template is not null) throw new ModelError("templates are not supported for Traditional Web");
         if (s.Aggregates is { Count: > 0 } || s.DataActions is { Count: > 0 })
             throw new ModelError("Traditional Web uses preparation flow aggregate nodes instead of aggregates/dataActions");
-        if (s.OnInitialize is not null || s.OnReady is not null || s.OnRender is not null || s.OnDestroy is not null)
-            throw new ModelError("Traditional Web uses preparation instead of Reactive lifecycle events");
+        if (WebLifecycleProblem(s) is { } problem) throw new ModelError(problem);
         if (s.Title is { ValueKind: JsonValueKind.String } title)
             Defer(screen, ($"{label}.title", () => Reflect.Call(screen, "SetTitle", title.GetString())));
         Variables(screen, "CreateInputParameter", s.Inputs, label);
@@ -68,7 +75,7 @@ partial class Builder
         }));
     }
 
-    static Type WebWidgetType(string type) => typeof(IESpace).Assembly.GetTypes().FirstOrDefault(t =>
+    static Type WebWidgetType(string type) => Reflect.Types(typeof(IESpace).Assembly).FirstOrDefault(t =>
         t.IsInterface && t.Namespace == "OutSystems.Model.UI.Web.Widgets"
         && (t.Name.Equals($"I{type}Widget", StringComparison.OrdinalIgnoreCase)
             || t.Name.Equals($"IWeb{type}Widget", StringComparison.OrdinalIgnoreCase)))

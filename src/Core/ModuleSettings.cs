@@ -6,7 +6,7 @@ namespace OmlCli;
 static class ModuleSettings
 {
     internal static object Inspect(IESpace m) => new {
-        key = ((OutSystems.Model.Applications.IModule)m).Key.ToString(), description = ((OutSystems.Model.Applications.IModule)m).Description, javaScript = Reflect.Get(m, "JavaScript"),
+        key = ((OutSystems.Model.Applications.IModule)m).Key.ToString(), description = ((OutSystems.Model.Applications.IModule)m).Description, javaScript = m.Kind.ToString() == "Service" ? null : Reflect.Get(m, "JavaScript"), // a Service module has none: the getter throws
         isUserProvider = Reflect.Get(m, "IsUserProvider"), isMultiTenant = Reflect.Get(m, "IsMultiTenant"),
         dbms = Reflect.Get(m, "DBMS")?.ToString(), icon = new { size = (Reflect.Get(m, "Icon") as byte[])?.Length ?? 0 },
         defaultTheme = Theme(m) is { } t ? Model.NameOf(t) : null
@@ -31,6 +31,9 @@ static class ModuleSettings
                 var hits = candidates.Where(t => property.PropertyType.IsInstanceOfType(t) && Model.NameOf(t) == name).Distinct().ToArray();
                 if (hits.Length != 1) throw new ModelError($"Theme '{name}' not found or ambiguous");
                 property.SetValue(m, hits[0]);
+            } else if (p.Name == "styleSheet") {
+                // OutSystems 11 has no module style sheet: the theme holds module-wide CSS.
+                throw new ModelError("a module has no style sheet of its own; put module-wide CSS in one of its themes: \"themes\": [{ \"name\": \"<Theme>\", \"styleSheet\": \"...\" }] replaces the styleSheet of an existing theme or creates the theme; \"module\": { \"defaultTheme\": \"<Theme>\" } selects it");
             } else {
                 if (p.Name is not ("description" or "javaScript" or "isUserProvider" or "isMultiTenant")) throw new ModelError($"unsupported setting '{p.Name}'");
                 if (p.Name is "isUserProvider" or "isMultiTenant") {

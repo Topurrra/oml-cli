@@ -9,6 +9,7 @@ static class SpecCommand
     const string Usage = """
         oml spec                                  list every spec key, one line each
         oml spec <key>                            print the reference for one key or topic (entities, aggregate, screens, tidyFlows, ...)
+        oml spec --search "<words>" [--top N]     find the spec keys and sections that answer a question (ranked, compact JSON)
         oml spec check <spec.json>                check a spec's shape without Service Studio: {"ok":bool,"problems":[{"path","message"}]}; exit 0 ok, 1 problems
         oml spec schema [--out <file.json>] [--force]   JSON Schema (draft 2020-12) for spec files; stdout without --out
         """;
@@ -22,6 +23,7 @@ static class SpecCommand
             {
                 [] => SpecDocs.List(),
                 ["--verify"] => SpecDocs.Verify(),
+                ["--search", .. var rest] => DocSearch.Run(rest, specOnly: true),
                 ["check", var file] => Check(file),
                 ["schema", .. var rest] => Schema(rest),
                 ["check", ..] => Fail("Usage: oml spec check <spec.json>"),
@@ -40,14 +42,23 @@ static class SpecCommand
     static int Check(string file)
     {
         if (!File.Exists(file)) return Fail($"Spec file not found: {file}");
-        var problems = SpecChecker.Check(File.ReadAllText(file));
-        var report = new { ok = problems.Count == 0, problems = problems.Select(p => new { p.path, p.message }).ToArray() };
-        var options = new JsonSerializerOptions
+        var text = File.ReadAllText(file);
+        // {"file": ...} values: the file must exist inside the spec's folder; the shape check then sees its text.
+        var files = new List<(string path, string message)>();
+        try
         {
-            WriteIndented = JsonOutput.Pretty,
-            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-        };
-        Console.WriteLine(JsonSerializer.Serialize(report, options));
+            var node = System.Text.Json.Nodes.JsonNode.Parse(text, documentOptions: new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip });
+            // A lone surrogate cannot be read as text here; SpecChecker reports it with its path, as apply does.
+            if (JsonOutput.UnpairedSurrogatePath(node) is null)
+            {
+                files = SpecFiles.Resolve(node, file);
+                text = node?.ToJsonString() ?? text;
+            }
+        }
+        catch (JsonException) { } // SpecChecker reports the invalid JSON
+        var problems = files.Concat(SpecChecker.Check(text)).ToList();
+        var report = new { ok = problems.Count == 0, problems = problems.Select(p => new { p.path, p.message }).ToArray() };
+        Console.WriteLine(JsonOutput.Write(JsonSerializer.SerializeToNode(report)!));
         return problems.Count == 0 ? 0 : 1;
     }
 
@@ -65,7 +76,7 @@ static class SpecCommand
         using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))
             SpecSchema.Build().WriteTo(writer);
         var json = System.Text.Encoding.UTF8.GetString(stream.ToArray());
-        if (output is null) { Console.WriteLine(json); return 0; }
+        if (output is null) { Console.WriteLine(JsonOutput.Safe(json, indented: true)); return 0; }
         var path = Path.GetFullPath(output);
         if (File.Exists(path) && !force) return Fail($"Output already exists: {path}. Use --force to replace it.");
         File.WriteAllText(path, json + "\n");

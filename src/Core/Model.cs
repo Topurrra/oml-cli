@@ -17,10 +17,10 @@ static class Model
 
     static IModelServices? services;
 
-    public static IModelServices Services()
-    {
-        if (services is not null) return services;
+    public static IModelServices Services() => services ?? Timings.Measure("serviceStudioInit", InitServices);
 
+    static IModelServices InitServices()
+    {
         // Load through our own context so each name resolves from the installed Service Studio.
         var context = AssemblyLoadContext.GetLoadContext(typeof(Model).Assembly)!;
         foreach (var name in new[] { "ServiceStudio.BuiltInBehaviors", "ServiceStudio.Presenter",
@@ -79,24 +79,33 @@ static class Model
         catch (ReflectionTypeLoadException e) { return e.Types.OfType<Type>(); }
     }
 
-    public static IESpace Load(string path)
+    // phase: the --timings name for this load.
+    public static IESpace Load(string path, string phase = "load")
     {
         if (!File.Exists(path)) throw new CliError($"File not found: {path}", 2);
-        return Services().LoadESpace(File.ReadAllBytes(path), null, null, null);
+        return Timings.Measure(phase, () => Load(File.ReadAllBytes(path), phase, path));
+    }
+
+    // path: the file the bytes came from, for the error when they are not a module.
+    public static IESpace Load(byte[] bytes, string phase = "load", string? path = null)
+    {
+        try { return Timings.Measure(phase, () => Services().LoadESpace(bytes, null, null, null)); }
+        catch (InvalidDataException e) { throw new CliError($"Cannot read {path ?? "the module"}: it is not a valid .oml module ({e.Message}).", 2); }
     }
 
     // `oml run` keeps the modules it only reads, keyed by full path, file write time and length, so the next
     // command on the same file skips the load. A file that changed on disk (an `apply` output is a new file) reloads.
-    // Code that changes a module must use Load, never Borrow.
+    // Code that changes a module must use Load or Take, never Borrow.
     public static bool ShareModules;
     const int SharedKeep = 8;
-    static readonly List<(string path, long ticks, long length, IESpace module)> shared = new();
+    // sha256: of the bytes the module was loaded from; Take checks it before it hands the module to a change.
+    static readonly List<(string path, long ticks, long length, string sha256, IESpace module)> shared = new();
 
-    public static Borrowed Borrow(string path) => new(LoadShared(path));
+    public static Borrowed Borrow(string path, string phase = "load") => new(LoadShared(path, phase));
 
-    public static IESpace LoadShared(string path)
+    public static IESpace LoadShared(string path, string phase = "load")
     {
-        if (!ShareModules) return Load(path);
+        if (!ShareModules) return Load(path, phase);
         var info = new FileInfo(path);
         if (!info.Exists) return Load(path); // throws the usual "File not found"
         var i = shared.FindIndex(s => string.Equals(s.path, info.FullName, StringComparison.OrdinalIgnoreCase));
@@ -107,15 +116,42 @@ static class Model
             hit.module.Dispose();
             shared.RemoveAt(i);
         }
-        var module = Load(path);
-        shared.Add((info.FullName, info.LastWriteTimeUtc.Ticks, info.Length, module));
+        var bytes = Timings.Measure(phase, () => File.ReadAllBytes(info.FullName));
+        var module = Load(bytes, phase, info.FullName);
+        shared.Add((info.FullName, info.LastWriteTimeUtc.Ticks, info.Length, Sha256(bytes), module));
         return module;
     }
+
+    // For a command that changes the module (apply). In an `oml run`, an open shared copy that still matches the
+    // file (write time, length and SHA-256 of its bytes) is handed over and leaves the cache, so no later command
+    // sees the changes and a later read loads the file again. The commands that share modules only read them, so
+    // the copy is the same as a fresh load.
+    public static IESpace Take(string path, string phase = "load")
+    {
+        var info = new FileInfo(path);
+        var i = ShareModules && info.Exists
+            ? shared.FindIndex(s => string.Equals(s.path, info.FullName, StringComparison.OrdinalIgnoreCase)
+                                    && s.ticks == info.LastWriteTimeUtc.Ticks && s.length == info.Length)
+            : -1;
+        if (i < 0) return Load(path, phase);
+        if (Sha256(File.ReadAllBytes(info.FullName)) != shared[i].sha256)
+        {
+            // Same write time and length, other bytes: the open copy is stale for readers too.
+            shared[i].module.Dispose();
+            shared.RemoveAt(i);
+            return Load(path, phase);
+        }
+        var module = shared[i].module;
+        shared.RemoveAt(i);
+        return module;
+    }
+
+    static string Sha256(byte[] bytes) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
 
     // A shared module stays open for the next command; any other module is closed now.
     public static void Release(IESpace module)
     {
-        if (!shared.Any(s => ReferenceEquals(s.module, module))) module.Dispose();
+        if (!shared.Any(s => ReferenceEquals(s.module, module))) Timings.Measure("close", module.Dispose);
     }
 
     // Between commands of one `oml run`: close the oldest shared modules beyond the keep limit.
@@ -131,22 +167,30 @@ static class Model
         shared.Clear();
     }
 
-    public static void Save(IESpace module, string path) => ((IModule)module).Save(path, false);
+    public static void Save(IESpace module, string path, string phase = "save") =>
+        Timings.Measure(phase, () => ((IModule)module).Save(path, false));
 
-    public static IValidationMessage[] Errors(IESpace module) =>
-        ((IObjectSignature)module).GetValidationMessages(true)
-            .Where(m => m.Type == ValidationMessageType.Error).ToArray();
+    public static IValidationMessage[] Errors(IESpace module, string phase = "validate") =>
+        Timings.Measure(phase, () => ((IObjectSignature)module).GetValidationMessages(true)
+            .Where(m => m.Type == ValidationMessageType.Error).ToArray());
 
-    public static IValidationMessage[] Warnings(IESpace module) =>
-        ((IObjectSignature)module).GetValidationMessages(true)
-            .Where(m => m.Type == ValidationMessageType.Warning).ToArray();
+    public static IValidationMessage[] Warnings(IESpace module, string phase = "validate") =>
+        Timings.Measure(phase, () => ((IObjectSignature)module).GetValidationMessages(true)
+            .Where(m => m.Type == ValidationMessageType.Warning).ToArray());
 
     public static object[] Grouped(IEnumerable<IValidationMessage> errors) =>
         errors.GroupBy(e => e.Id)
-            .Select(g => (object)new { id = g.Key, count = g.Count(), samples = g.Take(12).Select(e => new { message = e.Message, detail = e.Detail, owner = OwnerName(e.Owner) }) })
+            // `hint` (the fix from warnings.md) only when known, so --pretty shows no "hint": null.
+            .Select(g => WarningTable.Hint(g.Key) is { } hint
+                ? (object)new { id = g.Key, count = g.Count(), hint, samples = Samples(g) }
+                : new { id = g.Key, count = g.Count(), samples = Samples(g) })
             .ToArray();
 
-    static string? OwnerName(IObjectSignature? o)
+    // Read now: apply closes the reopened module before its report is written, and a closed module has no owner names.
+    static object[] Samples(IEnumerable<IValidationMessage> group) =>
+        group.Take(12).Select(e => (object)new { message = e.Message, detail = e.Detail, owner = OwnerName(e.Owner) }).ToArray();
+
+    internal static string? OwnerName(IObjectSignature? o)
     {
         var parts = new List<string>();
         for (; o is not null && o is not IESpace; o = o.Parent)
@@ -159,16 +203,18 @@ static class Model
     // throws (some interfaces on referenced-module proxies) is skipped rather than failing the lookup.
     public static string? NameOf(object o)
     {
-        var interfaces = o.GetType().GetInterfaces().Where(i => i.Namespace is { } ns
-            && (ns.StartsWith("OutSystems.Model") || ns.StartsWith("ServiceStudio.Plugin"))).ToList();
-        foreach (var property in new[] { "Name", "Label" })
-            foreach (var p in interfaces.Select(i => i.GetProperty(property)).Where(p => p?.PropertyType == typeof(string)))
-            {
-                try { if (p!.GetValue(o) is string { Length: > 0 } name) return name; }
-                catch (TargetInvocationException) { }
-            }
+        foreach (var p in NameProperties.GetOrAdd(o.GetType(), _ => new[] { "Name", "Label" }
+                     .SelectMany(property => Reflect.Interfaces(o).Select(i => i.GetProperty(property)))
+                     .Where(p => p?.PropertyType == typeof(string)).ToArray()!))
+        {
+            try { if (p.GetValue(o) is string { Length: > 0 } name) return name; }
+            catch (TargetInvocationException) { }
+        }
         return o is OutSystems.Model.Logic.Nodes.IStartNode ? "Start" : o is OutSystems.Model.Logic.Nodes.IEndNode ? "End" : null;
     }
+
+    // The Name and Label properties NameOf reads, per concrete type, in the order it reads them.
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, PropertyInfo[]> NameProperties = new();
 
     static readonly (string name, Func<IESpace, ITypeSignature> get)[] BasicTypes =
     {

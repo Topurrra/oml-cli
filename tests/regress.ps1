@@ -10,10 +10,17 @@
 #        lifetime-check      binds a local port, starts a mock server job and sets OML_LIFETIME_* and OML_SERVICE_STUDIO
 #        doctor-check        sets OML_* variables and reads machine-wide state (the Service Studio folder, the self-test record)
 #        preview-check       starts headless Edge/Chrome with timeouts; CPU load from other units would make it flaky
-#        architecture-page-check  same: headless browser with a 20 s window
+#        test-scaffold-check same: one headless browser run (a preview of the generated test screen)
+#        architecture-page-check  same: several headless browser runs, each with a 30 to 60 s window
+#        check-page-check    same: headless browser with a 20 s window, for the oml check HTML report
+#        review-page-check   same, for the oml review HTML report
+#        image-check         headless Chrome with a 30 s window, and a timing limit (a 1024 px trace in under 5 s)
 #        log-check           appends to and trims the person's default usage log (OML_LOG=1)
 #        dashboard-check     binds a local port for oml dashboard and starts headless Edge/Chrome for screenshots
-#        selftest            long, CPU heavy, and it records the build as checked in %LOCALAPPDATA%
+#        setup-check         writes to HKCU (only under a throwaway HKCU\Software\oml-setup-test-<id> key) and compares real
+#                            HKCU\Software\Classes keys before and after, so nothing else may change them meanwhile
+#        selftest            long, CPU heavy, and it records the build as checked in %LOCALAPPDATA%; selftest-check
+#                            uses its own record (OML_SELFTEST_RECORD) and starts oml dashboard on a free port
 #      Processes are already separate, so most would be safe in parallel; they stay alone for load and shared-state reasons.
 # Output is printed per unit in the order of the list below (the order of the old script), not in finish order.
 # To add a check: see CONTRIBUTING.md ("Adding a regression check").
@@ -39,6 +46,12 @@ $fail = 0
 # references.json names this producer as tmp/references-producer.oml, relative to the repo root.
 Copy-Item (Join-Path $base "references-producer.oml") $tmp
 & $oml --help | Out-Null; if ($LASTEXITCODE -ne 0) { $fail++; Write-Host "FAIL --help exit $LASTEXITCODE" } else { Write-Host "ok   --help" }
+# `oml <command> --help` prints that command's usage, not the whole list.
+$helpBad = @(foreach ($c in 'check', 'doc', 'warn', 'apply', 'lt', 'font', 'doctor', 'setup', 'image', 'dashboard') { $h = (& $oml $c --help) -join "`n"; if ($LASTEXITCODE -ne 0 -or $h -notmatch "oml $c" -or $h -match 'oml new ') { $c } })
+if ($helpBad) { $fail++; Write-Host "FAIL command --help prints the global usage: $($helpBad -join ', ')" } else { Write-Host "ok   command --help" }
+# A known command with missing arguments prints its own usage on stderr, with exit 2.
+$usageBad = @(foreach ($c in 'describe', 'tree', 'apply', 'install', 'find') { $h = (& $oml $c 2>&1) -join "`n"; if ($LASTEXITCODE -ne 2 -or $h -notmatch "oml $c" -or $h -match 'oml new ') { $c } })
+if ($usageBad) { $fail++; Write-Host "FAIL command with missing arguments prints the global usage: $($usageBad -join ', ')" } else { Write-Host "ok   command usage on missing arguments" }
 
 # --- Code every unit gets before its body: helpers and the paths of its own work folder. ---
 $preamble = @'
@@ -127,6 +140,34 @@ Unit 'queries-check' -After 'queries.json' {
     catch { $global:fail++; Write-Host "FAIL queries wiring: $_" }
   }
 }
+Unit 'reapply-check' {
+  try { & (Join-Path $tests 'reapply-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL re-apply checks: $_" }
+}
+Unit 'reuse-check' {
+  try { & (Join-Path $tests 'reuse-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL reuse checks: $_" }
+}
+Unit 'public-check' {
+  try { & (Join-Path $tests 'public-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL public setting checks: $_" }
+}
+Unit 'clash-check' {
+  try { & (Join-Path $tests 'clash-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL name clash checks: $_" }
+}
+Unit 'api-check' {
+  try { & (Join-Path $tests 'api-check.ps1') -Oml $oml }
+  catch { $global:fail++; Write-Host "FAIL api checks: $_" }
+}
+Unit 'ui-update-check' {
+  try { & (Join-Path $tests 'ui-update-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL ui update checks: $_" }
+}
+Unit 'data-check' {
+  try { & (Join-Path $tests 'data-check.ps1') $oml $tmp }
+  catch { $global:fail++; Write-Host "FAIL data checks: $_" }
+}
 Unit 'scaffold.json' -Publish { Check-Case 'scaffold.json' $reactive | Out-Null }
 Unit 'rest.json' -Publish { Check-Case 'rest.json' $reactive | Out-Null }
 Unit 'rest-check' -After 'rest.json' {
@@ -158,6 +199,23 @@ Unit 'describe-check' {
   try { & (Join-Path $tests "describe-check.ps1") -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL describe checks: $_" }
 }
+Unit 'paths-check' {
+  try { & (Join-Path $tests "paths-check.ps1") -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL element paths: $_" }
+}
+Unit 'readers-check' {
+  try { & (Join-Path $tests "readers-check.ps1") -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL readers: $_" }
+}
+# Every fixture output reads without unreadable parts (recipe outputs: in recipes-check).
+Unit 'unreadable-check' -After 'sql.json','delete.json','static.json','logic.json','block.json','service.json','datamodel.json','edits.json','queries.json','scaffold.json','rest.json','platform.json','web.json','references.json' {
+  try { & (Join-Path $tests "no-unreadable.ps1") -Oml $oml -Modules @(Get-ChildItem $tmp -Filter 'out-*.oml' | ForEach-Object FullName) -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL unreadable parts in fixture outputs: $_" }
+}
+Unit 'history-check' {
+  try { & (Join-Path $tests 'history-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL history checks: $_" }
+}
 Unit 'turns-check' {
   try { & (Join-Path $tests 'turns-check.ps1') $oml $tmp }
   catch { $global:fail++; Write-Host "FAIL turns checks: $_" }
@@ -165,6 +223,14 @@ Unit 'turns-check' {
 Unit 'run-check' {
   try { & (Join-Path $tests 'run-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL run checks: $_" }
+}
+Unit 'timings-check' {
+  try { & (Join-Path $tests 'timings-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL timings checks: $_" }
+}
+Unit 'encoding-check' {
+  try { & (Join-Path $tests 'encoding-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL encoding checks: $_" }
 }
 Unit 'content-check' {
   try { & (Join-Path $tests 'content-check.ps1') $oml $tmp $reactive }
@@ -192,28 +258,63 @@ Unit 'spec-check' {
   try { & (Join-Path $tests 'spec-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL spec checks: $_" }
 }
+Unit 'doc-check' {
+  try { & (Join-Path $tests 'doc-check.ps1') -Oml $oml -Tmp $tmp -Module $reactive }
+  catch { $global:fail++; Write-Host "FAIL doc checks: $_" }
+}
+Unit 'search-check' {
+  try { & (Join-Path $tests 'search-check.ps1') -Oml $oml -Tmp $tmp -Module $reactive }
+  catch { $global:fail++; Write-Host "FAIL search checks: $_" }
+}
 Unit 'packages-check' {
   try { & (Join-Path $tests "packages-check.ps1") -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL packages checks: $_" }
 }
 Unit 'assets-check' {
   try { & (Join-Path $tests 'assets-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL assets checks: $_" }
 }
+Unit 'image-check' -Alone {
+  try { & (Join-Path $tests 'image-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL image checks: $_" }
+}
 Unit 'architecture-check' {
   try { & (Join-Path $tests 'architecture-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL architecture checks: $_" }
+}
+Unit 'check-check' {
+  try { & (Join-Path $tests 'check-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL check checks: $_" }
+}
+Unit 'review-check' {
+  try { & (Join-Path $tests 'review-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL review checks: $_" }
 }
 Unit 'preview-check' -Alone {
   try { & (Join-Path $tests 'preview-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL preview checks: $_" }
 }
+Unit 'test-scaffold-check' -Alone {
+  try { & (Join-Path $tests 'test-scaffold-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL test scaffold: $_" }
+}
 Unit 'architecture-page-check' -Alone {
   try { & (Join-Path $tests 'architecture-page-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL architecture page: $_" }
+}
+Unit 'check-page-check' -Alone {
+  try { & (Join-Path $tests 'check-page-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL check page: $_" }
+}
+Unit 'review-page-check' -Alone {
+  try { & (Join-Path $tests 'review-check.ps1') -Oml $oml -Tmp $tmp -Page }
+  catch { $global:fail++; Write-Host "FAIL review page: $_" }
 }
 Unit 'dashboard-check' -Alone {
   try { & (Join-Path $tests 'dashboard-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL dashboard checks: $_" }
 }
+Unit 'setup-check' -Alone -After 'rest.json' {
+  try { & (Join-Path $tests 'setup-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL setup checks: $_" }
+}
 Unit 'selftest' -Alone {
+  try { & (Join-Path $tests 'selftest-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL self-test on an unrecorded build: $_" }
   & $oml selftest | ConvertFrom-Json | ForEach-Object { if (-not $_.passed) { $global:fail++; Write-Host "FAIL selftest"; Write-Host ($_ | ConvertTo-Json -Depth 8) } else { Write-Host "ok   selftest" } }
 }
 

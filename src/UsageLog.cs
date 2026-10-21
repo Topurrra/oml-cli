@@ -22,7 +22,7 @@ static class UsageLog
     {
         ["lt"] = ["environments", "apps", "teams", "team-apps", "tag", "deploy", "status", "abort", "continue"],
         ["app"] = ["list", "extract", "pack"], ["extension"] = ["inspect", "new"], ["font"] = ["woff2", "batch"],
-        ["image"] = ["batch"], ["spec"] = ["check", "schema"], ["translations"] = ["export"],
+        ["image"] = ["batch"], ["spec"] = ["check", "schema"], ["translations"] = ["export"], ["test"] = ["scaffold"],
     };
     // Environment values that must never reach the file, even inside an error message.
     static readonly string[] Secrets = ["OML_LIFETIME_TOKEN", "OML_LIFETIME_HOST"];

@@ -973,7 +973,7 @@ Typed validation proves model integrity; it does not replace environment compila
 
 ### 17. Failure playbook for model API extensions
 
-Use section 6 for CLI failures. These rows cover implementation details for typed hosts.
+Use `oml doc troubleshooting` for CLI failures. These rows cover implementation details for typed hosts.
 Unless stated otherwise, build-specific behavior below applies to Service Studio 11.55.92.
 
 | Symptom | Cause | Fix |
@@ -1023,7 +1023,7 @@ Unless stated otherwise, build-specific behavior below applies to Service Studio
 | "Couldn't find any concrete class implementing ServiceStudio.Plugin.NRWidgets.I..." | Plugin registration is missing, or a typed factory was used. | Register Kinds and descriptors. Use the descriptor factory (§11.2). |
 | Set* method is missing, such as SetJSON or SetMessage | Setter names vary by build. | On 11.55.92 use SetJSONString / SetExceptionMessage. Match by name (§6.6). |
 | "Exception must be set" despite a message | Fuzzy matching chose SetExceptionMessage for the exception name. | Prefer exact setter, then exact property, then a unique fuzzy setter. |
-| Publish compiler fails for a validating entity Id | Generic LongIntegerIdentifierType / IntegerIdentifierType is not a physical column type. | Use LongIntegerType / IntegerType, as AddServerEntity.cs / AddStaticEntity.cs do. See section 6 for the full error text. |
+| Publish compiler fails for a validating entity Id | Generic LongIntegerIdentifierType / IntegerIdentifierType is not a physical column type. | Use LongIntegerType / IntegerType, as AddServerEntity.cs / AddStaticEntity.cs do. See troubleshooting.md for the full error text. |
 | Link/Button keeps seeded Text "link" | Explicit children were appended to defaults. | Delete seeded placeholder widgets before adding children. The CLI does this when children is supplied. |
 | "The default provider for 'ILoggersProvider' is not registered!" | Init ran before provider registration. | Register no-op logger and tracer first (§4). |
 | FileLoadException for "System.Diagnostics.DiagnosticSource, Version=10.0.0.0" | Host loaded incompatible shared libraries. | Load model code in a context that prefers Service Studio copies (§3). |

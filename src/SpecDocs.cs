@@ -3,8 +3,8 @@ using System.Text.RegularExpressions;
 
 namespace OmlCli;
 
-// `oml spec <key>`: prints one section of skill/reference/spec.md. Both the reference and the key index in
-// skill/SKILL.md are embedded at build time, so this works from a release zip with no docs folder.
+// `oml spec <key>`: prints one section of skill/reference/spec.md. The reference, with its key index (the
+// "Spec keys" table), is embedded at build time, so this works from a release zip with no docs folder.
 sealed class SpecSection
 {
     public int Level;
@@ -16,19 +16,24 @@ sealed class SpecSection
 
 static class SpecDocs
 {
-    // Topics that live inside a larger section or whose SKILL.md row names a broader section.
+    // Topics that live inside a larger section or whose key-index row names a broader section.
     // Each target must be a heading in spec.md; 'oml spec --verify' (and tests/spec-check.ps1) fail if one is not.
     static readonly (string[] Keys, string Heading)[] Aliases =
     {
         (new[] { "flow", "nodes", "node", "nodeKinds", "actions", "serverActions", "serviceActions", "clientActions",
                  "assign", "if", "forEach", "switch", "execute", "refreshData", "destination", "raiseException", "end",
                  "jsonDeserialize", "jsonSerialize", "javaScript" }, "Actions and flow nodes"),
-        (new[] { "comment", "message", "download", "excelToRecordList", "recordListToExcel", "sendEmail" }, "Additional flow nodes"),
+        (new[] { "comment", "message", "download", "excelToRecordList", "recordListToExcel" }, "Additional flow nodes"),
+        (new[] { "events", "triggerEvent", "onParametersChanged", "blockEvents" }, "Block events"),
+        (new[] { "emails", "email", "sendEmail" }, "Emails"),
         (new[] { "tidyFlows" }, "tidyFlows"),
         (new[] { "removeUnusedDependencies" }, "Remove unused dependencies"),
-        (new[] { "insertNodes", "addWidgets", "addParts", "addVariables", "setAccess", "set", "rename", "addExceptionHandler" }, "Edits"),
-        (new[] { "attributes", "attribute", "types", "type" }, "Data model"),
-        (new[] { "widgets", "widget", "onClick" }, "Reactive UI and Mobile UI"),
+        (new[] { "file", "files", "fileValues" }, "Code from files"),
+        (new[] { "insertNodes", "addWidgets", "replaceWidgets", "addParts", "addVariables", "setAccess", "set", "rename", "addExceptionHandler", "addToAggregate", "setArgs" }, "Edits"),
+        (new[] { "attributes", "attribute", "types", "type", "indexes", "index", "unique", "identifier", "autoNumber", "updateBehavior",
+                 "inputs", "locals" }, "Data model"),
+        (new[] { "groupBy", "groupFilters", "groupSorts", "groupCalculated", "fetch", "cacheInMinutes", "aggregates", "dynamic" }, "Queries"),
+        (new[] { "widgets", "widget", "onClick", "dataActions", "targetWidget" }, "Reactive UI and Mobile UI"),
         (new[] { "preparation" }, "Traditional Web UI"),
         (new[] { "access" }, "Platform elements"),
         (new[] { "overview", "intro", "notation" }, "Spec reference"),
@@ -38,9 +43,9 @@ static class SpecDocs
     static List<(string[] Keys, string Description, string Section)>? index;
 
     public static List<SpecSection> Sections => sections ??= ParseSections(Resource("OmlCli.spec.md"));
-    public static List<(string[] Keys, string Description, string Section)> Index => index ??= ParseIndex(Resource("OmlCli.SKILL.md"));
+    public static List<(string[] Keys, string Description, string Section)> Index => index ??= ParseIndex(Resource("OmlCli.spec.md"));
 
-    static string Resource(string name)
+    internal static string Resource(string name)
     {
         using var stream = typeof(SpecDocs).Assembly.GetManifestResourceStream(name)
                            ?? throw new InvalidOperationException($"This build has no embedded resource {name}.");
@@ -48,10 +53,10 @@ static class SpecDocs
         return reader.ReadToEnd().Replace("\r\n", "\n");
     }
 
-    static string Norm(string s) => new string(s.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+    internal static string Norm(string s) => new string(s.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
 
     // GitHub heading anchor: lower case, drop punctuation, spaces become hyphens.
-    static string Slug(string title) =>
+    internal static string Slug(string title) =>
         Regex.Replace(Regex.Replace(title.ToLowerInvariant(), @"[^\p{L}\p{N} _-]", ""), " ", "-");
 
     static List<SpecSection> ParseSections(string text)
@@ -84,14 +89,14 @@ static class SpecDocs
         return all;
     }
 
-    // The key index is the table under "## 4. Spec keys" in SKILL.md: | keys | what it does | section |.
+    // The key index is the table under the "Spec keys" heading of spec.md: | keys | what it does | section |.
     static List<(string[], string, string)> ParseIndex(string text)
     {
         var rows = new List<(string[], string, string)>();
         var inTable = false;
         foreach (var line in text.Split('\n'))
         {
-            if (line.StartsWith("## ")) inTable = line.Contains("Spec keys");
+            if (line.StartsWith('#')) inTable = line.Contains("Spec keys");
             if (!inTable || !line.StartsWith("| `")) continue;
             var cells = line.Trim().Trim('|').Split('|').Select(c => c.Trim()).ToArray();
             if (cells.Length < 3) continue;
@@ -104,6 +109,9 @@ static class SpecDocs
     static SpecSection? Heading(string title) =>
         Sections.FirstOrDefault(s => s.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
 
+    // The topic aliases (onParametersChanged, nodes, ...) with the heading each one opens.
+    internal static IEnumerable<(string Key, string Heading)> AliasTargets() => Aliases.SelectMany(a => a.Keys.Select(k => (k, a.Heading)));
+
     static IEnumerable<(string Key, string Heading)> KeyTargets()
     {
         foreach (var (keys, heading) in Aliases) foreach (var k in keys) yield return (k, heading);
@@ -113,7 +121,7 @@ static class SpecDocs
     static List<SpecSection> Resolve(string query)
     {
         var q = Norm(query);
-        // 1. a key or topic name: aliases first, then the SKILL.md index (a key can map to several sections).
+        // 1. a key or topic name: aliases first, then the key index (a key can map to several sections).
         var named = KeyTargets().Where(t => Norm(t.Key) == q).Select(t => Heading(t.Heading)).OfType<SpecSection>().Distinct().ToList();
         if (named.Count > 0) return named;
         // 2. a section heading, exact then partial.
@@ -126,7 +134,7 @@ static class SpecDocs
         }
         // 3. a backticked name mentioned in a section: the section that mentions it most.
         var mention = new Regex("`" + Regex.Escape(query) + "`", RegexOptions.IgnoreCase);
-        return Sections.Select(s => (s, n: mention.Matches(string.Join("\n", s.Body)).Count)).Where(x => x.n > 0)
+        return Sections.Where(s => s.Title != "Spec keys").Select(s => (s, n: mention.Matches(string.Join("\n", s.Body)).Count)).Where(x => x.n > 0)
             .OrderByDescending(x => x.n).Select(x => x.s).ToList();
     }
 
@@ -182,21 +190,9 @@ static class SpecDocs
         return bad.Count == 0 ? 0 : 1;
     }
 
-    public static int Distance(string a, string b)
-    {
-        var d = new int[a.Length + 1, b.Length + 1];
-        for (var i = 0; i <= a.Length; i++) d[i, 0] = i;
-        for (var j = 0; j <= b.Length; j++) d[0, j] = j;
-        for (var i = 1; i <= a.Length; i++)
-            for (var j = 1; j <= b.Length; j++)
-            {
-                d[i, j] = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1));
-                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) d[i, j] = Math.Min(d[i, j], d[i - 2, j - 2] + 1); // swapped letters
-            }
-        return d[a.Length, b.Length];
-    }
+    public static int Distance(string a, string b) => SearchText.Distance(a, b);
 
-    // Top-level key descriptions for the schema, from the same SKILL.md index.
+    // Top-level key descriptions for the schema, from the same key index.
     public static Dictionary<string, string> KeyDescriptions()
     {
         var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

@@ -1,14 +1,20 @@
+// Change existing elements: insert a flow node, add or replace widgets, restyle a screen, set a property, rename a node.
 // Apply once on entity-with-crud + list-detail-screens output, in that order.
-// Insert a normalizing assignment, add a screen note, set a property, rename a node.
+// Insert a normalizing assignment, add a screen note, restyle the screen, replace its title, set a property, rename a node.
 // Rename paths to match the existing elements; inspect the result before reuse.
 // Flow nodes may be renamed in existing actions; module elements and parameters may not.
-// Related keys: edits, insertNodes, addWidgets, set, rename. Edits run in order.
+// A listed existing screen takes a new styleSheet (UI, rule 3); replaceWidgets swaps the widgets inside a path from 'oml tree'.
+// styleSheet replaces the whole sheet; read the current one with 'oml describe <module> <Screen> --css' and edit it.
+// Find replaceWidgets paths cheaply: 'oml tree <module> <Screen> --depth 2', then 'oml tree <module> <Screen>/<path> --depth 2'.
+// Related keys: edits, insertNodes, addWidgets, replaceWidgets, styleSheet, set, rename. Edits run in order.
 {
+  "screens": [{ "name": "Products", "styleSheet": ".products-help { color: var(--color-neutral-7); }" }],
   "edits": [
     { "op": "insertNodes", "action": "Product_CreateOrUpdate", "after": "Start",
       "flow": [{ "kind": "assign", "name": "Normalize", "assign": { "Product.Name": "Trim(Product.Name)" } }] },
     { "op": "addWidgets", "screen": "Products",
-      "widgets": [{ "type": "Text", "name": "HelpText", "text": "Choose a product to edit." }] },
+      "widgets": [{ "type": "Text", "name": "HelpText", "style": "\"products-help\"", "text": "Choose a product to edit." }] },
+    { "op": "replaceWidgets", "at": "Products/Title", "widgets": [{ "type": "Text", "text": "Product catalog" }] },
     { "op": "set", "element": "Product/Name", "properties": { "description": "Required product name" } },
     { "op": "rename", "element": "Product_CreateOrUpdate/Normalize", "to": "TrimName" }
   ]

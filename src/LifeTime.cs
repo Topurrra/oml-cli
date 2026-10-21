@@ -11,7 +11,7 @@ namespace OmlCli;
 // Ported from OutSystems/outsystems-pipeline outsystems/lifetime/lifetime_applications.py (Apache-2.0).
 static class LifeTime
 {
-    const string Usage = "oml lt environments | teams | team-apps Team | apps [--env Name] | tag App --version x.y.z [--description Text] [--env Development] | deploy App[,App2] --from Env --to Env [--version x.y.z|latest] [--notes Text] [--wait] | status Key | abort Key | continue Key";
+    internal const string Usage = "oml lt environments | teams | team-apps Team | apps [--env Name] | tag App --version x.y.z [--description Text] [--env Development] | deploy App[,App2] --from Env --to Env [--version x.y.z|latest] [--notes Text] [--wait] | status Key | abort Key | continue Key";
 
     public static int Run(string[] args)
     {
@@ -157,7 +157,7 @@ static class LifeTime
         int Unavailable(string reason)
         {
             if (!string.IsNullOrEmpty(token)) reason = reason.Replace(token, "[REDACTED]", StringComparison.Ordinal);
-            Console.Error.WriteLine($"LifeTime is not available ({reason}). Export the team's applications as .oap files into a folder and run: oml architecture --in <folder>");
+            Console.Error.WriteLine($"LifeTime is not available ({reason}). Export the team's applications as .oap files into a folder and run: oml {args.FirstOrDefault(a => a != "--pretty")} --in <folder>");
             return 2;
         }
         try

@@ -10,10 +10,18 @@
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="Architecture\template.html" LogicalName="OmlCli.Architecture.template.html" />
+    <EmbeddedResource Include="Check\template.html" LogicalName="OmlCli.Check.template.html" />
+    <EmbeddedResource Include="Review\template.html" LogicalName="OmlCli.Review.template.html" />
     <Compile Include="..\JsonOutput.cs" Link="JsonOutput.cs" />
     <Compile Include="..\AssetFiles.cs" Link="AssetFiles.cs" />
     <Compile Include="..\Locations.cs" Link="Locations.cs" />
     <Compile Include="..\UsageLog.cs" Link="UsageLog.cs" />
+    <!-- Validation message hints in apply and validate reports; the same file `oml warn` prints. -->
+    <Compile Include="..\WarningTable.cs" Link="WarningTable.cs" />
+    <!-- The search engine of oml doc search; oml find text ranks a module's elements with it. -->
+    <Compile Include="..\Search.cs" Link="Search.cs" />
+    <Compile Include="..\SearchGlossary.cs" Link="SearchGlossary.cs" />
+    <EmbeddedResource Include="..\..\skill\reference\warnings.md" LogicalName="OmlCli.doc.warnings.md" />
     <!-- Compile-time only. At run time every one of these, and whatever they depend on,
          comes from the installed Service Studio through the launcher's load context. -->
     <Reference Include="$(SS)\OutSystems.Model.V1.dll" Private="false" />

@@ -5,275 +5,80 @@ description: Use oml to inspect, change, and validate OutSystems 11 modules thro
 
 # OutSystems module work
 
-**For every change task, follow the Standard loop in section 5.** It keeps a task to 4–8 tool calls.
+For ODC (ODC Studio) use the OutSystems MCP and [reference/odc.md](reference/odc.md). Never load ODC modules with oml; never send O11 work to the ODC MCP.
 
-## 1. What this skill is and when to use it
+**For every change task, follow the Standard loop below.**
 
-Use this skill for O11 module inspection, data models, logic, UI, integrations, publishing, and LifeTime deployment.
-Use the `oml` CLI for local O11 work. Extend its typed model code when the spec cannot express a change.
-[reference/model-api.md](reference/model-api.md) covers the model API for extensions.
+## Rules
 
-| Platform | Model | Read | Change and release |
-|---|---|---|---|
-| O11: Service Studio 11 | V12 | Local CLI inspection | Local spec; Service Studio publish; LifeTime deployment. |
-| ODC: ODC Studio | V13 | OutSystems MCP context lookups | Mentor editing and publishing; MCP deployment tools. See [reference/odc.md](reference/odc.md). |
+Read [rules.md](rules.md) first: its 11 rules override all below.
 
-Never load ODC modules with the O11 V12 loader. Never send O11 module work to the remote ODC MCP.
-In O11, OutSystems MCP is the local Service Studio MCP server. `oml` uses it only to publish and refresh references.
+- Change modules only with `oml apply`, always to a NEW staged file (rule 9).
+- Inspect before you design; reuse existing elements.
+- Confirm with the user before `install`, `publish`, `references`, `lt tag|deploy|abort|continue`, and data deletion. Restate the exact command and wait for a yes.
+- Before you use another module's element, run `oml find <Name> <module.oml> --in <producer folder|file.oml>`. Show the candidates and their parameters and ask which to use, even for one match. Use its `Module.Name`; never guess.
+- Publish and reference refresh use Service Studio's Beta MCP tools: tell the user before the first use. Its first call shows an `oml-cli` approval dialog. Do not repeat a blocked publish.
+- Stop if the automatic self-test fails. Never bypass IPP, licence or load refusals.
+- Keep credentials out of commands, files, logs and messages.
+- Before a deployment, list the apps and show the user the tags, keys, environments and `isModified`. Never auto-continue an intervention; after a timeout, read the status before you repeat a change.
+- Never claim a command ran or passed unless you saw its output.
+- No comments in `styleSheet`/`javaScript`, only a `/*! */` licence. Long code: `{"file": "x.js"}` (`oml spec file`).
 
-### Terms
+## Writing to the user
 
-| Term | Meaning |
+Plain technical English (ISO 24495-1; ASD-STE100 style):
+- Conclusion first. Put the key word at the start of each line.
+- Instructions: 20 words or fewer. Descriptions: 25 or fewer. Active voice, common words.
+- Paragraphs: 6 sentences or fewer. Lists: 5 items or fewer; group longer ones.
+- Exact names: files, commands, numbers. No filler.
+
+## Standard loop (follow it exactly; every tool call costs a full turn)
+
+Put several commands in ONE tool call: chain them with `;`, or list them in an `oml run` file.
+
+0. No `.oml` file? Ask the user to open the module in Service Studio, then `oml pull --out <Module>.oml`.
+1. **Read (1 call).** Write `read.json` and run `oml run read.json`:
+   `{ "steps": [ ["inspect","<module.oml>","--own","--only","entities,actions,screens,blocks"], ["describe","<module.oml>","<ElementToChange>","<OtherElement>"] ] }`
+   Describe only elements you change or call. Producer files: add `--in <folder|file.oml>`. Another module's element: add a `find` step. New entities, screens or flows without a recipe: add `; oml doc best-practices` to this call.
+2. **Write the spec (no doc reads if a recipe fits).** Copy the closest recipe. For a key no recipe shows, run `oml spec <key>` (never read `reference/spec.md` whole). Put ALL requested elements in one spec; generate many similar elements with a small script.
+3. **Check, apply and see the result (1 call):**
+   `oml spec check <spec.json>; oml apply <source.oml> <spec.json> <new-staged.oml> --describe-created`
+   The report has `problems`, `newErrors`, `reopenNewErrors`, `warnings`, `newWarnings` and the described elements. Do not run `validate`, `inspect` or `describe` again after a good apply.
+   **A good apply means `saved: true`, no `newErrors`, and no `newWarnings`.** Every new warning is a defect until you prove otherwise (an input unused in JavaScript means the block ignores it). Entries have a `hint` when the fix is known; otherwise `oml warn <id>`. Fix each one or explain it to the user.
+4. **Fix (only if needed, 1 call per attempt).** Change only what the report names, then repeat step 3 with a NEW staged path. Never retry an unchanged spec.
+5. **UI work: preview once per screen or block group (1 call).** In `preview.json`, two steps per screen: `["preview","<staged.oml>","<Screen>","--theme","light","--out","<Screen>.light.html","--screenshot","<Screen>.light.png"]` and the same with `"dark"`, `"--width","390"` and its own `--out`. Run `oml run preview.json`, look at both PNGs and the `checklist`, and follow `oml doc ui-checklist`. Preview again only if you changed the UI.
+6. **Report.** Add `["review","<source.oml>","<staged.oml>","--md","<new path>.md"]` to `preview.json` (or run it alone), then show the staged path, what was built and the .md. 0 findings does not mean the code is correct. Ask before `install` or `publish`; run `oml validate <staged.oml> --warnings` right before `install`.
+
+Specs allow JSONC comments, not trailing commas. Expressions use OutSystems syntax; text literals need escaped quotes (`"\"Text\""`). Parts: `oml apply <source.oml> <part1.json> <part2.json> <new-staged.oml>`.
+
+After the loop: install after a yes (zero validation errors needed; report the backup path and hash), then publish or refresh after a yes, or name the manual Service Studio step. For deployments, confirm the exact change, keep the deployment key and report its final status. Tell the user what to test in the target environment.
+
+## Find things fast (no Service Studio)
+
+| Need | Command |
 |---|---|
-| module | An OutSystems application module stored in an `.oml` file. |
-| spec | A JSON file that describes changes for `oml apply`. |
-| source file | The input module that you want to change. |
-| staged file | A separate output module that you review before installation. |
-| element | A model object, such as an entity, action, screen, or widget. |
-| reference | A local signature of an element from another module. |
-| producer module | The module that owns a referenced element. |
-| Service Studio | The installed OutSystems 11 development tool and its model API. |
-| self-test | A disposable model check for the installed Service Studio build. |
+| Not sure which key, topic or recipe? | `oml doc --search "<words>"`; use OutSystems terms (entity, screen, aggregate) when you can |
+| Spec keys; one key | `oml spec [<key>]` |
+| Rules for a topic | `oml doc [<topic>[#<section>]]` |
+| Fix of an error or warning | `oml warn <id or title words>` |
+| oml or app failures | `oml doc troubleshooting` |
 
-## 2. Rules for agents
+Topics: `best-practices`, `ui-reactive`, `osui-patterns`, `ui-checklist`, `data-rules`, `logic-rules`, `security`, `rest`, `processes-timers-email`, `architecture-rules`, `traditional-to-reactive`, `warnings`, `testing`, `troubleshooting`.
 
-Read [rules.md](rules.md) first. Its 11 production rules come before everything below.
+## Recipes
 
-0. Do not write comments in `styleSheet` or `javaScript` values. They cost tokens every time the module is read, and `apply` removes them. Keep only a required license notice as one `/*! ... */` line.
-1. Never edit OML XML. Use `OutSystems.Model.V1` and `ServiceStudio.PluginAPI` for every model change.
-   Raw XML is read-only diagnostic material at most.
-2. Never overwrite the source file during development. Apply to a new staged file.
-   Keep the source hash and verify it after development.
-3. Inspect before designing. Use `describe` to understand logic before changing it; use `tree` for exact paths. Reuse existing elements and preserve unrelated changes.
-4. Confirm with the user before install, publish, reference refresh, LifeTime mutations, or data deletion.
-   Restate the exact operation and wait for approval before these commands:
+Copy one from `recipes/` and read its header ([README](recipes/README.md)):
+`entity-with-crud`, `list-detail-screens`, `aggregate-join-groupby`, `edit-existing-flow` (insert node, add or replace widgets, restyle, set, rename), `rest-client`, `references-from-producer`, `sql-query`, `web-screen` (Traditional), `timer-role-site-property`, `form-with-validation`, `dropdown-from-static`, `list-search-paging`, `aggregate-on-demand-detail`, `loading-empty-error-states`, `expose-rest-api`, `role-protected-screen`, `block-popup-event`, `send-email`.
 
-   ```text
-   oml install <staged.oml> <target.oml>
-   oml publish <Module or file.oml>
-   oml references <Module or file.oml>
-   oml lt tag App --version x.y.z [--description Text] [--env Development]
-   oml lt deploy App[,App2] --from Env --to Env [--version x.y.z|latest] [--notes Text] [--wait]
-   oml lt abort Key
-   oml lt continue Key
-   ```
-
-5. Before using an element from another module, run find and show the candidates. Ask the user which element to use.
-   Show its qualified name and parameters, even when the search returns one candidate.
-   If none exists, ask for a producer export or a Manage Dependencies update.
-
-   ```text
-   oml find <Name> <module.oml> --in <folder of producer .oml files>
-   ```
-
-6. Use the approved qualified name, `Module.Name`, in the spec. Never guess a producer module or opaque key.
-7. Read `problems`, `newErrors`, `reopenNewErrors`, `warnings`, and `newWarnings` when present.
-   Warnings do not block saving. A type warning can still mean an incorrect model.
-8. Validate before saving and after reopening. Verify connectors, event targets, arguments, access, and requested behavior.
-9. Run a self-test for each installed build before model changes. Stop if it fails.
-   The CLI runs this automatically for selected model commands on an unseen build.
-10. Service Studio MCP write tools are Beta. Tell the user before the first publish or reference refresh.
-    The first call shows an `oml-cli` approval dialog. Do not repeat a blocked publish without changing its approval settings.
-11. Keep credentials out of commands, files, logs, and messages. Use process environment variables for LifeTime credentials.
-12. Before deployment, list applications and review tags, keys, and `isModified`.
-    Never auto-continue an intervention. Check status after a timeout before repeating a mutation.
-13. Do not bypass IPP, licensing, protected-module checks, or load refusals. Request an authorized export or connection.
-14. Run one model-edit job per process. Providers and plugin registries are global singletons.
-15. Use generic typed interfaces through `Reflect` and `Refs`. Never silently swallow model or reflection errors.
-16. Do not redistribute Service Studio assemblies. Reference the installed copies.
-
-## 3. Commands
-
-Build and locate the CLI from the repository root:
-
-```powershell
-dotnet build -c Release src/OmlCli.csproj
-$env:PATH = "$PWD\src\bin\Release\net8.0;$env:PATH"
-oml version
-```
-
-The executable is `src/bin/Release/net8.0/oml.exe`.
-The default installation path is `C:\Program Files\OutSystems\Service Studio 11\Service Studio`.
-Set `OML_SERVICE_STUDIO` for another path. Also pass this build property:
-
-```text
--p:SS="<that folder>"
-```
-
-The CLI runs a cached self-test on a disposable module for each installed build. Stop if it fails.
+## Commands
 
 | Command | Use it for |
 |---|---|
-| `oml new` | New module: by kind, `--template`, or `--from-template`. |
-| `oml inspect`, `census` | Module overview. Use `--own` and `--only` to cut output. |
-| `oml describe` | What an existing action, screen or block does. Read it before you change one. Takes several names. |
-| `oml find` | Which module owns an element. |
-| `oml openapi` | Export exposed REST APIs as OpenAPI 3.0.3 JSON; reports placeholders to fill. |
-| `oml architecture` | Read application/module layers, dependencies and findings into HTML and optional JSON. |
-| `oml preview` | Render a block or screen to HTML (and a PNG) so you can see it. Run it for all UI work. |
-| `oml tree` | Exact object paths for `edits`. |
-| `oml validate` | Errors, and warnings with `--warnings`. |
-| `oml apply` | Run a spec, or several specs for work split into parts, into a staged copy. |
-| `oml spec` | `oml spec <key>` prints one key's reference; `oml spec check <spec.json>` checks a spec before `apply`; `oml spec schema` writes a JSON Schema. |
-| `oml run` | Several commands on the same module in one process: `oml run steps.json` (or `-` for stdin) loads Service Studio once and keeps the module open; 3 to 6 commands cost about one. See reference/commands.md. |
-| `oml install` | Copy a staged file over the target. Confirm first. |
-| `oml translations export` | Export module translations. |
-| `oml app`, `oml extension`, `oml templates` | `.oap`/`.osp` packages, `.xif` extensions, local templates. |
-| `oml studio`, `pull`, `publish`, `references` | Service Studio MCP: open modules, save the open module to a file, 1-Click Publish, Refresh All. Confirm publish and refresh first. |
-| `oml lt` | LifeTime API v2: environments, apps, tag, deploy, status. Confirm every change. |
-| `oml font`, `oml image` | Convert fonts to WOFF2; convert, resize and shrink images. No module needed. |
-| `oml api`, `widgets`, `selftest` | Model types, widget descriptors, build check. |
-| `oml doctor` | Setup check: Service Studio, .NET, model API, MCP server, LifeTime settings, browser, PATH. Run it when a command fails for setup reasons. |
-| `oml log summary` | Opt-in local usage log (`OML_LOG=1`): per command count, failures, median ms and top failure messages. Shows where turns are lost. |
+| `oml inspect`, `describe`, `find`, `tree` | Read a module: overview (`--own --only ...`), what an element does, who owns a name, exact paths for `edits`. |
+| `oml apply`, `spec`, `run`, `validate`, `install` | Change: staged apply, spec help, many commands at once, check, copy over the target (confirm). |
+| `oml new`, `preview`, `openapi`, `architecture`, `test scaffold` | New module, render a screen/block, export OpenAPI, layer report, BDD tests. |
+| `oml studio`, `pull`, `publish`, `references`, `lt` | Service Studio and LifeTime. Confirm every change. |
+| `oml check` | AI Mentor-like findings (module, folder, `--team`). |
+| Others | `doctor`, `census`, `translations`, `app`, `extension`, `templates`, `font`, `image`, `api`, `widgets`, `selftest`, `log` |
 
-Output is compact JSON. Add `--pretty` only for humans. Exit 0 ok, 1 model or validation failure, 2 usage or environment.
-Read [reference/commands.md](reference/commands.md) for full usage, options and examples.
-
-## 4. Spec keys
-
-A spec is one JSON file. Every key is optional. Start with a recipe below. Read [reference/spec.md](reference/spec.md) for keys the recipe does not show.
-
-| Key | What it creates or changes | Section in reference/spec.md |
-|---|---|---|
-| `module` | Description, JavaScript, PNG icon, user provider and tenancy flags, existing default theme. | Module settings |
-| `entities`, `structures`, `exceptions` | Data model. New entities get an `Id`. | Data model |
-| `staticEntities` | Static entities with records. | Static entities |
-| `references`, `referenceAliases`, `removeUnusedDependencies` | Elements from producer modules, local names for them, and removal of unused ones. | References and aliases |
-| `serverActions`, `serviceActions`, `clientActions` | Actions with inputs, outputs, locals and a `flow`. | Logic and flows |
-| `tidyFlows` | Move nodes in existing flows selected by element paths or name patterns. | Logic and flows |
-| `clientVariables`, `sessionVariables`, `systemEvents` | Module state and calls from platform lifecycle events. Module kind limits apply. | Module variables and system events |
-| `onException`, `globalExceptionHandler`, flow `exceptionHandler` | Separate exception paths and a Reactive global handler. | Exception handling |
-| `flow` nodes `aggregate` | Sources, joins, filters, sorts, group by, calculated attributes. | Queries |
-| `flow` node `sql` | SQL statements with typed parameters and outputs. | SQL |
-| `restClients`, `restServices` | Consumed and exposed REST APIs. | REST |
-| `timers`, `roles`, `processes`, `siteProperties` | Platform elements, screen `access`. | Platform elements |
-| `screens`, `blocks` (Reactive, Mobile) | Screens, blocks, aggregates, actions, events, widgets. | Reactive UI and Mobile UI |
-| `screens`, `blocks` (Traditional Web) | Web screens with `preparation` and web widgets. | Traditional Web UI |
-| `layout`, `placeholders`, `template` | Layout blocks and generated list or detail screens. | Layouts and scaffolding |
-| `edits` | Changes to existing elements. | Edits |
-| `edits` with `delete` | Deletion of elements created earlier in the same spec. Existing elements are refused (see rules.md). | Deletion |
-| `copy` | Clipboard copy from read-only modules; explicit dependencies; IPP checks. | Copy, translations, resources, and folders |
-| `locales`, `translate`, `translations` | Locales and module resource translations; file import where the host supports it. | Copy, translations, resources, and folders |
-| `keepComments` | Keep comments in `styleSheet` and `javaScript` (removed by default). | Comments in styleSheet and javaScript |
-| `images`, `scripts`, `themes`, `resources`, `folders`, `requiredScripts` | Content files, styles, folders, and screen/block script requirements. | Copy, translations, resources, and folders |
-
-### Recipes
-
-[copilot-instructions.md](copilot-instructions.md) is the short version for small budgets.
-Copy a recipe and read its base-module notes. See [recipes/README.md](recipes/README.md) for order and checks.
-
-| Recipe in `recipes/` | Use it for |
-|---|---|
-| [entity-with-crud.jsonc](recipes/entity-with-crud.jsonc) | Entity, static values, checked save/delete. |
-| [list-detail-screens.jsonc](recipes/list-detail-screens.jsonc) | Reactive list/detail with layout and access. |
-| [aggregate-join-groupby.jsonc](recipes/aggregate-join-groupby.jsonc) | Join, filter, sort, Sum/Count by group. |
-| [edit-existing-flow.jsonc](recipes/edit-existing-flow.jsonc) | Insert node, add widget, set, rename a flow node. |
-| [rest-client.jsonc](recipes/rest-client.jsonc) | Consumed GET/POST and a server call. |
-| [references-from-producer.jsonc](recipes/references-from-producer.jsonc) | Approved public producer elements. |
-| [sql-query.jsonc](recipes/sql-query.jsonc) | SQL parameter, entity output, loop. |
-| [web-screen.jsonc](recipes/web-screen.jsonc) | Web Preparation, table, save action. |
-| [timer-role-site-property.jsonc](recipes/timer-role-site-property.jsonc) | Timer, role access, site property. |
-| [form-with-validation.jsonc](recipes/form-with-validation.jsonc) | Reactive form, client checks with messages, server save raising a user exception. |
-| [dropdown-from-static.jsonc](recipes/dropdown-from-static.jsonc) | Static entity, bound Dropdown, table showing the label. |
-| [list-search-paging.jsonc](recipes/list-search-paging.jsonc) | Search, sort, Previous/Next paging, empty state. |
-| [expose-rest-api.jsonc](recipes/expose-rest-api.jsonc) | Exposed GET (path) and POST (body) calling server actions. |
-| [role-protected-screen.jsonc](recipes/role-protected-screen.jsonc) | Role-only screen, server role check, link shown only to the role. |
-
-## 5. Workflow
-
-Content keys and the `translations export` command use the typed API. Copy runs before logic; missing dependencies and name clashes prevent saving.
-`translate.text` is a module resource ID, such as `MandatoryInput`. Image widgets can reference new images in the same spec.
-On 11.55.92 direct translation storage works, but file export/import refuses in the headless host. See the spec reference for format limits.
-
-### Standard loop (follow it exactly; every tool call costs a full turn)
-
-Put several commands in ONE tool call: chain them with `;` in one shell command, or list them in one `oml run` file. One call that runs 3 commands costs 1 turn; 3 calls cost 3 turns.
-
-0. No `.oml` file? Ask the user to open the module in Service Studio, then `oml pull --out <Module>.oml`.
-1. **Read (1 call).** Write `read.json` and run it:
-   `{ "steps": [ ["inspect","<module.oml>","--own","--only","entities,actions,screens,blocks"], ["describe","<module.oml>","<ElementToChange>","<OtherElement>"] ] }`
-   then `oml run read.json`. Only describe elements you will change or call. Producer files: add `--in <folder|file.oml>`.
-   Need an element from another module? Add `["find","<Name>","<module.oml>","--in","<producer folder|file.oml>"]` to the same file, show the user the candidates, and ask which to use (even for one match). Use its `Module.Name`.
-2. **Write the spec (no tool call to read docs if a recipe fits).** Copy the closest recipe from `skill/recipes/`. For a key no recipe shows, run `oml spec <key>` (one key only; never read `skill/reference/spec.md` whole). Put ALL requested elements in one spec. For many similar elements (for example 20 blocks), generate the spec with a small script, then check it, instead of applying elements one by one.
-3. **Check, apply and see the result (1 call):**
-   `oml spec check <spec.json>; oml apply <source.oml> <spec.json> <new-staged.oml> --describe-created`
-   The apply report already contains `problems`, `newErrors`, `reopenNewErrors`, `warnings` and `newWarnings`, and the described elements. Do not run `validate`, `inspect` or `describe` again after a good apply.
-   **A good apply means `saved: true`, no `newErrors`, and no `newWarnings`.** Every new warning is a real defect until you prove otherwise (for example "input parameter is never used in JavaScript" means the block ignores that input). Fix each one, or explain each remaining one to the user. Never report done with unexplained new warnings.
-4. **Fix (only if needed, 1 call per attempt).** Change only what the report names (new errors and new warnings), then repeat step 3 with a NEW staged path. Never retry an unchanged spec.
-5. **UI work: preview once per screen or block group (1 call):** write `preview.json` with steps `["preview","<staged.oml>","<Screen>","--theme","light","--out","<Screen>.light.html","--screenshot","<Screen>.light.png"]` and `["preview","<staged.oml>","<Screen>","--theme","dark","--width","390","--out","<Screen>.dark-390.html","--screenshot","<Screen>.dark-390.png"]` (each step needs its own `--out`), run `oml run preview.json`, look at both PNGs and the report's `checklist`, fix, and preview again only if you changed the UI. Follow `skill/reference/ui-checklist.md`.
-6. **Report.** Show the staged path and what was built. Ask before `install` or `publish`; run `oml validate <staged.oml> --warnings` only right before `install`.
-
-A normal task needs 4 to 8 tool calls. If you are past 12, stop and check whether you are repeating reads or applying one element at a time.
-
-Do not write comments in `styleSheet` or `javaScript` values: they cost tokens and `apply` removes them. Use `/*! ... */` only for a required license notice.
-JSONC comments are allowed in specs; trailing commas are not. Expressions use OutSystems syntax; text literals need escaped quotes. For work split into parts (several agents), pass every part before the output: `oml apply <source.oml> <part1.json> <part2.json> <new-staged.oml>`.
-
-After the loop:
-
-1. Show changes, remaining issues, staged path, installed build, and required runtime tests to the user.
-2. After confirmation, install. Report the backup path and hash. Installation requires zero total validation errors.
-3. After confirmation, publish or refresh references through the Beta Service Studio MCP tools.
-    If unavailable, report the required manual Service Studio step.
-4. For deployment, list applications and show selected tags, keys, modifications, and environments.
-    Obtain confirmation for the exact mutation. Retain the deployment key and report its terminal status.
-5. Test compilation, database persistence, permissions, timers, REST calls, and browser behavior in the target environment as applicable.
-
-## 6. Troubleshooting
-
-Use this table for CLI work. reference/model-api.md §17 covers typed host implementation failures.
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| Image reports it cannot load libSkiaSharp.dll | Native library is missing, has the wrong architecture, or a native dependency cannot load. | Check OML_SERVICE_STUDIO; use the installed library in the root or runtimes/win-x64/native. Do not download or redistribute libraries. |
-| PNG palette optimization is absent | SkiaSharp 2.88 does not expose an indexed-colour encoder. | Use normal lossless PNG or select WebP. |
-| Font tables differ in head or DSIG | WOFF2 requires head.flags bit 11, checksum recalculation, and removal of invalidated signatures. | Compare other bytes exactly; validate rebuilt sfnt checksums. |
-| Chrome reports Failed to convert WOFF 2.0 font to SFNT | Chromium expects the final compressed block to end at a four-byte boundary. | Add up to three zero bytes after the compressed stream; include padding in file length but not totalCompressedSize. Do not pad individual tables in the Brotli stream. |
-| SVG path changes after rounding | Implicit numeric separators and compact arc flags have special grammar. | Preserve separators when signs disappear; keep arc path data unchanged. |
-| Two layouts or headers appear on a new themed screen | Factory starter widgets remain. | Current CLI clears starter widgets for explicit layout/widgets. Existing screens are not cleared by creation lists. |
-| Apply returns saved false | Spec problems or new validation errors. | Read problems and newErrors, including detail and owner paths. Fix the spec and use a new staged path. |
-| Apply returns saved true with exit 1 | New errors appeared after reopening. | Read reopenNewErrors. Do not install. Fix the spec/model and apply to another path. |
-| "Output must differ from source; install with 'oml install' after review." | Source and output are the same path. | Choose a separate staged file. |
-| "Staged output already exists:" followed by a path | Output path exists. | Use a new staged path. |
-| Install refuses validation errors | Installation checks all errors, including baseline errors. | Fix all staged errors before installing. |
-| Self-test or version mismatch | Installed API behavior differs. | Stop, inspect the installed API, and rerun self-test after fixing the host. |
-| FileLoadException for "System.Diagnostics.DiagnosticSource, Version=10.0.0.0" | Host loaded incompatible shared libraries. | Use the CLI launcher and installed libraries. See reference/model-api.md §3. |
-| "InvalidEntity_OnlyAuto"; entity "cannot be exclusively composed of an attribute with Is AutoNumber" | Entity has only auto-number Id. | Add another attribute, including after attribute deletion. |
-| Static record warning "'Integer Identifier' data type expected instead of 'Integer'" | Static Id has an Identifier type. | Use Integer for static Id. Read validation warnings and newWarnings. |
-| Element resolves ambiguously or appears as X2 | Name collision, often with generated CRUD. | Inspect/find; use a qualified or free name. Never accept silent renaming. |
-| "RequiredPropertyValue_PropertyIn" on execute Action | Missing callee, often a producer reference. | Find and confirm the element; import its deployed export or use Manage Dependencies. |
-| "IPPErrorNotConnected" on paste | Cross-infrastructure protected content. | Connect to the source infrastructure, use authorized IPP cleanup, or rebuild owned content. Never bypass the check. |
-| "System modules cannot be loaded" for Templates.dat | Protected shipped bundle. | Use a loadable exported module. |
-| "unknown placeholder" or missing LayoutTopMenu | Layout contract or dependency is absent. | Inspect placeholder names and export the required OutSystemsUI dependencies. |
-| "ExpressionInvalidVariableType" on a Reactive Input Identifier | Input accepts primitive variables only. | Use Dropdown with lookup aggregate. Labels/Values use Customer.Name and Customer.Id, not FetchCustomers.List.Current.Customer.Name. |
-| "Can't identify 'GetOrders' element in expression" | Aggregate name changed after source/filter assignment. | Check tree. The host must restore the spec name before expression binding. |
-| "Unexpected Link" for a Web screen | Destination is not a frequent destination or flow connector target. | Review the warning; destination and arguments still round-trip. |
-| NoErrorHandlingInFlow on a blank UI module | The spec cannot create a UI flow OnException handler. | Use an exported base with a handler; a local layout alone is not enough. |
-| Optional column crashes while hidden | CSS visibility does not prevent expression evaluation. | Guard indexed access with If. |
-| Custom timer saves but does not run | Headless API does not validate schedule grammar. | Verify custom schedule in Service Studio's editor. |
-| Extra roles after broad access | Save/reopen normalizes Registered and Anonymous. | Set both flags false for a custom-role-only gate. |
-| Data deletion reports SampleRecord or anonymous CRUD records | Generated model artifacts need filtering. | Inspect consumers; retain real CRUD usages. See reference/model-api.md §17 before changing the guard. |
-| Publish fails with "Invalid compiler output. Object reference not set to an instance of an object" | On 11.55.92, generic Identifier types on Id caused this failure. | Use LongIntegerType for entity Id and IntegerType for static Id. Current CLI uses these types. |
-| Link/Button displays "linkOverview" | Seeded Text "link" remains beside explicit children. | Current CLI removes seeded children when children is supplied. Verify the staged tree. |
-| File-based publish refuses an open module | Open copy would be published instead of the file. | Close that copy, or explicitly select the open module by name. |
-| Publish status Blocked | Automatic merge and publish approval is missing. | Ask the user to enable it in Edit > MCP Server. |
-| Save passes but publish fails | Compilation and runtime validation are separate. | Fix the typed model or dependency; test in the target environment. |
-| LifeTime credentials missing or HTTP 401/403 | Environment values or service-account permissions are wrong. | Set credentials securely and check permissions. Server error bodies are not echoed because they may reflect the token. |
-| LifeTime HTTPS or redirect failure | Certificate, connection, or redirect refusal. | Fix the endpoint or certificate. Never use test HTTP settings for real LifeTime. |
-| Start/request failure after plan creation | Operation may already have happened. | Use the reported key with status before creating another plan. |
-| needs_user_intervention, including deployment_prepared | Human decision required. | Read messages and confirm before continue or abort. |
-| latest excludes untagged changes | BaseApplicationVersionKey points to a tag. | Review isModified and create a confirmed tag first. |
-| Deployment creation returns a bare text key | Pipeline v2 accepts non-JSON POST responses. | Preserve that key before starting; report it even if start fails. |
-| LifeTime polling timeout | Plan still runs. | Read status before any new mutation. |
-
-## 7. Reference files
-
-Read these files only when the task needs them.
-
-| File | Read it when |
-|---|---|
-| [rules.md](rules.md) | Always, before you change a module. |
-| [reference/commands.md](reference/commands.md) | You need full usage or options of a command. |
-| [reference/spec.md](reference/spec.md) | Your recipe does not show a needed spec key. |
-| [reference/ui-checklist.md](reference/ui-checklist.md) | You build or change a block or screen. Read it before you report UI work as done. |
-| [reference/model-api.md](reference/model-api.md) | You extend `oml` itself or work directly with the Model API. |
-| [reference/odc.md](reference/odc.md) | The module is in ODC, not O11. |
+Output is compact JSON (`--pretty` for humans). Exit 0 ok, 1 model or validation failure, 2 usage or setup. Full usage: [reference/commands.md](reference/commands.md).

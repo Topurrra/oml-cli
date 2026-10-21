@@ -4,8 +4,8 @@
 // Model validation does not execute SQL. Test the query in your target environment.
 {
   "entities": [{ "name": "Product", "attributes": [{ "name": "Name", "length": 100 }] }],
-  "serverActions": [{ "name": "SearchProducts", "public": true, "inputs": [{ "name": "Search" }],
-    "outputs": [{ "name": "LastName" }], "flow": [
+  "serverActions": [{ "name": "SearchProducts", "description": "Finds products by name.", "inputs": [{ "name": "Search", "description": "Part of the name." }],
+    "outputs": [{ "name": "LastName", "description": "Name of the last match." }], "flow": [
       { "kind": "sql", "name": "Matches",
         "sql": "SELECT {Product}.* FROM {Product} WHERE {Product}.[Name] LIKE @Pattern",
         "params": [{ "name": "Pattern", "type": "Text", "value": "\"%\" + Search + \"%\"", "expandInline": false }],

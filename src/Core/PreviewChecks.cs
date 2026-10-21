@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace OmlCli;
@@ -95,64 +96,111 @@ static class PreviewChecks
             .Select(l => $"{l.target}.addEventListener('{l.ev}') has no removeEventListener").ToList();
 }
 
-// Headless Edge or Chrome, when installed. The page records script errors and horizontal overflow on <html>; --dump-dom reads them back.
+// Headless Edge or Chrome, when installed. The page records its report on <html> and in <pre id="oml-preview-report">;
+// --dump-dom reads them back.
 static class PreviewBrowser
 {
-    internal sealed record Outcome(string? Screenshot, string? Note, object? JavaScriptErrors, bool? HorizontalOverflow);
+    // Page is the JSON the page wrote (errors, skipped, stubbed, console, blocked, navigation, steps, at). Notes say what went
+    // wrong with the run itself (no report, a loop, a navigation, not finished).
+    internal sealed record Outcome(string? Screenshot, string? Note, System.Text.Json.JsonElement? Page, bool? HorizontalOverflow, List<string> Notes);
 
-    internal static Outcome Capture(string html, string png, int width, int height)
+    // No network even when a page navigates or opens a window (CSP cannot stop that): every request goes to a proxy that
+    // is not there (port 9, loopback included), names do not resolve, and background, ping and WebRTC traffic is off.
+    static readonly string[] Offline =
+    [
+        "--proxy-server=127.0.0.1:9", "--proxy-bypass-list=<-loopback>", "--host-resolver-rules=MAP * ~NOTFOUND",
+        "--disable-background-networking", "--no-pings", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+    ];
+
+    // Real time on top of the virtual time budget before the browser is stopped. A page that loops forever never uses up its
+    // virtual time, so this is what ends it. Both runs of a screenshot share TotalMs.
+    const int MarginMs = 30_000;
+    internal const int TotalMs = 150_000;
+
+    // Without png only the --dump-dom run happens (for the interaction steps and the script report).
+    internal static Outcome Capture(string html, string? png, int width, int height, int budgetMs)
     {
         var browser = Locations.BrowserPath();
         if (browser is null)
-            return new Outcome(null, "No Edge or Chrome found in the usual Program Files folders (set OML_BROWSER to a browser .exe). Open the HTML file in a browser.", null, null);
+            return new Outcome(null, "No Edge or Chrome found in the usual Program Files folders (set OML_BROWSER to a browser .exe). Scripts and steps did not run; open the HTML file in a browser.", null, null, []);
         var profile = Path.Combine(Path.GetTempPath(), "oml-preview-" + Guid.NewGuid().ToString("N"));
+        var notes = new List<string>();
+        var clock = Stopwatch.StartNew();
+        var limitMs = Math.Min(budgetMs + MarginMs, TotalMs);
+        var loop = $"The browser did not finish in {limitMs / 1000} seconds: a script or JavaScript node may loop forever.";
         try
         {
             var url = new Uri(html).AbsoluteUri;
-            string[] common = ["--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run", "--user-data-dir=" + profile, "--virtual-time-budget=1000"];
-            Directory.CreateDirectory(Path.GetDirectoryName(png)!);
+            // --enable-logging lets the page name a navigation on stderr even when the navigation replaced the page.
+            string[] common = ["--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run", "--user-data-dir=" + profile,
+                $"--virtual-time-budget={budgetMs}", "--enable-logging=stderr", "--v=0", .. Offline];
             // Headless Edge/Chrome gives the page less room than the window (frame and a minimum width of about 500 px).
             // The first run reads the real viewport from the page, the second sizes the window so the viewport is exactly width x height.
-            var dom = Start(browser, [.. common, $"--window-size={width},{height}", "--dump-dom", url]);
-            var errors = Regex.Match(dom.output, @"data-oml-errors=""(\d+)""");
-            var overflow = Regex.Match(dom.output, @"data-oml-overflow=""(true|false)""");
-            var viewport = Regex.Match(dom.output, @"data-oml-viewport=""(\d+),(\d+)""");
-            var panel = Regex.Match(dom.output, @"<pre id=""oml-preview-errors""[^>]*>(.*?)</pre>", RegexOptions.Singleline);
+            var dom = Start(browser, [.. common, $"--window-size={width},{height}", "--dump-dom", url], limitMs);
+            // A navigation that the page could not cancel is named on stderr; that also explains a run that never ended.
+            var navigation = Regex.Match(dom.stderr, @"""__omlnav ([^""]*)""");
+            var navigated = navigation.Success ? $"The page navigated to {navigation.Groups[1].Value}; the preview stopped. Nothing was loaded: the preview has no network." : null;
+            if (dom.timedOut) return new Outcome(null, png is null ? null : "No screenshot. " + (navigated ?? loop), null, null, [navigated ?? loop]);
+            var overflow = Regex.Match(dom.stdout, @"data-oml-overflow=""(true|false)""");
+            var viewport = Regex.Match(dom.stdout, @"data-oml-viewport=""(\d+),(\d+)""");
+            var report = Regex.Match(dom.stdout, @"<pre id=""oml-preview-report""[^>]*>(.*?)</pre>", RegexOptions.Singleline);
+            System.Text.Json.JsonElement? page = null;
+            if (report.Success && report.Groups[1].Value.Length > 0)
+                try { page = System.Text.Json.JsonDocument.Parse(WebUtility.HtmlDecode(report.Groups[1].Value)).RootElement.Clone(); }
+                catch (System.Text.Json.JsonException) { }
+            if (page is not { } p)
+                notes.Add(navigated ?? "The page wrote no script report: it did not load, or it navigated away. Scripts, errors and steps are unknown.");
+            else
+            {
+                if (p.TryGetProperty("navigation", out var tried) && tried.GetArrayLength() > 0)
+                    notes.Add($"The page tried to leave or open a window: {string.Join(", ", tried.EnumerateArray().Select(x => x.GetString()))}. The preview stopped it and kept the page; nothing was loaded.");
+                if (!dom.stdout.Contains("data-oml-done=\"true\"", StringComparison.Ordinal))
+                    notes.Add($"The page did not finish within its time budget ({budgetMs} ms); still running: {(p.TryGetProperty("at", out var at) ? at.GetString() : "?")}. Later nodes and steps did not run.");
+            }
+            bool? wide = overflow.Success ? overflow.Groups[1].Value == "true" : null;
+            if (png is null) return new Outcome(null, null, page, wide, notes);
+            Directory.CreateDirectory(Path.GetDirectoryName(png)!);
             int windowWidth = width, windowHeight = height;
             if (viewport.Success)
             {
                 if (int.Parse(viewport.Groups[1].Value) < width) windowWidth = width + (width - int.Parse(viewport.Groups[1].Value));
                 if (int.Parse(viewport.Groups[2].Value) < height) windowHeight = height + (height - int.Parse(viewport.Groups[2].Value));
             }
-            var shot = Start(browser, [.. common, $"--window-size={windowWidth},{windowHeight}", "--screenshot=" + png, url]);
+            var left = TotalMs - (int)clock.ElapsedMilliseconds;
+            if (left < budgetMs + 5_000)
+                return new Outcome(null, $"No screenshot: the first browser run used the time limit ({TotalMs / 1000} seconds for both runs).", page, wide, notes);
+            var shot = Start(browser, [.. common, $"--window-size={windowWidth},{windowHeight}", "--screenshot=" + png, url], Math.Min(limitMs, left));
             if (shot.timedOut || !File.Exists(png))
-                return new Outcome(null, shot.timedOut ? "The browser did not finish in 60 seconds." : "The browser ran but wrote no screenshot." + Tail(shot.output), null, null);
-            var count = errors.Success ? int.Parse(errors.Groups[1].Value) : (int?)null;
-            object? javaScript = count is null ? null : new { count, messages = count == 0 ? [] : WebUtility.HtmlDecode(panel.Groups[1].Value).Split("\n\n", StringSplitOptions.RemoveEmptyEntries) };
-            return new Outcome(png, null, javaScript, overflow.Success ? overflow.Groups[1].Value == "true" : null);
+                return new Outcome(null, shot.timedOut ? loop : "The browser ran but wrote no screenshot.", page, wide, notes);
+            return new Outcome(png, null, page, wide, notes);
         }
         catch (Exception e) when (e is IOException or System.ComponentModel.Win32Exception or InvalidOperationException)
         {
-            return new Outcome(null, "Could not run the browser: " + e.Message, null, null);
+            return new Outcome(null, "Could not run the browser: " + e.Message, null, null, []);
         }
         finally { try { Directory.Delete(profile, true); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
     }
 
-    static string Tail(string text) => text.Trim().Length == 0 ? "" : " " + text.Trim()[^Math.Min(300, text.Trim().Length)..];
-
-    static (string output, bool timedOut) Start(string exe, string[] args)
+    // The browser writes UTF-8; without the explicit encodings, text in the report would be read in the console code page.
+    static (string stdout, string stderr, bool timedOut) Start(string exe, string[] args, int limitMs)
     {
-        var info = new ProcessStartInfo(exe) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
+        var info = new ProcessStartInfo(exe)
+        {
+            RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8,
+        };
         foreach (var a in args) info.ArgumentList.Add(a);
         using var process = Process.Start(info)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
-        if (!process.WaitForExit(60_000))
+        if (!process.WaitForExit(limitMs))
         {
             try { process.Kill(true); } catch (InvalidOperationException) { }
-            return ("", true);
+            // What the browser wrote before it was stopped (stderr can name a navigation).
+            var written = stderr.Wait(5_000) ? stderr.Result : "";
+            return ("", written, true);
         }
         process.WaitForExit();
-        return (stdout.Result + stderr.Result, false);
+        return (stdout.Result, stderr.Result, false);
     }
 }

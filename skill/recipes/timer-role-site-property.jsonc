@@ -1,12 +1,12 @@
 // Build a timer action reading a site property, a role, and a role-only screen.
-// Base: a copy of your Reactive module with LayoutTopMenu and a handler. Rename ProductManager/ReadLimit/MaxProducts.
+// Base: a copy of your Reactive module with LayoutTopMenu and a handler. Rename ProductManager/Timer_ReadLimit/MaxProducts.
 // Related keys: timers, roles, siteProperties, access. Timer execution needs runtime tests.
 {
   "roles": [{ "name": "ProductManager", "persistent": true }],
   "siteProperties": [{ "name": "MaxProducts", "type": "Integer", "default": "50", "multiTenant": false }],
-  "serverActions": [{ "name": "ReadLimit", "public": true, "locals": [{ "name": "Limit", "type": "Integer" }],
+  "serverActions": [{ "name": "Timer_ReadLimit", "description": "Reads the limit site property.", "locals": [{ "name": "Limit", "type": "Integer" }],
     "flow": [{ "kind": "assign", "assign": { "Limit": "Site.MaxProducts" } }] }],
-  "timers": [{ "name": "ReadProductLimit", "action": "ReadLimit", "schedule": "WhenPublished", "timeout": 20, "priority": "Normal" }],
+  "timers": [{ "name": "ReadProductLimit", "action": "Timer_ReadLimit", "schedule": "WhenPublished", "timeout": 20, "priority": "Normal" }],
   "screens": [{ "name": "ProductAdmin", "layout": "LayoutTopMenu", "access": { "anonymous": false, "registered": false, "roles": ["ProductManager"] },
     "widgets": [{ "type": "Text", "text": "Product administration" }] }]
 }

@@ -29,10 +29,11 @@ static class RestModel
         return hits.SingleOrDefault();
     }
 
-    public static IEnumerable<object> Inspect(IESpace m, bool service) => Integrations(m, service).Select(i => new
+    public static IEnumerable<object> Inspect(IESpace m, bool service, History.View h) => OmlCli.Inspect.ByName(h.Keep(Integrations(m, service))).Select(i => new
     {
         name = Model.NameOf(i), baseUrl = Reflect.Get(i, "BaseURL"),
-        methods = Actions(i).Select(a => new { name = Model.NameOf(a), method = Reflect.Get(a, "HTTPMethod")?.ToString(), url = Reflect.Get(a, "URLPath") }),
+        methods = OmlCli.Inspect.ByName(Actions(i)).Select(a => new { name = Model.NameOf(a), method = Reflect.Get(a, "HTTPMethod")?.ToString(), url = Reflect.Get(a, "URLPath") }),
+        lastModifiedBy = h.By(i), lastModifiedDate = h.On(i),
     });
 }
 
@@ -52,8 +53,8 @@ partial class Builder
         var same = m.Integrations.Where(i => Model.NameOf(i) == s.Name).ToList();
         if (same.Count > 0)
         {
-            if (same.Count == 1 && RestModel.Contract(service).IsInstanceOfType(same[0])) existing.Add(label);
-            else problems.Add($"{label}: name taken by another integration");
+            if (same.Count == 1 && RestModel.Contract(service).IsInstanceOfType(same[0])) { ReuseRest(same[0], s, service, label); existing.Add(label); }
+            else problems.Add($"{label}: name taken by {NameClash.Describe(same[0])}");
             return;
         }
         // Adapted from OutSystems/outsystems11-mcp examples/AddRestClient.cs (MIT).
@@ -84,14 +85,9 @@ partial class Builder
         p.SetValue(owner, p.PropertyType.IsEnum ? Enum.Parse(p.PropertyType, value, true) : value);
     }
 
-    void RestAction(object integration, RestActionSpec s, bool service, string parent)
+    // The URLPath a method gets: a consumed method's query inputs that are not in its URL are appended.
+    static string RestUrl(RestActionSpec s, bool service)
     {
-        var label = $"{parent}.{s.Name}";
-        if (RestModel.Actions(integration).Any(a => Model.NameOf(a) == s.Name))
-            throw new ModelError($"duplicate method '{s.Name}'");
-        var action = Reflect.Call(integration, "CreateAction", s.Name, services.NewKey())!;
-        if (!Fresh(action, s.Name, label)) return;
-        RestSet(action, "HTTPMethod", s.Method);
         var url = s.Url;
         foreach (var p in s.Inputs ?? new())
         {
@@ -100,7 +96,18 @@ partial class Builder
             if (!service && location == "query" && !url.Contains("{" + p.Name + "}", StringComparison.Ordinal))
                 url += (url.Contains('?') ? "&" : "?") + p.Name + "={" + p.Name + "}";
         }
-        RestSet(action, "URLPath", url);
+        return url;
+    }
+
+    void RestAction(object integration, RestActionSpec s, bool service, string parent)
+    {
+        var label = $"{parent}.{s.Name}";
+        if (RestModel.Actions(integration).Any(a => Model.NameOf(a) == s.Name))
+            throw new ModelError($"duplicate method '{s.Name}'");
+        var action = Reflect.Call(integration, "CreateAction", s.Name, services.NewKey())!;
+        if (!Fresh(action, s.Name, label)) return;
+        RestSet(action, "HTTPMethod", s.Method);
+        RestSet(action, "URLPath", RestUrl(s, service));
         if (!service)
         {
             RestSet(action, "RequestFormat", RestFormat((s.Inputs ?? new()).Where(p => p.Location?.Equals("body", StringComparison.OrdinalIgnoreCase) == true)));

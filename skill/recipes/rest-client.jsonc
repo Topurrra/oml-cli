@@ -2,7 +2,7 @@
 // Base: fresh CrossDevice. Replace the example URL and rename ProductDto/API together.
 // Related keys: structures, restClients, location, execute, args. No HTTP call runs here.
 {
-  "structures": [{ "name": "ProductDto", "public": true, "attributes": [{ "name": "Name" }] }],
+  "structures": [{ "name": "ProductDto", "public": true, "description": "A product from the catalog API.", "attributes": [{ "name": "Name" }] }],
   "restClients": [{ "name": "Catalog", "baseUrl": "https://api.example.com", "actions": [
     { "name": "GetProduct", "method": "GET", "url": "/products/{Id}",
       "inputs": [{ "name": "Id", "type": "Integer", "location": "url" }],
@@ -11,7 +11,7 @@
       "inputs": [{ "name": "Body", "type": "ProductDto", "location": "body" }],
       "outputs": [{ "name": "Response", "type": "ProductDto" }] }
   ] }],
-  "serverActions": [{ "name": "FetchProduct", "public": true, "inputs": [{ "name": "Id", "type": "Integer" }],
+  "serverActions": [{ "name": "FetchProduct", "description": "Reads one product from the catalog API.", "inputs": [{ "name": "Id", "type": "Integer" }],
     "outputs": [{ "name": "Name" }], "flow": [
       { "kind": "execute", "name": "Fetch", "action": "Catalog.GetProduct", "args": { "Id": "Id" } },
       { "kind": "assign", "assign": { "Name": "Fetch.Response.Name" } }

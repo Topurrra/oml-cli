@@ -1,0 +1,42 @@
+// Build a Reactive email and a server action that loads the data and sends it.
+// Base: a fresh CrossDevice module, or a copy of your Reactive module. Rename Order, OrderConfirmation and Order_SendConfirmation together.
+// Related keys: emails (subject, inputs, locals, widgets, styleSheet), sendEmail (email, from, to, cc, bcc, args), aggregate.
+// An email sees only its own inputs and locals: load data in the server action and pass it in. Allowed widgets:
+// Container, Expression, If, Image, Link, List, TableRecords (with HeaderCell, RowCell), Text. Keep the CSS small and light.
+// In Reactive, oml creates Service Studio's send action SendOrderConfirmation once; each sendEmail node calls it.
+// Sending only queues the mail. Set up SMTP in Service Center, and use a From address of your own mail domain.
+{
+  "entities": [{ "name": "Order", "attributes": [
+    { "name": "Number", "length": 20, "mandatory": true },
+    { "name": "CustomerName", "length": 100 },
+    { "name": "Total", "type": "Decimal", "length": 37, "decimals": 2 }
+  ] }],
+  "emails": [{ "name": "OrderConfirmation", "subject": "\"Order \" + OrderNumber + \" confirmed\"",
+    "inputs": [
+      { "name": "OrderNumber", "type": "Text", "mandatory": true },
+      { "name": "CustomerName", "type": "Text", "mandatory": false },
+      { "name": "Total", "type": "Decimal", "mandatory": false }
+    ],
+    "styleSheet": ".mail { font-family: Arial, sans-serif; color: #222; } .mail-total { font-weight: bold; }",
+    "widgets": [{ "type": "Container", "style": "\"mail\"", "children": [
+      { "type": "Expression", "value": "\"Hello \" + If(CustomerName = \"\", \"customer\", CustomerName) + \",\"" },
+      { "type": "Container", "children": [{ "type": "Expression", "value": "\"We received your order \" + OrderNumber + \".\"" }] },
+      { "type": "Container", "style": "\"mail-total\"", "children": [{ "type": "Expression", "value": "\"Total: \" + FormatDecimal(Total, 2, \".\", \",\")" }] }
+    ] }]
+  }],
+  "serverActions": [{ "name": "Order_SendConfirmation", "description": "Emails the order confirmation.",
+    "inputs": [
+      { "name": "OrderId", "type": "Order Identifier", "mandatory": true, "description": "The order to confirm." },
+      { "name": "To", "type": "Email", "mandatory": true, "description": "Recipient address." }
+    ],
+    "flow": [
+      { "kind": "aggregate", "name": "GetOrder", "sources": ["Order"], "filters": ["Order.Id = OrderId"], "maxRecords": 1 },
+      { "kind": "if", "name": "Found", "condition": "GetOrder.List.Empty", "true": "End", "false": "Send" },
+      { "kind": "sendEmail", "name": "Send", "email": "OrderConfirmation", "from": "\"orders@example.com\"", "to": "To",
+        "args": {
+          "OrderNumber": "GetOrder.List.Current.Order.Number",
+          "CustomerName": "GetOrder.List.Current.Order.CustomerName",
+          "Total": "GetOrder.List.Current.Order.Total"
+        } }
+    ] }]
+}

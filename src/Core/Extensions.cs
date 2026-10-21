@@ -30,7 +30,7 @@ static class Extensions
         (Reflect.Property(o, name, true) ?? throw new ModelError($"{name} is not writable on this build")).SetValue(o, value);
     static void Named(object o, string requested)
     {
-        if (Model.NameOf(o) != requested) throw new ModelError($"Name '{requested}' was renamed to '{Model.NameOf(o)}'");
+        if (Model.NameOf(o) != requested) throw new ModelError($"{requested}: {NameClash.Taken(o, requested)}; the model renamed it '{Model.NameOf(o)}'");
     }
     internal static void Create(string output, string name, string? specPath)
     {
@@ -62,7 +62,7 @@ static class Extensions
                 foreach (var p in parameters ?? new()) {
                     var parameter = Reflect.Call(action, factory, p.Name, services.NewKey())!;
                     Named(parameter, p.Name); Set(parameter, "DataType", Resolve(extension, p.Type));
-                    if (parameter is E.IInputParameter) Set(parameter, "IsMandatory", p.Mandatory);
+                    if (parameter is E.IInputParameter) Set(parameter, "IsMandatory", p.Mandatory ?? false);
                     if (p.Default is not null) Reflect.Call(parameter, "SetDefaultValue", p.Default);
                     if (p.Description is not null) Set(parameter, "Description", p.Description);
                 }

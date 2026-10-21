@@ -15,7 +15,8 @@ static class SpecHelp
         ["entities"] = """
             "entities": [{ "name": "Order", "public": true, "attributes": [
               { "name": "Name", "type": "Text", "length": 100, "mandatory": true },
-              { "name": "Total", "type": "Decimal", "length": 37, "decimals": 2 } ] }]
+              { "name": "Total", "type": "Decimal", "length": 37, "decimals": 2 } ],
+              "indexes": [{ "attributes": ["Name"], "unique": true }] }]
             """,
         ["structures"] = """
             "structures": [{ "name": "OrderDto", "attributes": [
@@ -96,6 +97,13 @@ static class SpecHelp
             "blocks": [{ "name": "Card", "inputs": [{ "name": "Title", "type": "Text" }],
               "widgets": [{ "type": "Container", "children": [{ "type": "Expression", "value": "Title" }] }] }]
             """,
+        ["triggerEvent"] = """
+            { "kind": "triggerEvent", "name": "FireSelect", "event": "OnSelect", "args": { "Id": "ItemId" } }
+            """,
+        ["emails"] = """
+            "emails": [{ "name": "Welcome", "subject": "\"Welcome \" + Name", "inputs": [{ "name": "Name", "type": "Text" }],
+              "widgets": [{ "type": "Expression", "value": "\"Hello \" + Name" }] }]
+            """,
         ["widgets"] = """
             "widgets": [ { "type": "Container", "children": [ { "type": "Text", "text": "Hello" } ] },
               { "type": "Button", "onClick": "Save", "children": [{ "type": "Text", "text": "Save" }] } ]
@@ -131,7 +139,7 @@ static class SpecHelp
     public static string WithExample(string message, string key) =>
         Examples.TryGetValue(key, out var example) ? message + " Example:\n" + example : message;
 
-    static int Distance(string a, string b)
+    internal static int Distance(string a, string b)
     {
         var row = Enumerable.Range(0, b.Length + 1).ToArray();
         for (var i = 1; i <= a.Length; i++)

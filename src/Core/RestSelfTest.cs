@@ -71,10 +71,14 @@ static class RestSelfTest
             Check((string?)Reflect.Get(exposed, "URLPath") == "/orders/{Id}", "exposed URL lost");
         }
 
-        // Reapplying must reuse entire integrations, without merging changed URLs or extra methods.
+        // Listing existing integrations: a changed base URL is refused; new methods are added, existing ones kept.
+        File.WriteAllText(spec, """{ "restClients": [{ "name": "Weather", "baseUrl": "https://changed.example.com" }] }""");
+        var (changedCode, changedReport) = Apply.Execute(output, spec, Path.Combine(dir, "rest-changed.oml"));
+        if (changedCode != 1 || !JsonSerializer.Serialize(changedReport).Contains("baseUrl differs"))
+            failures.Add("REST reuse: a changed base URL must be refused: " + JsonSerializer.Serialize(changedReport));
         File.WriteAllText(spec, """
-            { "restClients": [{ "name": "Weather", "baseUrl": "https://changed.example.com", "actions": [{ "name": "Ignored" }] }],
-              "restServices": [{ "name": "OrdersApi", "actions": [{ "name": "Ignored" }] }] }
+            { "restClients": [{ "name": "Weather", "baseUrl": "https://api.example.com", "actions": [{ "name": "GetToday", "url": "/today" }] }],
+              "restServices": [{ "name": "OrdersApi", "actions": [{ "name": "Ping" }] }] }
             """);
         var reused = Path.Combine(dir, "rest-reused.oml");
         var (reuseCode, reuseReport) = Apply.Execute(output, spec, reused);
@@ -83,9 +87,9 @@ static class RestSelfTest
         {
             using var built = Model.Load(reused);
             var client = RestModel.Integrations(built, false).Single();
-            if (RestModel.Actions(client).Count() != 4 || (string?)Reflect.Get(client, "BaseURL") != "https://api.example.com"
-                || RestModel.Actions(RestModel.Integrations(built, true).Single()).Count() != 1)
-                failures.Add("REST reuse merged existing integrations");
+            if (RestModel.Actions(client).Count() != 5 || (string?)Reflect.Get(client, "BaseURL") != "https://api.example.com"
+                || RestModel.Actions(RestModel.Integrations(built, true).Single()).Count() != 2)
+                failures.Add("REST reuse: new methods must be added to the existing integrations, and nothing else changed");
         }
         foreach (var invalid in new[] {
             """{ "restServices": [{ "name": "Weather" }] }""",

@@ -16,8 +16,12 @@ static class Architecture
     internal sealed record Edge(string from, string to, bool strong, Element[] elements);
     internal sealed record Finding(string id, string severity, string title, string[] modules, string detail, string fix);
     internal sealed record Snapshot(JsonObject data, Element[] exports, int missingDescriptions);
-    internal sealed record Result(JsonObject document, List<string> warnings);
+    // skipped: inputs that could not be read, with the reason (also listed in warnings).
+    internal sealed record Result(JsonObject document, List<string> warnings, List<(string input, string reason)> skipped);
     static readonly string[] Layers = ["EndUser", "Core", "Foundation"];
+    // OutSystems docs: these kinds make a dependency strong (consumer must be republished). Screens, service actions, entities and structures are weak.
+    static readonly string[] StrongKinds = ["ServerAction", "ClientAction", "Block", "Theme", "Script", "Image", "Resource", "Role", "Process"];
+    internal static bool Strong(Element[] elements) => elements.Any(e => StrongKinds.Contains(e.kind));
     static string Text(JsonObject o, string key) => o[key]!.GetValue<string>();
     static int Count(JsonObject o, string key) => o["counts"]![key]!.GetValue<int>();
     static JsonObject Obj(object value) => JsonSerializer.SerializeToNode(value)!.AsObject();
@@ -104,7 +108,7 @@ static class Architecture
             if (Regex.IsMatch(name, "^" + Regex.Escape(p.Key).Replace("\\*", ".*") + "$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)) return (p.Value, "override");
         if (kind is "Library" or "Extension" || name.Equals("OutSystemsUI", StringComparison.OrdinalIgnoreCase) || name.Trim('(', ')').Equals("System", StringComparison.OrdinalIgnoreCase))
             return ("Foundation", "content: " + (kind is "Library" or "Extension" ? kind.ToLowerInvariant() : "platform module"));
-        var suffixes = new[] { new[] { "_CW", "_UI", "_Portal", "_App" }, new[] { "_CS", "_BL", "_Core", "_API", "_IS", "_Sync" }, new[] { "_Lib", "_Th", "_Theme", "_Pat", "_Ext", "_Drv" } };
+        var suffixes = new[] { new[] { "_UI", "_Portal", "_App" }, new[] { "_CW", "_CS", "_BL", "_Core", "_API", "_IS", "_Sync" }, new[] { "_Lib", "_Th", "_Theme", "_Pat", "_Ext", "_Drv" } };
         for (var i = 0; i < suffixes.Length; i++)
             foreach (var suffix in suffixes[i])
                 if (name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) return (Layers[i], "suffix " + suffix);
@@ -113,10 +117,13 @@ static class Architecture
         return ("Foundation", "content: only blocks, themes, scripts or utilities");
     }
 
+    // visit: called for each loaded .oml module while it is open (oml check reads its flows there).
     internal static Result Read(IReadOnlyList<string> sources, IReadOnlyList<string> apps, string? team,
-        IReadOnlyDictionary<string, string> overrides)
+        IReadOnlyDictionary<string, string> overrides, Action<IESpace, string>? visit = null)
     {
         var warnings = new List<string>();
+        var skipped = new List<(string input, string reason)>();
+        void Skip(string input, string reason) { warnings.Add($"Skipped {input}: {reason}"); skipped.Add((input, reason)); }
         var files = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var source in sources)
         {
@@ -128,9 +135,9 @@ static class Architecture
                     foreach (var file in Directory.EnumerateFiles(full, "*", SearchOption.AllDirectories).Where(IsInput)) files.Add(file);
                 }
                 else if (File.Exists(full) && IsInput(full)) files.Add(full);
-                else warnings.Add($"Skipped {source}: expected an existing folder, .oml or .oap file.");
+                else Skip(source, "expected an existing folder, .oml or .oap file.");
             }
-            catch (Exception e) { warnings.Add($"Skipped {source}: {e.Message}"); }
+            catch (Exception e) { Skip(source, e.Message); }
         }
         var temp = Path.Combine(Path.GetTempPath(), "oml-architecture-" + Guid.NewGuid().ToString("N"));
         var pending = files.Where(f => Path.GetExtension(f).Equals(".oml", StringComparison.OrdinalIgnoreCase)).Select(f => (path: f, app: "(no application)")).ToList();
@@ -153,7 +160,7 @@ static class Architecture
                     }
                     foreach (var file in Directory.EnumerateFiles(folder).Where(f => Path.GetExtension(f).ToLowerInvariant() is ".oml" or ".xif")) pending.Add((file, ""));
                 }
-                catch (Exception e) { warnings.Add($"Skipped {package}: {(e.InnerException ?? e).Message}"); }
+                catch (Exception e) { Skip(package, (e.InnerException ?? e).Message); }
             }
             var snapshots = new Dictionary<string, Snapshot>(StringComparer.OrdinalIgnoreCase);
             var allEdges = new List<Edge>();
@@ -179,13 +186,14 @@ static class Architecture
                     if (apps.Count > 0 && !apps.Contains(app, StringComparer.OrdinalIgnoreCase)) continue;
                     var snapshot = ReadModule(module, app, overrides);
                     var edges = ReadEdges(module);
+                    visit?.Invoke(module, app);
                     foreach (var reference in module.References)
                         producerKinds[reference.Name] = reference.Kind.ToString().Contains("Extension", StringComparison.OrdinalIgnoreCase) ? "Extension"
                             : reference.ModuleType.ToString().Contains("Library", StringComparison.OrdinalIgnoreCase) ? "Library" : "Unknown";
                     snapshots.Add(name, snapshot);
                     allEdges.AddRange(edges);
                 }
-                catch (Exception e) { warnings.Add($"Skipped {file.path}: {(e.InnerException ?? e).Message}"); }
+                catch (Exception e) { Skip(file.path, (e.InnerException ?? e).Message); }
             }
             var modules = snapshots.ToDictionary(p => p.Key, p => p.Value.data, StringComparer.OrdinalIgnoreCase);
             foreach (var producer in allEdges.Select(e => e.to).Distinct(StringComparer.OrdinalIgnoreCase))
@@ -203,7 +211,8 @@ static class Architecture
                 modules = modules.Values.OrderBy(m => Text(m, "name"), StringComparer.OrdinalIgnoreCase).ToArray(),
                 edges = allEdges.OrderBy(e => e.from, StringComparer.OrdinalIgnoreCase).ThenBy(e => e.to, StringComparer.OrdinalIgnoreCase).ToArray(), findings
             });
-            return new(document, warnings);
+            document["layout"] = ArchitectureLayout.Compute(document);
+            return new(document, warnings, skipped);
         }
         finally { if (Directory.Exists(temp)) Directory.Delete(temp, true); }
     }
@@ -274,25 +283,27 @@ static class Architecture
     internal static string ElementKind(IObjectSignature e)
     {
         if (Inspect.IsBlock(e)) return "Block";
+        if (e is OutSystems.Model.UI.IScreenSignature) return "Screen";
         var interfaces = e.GetType().GetInterfaces().Select(i => i.Name).ToHashSet();
         bool Has(string n) => interfaces.Contains("I" + n) || interfaces.Contains("I" + n + "Signature");
         if (Has("Entity")) return Reflect.Get(e, "EntityKind")?.ToString() == "Static" ? "StaticEntity" : "Entity";
-        foreach (var kind in new[] { "ServiceAction", "ServerAction", "ClientAction", "Structure", "Theme", "Script", "Image", "Role" })
+        foreach (var kind in new[] { "ServiceAction", "ServerAction", "ClientAction", "Structure", "Theme", "Script", "Image", "Resource", "Role", "Process" })
             if (Has(kind) || interfaces.Any(i => i == "IMobile" + kind + "Signature" || i == "IWeb" + kind + "Signature")) return kind;
         return "Other";
     }
 
-    static Edge[] ReadEdges(IESpace m)
+    internal static Edge[] ReadEdges(IESpace m)
     {
         // Use the shared name lookup plus the wider module inventory (themes/resources).
         // Generated entity/role helpers from Refs are not separate imported contracts.
         var refs = Refs.All(m).Where(r => r.owner != Name(m)).ToLookup(r => r.owner, r => r.element, StringComparer.OrdinalIgnoreCase);
         return m.References.Select(r => {
-            var topLevel = ModuleReferences.Elements(r).ToArray();
+            // Processes are read here only; apply's reference lookup does not list them.
+            var topLevel = ModuleReferences.Elements(r).Concat(r.Processes).ToArray();
             var keys = topLevel.Select(e => e.GlobalKey).ToHashSet();
             var elements = topLevel.Concat(refs[r.Name].OfType<IObjectSignature>().Where(e => keys.Contains(e.GlobalKey))).Distinct()
                 .Select(e => new Element(ElementKind(e), Name(e))).Distinct().OrderBy(e => e.kind).ThenBy(e => e.name, StringComparer.OrdinalIgnoreCase).ToArray();
-            return new Edge(Name(m), r.Name, elements.Any(e => e.kind is "Entity" or "StaticEntity" or "ServerAction" or "ServiceAction" or "Structure" or "Block"), elements);
+            return new Edge(Name(m), r.Name, Strong(elements), elements);
         }).ToArray();
     }
 
@@ -305,8 +316,9 @@ static class Architecture
         {
             if (Rank(e.from) > Rank(e.to)) Add("upward-reference", "high", "A module references a higher layer", [e.from, e.to],
                 $"{e.from} ({Text(modules[e.from], "layer")}) references {e.to} ({Text(modules[e.to], "layer")}). Higher layers should depend on lower layers so lower layers stay reusable.", "Move the shared contract and implementation to a lower layer, or remove this dependency.");
-            if (e.strong && Rank(e.from) == 0 && Rank(e.to) == 0) Add("side-reference-enduser", "high", "EndUser modules share a strong dependency", [e.from, e.to],
-                $"{e.from} imports data, logic or blocks from {e.to}. This couples the user applications.", "Move shared data, logic or blocks into a Core or Foundation module.");
+            // Screen destinations are weak links between user modules (OutSystems docs); any other element is a side reference.
+            if (Rank(e.from) == 0 && Rank(e.to) == 0 && e.elements.Any(x => x.kind != "Screen")) Add("side-reference-enduser", "high", "EndUser modules reference each other", [e.from, e.to],
+                $"{e.from} uses elements from {e.to}. End-user modules should not provide reusable elements; this couples the user applications.", "Move the shared elements into a Core or Foundation module.");
         }
         foreach (var s in snapshots.Values)
         {

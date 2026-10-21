@@ -43,7 +43,7 @@ Run a real LifeTime smoke test before relying on deployment behavior.
 
 1. Setup, one at a time: it builds the blank modules (`r0`, `s0`, `w0`) and the producer module in `tmp/base`.
 2. Parallel lane: up to `-Throttle` units at once. Each unit runs in its own `pwsh` process with its own work folder `tmp/<unit>` (a copy of `tmp/base`) and its own `TEMP`. A unit can wait for other units (`-After`). A unit that makes `out-*.oml` files that others read publishes them into `tmp/base` (`-Publish`).
-3. Alone lane, one at a time, after the parallel lane: `lifetime-check` (local port, mock server, `OML_LIFETIME_*` variables), `doctor-check` (sets `OML_*` variables, reads machine-wide state), `log-check` (writes the default usage log), `preview-check`, `architecture-page-check` and `dashboard-check` (headless browser with timeouts, flaky under load; the dashboard check also binds a local port) and `selftest` (long, heavy, records the build as checked).
+3. Alone lane, one at a time, after the parallel lane: `lifetime-check` (local port, mock server, `OML_LIFETIME_*` variables), `doctor-check` (sets `OML_*` variables, reads machine-wide state), `log-check` (writes the default usage log), `preview-check`, `test-scaffold-check`, `architecture-page-check`, `check-page-check`, `review-page-check`, `image-check` and `dashboard-check` (headless browser with timeouts, flaky under load; `image-check` also times a 1024 px trace; the dashboard check also binds a local port), `setup-check` (writes to HKCU under a throwaway key and compares real `HKCU\Software\Classes` keys before and after) and `selftest` (long, heavy, records the build as checked; its `selftest-check.ps1` removes the build from its own record file (`OML_SELFTEST_RECORD`, so other `oml` processes are not affected) and starts `oml dashboard` on a free port).
 
 Output is printed per unit in the order of the list in the script, with the unit's time. Read the exit code and every `FAIL` line.
 
@@ -98,7 +98,7 @@ If publishing stops partway through, inspect the local and remote tag and releas
    Add refusal cases for unsafe or unsupported input.
 5. Add a self-test step for the installed API behavior that the feature needs.
 6. Add the fixture or checks to the regression suite. Build and run the suite.
-7. Document the key, limits, and an example in `skill/reference/spec.md`. Add it to the key index in `skill/SKILL.md` and to `README.md` when users need to know it.
+7. Document the key, limits, and an example in `skill/reference/spec.md`. Add it to the key index (the "Spec keys" section of `spec.md`) and to `README.md` when users need to know it.
 8. Raise the shared release version in `src/Directory.Build.props` when preparing a release.
 
 See [the Model API reference](skill/reference/model-api.md) before changing model construction.
@@ -131,6 +131,7 @@ To add a page:
 - Bind arguments by parameter name, never by position.
 - Refuse silent renames. Reuse existing elements without changing unrelated content.
 - Validate before saving and after reopening. Preserve the source file during development.
+- Run one model-edit job per process: model providers and plugin registries are global singletons.
 - Do not redistribute Service Studio assemblies or bypass IPP and licensing checks.
 - Keep credentials out of fixtures, logs, and reports.
 
@@ -164,7 +165,14 @@ dotnet build src -c Release
 src\bin\Release\net8.0\oml.exe architecture-render tests\architecture-sample.json docs\architecture-demo.html
 ```
 
-The demo uses the CLI's own page template and the checked-in sample. It needs no model command or server connection. Keep its license notice. An optional "Back to oml" link may be added to the generated header without changing the template.
+The demo uses the CLI's own page template and the checked-in sample. It needs no model command or server connection. Keep its license notice. The demo keeps a "Back to oml" link that is added to the generated header, not to the template. Add it again after each regeneration:
+
+```powershell
+$f = 'docs\architecture-demo.html'
+(Get-Content -Raw $f).Replace('<header><div class="mark"', '<header><a href="index.html" style="color:inherit;text-underline-offset:3px">Back to oml</a><div class="mark"') | Set-Content -NoNewline -Encoding utf8 $f
+```
+
+The page and `src/Core/ArchitectureLayout.cs` run the same layout algorithm, one in JavaScript and one in C#. Change them together: `tests/architecture-page-check.ps1` compares their edge crossings for the sample and for a generated 100-module sample. `tests/architecture-baseline.json` stores the crossings the sample and the generated 100-module and 300-module portfolios (`tests/architecture-synthetic.ps1`) may not exceed; if a change lowers them, lower the baseline by hand.
 
 GitHub Pages serves `docs/` from `main`. Configure Settings → Pages → Deploy from a branch → main, /docs.
 

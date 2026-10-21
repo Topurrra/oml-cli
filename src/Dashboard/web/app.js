@@ -610,7 +610,7 @@
           add(out, view,
             r.png ? h('button', { class: 'button small', type: 'button', onclick: () => download(`${el.name}-${t}-${w}.png`, r.png, 'image/png', true) }, icon('download'), 'Download PNG') : null,
             h('div', { class: 'row small' }, failed.length ? h('span', { class: 'badge warn' }, `${failed.length} of ${report.checklist.length} checks need work`) : h('span', { class: 'badge ok' }, 'All UI checks pass'),
-              report.javaScriptErrors && report.javaScriptErrors.count ? h('span', { class: 'badge fail' }, `${report.javaScriptErrors.count} JavaScript error(s)`) : null,
+              (report.scriptErrors || []).length ? h('span', { class: 'badge fail' }, `${report.scriptErrors.length} JavaScript error(s)`) : null,
               report.horizontalOverflow ? h('span', { class: 'badge fail' }, 'Wider than the frame') : null,
               (report.unsupported || []).length ? h('span', { class: 'badge' }, 'Not drawn: ' + report.unsupported.map(u => `${u.kind} ×${u.count}`).join(', ')) : null),
             h('ul', { class: 'checklist', 'aria-label': 'UI checks' }, (report.checklist || []).map(c => h('li', {},

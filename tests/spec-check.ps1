@@ -20,13 +20,23 @@ if ($r.Lines -ge 80) { Fail "entities prints $($r.Lines) lines" }
 if (($r.Text -split "`n")[-1] -ne 'Full reference: skill/reference/spec.md#data-model') { Fail 'entities: last line is not the Full reference line' }
 
 # 2. the keys the task names, and every flow node kind, resolve to a short section
-foreach ($key in 'aggregate', 'screens', 'edits', 'sql', 'restClients', 'tidyFlows', 'keepComments', 'serverActions', 'assign', 'if', 'forEach', 'execute', 'javaScript', 'ENTITIES', 'rest', 'removeUnusedDependencies') {
+foreach ($key in 'aggregate', 'screens', 'edits', 'sql', 'restClients', 'tidyFlows', 'keepComments', 'serverActions', 'assign', 'if', 'forEach', 'execute', 'javaScript', 'ENTITIES', 'rest', 'removeUnusedDependencies', 'triggerEvent', 'onParametersChanged', 'emails', 'sendEmail') {
   $r = Run 'spec', $key
   if ($r.Exit -ne 0) { Fail "'$key' exit $($r.Exit): $($r.Text)" }
   if ($r.Lines -lt 8 -or $r.Lines -gt 90) { Fail "'$key' prints $($r.Lines) lines" }
   if (($r.Text -split "`n")[-1] -notmatch '^Full reference: skill/reference/spec\.md#[a-z0-9-]+$') { Fail "'$key': no Full reference line" }
 }
+# targetWidget opens the widget section, whose key table names it.
+$r = Run 'spec', 'targetWidget'
+if ($r.Exit -ne 0 -or $r.Text -notmatch '(?m)^### Reactive UI and Mobile UI$' -or $r.Text -notmatch '\| Label \| targetWidget \|') { Fail "targetWidget: $($r.Exit) $($r.Text)" }
 $tidy = Run 'spec', 'tidyFlows'
+# Keys that sit inside a larger section open that section (SpecDocs.cs Aliases).
+$lookups = [ordered]@{ dataActions = 'Reactive UI and Mobile UI'; aggregates = 'Queries'; locals = 'Data model'; inputs = 'Data model'
+  dynamic = 'Queries'; unique = 'Data model'; index = 'Data model' }
+foreach ($k in $lookups.Keys) {
+  $l = Run 'spec', $k
+  if ($l.Exit -ne 0 -or $l.Text -notmatch "(?m)^### $([regex]::Escape($lookups[$k]))`$") { Fail "oml spec $k does not open $($lookups[$k]): $(($l.Text -split "`n")[0])" }
+}
 if ($tidy.Text -notmatch 'Use the root key `tidyFlows`' -or $tidy.Text -match '(?m)^### Reactive') { Fail 'tidyFlows: wrong section' }
 
 # 3. unknown key: exit 2 and the closest names
@@ -38,13 +48,13 @@ $r = Run 'spec'
 if ($r.Exit -ne 0 -or $r.Lines -lt 15 -or $r.Lines -gt 40) { Fail "oml spec list: exit $($r.Exit), $($r.Lines) lines" }
 foreach ($key in 'entities', 'tidyFlows', 'keepComments', 'restClients', 'edits') { if ($r.Text -notmatch "\b$key\b") { Fail "oml spec list lacks $key" } }
 
-# 5. every key in the SKILL.md index and every alias still leads to a heading in spec.md
+# 5. every key in the spec.md key index and every alias still leads to a heading in spec.md
 $r = Run 'spec', '--verify'
 if ($r.Exit -ne 0) { Fail "key index out of date: $($r.Text)" }
 
 # 6. no false alarms: every recipe and every fixture spec passes
 $good = @(Get-ChildItem (Join-Path $repo 'skill/recipes') -Filter *.jsonc) +
-  @(Get-ChildItem (Join-Path $repo 'tests') -Filter *.json | Where-Object Name -ne 'architecture-sample.json')
+  @(Get-ChildItem (Join-Path $repo 'tests') -Filter *.json | Where-Object Name -notin 'architecture-sample.json', 'architecture-baseline.json', 'search-bench.json')
 foreach ($f in $good) {
   $r = Run 'spec', 'check', $f.FullName
   if ($r.Exit -ne 0 -or ($r.Text | ConvertFrom-Json).ok -ne $true) { Fail "false alarm on $($f.Name): $($r.Text)" }
@@ -88,6 +98,20 @@ if ($r.Exit -ne 1 -or $paths -notcontains 'clientActions[0].flow[0].kind' -or $p
   Fail "kind/op faults not found: $($r.Text)"
 }
 if ((Run "spec", "check", "no-such-file.json").Exit -ne 2) { Fail 'missing file should exit 2' }
+# block events and emails: a misspelled node kind, a trigger without its event, an email without a subject
+$r = Run 'spec', 'check', (SpecFile 'events.json' '{ "blocks": [ { "name": "B", "events": [ { "name": "OnPick", "mandatory": "yes" } ], "actions": [ { "name": "A", "flow": [ { "kind": "triggerEvnt", "event": "OnPick" }, { "kind": "triggerEvent" } ] } ] } ], "emails": [ { "name": "E" } ] }')
+$expected = [ordered]@{
+  'blocks[0].events[0].mandatory'   = 'expected true or false'
+  'blocks[0].actions[0].flow[0].kind' = "did you mean 'triggerEvent'"
+  'blocks[0].actions[0].flow[1]'    = "missing required key 'event'"
+  'emails[0]'                       = "missing required key 'subject'"
+}
+$report = $r.Text | ConvertFrom-Json
+if ($r.Exit -ne 1 -or $report.problems.Count -ne $expected.Count) { Fail "events spec: $($r.Text)" }
+foreach ($path in $expected.Keys) {
+  $p = $report.problems | Where-Object path -eq $path
+  if (-not $p -or $p.message -notlike "*$($expected[$path])*") { Fail "events spec: no problem at $path with '$($expected[$path])': $($r.Text)" }
+}
 
 # 8. every edit op that src/Core/Edits.cs switches on is known to the checker
 $edits = Get-Content -Raw (Join-Path $repo 'src/Core/Edits.cs')

@@ -1,0 +1,187 @@
+# Stems that several words of the docs share (oml doc --search-stems 5: words seen 5 times or more), reviewed by a person.
+# Each line merges words of one concept. A merge of two different concepts needs a protected word in Search.cs (Fixed).
+# tests/search-check.ps1 fails on a merge that is not listed here: review it, then add the line (counts are left out).
+accept: accept, accepts
+action: action, actions
+activity: activities, activity
+add: add, adds
+aggregat: aggregate, aggregates
+allow: allow, allowed
+argument: argument, arguments
+array: array, arrays
+ask: ask, asked, asks
+assign: assign, assigned
+attribut: attribute, attributes
+block: block, blocks
+boolean: boolean, booleans
+branch: branch, branches
+build: build, building
+call: call, calling, calls
+cas: case, cases
+cell: cell, cells
+chang: change, changed, changes, changing
+chart: chart, charts
+check: check, checked, checks
+class: class, classes
+client: client, clients
+color: color, colors
+column: column, columns
+command: command, commands
+comment: comment, comments
+component: component, components
+connector: connector, connectors
+creat: create, created, creates, creating
+customer: customer, customers
+day: day, days
+decimal: decimal, decimals
+default: default, defaults
+delet: delete, deleted, deleting
+dependency: dependencies, dependency
+detail: detail, details
+edit: edit, editable, edits
+element: element, elements
+email: email, emails
+enabl: enable, enabled
+end: end, ends
+entity: entities, entity
+entry: entries, entry
+error: error, errors
+escap: escape, escaping
+event: event, events
+exception: exception, exceptions
+exist: exist, existing, exists
+expect: expected, expects
+expos: expose, exposed
+expression: expression, expressions
+fail: fail, failed, fails
+failur: failure, failures
+fetch: fetch, fetched, fetches
+field: field, fields
+fil: file, files
+filter: filter, filtered, filters
+fix: fix, fixed
+flow: flow, flows
+folder: folder, folders
+font: font, fonts
+form: form, forms
+function: function, functions
+giv: give, gives
+handl: handle, handling
+handler: handler, handlers
+hold: hold, holds
+http: http, https
+identifier: identifier, identifiers
+imag: image, images
+includ: include, including
+index: index, indexed, indexes
+input: input, inputs
+install: install, installed
+instanc: instance, instances
+item: item, items
+join: join, joins
+keep: keep, keeps
+key: key, keys
+kind: kind, kinds
+label: label, labels
+layer: layer, layers
+layout: layout, layouts
+library: libraries, library
+lin: line, lines
+list: list, listed, lists
+literal: literal, literals
+load: load, loaded, loading, loads
+local: local, locals
+log: log, logging
+mak: make, makes
+map: map, maps
+match: match, matching
+mean: meaning, means
+messag: message, messages
+method: method, methods
+modul: module, modules
+mov: move, moves
+nam: name, named, names
+need: needed, needs
+nod: node, nodes
+number: number, numbers
+object: object, objects
+one: one, ones
+onselect: onselect, onselected
+order: order, orders
+output: output, outputs
+own: own, owned
+parameter: parameter, parameters
+part: part, parts
+path: path, paths
+pattern: pattern, patterns
+placeholder: placeholder, placeholders
+problem: problem, problems
+process: process, processes
+property: properties, property
+protect: protect, protected
+publish: publish, published, publishing
+query: queries, query
+rais: raise, raises
+read: read, reads
+record: record, records
+referenc: reference, referenced, references
+refresh: refresh, refreshed
+refus: refused, refuses
+remov: remove, removed, removes
+renam: rename, renames, renaming
+reopen: reopen, reopening
+replac: replace, replaces
+report: report, reports
+request: request, requested
+requir: required, requires
+resourc: resource, resources
+result: result, results
+rol: role, roles
+row: row, rows
+rul: rule, rules
+run: run, running, runs
+sav: save, saved, saving
+scaffold: scaffold, scaffolding
+schedul: schedule, schedules
+screen: screen, screens
+script: script, scripts
+select: select, selected, selects
+servic: service, services
+set: set, sets
+setting: setting, settings
+show: show, shows
+sign: sign, signed
+signatur: signature, signatures
+sort: sort, sorting, sorts
+sourc: source, sources
+start: start, starting, starts
+stay: stay, stays
+step: step, steps
+stop: stop, stops
+structur: structure, structures
+styl: style, styling
+support: support, supported, supports
+symptom: symptom, symptoms
+system: system, systems
+tab: tab, tabs
+tabl: table, tables
+tak: take, takes
+target: target, targets
+templat: template, templates
+test: test, testing, tests
+text: text, texts
+them: theme, themes
+timer: timer, timers
+total: total, totals
+translation: translation, translations
+typ: type, typed, types
+use: use, uses
+user: user, users
+validation: validation, validations
+valu: value, values
+vari: variable, variables
+version: version, versions
+warn: warn, warning, warnings, warns
+widget: widget, widgets
+work: work, working, works
+writ: write, writes

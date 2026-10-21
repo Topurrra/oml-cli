@@ -13,8 +13,10 @@ partial class Builder
     object? PlatformElement(string collection, string factory, JsonElement spec, params object[] prefix)
     {
         var name = RequiredName(spec);
-        if (Elements(Reflect.Get(m, collection)).Any(e => Model.NameOf(e) == name))
+        if (Elements(Reflect.Get(m, collection)).FirstOrDefault(e => Model.NameOf(e) == name) is { } found)
         {
+            if (collection == "Processes") { if (spec.EnumerateObject().Count() > 1) NotChanged($"{Kind(collection)} {name}", "settings and activities", "edits on its flow (insertNodes, set, delete)"); }
+            else ReusePlatform(collection, found, spec);
             existing.Add($"{collection} {name}");
             return null;
         }
@@ -83,7 +85,7 @@ partial class Builder
         foreach (var role in wanted.Distinct()) Reflect.Call(roles, "Add", role);
     }
 
-    static Type ProcessNodeType(string kind) => typeof(OutSystems.Model.Processes.IProcess).Assembly.GetTypes()
+    static Type ProcessNodeType(string kind) => Reflect.Types(typeof(OutSystems.Model.Processes.IProcess).Assembly)
         .FirstOrDefault(t => t.IsInterface && t.Namespace == "OutSystems.Model.Processes.Nodes"
             && t.Name.Equals($"I{kind}Node", StringComparison.OrdinalIgnoreCase))
         ?? throw new ModelError($"unknown process node kind '{kind}'");
@@ -107,7 +109,7 @@ partial class Builder
             // Process inputs default to mandatory, unlike action inputs. Launch On allows only its implicit input to be mandatory.
             foreach (var parameter in parameters)
                 if (Elements(Reflect.Get(process, "InputParameters")).FirstOrDefault(p => Model.NameOf(p) == parameter.Name) is { } p)
-                    Write(m, p, "IsMandatory", parameter.Mandatory);
+                    Write(m, p, "IsMandatory", parameter.Mandatory ?? false);
         }
         foreach (var p in spec.EnumerateObject().Where(p => p.Name is not ("name" or "launchOn" or "inputs" or "flow")))
             Queue(label, m, process, p.Name, p.Value);

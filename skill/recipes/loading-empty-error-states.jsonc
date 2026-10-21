@@ -1,0 +1,38 @@
+// Build a Reactive list screen that shows each state of its aggregate: failed (with Retry), loading, empty, and the list.
+// Base: a copy of your Reactive module with LayoutTopMenu and a handler. Rename Product, Products and the attributes together.
+// Related keys: aggregates (maxRecords), If (condition, trueBranch, falseBranch), refreshData, onClick.
+// The Ifs test in this order: HasFetchError, then not IsDataFetched, then List.Empty; the list is the last branch.
+// With OutSystems UI, use its blocks for the states (confirm names and inputs with oml describe first):
+//   failed: { "type": "BlockInstance", "sourceBlock": "OutSystemsUI.Alert", "args": { "AlertType": "Entities.Alert.Error" } } with the text in MessageText;
+//   empty: { "type": "BlockInstance", "sourceBlock": "OutSystemsUI.BlankSlate" } with Icon, Content and Actions placeholders.
+{
+  "entities": [{ "name": "Product", "attributes": [
+    { "name": "Name", "length": 100, "mandatory": true },
+    { "name": "Price", "type": "Decimal", "length": 37, "decimals": 2 }
+  ] }],
+  "screens": [{ "name": "Products", "layout": "LayoutTopMenu", "access": { "anonymous": false, "registered": true },
+    "title": [{ "type": "Text", "text": "Products" }],
+    "aggregates": [{ "name": "FetchProducts", "sources": ["Product"], "sorts": [{ "attribute": "Product.Name" }], "maxRecords": 50 }],
+    "actions": [{ "name": "Retry", "flow": [{ "kind": "refreshData", "name": "Reload", "dataSource": "FetchProducts" }] }],
+    "widgets": [
+      { "type": "If", "name": "LoadFailed", "condition": "FetchProducts.HasFetchError",
+        "trueBranch": [{ "type": "Container", "name": "ErrorState", "children": [
+          { "type": "Text", "text": "The products could not be loaded." },
+          { "type": "Button", "name": "RetryButton", "onClick": "Retry", "style": "\"btn btn-primary\"", "children": [{ "type": "Text", "text": "Retry" }] }
+        ] }],
+        "falseBranch": [{ "type": "If", "name": "Loading", "condition": "not FetchProducts.IsDataFetched",
+          "trueBranch": [{ "type": "Container", "name": "LoadingState", "children": [{ "type": "Text", "text": "Loading products..." }] }],
+          "falseBranch": [{ "type": "If", "name": "NoProducts", "condition": "FetchProducts.List.Empty",
+            "trueBranch": [{ "type": "Container", "name": "EmptyState", "children": [{ "type": "Text", "text": "No products yet." }] }],
+            "falseBranch": [{ "type": "TableRecords", "name": "ProductTable", "source": "FetchProducts.List", "style": "\"table\"",
+              "headerRow": [
+                { "type": "HeaderCell", "children": [{ "type": "Text", "text": "Name" }] },
+                { "type": "HeaderCell", "children": [{ "type": "Text", "text": "Price" }] }
+              ],
+              "row": [
+                { "type": "RowCell", "children": [{ "type": "Expression", "value": "FetchProducts.List.Current.Product.Name" }] },
+                { "type": "RowCell", "children": [{ "type": "Expression", "value": "FetchProducts.List.Current.Product.Price" }] }
+              ] }] }] }] }
+    ]
+  }]
+}

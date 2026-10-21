@@ -10,19 +10,43 @@ namespace OmlCli;
 // (SetJSON -> SetJSONString, SetMessage -> SetExceptionMessage).
 static class Reflect
 {
-    static IEnumerable<Type> Interfaces(object o) =>
-        o.GetType().GetInterfaces().Where(i => i.Namespace is { } ns &&
-            (ns.StartsWith("OutSystems.Model") || ns.StartsWith("ServiceStudio.Plugin")));
+    // Lookups are cached per concrete type: a big module repeats the same few types thousands of times, and the
+    // uncached reflection was a large part of an apply. The results are the same, in the same order.
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, Type[]> interfaces = new();
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, MethodInfo[]> methods = new();
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<(Type, string, bool), PropertyInfo?> properties = new();
 
-    static IEnumerable<MethodInfo> Methods(object o) =>
-        Interfaces(o).SelectMany(i => i.GetMethods()).Concat(o.GetType().GetMethods());
+    // An assembly's types, read once: widget and node kinds are looked up by name for every widget and node.
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<Assembly, Type[]> types = new();
+    internal static Type[] Types(Assembly assembly) => types.GetOrAdd(assembly, a => a.GetTypes());
+
+    internal static Type[] Interfaces(object o) => interfaces.GetOrAdd(o.GetType(), t =>
+        t.GetInterfaces().Where(i => i.Namespace is { } ns &&
+            (ns.StartsWith("OutSystems.Model") || ns.StartsWith("ServiceStudio.Plugin"))).ToArray());
+
+    static MethodInfo[] Methods(object o) => methods.GetOrAdd(o.GetType(), _ =>
+        Interfaces(o).SelectMany(i => i.GetMethods()).Concat(o.GetType().GetMethods()).ToArray());
 
     public static PropertyInfo? Property(object o, string name, bool writable = false) =>
-        Interfaces(o).Select(i => i.GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase))
-            .Concat(new[] { o.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase) })
-            .FirstOrDefault(p => p is not null && (!writable || p.CanWrite));
+        properties.GetOrAdd((o.GetType(), name, writable), _ =>
+            Interfaces(o).Select(i => i.GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase))
+                .Concat(new[] { o.GetType().GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase) })
+                .FirstOrDefault(p => p is not null && (!writable || p.CanWrite)));
 
-    public static object? Get(object o, string name) => Property(o, name)?.GetValue(o);
+    public static object? Get(object o, string name)
+    {
+        var property = Property(o, name);
+        if (property is null || !Unreadable.Active) return property?.GetValue(o);
+        try { return property.GetValue(o); }
+        catch (TargetInvocationException e) when (ProxyLacks(o, e)) { return null; }
+        catch (TargetInvocationException e)
+        { Unreadable.Add(() => Unreadable.Where(o) + " property " + property.Name, e); return null; }
+    }
+
+    // A referenced module's element is a proxy that carries the signature only: its body getters (a block's Widgets,
+    // an argument's Parameter) throw NotSupportedException, NullReferenceException or InvalidCastException. That part does not exist there.
+    internal static bool ProxyLacks(object o, TargetInvocationException e) =>
+        o.GetType().Name.StartsWith("Reference", StringComparison.Ordinal) && e.InnerException is NotSupportedException or NullReferenceException or InvalidCastException;
 
     public static object? Call(object o, string name, params object?[] args)
     {
@@ -73,6 +97,7 @@ static class Reflect
     /// stage; expressions are applied last, after every node, variable and parameter exists (skill §9.2).
     public static (Stage stage, Action apply) Plan(IESpace m, object o, string key, JsonElement value)
     {
+        if (History.IsField(key)) throw new ModelError("history fields are written by Service Studio; oml does not change them");
         // Exact setter, then exact writable property, then a fuzzy setter: "exception" must reach the Exception
         // property, not SetExceptionMessage, while "message" may still find SetExceptionMessage.
         if (value.ValueKind == JsonValueKind.String && Setter(o, key, typeof(string), fuzzy: false) is { } set)

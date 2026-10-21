@@ -1,0 +1,1157 @@
+{
+ "module": {
+  "description": "Fixture for oml check: the fixed version of each pattern."
+ },
+ "roles": [
+  {
+   "name": "Clerk",
+   "description": "Staff."
+  }
+ ],
+ "siteProperties": [
+  {
+   "name": "ServiceToken",
+   "isSecret": true
+  },
+  {
+   "name": "PageSize",
+   "type": "Integer",
+   "default": "20"
+  },
+  {
+   "name": "PasswordMinLength",
+   "type": "Integer",
+   "default": "8"
+  },
+  {
+   "name": "TokenLifetimeMinutes",
+   "type": "Integer",
+   "default": "30"
+  },
+  {
+   "name": "UseApiKeyHeader",
+   "type": "Boolean",
+   "default": "False"
+  }
+ ],
+ "entities": [
+  {
+   "name": "Customer",
+   "public": true,
+   "description": "A customer.",
+   "attributes": [
+    {
+     "name": "Name"
+    }
+   ]
+  },
+  {
+   "name": "Order",
+   "attributes": [
+    {
+     "name": "CustomerId",
+     "type": "Customer Identifier"
+    },
+    {
+     "name": "Total",
+     "type": "Decimal"
+    }
+   ]
+  }
+ ],
+ "structures": [
+  {
+   "name": "OrderDto",
+   "public": true,
+   "description": "An order row.",
+   "attributes": [
+    {
+     "name": "Caption"
+    }
+   ]
+  },
+  {
+   "name": "CountRow",
+   "attributes": [
+    {
+     "name": "Total",
+     "type": "Integer"
+    }
+   ]
+  }
+ ],
+ "serverActions": [
+  {
+   "name": "ForUserServer",
+   "inputs": [
+    {
+     "name": "UserId",
+     "type": "User Identifier"
+    }
+   ],
+   "flow": []
+  },
+  {
+   "name": "ServerUser",
+   "public": true,
+   "description": "Reads the user on the server.",
+   "flow": [
+    {
+     "kind": "execute",
+     "action": "ForUserServer",
+     "args": {
+      "UserId": "GetUserId()"
+     }
+    }
+   ]
+  },
+  {
+   "name": "JoinedTotals",
+   "public": true,
+   "description": "One query, loop in memory.",
+   "outputs": [
+    {
+     "name": "Total",
+     "type": "Decimal",
+     "description": "Sum."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "aggregate",
+     "name": "GetOrders",
+     "sources": [
+      "Order",
+      "Customer"
+     ],
+     "joins": [
+      {
+       "type": "only with",
+       "left": "Order",
+       "right": "Customer",
+       "condition": "Order.CustomerId = Customer.Id"
+      }
+     ],
+     "maxRecords": 100
+    },
+    {
+     "kind": "forEach",
+     "name": "Loop",
+     "recordList": "GetOrders.List",
+     "cycle": "Add",
+     "next": "End"
+    },
+    {
+     "kind": "assign",
+     "name": "Add",
+     "assign": {
+      "Total": "Total + GetOrders.List.Current.Order.Total"
+     },
+     "next": "Loop"
+    }
+   ]
+  },
+  {
+   "name": "SafeSearch",
+   "public": true,
+   "description": "Bound SQL parameter.",
+   "inputs": [
+    {
+     "name": "Filter",
+     "description": "Name pattern."
+    }
+   ],
+   "outputs": [
+    {
+     "name": "Count",
+     "type": "Integer",
+     "description": "Rows."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "sql",
+     "name": "Search",
+     "sql": "SELECT TOP (10) {Customer}.* FROM {Customer} WHERE {Customer}.[Name] LIKE @Pattern",
+     "params": [
+      {
+       "name": "Pattern",
+       "value": "Filter",
+       "expandInline": false
+      }
+     ],
+     "outputs": [
+      "Customer"
+     ]
+    },
+    {
+     "kind": "assign",
+     "name": "CountRows",
+     "assign": {
+      "Count": "Search.List.Length"
+     }
+    }
+   ]
+  },
+  {
+   "name": "Guards",
+   "public": true,
+   "description": "Early exits are not nesting.",
+   "inputs": [
+    {
+     "name": "N",
+     "type": "Integer",
+     "description": "Value."
+    }
+   ],
+   "outputs": [
+    {
+     "name": "R",
+     "type": "Integer",
+     "description": "Result."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "if",
+     "name": "Guard1",
+     "condition": "N = 1",
+     "true": "End",
+     "false": "Guard2"
+    },
+    {
+     "kind": "if",
+     "name": "Guard2",
+     "condition": "N = 2",
+     "true": "End",
+     "false": "Guard3"
+    },
+    {
+     "kind": "if",
+     "name": "Guard3",
+     "condition": "N = 3",
+     "true": "End",
+     "false": "Guard4"
+    },
+    {
+     "kind": "if",
+     "name": "Guard4",
+     "condition": "N = 4",
+     "true": "End",
+     "false": "Guard5"
+    },
+    {
+     "kind": "if",
+     "name": "Guard5",
+     "condition": "N = 5",
+     "true": "End",
+     "false": "Guard6"
+    },
+    {
+     "kind": "if",
+     "name": "Guard6",
+     "condition": "N = 6",
+     "true": "End",
+     "false": "Work"
+    },
+    {
+     "kind": "assign",
+     "name": "Work",
+     "assign": {
+      "R": "N"
+     },
+     "next": "End"
+    }
+   ]
+  },
+  {
+   "name": "Nested4",
+   "public": true,
+   "description": "Nesting sample.",
+   "inputs": [
+    {
+     "name": "N",
+     "type": "Integer",
+     "description": "Level."
+    }
+   ],
+   "outputs": [
+    {
+     "name": "R",
+     "type": "Integer",
+     "description": "Result."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "if",
+     "name": "If1",
+     "condition": "N > 1",
+     "true": "If2",
+     "false": "Join"
+    },
+    {
+     "kind": "if",
+     "name": "If2",
+     "condition": "N > 2",
+     "true": "If3",
+     "false": "Join"
+    },
+    {
+     "kind": "if",
+     "name": "If3",
+     "condition": "N > 3",
+     "true": "If4",
+     "false": "Join"
+    },
+    {
+     "kind": "if",
+     "name": "If4",
+     "condition": "N > 4",
+     "true": "Deep",
+     "false": "Join"
+    },
+    {
+     "kind": "assign",
+     "name": "Deep",
+     "assign": {
+      "R": "4"
+     },
+     "next": "Join"
+    },
+    {
+     "kind": "assign",
+     "name": "Join",
+     "assign": {
+      "R": "R + 1"
+     },
+     "next": "End"
+    }
+   ]
+  },
+  {
+   "name": "SimilarA",
+   "public": true,
+   "description": "Copy sample.",
+   "outputs": [
+    {
+     "name": "X",
+     "type": "Integer",
+     "description": "Result."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "assign",
+     "name": "Step1",
+     "assign": {
+      "X": "1"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step2",
+     "assign": {
+      "X": "X + 2"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step3",
+     "assign": {
+      "X": "X * 3"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step4",
+     "assign": {
+      "X": "X - 4"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step5",
+     "assign": {
+      "X": "X + 5"
+     }
+    }
+   ]
+  },
+  {
+   "name": "SimilarB",
+   "public": true,
+   "description": "Copy sample.",
+   "outputs": [
+    {
+     "name": "X",
+     "type": "Integer",
+     "description": "Result."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "assign",
+     "name": "Step1",
+     "assign": {
+      "X": "2"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step2",
+     "assign": {
+      "X": "X + 3"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step3",
+     "assign": {
+      "X": "X * 4"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step4",
+     "assign": {
+      "X": "X - 5"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step5",
+     "assign": {
+      "X": "X + 6"
+     }
+    }
+   ]
+  },
+  {
+   "name": "Cleanup",
+   "public": true,
+   "description": "Timer action.",
+   "flow": []
+  },
+  {
+   "name": "InlineSort",
+   "public": true,
+   "description": "Inline SQL with a fixed value.",
+   "outputs": [
+    {
+     "name": "Count",
+     "type": "Integer",
+     "description": "Rows."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "sql",
+     "name": "Sorted",
+     "sql": "SELECT {Customer}.* FROM {Customer} ORDER BY @Column",
+     "params": [
+      {
+       "name": "Column",
+       "value": "\"{Customer}.[Name]\"",
+       "expandInline": true
+      }
+     ],
+     "outputs": [
+      "Customer"
+     ],
+     "maxRecords": 10
+    },
+    {
+     "kind": "assign",
+     "name": "CountRows",
+     "assign": {
+      "Count": "Sorted.List.Length"
+     }
+    }
+   ]
+  },
+  {
+   "name": "SafeEncoded",
+   "public": true,
+   "description": "Encoded inline value.",
+   "inputs": [
+    {
+     "name": "Search",
+     "description": "Name."
+    }
+   ],
+   "outputs": [
+    {
+     "name": "Count",
+     "type": "Integer",
+     "description": "Rows."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "sql",
+     "name": "Find",
+     "sql": "SELECT {Customer}.* FROM {Customer} WHERE {Customer}.[Name] = @Value",
+     "maxRecords": 5,
+     "params": [
+      {
+       "name": "Value",
+       "value": "\"'\" + EncodeSql(Search) + \"'\"",
+       "expandInline": true
+      }
+     ],
+     "outputs": [
+      "Customer"
+     ]
+    },
+    {
+     "kind": "assign",
+     "name": "C",
+     "assign": {
+      "Count": "Find.List.Length"
+     }
+    }
+   ]
+  },
+  {
+   "name": "BreakLoop",
+   "public": true,
+   "description": "Leaves the loop.",
+   "outputs": [
+    {
+     "name": "Total",
+     "type": "Decimal",
+     "description": "Sum."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "aggregate",
+     "name": "GetCustomers",
+     "sources": [
+      "Customer"
+     ],
+     "maxRecords": 10
+    },
+    {
+     "kind": "forEach",
+     "name": "Each",
+     "recordList": "GetCustomers.List",
+     "cycle": "Found",
+     "next": "AfterLoop"
+    },
+    {
+     "kind": "if",
+     "name": "Found",
+     "condition": "GetCustomers.List.Current.Customer.Name = \"x\"",
+     "true": "Details",
+     "false": "Each"
+    },
+    {
+     "kind": "aggregate",
+     "name": "AfterLoop",
+     "sources": [
+      "Order"
+     ],
+     "maxRecords": 5,
+     "next": "SetTotal"
+    },
+    {
+     "kind": "aggregate",
+     "name": "Details",
+     "sources": [
+      "Order"
+     ],
+     "maxRecords": 1,
+     "next": "UseDetails"
+    },
+    {
+     "kind": "assign",
+     "name": "SetTotal",
+     "assign": {
+      "Total": "AfterLoop.List.Length"
+     },
+     "next": "End"
+    },
+    {
+     "kind": "assign",
+     "name": "UseDetails",
+     "assign": {
+      "Total": "Details.List.Length"
+     },
+     "next": "End2"
+    },
+    {
+     "kind": "end",
+     "name": "End2"
+    }
+   ]
+  },
+  {
+   "name": "SaveNew",
+   "flow": []
+  },
+  {
+   "name": "SaveExisting",
+   "flow": []
+  },
+  {
+   "name": "LogVisit",
+   "inputs": [
+    {
+     "name": "IsSignedIn",
+     "type": "Boolean"
+    }
+   ],
+   "flow": []
+  },
+  {
+   "name": "DoLogin",
+   "public": true,
+   "description": "Signs in.",
+   "flow": []
+  },
+  {
+   "name": "CountCustomers",
+   "public": true,
+   "description": "Counts.",
+   "outputs": [
+    {
+     "name": "N",
+     "type": "Integer",
+     "description": "n"
+    }
+   ],
+   "flow": [
+    {
+     "kind": "aggregate",
+     "name": "Get0",
+     "sources": [
+      "Customer"
+     ],
+     "maxRecords": 10
+    },
+    {
+     "kind": "aggregate",
+     "name": "Get1",
+     "sources": [
+      "Customer"
+     ],
+     "maxRecords": 10
+    },
+    {
+     "kind": "aggregate",
+     "name": "Get2",
+     "sources": [
+      "Customer"
+     ],
+     "maxRecords": 10
+    },
+    {
+     "kind": "aggregate",
+     "name": "Get3",
+     "sources": [
+      "Customer"
+     ],
+     "maxRecords": 10
+    },
+    {
+     "kind": "aggregate",
+     "name": "Get4",
+     "sources": [
+      "Customer"
+     ],
+     "maxRecords": 10
+    },
+    {
+     "kind": "assign",
+     "name": "Use",
+     "assign": {
+      "N": "Get0.List.Length + Get1.List.Length + Get2.List.Length + Get3.List.Length + Get4.List.Length"
+     }
+    }
+   ]
+  },
+  {
+   "name": "CountOrders",
+   "public": true,
+   "description": "Counts.",
+   "outputs": [
+    {
+     "name": "N",
+     "type": "Integer",
+     "description": "n"
+    }
+   ],
+   "flow": [
+    {
+     "kind": "aggregate",
+     "name": "Get0",
+     "sources": [
+      "Order"
+     ],
+     "maxRecords": 10
+    },
+    {
+     "kind": "aggregate",
+     "name": "Get1",
+     "sources": [
+      "Order"
+     ],
+     "maxRecords": 10
+    },
+    {
+     "kind": "aggregate",
+     "name": "Get2",
+     "sources": [
+      "Order"
+     ],
+     "maxRecords": 10
+    },
+    {
+     "kind": "aggregate",
+     "name": "Get3",
+     "sources": [
+      "Order"
+     ],
+     "maxRecords": 10
+    },
+    {
+     "kind": "aggregate",
+     "name": "Get4",
+     "sources": [
+      "Order"
+     ],
+     "maxRecords": 10
+    },
+    {
+     "kind": "assign",
+     "name": "Use",
+     "assign": {
+      "N": "Get0.List.Length + Get1.List.Length + Get2.List.Length + Get3.List.Length + Get4.List.Length"
+     }
+    }
+   ]
+  }
+ ],
+ "clientActions": [
+  {
+   "name": "ClientFine",
+   "public": true,
+   "description": "Loops on the client, one server call.",
+   "locals": [
+    {
+     "name": "Numbers",
+     "type": "List of Integer"
+    },
+    {
+     "name": "Sum",
+     "type": "Integer"
+    }
+   ],
+   "flow": [
+    {
+     "kind": "forEach",
+     "name": "Each",
+     "recordList": "Numbers",
+     "cycle": "Add",
+     "next": "Save"
+    },
+    {
+     "kind": "assign",
+     "name": "Add",
+     "assign": {
+      "Sum": "Sum + Numbers.Current"
+     },
+     "next": "Each"
+    },
+    {
+     "kind": "execute",
+     "name": "Save",
+     "action": "ServerUser"
+    }
+   ]
+  },
+  {
+   "name": "SaveCustomer",
+   "public": true,
+   "description": "Saves.",
+   "inputs": [
+    {
+     "name": "IsNew",
+     "type": "Boolean",
+     "description": "New."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "if",
+     "name": "New",
+     "condition": "IsNew",
+     "true": "SaveNew",
+     "false": "SaveExisting"
+    },
+    {
+     "kind": "execute",
+     "action": "SaveNew",
+     "next": "End"
+    },
+    {
+     "kind": "execute",
+     "action": "SaveExisting",
+     "next": "End"
+    }
+   ]
+  },
+  {
+   "name": "Visit",
+   "public": true,
+   "description": "Logs a visit.",
+   "flow": [
+    {
+     "kind": "execute",
+     "action": "LogVisit",
+     "args": {
+      "IsSignedIn": "GetUserId() <> NullIdentifier()"
+     }
+    }
+   ]
+  },
+  {
+   "name": "Classify",
+   "public": true,
+   "description": "Switch.",
+   "inputs": [
+    {
+     "name": "N",
+     "type": "Integer",
+     "description": "n"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "R",
+     "type": "Integer",
+     "description": "r"
+    }
+   ],
+   "flow": [
+    {
+     "kind": "switch",
+     "name": "S",
+     "cases": [
+      {
+       "condition": "N = 1",
+       "next": "A1"
+      },
+      {
+       "condition": "N = 2",
+       "next": "A2"
+      }
+     ],
+     "otherwise": "A3"
+    },
+    {
+     "kind": "assign",
+     "name": "A1",
+     "assign": {
+      "R": "1"
+     },
+     "next": "Done"
+    },
+    {
+     "kind": "assign",
+     "name": "A2",
+     "assign": {
+      "R": "2"
+     },
+     "next": "Done"
+    },
+    {
+     "kind": "assign",
+     "name": "A3",
+     "assign": {
+      "R": "3"
+     },
+     "next": "Done"
+    },
+    {
+     "kind": "assign",
+     "name": "Done",
+     "assign": {
+      "R": "R + 1"
+     },
+     "next": "End"
+    }
+   ]
+  }
+ ],
+ "timers": [
+  {
+   "name": "NightlyCleanup",
+   "action": "Cleanup",
+   "schedule": "",
+   "timeout": 20
+  }
+ ],
+ "blocks": [
+  {
+   "name": "GreetingCard",
+   "inputs": [
+    {
+     "name": "Caption"
+    }
+   ],
+   "widgets": [
+    {
+     "type": "Expression",
+     "value": "Caption"
+    }
+   ]
+  }
+ ],
+ "screens": [
+  {
+   "name": "Orders",
+   "access": {
+    "roles": [
+     "Clerk"
+    ]
+   },
+   "aggregates": [
+    {
+     "name": "GetPage",
+     "sources": [
+      "Customer"
+     ],
+     "maxRecords": 20
+    }
+   ],
+   "dataActions": [
+    {
+     "name": "LoadSql",
+     "outputs": [
+      {
+       "name": "Rows",
+       "type": "Integer"
+      }
+     ],
+     "flow": [
+      {
+       "kind": "sql",
+       "name": "TopCustomers",
+       "sql": "SELECT TOP (20) {Customer}.* FROM {Customer}",
+       "outputs": [
+        "Customer"
+       ]
+      },
+      {
+       "kind": "aggregate",
+       "name": "SomeOrders",
+       "sources": [
+        "Order"
+       ],
+       "maxRecords": 20
+      },
+      {
+       "kind": "assign",
+       "name": "CountRows",
+       "assign": {
+        "Rows": "TopCustomers.List.Length + SomeOrders.List.Length"
+       }
+      }
+     ]
+    }
+   ],
+   "widgets": [
+    {
+     "type": "Expression",
+     "value": "GetPage.Count"
+    },
+    {
+     "type": "Expression",
+     "value": "LoadSql.Rows"
+    }
+   ]
+  },
+  {
+   "name": "Dashboard",
+   "access": {
+    "roles": [
+     "Clerk"
+    ]
+   },
+   "locals": [
+    {
+     "name": "Ready",
+     "type": "Boolean"
+    }
+   ],
+   "actions": [
+    {
+     "name": "MarkReady",
+     "flow": [
+      {
+       "kind": "assign",
+       "name": "SetReady",
+       "assign": {
+        "Ready": "True"
+       }
+      }
+     ]
+    }
+   ],
+   "onReady": "MarkReady",
+   "widgets": [
+    {
+     "type": "Expression",
+     "value": "Ready"
+    }
+   ]
+  },
+  {
+   "name": "Welcome",
+   "access": {
+    "anonymous": true
+   },
+   "widgets": [
+    {
+     "type": "Text",
+     "text": "Welcome"
+    }
+   ]
+  },
+  {
+   "name": "Team",
+   "access": {
+    "roles": [
+     "Clerk"
+    ]
+   },
+   "widgets": [
+    {
+     "type": "BlockInstance",
+     "sourceBlock": "GreetingCard",
+     "args": {
+      "Caption": "\"Hello\""
+     }
+    }
+   ]
+  },
+  {
+   "name": "Stats",
+   "access": {
+    "roles": [
+     "Clerk"
+    ]
+   },
+   "dataActions": [
+    {
+     "name": "LoadCount",
+     "outputs": [
+      {
+       "name": "N",
+       "type": "Integer"
+      }
+     ],
+     "flow": [
+      {
+       "kind": "sql",
+       "name": "CountCustomers",
+       "sql": "SELECT COUNT(1) FROM {Customer}",
+       "outputs": [
+        "CountRow"
+       ]
+      },
+      {
+       "kind": "assign",
+       "name": "SetN",
+       "assign": {
+        "N": "CountCustomers.List.Current.CountRow.Total"
+       }
+      }
+     ]
+    }
+   ],
+   "widgets": [
+    {
+     "type": "Expression",
+     "value": "LoadCount.N"
+    }
+   ]
+  },
+  {
+   "name": "Login",
+   "access": {
+    "anonymous": true
+   },
+   "actions": [
+    {
+     "name": "SignIn",
+     "flow": [
+      {
+       "kind": "execute",
+       "action": "DoLogin"
+      }
+     ]
+    }
+   ],
+   "widgets": [
+    {
+     "type": "Button",
+     "onClick": "SignIn",
+     "children": [
+      {
+       "type": "Text",
+       "text": "Sign in"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Counter",
+   "access": {
+    "roles": [
+     "Clerk"
+    ]
+   },
+   "actions": [
+    {
+     "name": "OnlyLocal",
+     "locals": [
+      {
+       "name": "Step",
+       "type": "Integer"
+      }
+     ],
+     "flow": [
+      {
+       "kind": "assign",
+       "name": "SetStep",
+       "assign": {
+        "Step": "1"
+       }
+      }
+     ]
+    }
+   ],
+   "onRender": "OnlyLocal",
+   "widgets": [
+    {
+     "type": "Text",
+     "text": "Counter"
+    }
+   ]
+  }
+ ],
+ "clientVariables": [
+  {
+   "name": "TokenCount",
+   "type": "Integer"
+  },
+  {
+   "name": "Theme"
+  }
+ ]
+}

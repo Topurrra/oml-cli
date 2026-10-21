@@ -79,11 +79,11 @@ Require ($fresh.Json.results[0].exitCode -eq 2 -and $fresh.Json.results[1].exitC
 Write-Host 'ok   run: a module written by apply is loaded fresh by the next step'
 
 # Refusals: commands that need a person's confirmation, and run itself.
-$refused = Run-Steps @(@('install', 'a.oml', 'b.oml'), @('publish', 'X'), @('references', 'X'), @('pull'), @('lt', 'environments'), @('run', 'x.json'), @('architecture', '--team', 'T'), @('new', 'x.oml')) @('--continue')
-Require ($refused.Code -eq 2 -and $refused.Json.results.Count -eq 8) 'run: refusals shape'
+$refused = Run-Steps @(@('install', 'a.oml', 'b.oml'), @('publish', 'X'), @('references', 'X'), @('pull'), @('lt', 'environments'), @('run', 'x.json'), @('architecture', '--team', 'T'), @('preview', 'x.oml', 'B', '--serve'), @('new', 'x.oml')) @('--continue')
+Require ($refused.Code -eq 2 -and $refused.Json.results.Count -eq 9) 'run: refusals shape'
 foreach ($x in $refused.Json.results) { Require ($x.exitCode -eq 2 -and $x.output.error -match 'inside .oml run.') "run: step '$($x.args[0])' was not refused clearly: $($x.output.error)" }
 Require ($refused.Json.results[0].output.error -match "'install' is not allowed inside 'oml run'") 'run: install refusal text'
-Write-Host 'ok   run: install, publish, references, pull, lt, run, architecture --team refused'
+Write-Host 'ok   run: install, publish, references, pull, lt, run, architecture --team, preview --serve refused'
 
 # Exit code 2 stops the run; exit code 1 does not; --continue goes on after 2; the run exits with the highest code.
 $stop = Run-Steps @(@('install', 'a.oml', 'b.oml'), @('inspect', $mod, '--own'))

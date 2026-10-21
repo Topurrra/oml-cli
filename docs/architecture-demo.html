@@ -6,33 +6,36 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Architecture</title>
 <style>
-:root { color-scheme: dark; --bg:#0a0a0f; --panel:#11111a; --card:#161620; --card2:#1c1c28; --line:#353548; --text:#f5f5f7; --muted:#aaaabb; --red:#ff6476; --ui:#ff9bac; --core:#8abbff; --foundation:#59dfb6; --edge:#85859c; --group0:#b6a0ff; --group1:#f5bd60; --group2:#64cee9; --group3:#e49cdd; }
+:root { color-scheme: dark; --bg:#0c0c0d; --panel:#141415; --card:#1b1b1d; --card2:#242427; --line:#3d3d42; --text:#f3f3f4; --muted:#a9a9b0; --red:#ff6476; --ui:#ff9bac; --core:#8abbff; --foundation:#59dfb6; --edge:#8f8f98; --group0:#b6a0ff; --group1:#f5bd60; --group2:#64cee9; --group3:#e49cdd; }
 :root[data-theme="light"] { color-scheme:light; --bg:#f4f5f9; --panel:#fff; --card:#fff; --card2:#eef0f6; --line:#b8becf; --text:#202332; --muted:#515b70; --red:#bc233a; --ui:#a52c52; --core:#2457ad; --foundation:#087755; --edge:#65728a; --group0:#7053b7; --group1:#956000; --group2:#087591; --group3:#a13e97; }
-* { box-sizing:border-box; }
+* { box-sizing:border-box; } [hidden] { display:none!important; }
 body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
 button,input,summary { font:inherit; } button,summary { cursor:pointer; }
 button,input { color:var(--text); background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px 12px; }
-button:hover { border-color:var(--red); } :focus-visible { outline:3px solid var(--core); outline-offset:3px; }
+button:hover { border-color:var(--red); } button[aria-pressed="true"].toggle,.seg button[aria-pressed="true"] { border-color:var(--core); background:var(--card2); } :focus-visible { outline:3px solid var(--core); outline-offset:3px; }
 header { display:flex; align-items:center; gap:16px; padding:20px 26px; border-bottom:1px solid var(--line); background:linear-gradient(180deg,var(--panel),var(--bg)); flex-wrap:wrap; }
 .mark { display:grid; place-items:center; width:42px; height:42px; background:linear-gradient(135deg,#ff3d52,#c42030); border-radius:11px; color:white; font-size:23px; font-weight:800; box-shadow:0 6px 20px #ff3d522e; }
-header > div:nth-child(2) { min-width:0; flex:1 1 420px; }
+.ttl { min-width:0; flex:1 1 420px; }
 h1 { margin:0; font-size:22px; letter-spacing:-.03em; overflow-wrap:anywhere; } h2 { font-size:17px; margin:0 0 12px; } h3 { font-size:14px; margin:20px 0 8px; } p { margin:6px 0 12px; }
 .sub,.hint { color:var(--muted); font-size:12px; } .tools { margin-left:auto; display:flex; gap:10px; align-items:center; flex-wrap:wrap; } input { width:250px; max-width:100%; }
 .stats { display:flex; gap:10px; padding:14px 26px; flex-wrap:wrap; }
 .stat { flex:1; min-width:110px; background:linear-gradient(180deg,var(--card),var(--card2)); border:1px solid var(--line); border-left:3px solid var(--accent,var(--core)); border-radius:10px; padding:8px 14px; }
 .stat b { display:block; font-size:24px; line-height:1.3; } .stat span { color:var(--muted); font-size:12px; }
 main { display:grid; grid-template-columns:minmax(0,1fr) 350px; margin:0 26px 20px; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-.canvas-wrap { min-width:0; background:radial-gradient(ellipse at center,#ff3d5208,transparent 65%); }
+.canvas-wrap { min-width:0; background:var(--bg); }
 .toolbar { padding:10px 14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; border-bottom:1px solid var(--line); } .toolbar .hint { margin-left:auto; }
-#graph { width:100%; height:650px; display:block; touch-action:none; cursor:grab; } #graph:active { cursor:grabbing; }
-#graph text { fill:var(--text); font-family:inherit; } .band { fill:var(--panel); stroke:var(--line); } .band-title { font-size:21px; font-weight:700; } .band-note { font-size:13px; fill:var(--muted)!important; }
-.app-group { fill:none; stroke-width:1.6; } .app-label { font-size:13px; font-weight:600; }
-.node { cursor:pointer; } .node rect { fill:var(--card); stroke-width:1.6; } .node .name { font-size:14px; font-weight:650; } .node .meta { font-size:11px; fill:var(--muted)!important; } .node.external rect { fill:var(--card2); stroke-dasharray:5 4; } .node.selected rect,.node:focus-visible rect { stroke:var(--red); stroke-width:3; }
+.seg { display:inline-flex; } .seg button:first-child { border-radius:8px 0 0 8px; } .seg button:last-child { border-radius:0 8px 8px 0; margin-left:-1px; }
+#graph { width:100%; height:var(--graph-h,650px); display:block; touch-action:none; cursor:grab; } #graph:active { cursor:grabbing; }
+#graph text { fill:var(--text); font-family:inherit; } .band { fill:var(--panel); stroke:var(--line); } .band-title { font-size:20px; font-weight:700; } .band-note { font-size:12px; fill:var(--muted)!important; }
+.box { fill:none; stroke:var(--muted); stroke-width:1.4; stroke-dasharray:7 5; } #graph .box-label { font-size:13px; font-weight:600; paint-order:stroke; stroke:var(--panel); stroke-width:5px; stroke-linejoin:round; } .box-toggle { cursor:pointer; } .box-toggle rect { fill:var(--card); stroke:var(--core); } #graph .box-toggle text { fill:var(--core); font-size:12px; font-weight:600; text-anchor:middle; } .box-toggle:focus-visible { outline:3px solid var(--core); }
+.fmark circle { fill:var(--red); } #graph .fmark text { fill:var(--card); font-size:11px; font-weight:700; text-anchor:middle; dominant-baseline:central; }
+.node { cursor:pointer; } .node rect.card { fill:var(--card); stroke-width:1.6; } .node rect.stack { fill:var(--card2); stroke:var(--line); stroke-width:1.2; } .node .name { font-size:14px; font-weight:650; } .node .meta { font-size:12px; fill:var(--muted)!important; } .node.external rect.card { fill:var(--card2); stroke-dasharray:5 4; } .node.selected rect.card,.node:focus-visible rect.card { stroke:var(--red); stroke-width:3; } .node .plus { font-size:16px; font-weight:700; text-anchor:middle; fill:var(--muted)!important; }
 .edge { fill:none; stroke:var(--edge); stroke-width:1.5; opacity:.7; } .edge.weak { stroke-dasharray:6 5; } .edge.violation { stroke:var(--red); stroke-width:2; } .edge.active { opacity:1; stroke-width:2.5; }
-.faded { opacity:.13!important; } .node.match rect { stroke:var(--red); stroke-width:3; }
+.badge circle { fill:var(--card); stroke:var(--edge); stroke-width:1.2; } .badge text { font-size:10px; font-weight:700; text-anchor:middle; dominant-baseline:central; }
+.faded { opacity:.13!important; } .node.match rect.card { stroke:var(--red); stroke-width:3; }
 .legend { display:flex; flex-wrap:wrap; gap:10px 18px; padding:12px 16px; border-top:1px solid var(--line); font-size:12px; color:var(--muted); }
 .legend i { display:inline-block; vertical-align:middle; width:19px; border-top:2px solid var(--edge); margin-right:5px; } .legend .weak { border-top-style:dashed; } .legend .violation { border-color:var(--red); } .legend .external { border:1px dashed var(--muted); height:12px; }
-#details { background:var(--panel); padding:18px; border-left:1px solid var(--line); max-height:770px; overflow:auto; overflow-wrap:anywhere; }
+#details { background:var(--panel); padding:18px; border-left:1px solid var(--line); max-height:1100px; overflow:auto; overflow-wrap:anywhere; }
 #details h2 { margin-top:10px; } .detail-section { border-top:1px solid var(--line); padding-top:8px; margin-top:16px; } ul { margin:6px 0; padding-left:19px; } li { margin:4px 0; }
 dl { margin:0; display:grid; grid-template-columns:1fr auto; gap:4px 12px; } dt { color:var(--muted); } dd { margin:0; }
 .link { padding:2px 6px; text-align:left; color:var(--core); } #search-results { margin:0 26px 12px; } #search-results:empty { display:none; } #search-results button { margin:3px; }
@@ -40,1286 +43,427 @@ dl { margin:0; display:grid; grid-template-columns:1fr auto; gap:4px 12px; } dt 
 .finding { border-top:1px solid var(--line); padding:12px 0; } .finding button { width:100%; text-align:left; font-weight:600; } .finding p { font-size:13px; } .finding .fix { color:var(--muted); } .high { color:var(--red); } .medium { color:var(--ui); } .low { color:var(--core); }
 footer { padding:0 26px 22px; color:var(--muted); font-size:12px; } .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
 @media(max-width:1000px) { main { grid-template-columns:1fr; } #details { border-left:0; border-top:1px solid var(--line); max-height:500px; } .findings-grid { grid-template-columns:1fr; } }
-@media print { :root,:root[data-theme] { --bg:white; --panel:#fafafa; --card:white; --card2:#eee; --line:#999; --text:#111; --muted:#444; --red:#ac1730; --ui:#9a244a; --core:#2457ad; --foundation:#087755; --edge:#666; } body { font-size:11px; } header { padding:8px; } .tools,.toolbar,#search-results,#reset { display:none; } main { display:block; margin:8px 0; border:0; } #graph { height:auto; aspect-ratio:var(--graph-ratio,1.5); } .node,.edge { opacity:1!important; } #details { max-height:none; overflow:visible; border:0; } .stats { padding:8px 0; } .findings { margin:12px 0; } .findings-grid { display:block; } .severity { margin-bottom:12px; } .finding { break-inside:avoid; } footer { padding:4px 0; } }
+@media print { .box-toggle { display:none; } :root,:root[data-theme] { --bg:white; --panel:#fafafa; --card:white; --card2:#eee; --line:#999; --text:#111; --muted:#444; --red:#ac1730; --ui:#9a244a; --core:#2457ad; --foundation:#087755; --edge:#666; } body { font-size:11px; } header { padding:8px; } .tools,.toolbar,#search-results,#reset { display:none; } main { display:block; margin:8px 0; border:0; } #graph { height:auto; aspect-ratio:var(--graph-ratio,1.5); } .node,.edge { opacity:1!important; } #details { max-height:none; overflow:visible; border:0; } .stats { padding:8px 0; } .findings { margin:12px 0; } .findings-grid { display:block; } .severity { margin-bottom:12px; } .finding { break-inside:avoid; } footer { padding:4px 0; } }
 </style>
 </head>
 <body>
-<header><a href="index.html" style="color:inherit;text-underline-offset:3px">Back to oml</a><div class="mark" aria-hidden="true">A</div><div><h1 id="title">Architecture</h1><div class="sub" id="generated"></div></div><div class="tools"><label class="sr-only" for="search">Search module or element name</label><input id="search" type="search" placeholder="Search module or element…" autocomplete="off"><button id="theme" aria-label="Switch color theme">Theme</button></div></header>
+<header><a href="index.html" style="color:inherit;text-underline-offset:3px">Back to oml</a><div class="mark" aria-hidden="true">A</div><div class="ttl"><h1 id="title">Architecture</h1><div class="sub" id="generated"></div></div><div class="tools"><label class="sr-only" for="search">Search module or element name</label><input id="search" type="search" placeholder="Search module or element…" autocomplete="off"><button id="theme" aria-label="Switch color theme">Theme</button></div></header>
 <section class="stats" aria-label="Architecture counts" id="stats"></section>
 <div id="search-results" role="region" aria-label="Search results" aria-live="polite"></div>
-<main><section class="canvas-wrap" aria-label="Three-layer architecture canvas"><div class="toolbar"><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button><button id="fit" aria-label="Fit all modules">Fit</button><button id="reset">Reset selection</button><span class="hint">Scroll / pinch to zoom · drag to pan · + − 0 and arrow keys · Esc resets</span></div><svg id="graph" tabindex="0" role="group" aria-label="Module dependencies. Arrows point from a module to the module it uses."><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--edge)"/></marker><marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--red)"/></marker></defs><g id="bands"></g><g id="edges"></g><g id="nodes"></g></svg><div class="legend" aria-label="Legend"><span style="color:var(--ui)">● End-user</span><span style="color:var(--core)">● Core</span><span style="color:var(--foundation)">● Foundation</span><span><i></i>Strong: data, logic or blocks</span><span><i class="weak"></i>Weak: shared appearance or resources</span><span><i class="violation"></i>Finding</span><span><i class="external"></i>External module</span><span>Arrow → module being used</span></div></section><aside id="details" aria-label="Selected module details"><h2>Explore the architecture</h2><p>Select a module to see what it does, what it uses, and who uses it.</p><p class="hint">The three layers separate user experiences, business logic, and shared building blocks. Read the canvas from top to bottom. Colored outlines group modules from the same application.</p></aside></main>
+<div id="status" class="sr-only" role="status" aria-live="polite"></div>
+<main><section class="canvas-wrap" aria-label="Layered architecture canvas"><div class="toolbar"><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-out" aria-label="Zoom out">−</button><button id="fit" aria-label="Fit all">Fit</button><button id="reset">Reset selection</button><span class="seg" id="detail-level" role="group" aria-label="Detail level"><button id="view-apps" aria-pressed="false">Applications</button><button id="view-modules" aria-pressed="false">Modules</button></span><button id="weak" class="toggle" aria-pressed="false">Weak links</button><button id="platform" class="toggle" aria-pressed="false">Platform modules</button><span class="hint">Scroll / pinch to zoom · drag to pan · + − 0 and arrow keys · Esc resets<span id="app-hint"> · click an application to open it</span></span></div><svg id="graph" tabindex="0" role="group" aria-label="Dependencies. Arrows point from a module to the module it uses."><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--edge)"/></marker><marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--red)"/></marker></defs><g id="bands"></g><g id="edges"></g><g id="nodes"></g></svg><div class="legend" aria-label="Legend"><span style="color:var(--ui)">● End-user</span><span style="color:var(--core)">● Core</span><span style="color:var(--foundation)">● Foundation</span><span><i></i>Strong: server or client actions, blocks, themes, scripts, images, resources, roles or processes</span><span><i class="weak"></i>Weak: only entities, static entities, structures, service actions or screens</span><span><i class="violation"></i>Finding</span><span><i class="external"></i>External module</span><span>Arrow → module being used · a number on a line counts the dependencies merged into it</span></div></section><aside id="details" aria-label="Selected details"></aside></main>
 <section class="findings" aria-labelledby="findings-title"><h2 id="findings-title">What needs attention</h2><p class="hint">Select a finding to locate its modules. Each finding explains the impact and a possible next step.</p><div id="findings" class="findings-grid"></div></section>
-<footer>Generated by oml · Offline architecture snapshot · External modules show references only; their contents were not inspected.</footer>
-<script type="application/json" id="oml-architecture">{
-  "schema": 1,
-  "generatedAt": "2026-10-17T12:00:00Z",
-  "omlVersion": "0.8.0",
-  "input": {
-    "sources": [
-      "exports/CustomerExperience.oap",
-      "exports/Operations.oap",
-      "exports/SharedPlatform.oap"
-    ],
-    "apps": [],
-    "team": null
-  },
-  "applications": [
-    {
-      "name": "Customer Experience",
-      "modules": [
-        "Shop_Portal",
-        "Support_UI",
-        "Orders_CS",
-        "Customers_Core",
-        "Commerce_Theme"
-      ]
-    },
-    {
-      "name": "Operations",
-      "modules": [
-        "Operations_App",
-        "Inventory_CS",
-        "Shipping_API",
-        "Warehouse_BL",
-        "ERP_IS"
-      ]
-    },
-    {
-      "name": "Shared Platform",
-      "modules": [
-        "Shared_CW",
-        "Identity_CS",
-        "Audit_Lib",
-        "Common_Lib",
-        "Design_Th"
-      ]
-    }
-  ],
-  "modules": [
-    {
-      "name": "Shop_Portal",
-      "application": "Customer Experience",
-      "external": false,
-      "kind": "Reactive",
-      "layer": "EndUser",
-      "layerReason": "suffix _Portal",
-      "description": "Customers browse products, place orders and track delivery.",
-      "counts": {
-        "entities": 0,
-        "staticEntities": 0,
-        "structures": 0,
-        "serverActions": 0,
-        "serviceActions": 0,
-        "clientActions": 6,
-        "screens": 2,
-        "blocks": 2,
-        "restExposed": 0,
-        "restConsumed": 0,
-        "timers": 0,
-        "processes": 0,
-        "siteProperties": 0,
-        "roles": 0
-      },
-      "public": {
-        "entities": [],
-        "actions": [],
-        "blocks": [],
-        "structures": [],
-        "staticEntities": []
-      },
-      "entities": [],
-      "screens": [
-        "Home",
-        "OrderDetails"
-      ],
-      "restExposed": [],
-      "restConsumed": [],
-      "timers": [],
-      "processes": []
-    },
-    {
-      "name": "Support_UI",
-      "application": "Customer Experience",
-      "external": false,
-      "kind": "Traditional Web",
-      "layer": "EndUser",
-      "layerReason": "suffix _UI",
-      "description": "Support staff view customer requests. Literal example: \u003c/script\u003e\u003cscript\u003ewindow.untrustedExecuted=true\u003c/script\u003e \u0026 \u003cb\u003etext\u003c/b\u003e.",
-      "counts": {
-        "entities": 0,
-        "staticEntities": 0,
-        "structures": 0,
-        "serverActions": 1,
-        "serviceActions": 0,
-        "clientActions": 6,
-        "screens": 1,
-        "blocks": 2,
-        "restExposed": 0,
-        "restConsumed": 0,
-        "timers": 0,
-        "processes": 0,
-        "siteProperties": 0,
-        "roles": 0
-      },
-      "public": {
-        "entities": [],
-        "actions": [
-          "OpenSupportRequest"
-        ],
-        "blocks": [],
-        "structures": [],
-        "staticEntities": []
-      },
-      "entities": [],
-      "screens": [
-        "Dashboard"
-      ],
-      "restExposed": [],
-      "restConsumed": [],
-      "timers": [],
-      "processes": []
-    },
-    {
-      "name": "Orders_CS",
-      "application": "Customer Experience",
-      "external": false,
-      "kind": "Service",
-      "layer": "Core",
-      "layerReason": "suffix _CS",
-      "description": "Stores orders and applies pricing, payment and fulfilment rules.",
-      "counts": {
-        "entities": 1,
-        "staticEntities": 0,
-        "structures": 1,
-        "serverActions": 155,
-        "serviceActions": 2,
-        "clientActions": 0,
-        "screens": 0,
-        "blocks": 0,
-        "restExposed": 0,
-        "restConsumed": 0,
-        "timers": 1,
-        "processes": 1,
-        "siteProperties": 0,
-        "roles": 1
-      },
-      "public": {
-        "entities": [
-          "Order"
-        ],
-        "actions": [
-          "GetOrder",
-          "SaveOrder",
-          "RepriceLegacyOrder"
-        ],
-        "blocks": [],
-        "structures": [
-          "OrderSummary"
-        ],
-        "staticEntities": []
-      },
-      "entities": [
-        {
-          "name": "Order",
-          "public": true,
-          "attributes": 6,
-          "references": [
-            "Customer"
-          ]
-        }
-      ],
-      "screens": [],
-      "restExposed": [],
-      "restConsumed": [],
-      "timers": [
-        "CloseExpiredOrders"
-      ],
-      "processes": [
-        "ApproveLargeOrder"
-      ]
-    },
-    {
-      "name": "Customers_Core",
-      "application": "Customer Experience",
-      "external": false,
-      "kind": "Service",
-      "layer": "Core",
-      "layerReason": "suffix _Core",
-      "description": "Customers Core provides shared capabilities for Customer Experience.",
-      "counts": {
-        "entities": 1,
-        "staticEntities": 0,
-        "structures": 1,
-        "serverActions": 12,
-        "serviceActions": 2,
-        "clientActions": 0,
-        "screens": 0,
-        "blocks": 0,
-        "restExposed": 0,
-        "restConsumed": 0,
-        "timers": 0,
-        "processes": 0,
-        "siteProperties": 0,
-        "roles": 1
-      },
-      "public": {
-        "entities": [
-          "Customer"
-        ],
-        "actions": [
-          "GetCustomer",
-          "SaveCustomer"
-        ],
-        "blocks": [],
-        "structures": [
-          "CustomerSummary"
-        ],
-        "staticEntities": []
-      },
-      "entities": [
-        {
-          "name": "Customer",
-          "public": true,
-          "attributes": 6,
-          "references": []
-        }
-      ],
-      "screens": [],
-      "restExposed": [],
-      "restConsumed": [],
-      "timers": [],
-      "processes": []
-    },
-    {
-      "name": "Commerce_Theme",
-      "application": "Customer Experience",
-      "external": false,
-      "kind": "Library",
-      "layer": "Foundation",
-      "layerReason": "suffix _Theme",
-      "description": "Commerce Theme provides shared capabilities for Customer Experience.",
-      "counts": {
-        "entities": 0,
-        "staticEntities": 0,
-        "structures": 0,
-        "serverActions": 0,
-        "serviceActions": 0,
-        "clientActions": 0,
-        "screens": 0,
-        "blocks": 3,
-        "restExposed": 0,
-        "restConsumed": 0,
-        "timers": 0,
-        "processes": 0,
-        "siteProperties": 0,
-        "roles": 0
-      },
-      "public": {
-        "entities": [],
-        "actions": [],
-        "blocks": [],
-        "structures": [],
-        "staticEntities": []
-      },
-      "entities": [],
-      "screens": [],
-      "restExposed": [],
-      "restConsumed": [],
-      "timers": [],
-      "processes": []
-    },
-    {
-      "name": "Operations_App",
-      "application": "Operations",
-      "external": false,
-      "kind": "Mobile",
-      "layer": "EndUser",
-      "layerReason": "suffix _App",
-      "description": "Operations App provides shared capabilities for Operations.",
-      "counts": {
-        "entities": 0,
-        "staticEntities": 0,
-        "structures": 0,
-        "serverActions": 0,
-        "serviceActions": 0,
-        "clientActions": 6,
-        "screens": 1,
-        "blocks": 2,
-        "restExposed": 0,
-        "restConsumed": 0,
-        "timers": 0,
-        "processes": 0,
-        "siteProperties": 0,
-        "roles": 0
-      },
-      "public": {
-        "entities": [],
-        "actions": [],
-        "blocks": [],
-        "structures": [],
-        "staticEntities": []
-      },
-      "entities": [],
-      "screens": [
-        "Dashboard"
-      ],
-      "restExposed": [],
-      "restConsumed": [],
-      "timers": [],
-      "processes": []
-    },
-    {
-      "name": "Inventory_CS",
-      "application": "Operations",
-      "external": false,
-      "kind": "Service",
-      "layer": "Core",
-      "layerReason": "suffix _CS",
-      "description": "Inventory CS provides shared capabilities for Operations.",
-      "counts": {
-        "entities": 1,
-        "staticEntities": 1,
-        "structures": 1,
-        "serverActions": 12,
-        "serviceActions": 2,
-        "clientActions": 0,
-        "screens": 0,
-        "blocks": 0,
-        "restExposed": 0,
-        "restConsumed": 0,
-        "timers": 0,
-        "processes": 0,
-        "siteProperties": 0,
-        "roles": 1
-      },
-      "public": {
-        "entities": [
-          "Inventory"
-        ],
-        "actions": [
-          "GetInventory",
-          "SaveInventory",
-          "ReserveStock"
-        ],
-        "blocks": [],
-        "structures": [
-          "InventorySummary"
-        ],
-        "staticEntities": [
-          "StockState"
-        ]
-      },
-      "entities": [
-        {
-          "name": "Inventory",
-          "public": true,
-          "attributes": 6,
-          "references": []
-        }
-      ],
-      "screens": [],
-      "restExposed": [],
-      "restConsumed": [],
-      "timers": [],
-      "processes": []
-    },
-    {
-      "name": "Shipping_API",
-      "application": "Operations",
-      "external": false,
-      "kind": "Service",
-      "layer": "Core",
-      "layerReason": "suffix _API",
-      "description": "Shipping API provides shared capabilities for Operations.",
-      "counts": {
-        "entities": 1,
-        "staticEntities": 0,
-        "structures": 1,
-        "serverActions": 12,
-        "serviceActions": 2,
-        "clientActions": 0,
-        "screens": 0,
-        "blocks": 0,
-        "restExposed": 1,
-        "restConsumed": 0,
-        "timers": 0,
-        "processes": 0,
-        "siteProperties": 0,
-        "roles": 1
-      },
-      "public": {
-        "entities": [
-          "Shipping"
-        ],
-        "actions": [
-          "GetShipping",
-          "SaveShipping",
-          "CreateShipment"
-        ],
-        "blocks": [],
-        "structures": [
-          "ShippingSummary"
-        ],
-        "staticEntities": []
-      },
-      "entities": [
-        {
-          "name": "Shipping",
-          "public": true,
-          "attributes": 6,
-          "references": []
-        }
-      ],
-      "screens": [],
-      "restExposed": [
-        {
-          "name": "Shipments",
-          "methods": 4
-        }
-      ],
-      "restConsumed": [],
-      "timers": [],
-      "processes": []
-    },
-    {
-      "name": "Warehouse_BL",
-      "application": "Operations",
-      "external": false,
-      "kind": "Service",
-      "layer": "Core",
-      "layerReason": "suffix _BL",
-      "description": "Warehouse BL provides shared capabilities for Operations.",
-      "counts": {
-        "entities": 1,
-        "staticEntities": 0,
-        "structures": 1,
-        "serverActions": 12,
-        "serviceActions": 2,
-        "clientActions": 0,
-        "screens": 0,
-        "blocks": 0,
-        "restExposed": 0,
-        "restConsumed": 0,
-        "timers": 0,
-        "processes": 0,
-        "siteProperties": 0,
-        "roles": 1
-      },
-      "public": {
-        "entities": [
-          "Warehouse"
-        ],
-        "actions": [
-          "GetWarehouse",
-          "SaveWarehouse",
-          "AllocateShipment"
-        ],
-        "blocks": [],
-        "structures": [
-          "WarehouseSummary"
-        ],
-        "staticEntities": []
-      },
-      "entities": [
-        {
-          "name": "Warehouse",
-          "public": true,
-          "attributes": 6,
-          "references": []
-        }
-      ],
-      "screens": [],
-      "restExposed": [],
-      "restConsumed": [],
-      "timers": [],
-      "processes": []
-    },
-    {
-      "name": "ERP_IS",
-      "application": "Operations",
-      "external": false,
-      "kind": "Service",
-      "layer": "Core",
-      "layerReason": "suffix _IS",
-      "description": "Connects warehouse operations to the ERP service.",
-      "counts": {
-        "entities": 1,
-        "staticEntities": 0,
-        "structures": 1,
-        "serverActions": 12,
-        "serviceActions": 2,
-        "clientActions": 0,
-        "screens": 0,
-        "blocks": 0,
-        "restExposed": 0,
-        "restConsumed": 1,
-        "timers": 0,
-        "processes": 0,
-        "siteProperties": 0,
-        "roles": 1
-      },
-      "public": {
-        "entities": [
-          "ERP"
-        ],
-        "actions": [
-          "GetERP",
-          "SaveERP",
-          "SendToERP"
-        ],
-        "blocks": [],
-        "structures": [
-          "ERPSummary"
-        ],
-        "staticEntities": []
-      },
-      "entities": [
-        {
-          "name": "ERP",
-          "public": true,
-          "attributes": 6,
-          "references": []
-        }
-      ],
-      "screens": [],
-      "restExposed": [],
-      "restConsumed": [
-        {
-          "name": "WarehouseERP",
-          "methods": 5,
-          "baseUrl": "https://erp.example.invalid/api"
-        }
-      ],
-      "timers": [],
-      "processes": []
-    },
-    {
-      "name": "Shared_CW",
-      "application": "Shared Platform",
-      "external": false,
-      "kind": "Reactive",
-      "layer": "EndUser",
-      "layerReason": "suffix _CW",
-      "description": "Shared CW provides shared capabilities for Shared Platform.",
-      "counts": {
-        "entities": 0,
-        "staticEntities": 0,
-        "structures": 0,
-        "serverActions": 0,
-        "serviceActions": 0,
-        "clientActions": 6,
-        "screens": 1,
-        "blocks": 2,
-        "restExposed": 0,
-        "restConsumed": 0,
-        "timers": 0,
-        "processes": 0,
-        "siteProperties": 0,
-        "roles": 0
-      },
-      "public": {
-        "entities": [],
-        "actions": [],
-        "blocks": [
-          "StatusBadge"
-        ],
-        "structures": [],
-        "staticEntities": []
-      },
-      "entities": [],
-      "screens": [
-        "Dashboard"
-      ],
-      "restExposed": [],
-      "restConsumed": [],
-      "timers": [],
-      "processes": []
-    },
-    {
-      "name": "Identity_CS",
-      "application": "Shared Platform",
-      "external": false,
-      "kind": "Reactive",
-      "layer": "Core",
-      "layerReason": "suffix _CS",
-      "description": "Identity CS provides shared capabilities for Shared Platform.",
-      "counts": {
-        "entities": 1,
-        "staticEntities": 0,
-        "structures": 1,
-        "serverActions": 12,
-        "serviceActions": 2,
-        "clientActions": 0,
-        "screens": 1,
-        "blocks": 0,
-        "restExposed": 0,
-        "restConsumed": 0,
-        "timers": 0,
-        "processes": 0,
-        "siteProperties": 0,
-        "roles": 1
-      },
-      "public": {
-        "entities": [
-          "Identity"
-        ],
-        "actions": [
-          "GetIdentity",
-          "SaveIdentity",
-          "Authorize"
-        ],
-        "blocks": [],
-        "structures": [
-          "IdentitySummary"
-        ],
-        "staticEntities": []
-      },
-      "entities": [
-        {
-          "name": "Identity",
-          "public": true,
-          "attributes": 6,
-          "references": []
-        }
-      ],
-      "screens": [
-        "ManageUsers"
-      ],
-      "restExposed": [],
-      "restConsumed": [],
-      "timers": [],
-      "processes": []
-    },
-    {
-      "name": "Audit_Lib",
-      "application": "Shared Platform",
-      "external": false,
-      "kind": "Reactive",
-      "layer": "Foundation",
-      "layerReason": "suffix _Lib",
-      "description": "Writes technical audit events. Currently also owns business audit records.",
-      "counts": {
-        "entities": 1,
-        "staticEntities": 0,
-        "structures": 0,
-        "serverActions": 1,
-        "serviceActions": 0,
-        "clientActions": 0,
-        "screens": 0,
-        "blocks": 0,
-        "restExposed": 0,
-        "restConsumed": 0,
-        "timers": 0,
-        "processes": 0,
-        "siteProperties": 0,
-        "roles": 0
-      },
-      "public": {
-        "entities": [],
-        "actions": [
-          "WriteEvent"
-        ],
-        "blocks": [],
-        "structures": [],
-        "staticEntities": []
-      },
-      "entities": [
-        {
-          "name": "BusinessAudit",
-          "public": false,
-          "attributes": 7,
-          "references": []
-        }
-      ],
-      "screens": [],
-      "restExposed": [],
-      "restConsumed": [],
-      "timers": [],
-      "processes": []
-    },
-    {
-      "name": "Common_Lib",
-      "application": "Shared Platform",
-      "external": false,
-      "kind": "Library",
-      "layer": "Foundation",
-      "layerReason": "suffix _Lib",
-      "description": "Common Lib provides shared capabilities for Shared Platform.",
-      "counts": {
-        "entities": 0,
-        "staticEntities": 0,
-        "structures": 0,
-        "serverActions": 1,
-        "serviceActions": 0,
-        "clientActions": 0,
-        "screens": 0,
-        "blocks": 0,
-        "restExposed": 0,
-        "restConsumed": 0,
-        "timers": 0,
-        "processes": 0,
-        "siteProperties": 0,
-        "roles": 0
-      },
-      "public": {
-        "entities": [],
-        "actions": [
-          "FormatDate"
-        ],
-        "blocks": [],
-        "structures": [],
-        "staticEntities": []
-      },
-      "entities": [],
-      "screens": [],
-      "restExposed": [],
-      "restConsumed": [],
-      "timers": [],
-      "processes": []
-    },
-    {
-      "name": "Design_Th",
-      "application": "Shared Platform",
-      "external": false,
-      "kind": "Library",
-      "layer": "Foundation",
-      "layerReason": "suffix _Th",
-      "description": "Design Th provides shared capabilities for Shared Platform.",
-      "counts": {
-        "entities": 0,
-        "staticEntities": 0,
-        "structures": 0,
-        "serverActions": 0,
-        "serviceActions": 0,
-        "clientActions": 0,
-        "screens": 0,
-        "blocks": 3,
-        "restExposed": 0,
-        "restConsumed": 0,
-        "timers": 0,
-        "processes": 0,
-        "siteProperties": 0,
-        "roles": 0
-      },
-      "public": {
-        "entities": [],
-        "actions": [],
-        "blocks": [],
-        "structures": [],
-        "staticEntities": []
-      },
-      "entities": [],
-      "screens": [],
-      "restExposed": [],
-      "restConsumed": [],
-      "timers": [],
-      "processes": []
-    },
-    {
-      "name": "OutSystemsUI",
-      "external": true,
-      "layer": "Foundation",
-      "layerReason": "known platform module",
-      "application": "(external)"
-    },
-    {
-      "name": "System",
-      "external": true,
-      "layer": "Foundation",
-      "layerReason": "known platform module",
-      "application": "(external)"
-    },
-    {
-      "name": "Crypto.xif",
-      "external": true,
-      "layer": "Foundation",
-      "layerReason": "extension producer",
-      "application": "(external)"
-    }
-  ],
-  "edges": [
-    {
-      "from": "Shop_Portal",
-      "to": "Orders_CS",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "Entity",
-          "name": "Order"
-        },
-        {
-          "kind": "ServerAction",
-          "name": "SaveOrder"
-        },
-        {
-          "kind": "Structure",
-          "name": "OrderSummary"
-        }
-      ]
-    },
-    {
-      "from": "Shop_Portal",
-      "to": "Customers_Core",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "Entity",
-          "name": "Customer"
-        }
-      ]
-    },
-    {
-      "from": "Shop_Portal",
-      "to": "Commerce_Theme",
-      "strong": false,
-      "elements": [
-        {
-          "kind": "Theme",
-          "name": "Commerce"
-        }
-      ]
-    },
-    {
-      "from": "Shop_Portal",
-      "to": "Support_UI",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "ServerAction",
-          "name": "OpenSupportRequest"
-        }
-      ]
-    },
-    {
-      "from": "Support_UI",
-      "to": "Customers_Core",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "ServerAction",
-          "name": "GetCustomer"
-        }
-      ]
-    },
-    {
-      "from": "Operations_App",
-      "to": "Inventory_CS",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "Entity",
-          "name": "Inventory"
-        },
-        {
-          "kind": "ServerAction",
-          "name": "GetInventory"
-        }
-      ]
-    },
-    {
-      "from": "Operations_App",
-      "to": "Shipping_API",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "ServiceAction",
-          "name": "CreateShipment"
-        }
-      ]
-    },
-    {
-      "from": "Operations_App",
-      "to": "Design_Th",
-      "strong": false,
-      "elements": [
-        {
-          "kind": "Theme",
-          "name": "Design"
-        }
-      ]
-    },
-    {
-      "from": "Orders_CS",
-      "to": "Inventory_CS",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "ServerAction",
-          "name": "ReserveStock"
-        }
-      ]
-    },
-    {
-      "from": "Inventory_CS",
-      "to": "Orders_CS",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "ServerAction",
-          "name": "GetOrder"
-        }
-      ]
-    },
-    {
-      "from": "Shipping_API",
-      "to": "Warehouse_BL",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "ServerAction",
-          "name": "AllocateShipment"
-        }
-      ]
-    },
-    {
-      "from": "Warehouse_BL",
-      "to": "ERP_IS",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "ServiceAction",
-          "name": "SendToERP"
-        }
-      ]
-    },
-    {
-      "from": "ERP_IS",
-      "to": "Common_Lib",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "ServerAction",
-          "name": "FormatDate"
-        }
-      ]
-    },
-    {
-      "from": "Orders_CS",
-      "to": "Identity_CS",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "ServerAction",
-          "name": "Authorize"
-        }
-      ]
-    },
-    {
-      "from": "Identity_CS",
-      "to": "System",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "Role",
-          "name": "Registered"
-        },
-        {
-          "kind": "Entity",
-          "name": "User"
-        }
-      ]
-    },
-    {
-      "from": "Audit_Lib",
-      "to": "Orders_CS",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "Entity",
-          "name": "Order"
-        }
-      ]
-    },
-    {
-      "from": "Orders_CS",
-      "to": "Audit_Lib",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "ServerAction",
-          "name": "WriteEvent"
-        }
-      ]
-    },
-    {
-      "from": "Customers_Core",
-      "to": "Common_Lib",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "ServerAction",
-          "name": "FormatDate"
-        }
-      ]
-    },
-    {
-      "from": "Shared_CW",
-      "to": "OutSystemsUI",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "Block",
-          "name": "Badge"
-        }
-      ]
-    },
-    {
-      "from": "Shop_Portal",
-      "to": "Shared_CW",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "Block",
-          "name": "StatusBadge"
-        }
-      ]
-    },
-    {
-      "from": "Design_Th",
-      "to": "OutSystemsUI",
-      "strong": false,
-      "elements": [
-        {
-          "kind": "Theme",
-          "name": "OutSystemsUI"
-        },
-        {
-          "kind": "Script",
-          "name": "Accessibility"
-        }
-      ]
-    },
-    {
-      "from": "Common_Lib",
-      "to": "Crypto.xif",
-      "strong": true,
-      "elements": [
-        {
-          "kind": "ServerAction",
-          "name": "Encrypt"
-        }
-      ]
-    },
-    {
-      "from": "Support_UI",
-      "to": "System",
-      "strong": false,
-      "elements": [
-        {
-          "kind": "Role",
-          "name": "Registered"
-        },
-        {
-          "kind": "Image",
-          "name": "Logo"
-        }
-      ]
-    }
-  ],
-  "findings": [
-    {
-      "id": "upward-reference",
-      "severity": "high",
-      "title": "Audit library depends on business data",
-      "modules": [
-        "Audit_Lib",
-        "Orders_CS"
-      ],
-      "detail": "Audit_Lib is in Foundation but uses Order from Core. A shared technical service now depends on a specific business domain.",
-      "fix": "Pass a simple audit message into the library instead of importing the Order entity."
-    },
-    {
-      "id": "side-reference-enduser",
-      "severity": "high",
-      "title": "User experiences depend on each other",
-      "modules": [
-        "Shop_Portal",
-        "Support_UI",
-        "Shared_CW"
-      ],
-      "detail": "Shop_Portal calls an action in Support_UI and uses a block from Shared_CW. Strong dependencies between End-user modules make their releases harder to separate.",
-      "fix": "Move the shared support action into Core. Review whether the reusable status block belongs in a Foundation library."
-    },
-    {
-      "id": "cycle",
-      "severity": "high",
-      "title": "Orders and inventory depend on each other",
-      "modules": [
-        "Orders_CS",
-        "Inventory_CS",
-        "Orders_CS"
-      ],
-      "detail": "Cycle: Orders_CS → Inventory_CS → Orders_CS. These modules cannot evolve independently.",
-      "fix": "Move stock reservation coordination into a separate Core service, with dependencies in one direction."
-    },
-    {
-      "id": "core-ui",
-      "severity": "medium",
-      "title": "Identity mixes user screens and business logic",
-      "modules": [
-        "Identity_CS"
-      ],
-      "detail": "Identity_CS contains the ManageUsers screen. Core services are harder to reuse when they include a user experience.",
-      "fix": "Move ManageUsers into an End-user module and keep identity rules in Core."
-    },
-    {
-      "id": "foundation-business",
-      "severity": "medium",
-      "title": "Audit library stores business records",
-      "modules": [
-        "Audit_Lib"
-      ],
-      "detail": "Audit_Lib owns the non-static BusinessAudit entity. Business data in Foundation couples technical services to business rules.",
-      "fix": "Move BusinessAudit into a Core audit service and keep generic logging in the library."
-    },
-    {
-      "id": "unused-public",
-      "severity": "low",
-      "title": "A legacy order action has no input consumers",
-      "modules": [
-        "Orders_CS"
-      ],
-      "detail": "RepriceLegacyOrder is public but no other input module uses it. It expands the interface that must be maintained.",
-      "fix": "Check consumers outside this snapshot, then make the action private or remove it if no longer needed."
-    },
-    {
-      "id": "large-module",
-      "severity": "low",
-      "title": "Order management has grown large",
-      "modules": [
-        "Orders_CS"
-      ],
-      "detail": "Orders_CS contains more than 150 actions, screens and entities. A large module is harder to understand and change safely.",
-      "fix": "Consider separating pricing, order storage and fulfilment along clear business responsibilities."
-    },
-    {
-      "id": "missing-description",
-      "severity": "low",
-      "title": "Shipping has undocumented public elements",
-      "modules": [
-        "Shipping_API"
-      ],
-      "detail": "Three public elements have no description. Consumers must inspect their implementation to understand the contract.",
-      "fix": "Describe the purpose, inputs and expected results of the public shipping elements."
-    }
-  ]
-}</script>
+<footer>Generated by oml · Offline architecture snapshot · External modules show references only; their contents were not inspected. <span id="layout-stat"></span></footer>
+<script type="application/json" id="oml-architecture">{"schema":1,"generatedAt":"2026-10-17T12:00:00Z","omlVersion":"0.8.0","input":{"sources":["exports/CustomerExperience.oap","exports/Operations.oap","exports/SharedPlatform.oap"],"apps":[],"team":null},"applications":[{"name":"Customer Experience","modules":["Shop_Portal","Support_UI","Orders_CS","Customers_Core","Commerce_Theme"]},{"name":"Operations","modules":["Operations_App","Inventory_CS","Shipping_API","Warehouse_BL","ERP_IS"]},{"name":"Shared Platform","modules":["Shared_UI","Identity_CS","Audit_Lib","Common_Lib","Design_Th"]}],"modules":[{"name":"Shop_Portal","application":"Customer Experience","external":false,"kind":"Reactive","layer":"EndUser","layerReason":"suffix _Portal","description":"Customers browse products, place orders and track delivery.","counts":{"entities":0,"staticEntities":0,"structures":0,"serverActions":0,"serviceActions":0,"clientActions":6,"screens":2,"blocks":2,"restExposed":0,"restConsumed":0,"timers":0,"processes":0,"siteProperties":0,"roles":0},"public":{"entities":[],"actions":[],"blocks":[],"structures":[],"staticEntities":[]},"entities":[],"screens":["Home","OrderDetails"],"restExposed":[],"restConsumed":[],"timers":[],"processes":[]},{"name":"Support_UI","application":"Customer Experience","external":false,"kind":"Traditional Web","layer":"EndUser","layerReason":"suffix _UI","description":"Support staff view customer requests. Literal example: \u003c/script\u003e\u003cscript\u003ewindow.untrustedExecuted=true\u003c/script\u003e \u0026 \u003cb\u003etext\u003c/b\u003e.","counts":{"entities":0,"staticEntities":0,"structures":0,"serverActions":1,"serviceActions":0,"clientActions":6,"screens":1,"blocks":2,"restExposed":0,"restConsumed":0,"timers":0,"processes":0,"siteProperties":0,"roles":0},"public":{"entities":[],"actions":["OpenSupportRequest"],"blocks":[],"structures":[],"staticEntities":[]},"entities":[],"screens":["Dashboard"],"restExposed":[],"restConsumed":[],"timers":[],"processes":[]},{"name":"Orders_CS","application":"Customer Experience","external":false,"kind":"Service","layer":"Core","layerReason":"suffix _CS","description":"Stores orders and applies pricing, payment and fulfilment rules.","counts":{"entities":1,"staticEntities":0,"structures":1,"serverActions":155,"serviceActions":2,"clientActions":0,"screens":0,"blocks":0,"restExposed":0,"restConsumed":0,"timers":1,"processes":1,"siteProperties":0,"roles":1},"public":{"entities":["Order"],"actions":["GetOrder","SaveOrder","RepriceLegacyOrder"],"blocks":[],"structures":["OrderSummary"],"staticEntities":[]},"entities":[{"name":"Order","public":true,"attributes":6,"references":["Customer"]}],"screens":[],"restExposed":[],"restConsumed":[],"timers":["CloseExpiredOrders"],"processes":["ApproveLargeOrder"]},{"name":"Customers_Core","application":"Customer Experience","external":false,"kind":"Service","layer":"Core","layerReason":"suffix _Core","description":"Customers Core provides shared capabilities for Customer Experience.","counts":{"entities":1,"staticEntities":0,"structures":1,"serverActions":12,"serviceActions":2,"clientActions":0,"screens":0,"blocks":0,"restExposed":0,"restConsumed":0,"timers":0,"processes":0,"siteProperties":0,"roles":1},"public":{"entities":["Customer"],"actions":["GetCustomer","SaveCustomer"],"blocks":[],"structures":["CustomerSummary"],"staticEntities":[]},"entities":[{"name":"Customer","public":true,"attributes":6,"references":[]}],"screens":[],"restExposed":[],"restConsumed":[],"timers":[],"processes":[]},{"name":"Commerce_Theme","application":"Customer Experience","external":false,"kind":"Library","layer":"Foundation","layerReason":"suffix _Theme","description":"Commerce Theme provides shared capabilities for Customer Experience.","counts":{"entities":0,"staticEntities":0,"structures":0,"serverActions":0,"serviceActions":0,"clientActions":0,"screens":0,"blocks":3,"restExposed":0,"restConsumed":0,"timers":0,"processes":0,"siteProperties":0,"roles":0},"public":{"entities":[],"actions":[],"blocks":[],"structures":[],"staticEntities":[]},"entities":[],"screens":[],"restExposed":[],"restConsumed":[],"timers":[],"processes":[]},{"name":"Operations_App","application":"Operations","external":false,"kind":"Mobile","layer":"EndUser","layerReason":"suffix _App","description":"Operations App provides shared capabilities for Operations.","counts":{"entities":0,"staticEntities":0,"structures":0,"serverActions":0,"serviceActions":0,"clientActions":6,"screens":1,"blocks":2,"restExposed":0,"restConsumed":0,"timers":0,"processes":0,"siteProperties":0,"roles":0},"public":{"entities":[],"actions":[],"blocks":[],"structures":[],"staticEntities":[]},"entities":[],"screens":["Dashboard"],"restExposed":[],"restConsumed":[],"timers":[],"processes":[]},{"name":"Inventory_CS","application":"Operations","external":false,"kind":"Service","layer":"Core","layerReason":"suffix _CS","description":"Inventory CS provides shared capabilities for Operations.","counts":{"entities":1,"staticEntities":1,"structures":1,"serverActions":12,"serviceActions":2,"clientActions":0,"screens":0,"blocks":0,"restExposed":0,"restConsumed":0,"timers":0,"processes":0,"siteProperties":0,"roles":1},"public":{"entities":["Inventory"],"actions":["GetInventory","SaveInventory","ReserveStock"],"blocks":[],"structures":["InventorySummary"],"staticEntities":["StockState"]},"entities":[{"name":"Inventory","public":true,"attributes":6,"references":[]}],"screens":[],"restExposed":[],"restConsumed":[],"timers":[],"processes":[]},{"name":"Shipping_API","application":"Operations","external":false,"kind":"Service","layer":"Core","layerReason":"suffix _API","description":"Shipping API provides shared capabilities for Operations.","counts":{"entities":1,"staticEntities":0,"structures":1,"serverActions":12,"serviceActions":2,"clientActions":0,"screens":0,"blocks":0,"restExposed":1,"restConsumed":0,"timers":0,"processes":0,"siteProperties":0,"roles":1},"public":{"entities":["Shipping"],"actions":["GetShipping","SaveShipping","CreateShipment"],"blocks":[],"structures":["ShippingSummary"],"staticEntities":[]},"entities":[{"name":"Shipping","public":true,"attributes":6,"references":[]}],"screens":[],"restExposed":[{"name":"Shipments","methods":4}],"restConsumed":[],"timers":[],"processes":[]},{"name":"Warehouse_BL","application":"Operations","external":false,"kind":"Service","layer":"Core","layerReason":"suffix _BL","description":"Warehouse BL provides shared capabilities for Operations.","counts":{"entities":1,"staticEntities":0,"structures":1,"serverActions":12,"serviceActions":2,"clientActions":0,"screens":0,"blocks":0,"restExposed":0,"restConsumed":0,"timers":0,"processes":0,"siteProperties":0,"roles":1},"public":{"entities":["Warehouse"],"actions":["GetWarehouse","SaveWarehouse","AllocateShipment"],"blocks":[],"structures":["WarehouseSummary"],"staticEntities":[]},"entities":[{"name":"Warehouse","public":true,"attributes":6,"references":[]}],"screens":[],"restExposed":[],"restConsumed":[],"timers":[],"processes":[]},{"name":"ERP_IS","application":"Operations","external":false,"kind":"Service","layer":"Core","layerReason":"suffix _IS","description":"Connects warehouse operations to the ERP service.","counts":{"entities":1,"staticEntities":0,"structures":1,"serverActions":12,"serviceActions":2,"clientActions":0,"screens":0,"blocks":0,"restExposed":0,"restConsumed":1,"timers":0,"processes":0,"siteProperties":0,"roles":1},"public":{"entities":["ERP"],"actions":["GetERP","SaveERP","SendToERP"],"blocks":[],"structures":["ERPSummary"],"staticEntities":[]},"entities":[{"name":"ERP","public":true,"attributes":6,"references":[]}],"screens":[],"restExposed":[],"restConsumed":[{"name":"WarehouseERP","methods":5,"baseUrl":"https://erp.example.invalid/api"}],"timers":[],"processes":[]},{"name":"Shared_UI","application":"Shared Platform","external":false,"kind":"Reactive","layer":"EndUser","layerReason":"suffix _UI","description":"Shared CW provides shared capabilities for Shared Platform.","counts":{"entities":0,"staticEntities":0,"structures":0,"serverActions":0,"serviceActions":0,"clientActions":6,"screens":1,"blocks":2,"restExposed":0,"restConsumed":0,"timers":0,"processes":0,"siteProperties":0,"roles":0},"public":{"entities":[],"actions":[],"blocks":["StatusBadge"],"structures":[],"staticEntities":[]},"entities":[],"screens":["Dashboard"],"restExposed":[],"restConsumed":[],"timers":[],"processes":[]},{"name":"Identity_CS","application":"Shared Platform","external":false,"kind":"Reactive","layer":"Core","layerReason":"suffix _CS","description":"Identity CS provides shared capabilities for Shared Platform.","counts":{"entities":1,"staticEntities":0,"structures":1,"serverActions":12,"serviceActions":2,"clientActions":0,"screens":1,"blocks":0,"restExposed":0,"restConsumed":0,"timers":0,"processes":0,"siteProperties":0,"roles":1},"public":{"entities":["Identity"],"actions":["GetIdentity","SaveIdentity","Authorize"],"blocks":[],"structures":["IdentitySummary"],"staticEntities":[]},"entities":[{"name":"Identity","public":true,"attributes":6,"references":[]}],"screens":["ManageUsers"],"restExposed":[],"restConsumed":[],"timers":[],"processes":[]},{"name":"Audit_Lib","application":"Shared Platform","external":false,"kind":"Reactive","layer":"Foundation","layerReason":"suffix _Lib","description":"Writes technical audit events. Currently also owns business audit records.","counts":{"entities":1,"staticEntities":0,"structures":0,"serverActions":1,"serviceActions":0,"clientActions":0,"screens":0,"blocks":0,"restExposed":0,"restConsumed":0,"timers":0,"processes":0,"siteProperties":0,"roles":0},"public":{"entities":[],"actions":["WriteEvent"],"blocks":[],"structures":[],"staticEntities":[]},"entities":[{"name":"BusinessAudit","public":false,"attributes":7,"references":[]}],"screens":[],"restExposed":[],"restConsumed":[],"timers":[],"processes":[]},{"name":"Common_Lib","application":"Shared Platform","external":false,"kind":"Library","layer":"Foundation","layerReason":"suffix _Lib","description":"Common Lib provides shared capabilities for Shared Platform.","counts":{"entities":0,"staticEntities":0,"structures":0,"serverActions":1,"serviceActions":0,"clientActions":0,"screens":0,"blocks":0,"restExposed":0,"restConsumed":0,"timers":0,"processes":0,"siteProperties":0,"roles":0},"public":{"entities":[],"actions":["FormatDate"],"blocks":[],"structures":[],"staticEntities":[]},"entities":[],"screens":[],"restExposed":[],"restConsumed":[],"timers":[],"processes":[]},{"name":"Design_Th","application":"Shared Platform","external":false,"kind":"Library","layer":"Foundation","layerReason":"suffix _Th","description":"Design Th provides shared capabilities for Shared Platform.","counts":{"entities":0,"staticEntities":0,"structures":0,"serverActions":0,"serviceActions":0,"clientActions":0,"screens":0,"blocks":3,"restExposed":0,"restConsumed":0,"timers":0,"processes":0,"siteProperties":0,"roles":0},"public":{"entities":[],"actions":[],"blocks":[],"structures":[],"staticEntities":[]},"entities":[],"screens":[],"restExposed":[],"restConsumed":[],"timers":[],"processes":[]},{"name":"OutSystemsUI","external":true,"layer":"Foundation","layerReason":"known platform module","application":"(external)"},{"name":"System","external":true,"layer":"Foundation","layerReason":"known platform module","application":"(external)"},{"name":"Crypto.xif","external":true,"layer":"Foundation","layerReason":"extension producer","application":"(external)"}],"edges":[{"from":"Shop_Portal","to":"Orders_CS","strong":true,"elements":[{"kind":"Entity","name":"Order"},{"kind":"ServerAction","name":"SaveOrder"},{"kind":"Structure","name":"OrderSummary"}]},{"from":"Shop_Portal","to":"Customers_Core","strong":false,"elements":[{"kind":"Entity","name":"Customer"}]},{"from":"Shop_Portal","to":"Commerce_Theme","strong":true,"elements":[{"kind":"Theme","name":"Commerce"}]},{"from":"Shop_Portal","to":"Support_UI","strong":true,"elements":[{"kind":"ServerAction","name":"OpenSupportRequest"}]},{"from":"Support_UI","to":"Customers_Core","strong":true,"elements":[{"kind":"ServerAction","name":"GetCustomer"}]},{"from":"Operations_App","to":"Inventory_CS","strong":true,"elements":[{"kind":"Entity","name":"Inventory"},{"kind":"ServerAction","name":"GetInventory"}]},{"from":"Operations_App","to":"Shipping_API","strong":false,"elements":[{"kind":"ServiceAction","name":"CreateShipment"}]},{"from":"Operations_App","to":"Design_Th","strong":true,"elements":[{"kind":"Theme","name":"Design"}]},{"from":"Orders_CS","to":"Inventory_CS","strong":true,"elements":[{"kind":"ServerAction","name":"ReserveStock"}]},{"from":"Inventory_CS","to":"Orders_CS","strong":true,"elements":[{"kind":"ServerAction","name":"GetOrder"}]},{"from":"Shipping_API","to":"Warehouse_BL","strong":true,"elements":[{"kind":"ServerAction","name":"AllocateShipment"}]},{"from":"Warehouse_BL","to":"ERP_IS","strong":false,"elements":[{"kind":"ServiceAction","name":"SendToERP"}]},{"from":"ERP_IS","to":"Common_Lib","strong":true,"elements":[{"kind":"ServerAction","name":"FormatDate"}]},{"from":"Orders_CS","to":"Identity_CS","strong":true,"elements":[{"kind":"ServerAction","name":"Authorize"}]},{"from":"Identity_CS","to":"System","strong":true,"elements":[{"kind":"Role","name":"Registered"},{"kind":"Entity","name":"User"}]},{"from":"Audit_Lib","to":"Orders_CS","strong":false,"elements":[{"kind":"Entity","name":"Order"}]},{"from":"Orders_CS","to":"Audit_Lib","strong":true,"elements":[{"kind":"ServerAction","name":"WriteEvent"}]},{"from":"Customers_Core","to":"Common_Lib","strong":true,"elements":[{"kind":"ServerAction","name":"FormatDate"}]},{"from":"Shared_UI","to":"OutSystemsUI","strong":true,"elements":[{"kind":"Block","name":"Badge"}]},{"from":"Shop_Portal","to":"Shared_UI","strong":true,"elements":[{"kind":"Block","name":"StatusBadge"}]},{"from":"Design_Th","to":"OutSystemsUI","strong":true,"elements":[{"kind":"Theme","name":"OutSystemsUI"},{"kind":"Script","name":"Accessibility"}]},{"from":"Common_Lib","to":"Crypto.xif","strong":true,"elements":[{"kind":"ServerAction","name":"Encrypt"}]},{"from":"Support_UI","to":"System","strong":true,"elements":[{"kind":"Role","name":"Registered"},{"kind":"Image","name":"Logo"}]}],"findings":[{"id":"upward-reference","severity":"high","title":"Audit library depends on business data","modules":["Audit_Lib","Orders_CS"],"detail":"Audit_Lib is in Foundation but uses Order from Core. A shared technical service now depends on a specific business domain.","fix":"Pass a simple audit message into the library instead of importing the Order entity."},{"id":"side-reference-enduser","severity":"high","title":"User experiences depend on each other","modules":["Shop_Portal","Support_UI","Shared_UI"],"detail":"Shop_Portal calls an action in Support_UI and uses a block from Shared_UI. Strong dependencies between End-user modules make their releases harder to separate.","fix":"Move the shared support action into Core. Review whether the reusable status block belongs in a Foundation library."},{"id":"cycle","severity":"high","title":"Orders and inventory depend on each other","modules":["Orders_CS","Inventory_CS","Orders_CS"],"detail":"Cycle: Orders_CS → Inventory_CS → Orders_CS. These modules cannot evolve independently.","fix":"Move stock reservation coordination into a separate Core service, with dependencies in one direction."},{"id":"core-ui","severity":"medium","title":"Identity mixes user screens and business logic","modules":["Identity_CS"],"detail":"Identity_CS contains the ManageUsers screen. Core services are harder to reuse when they include a user experience.","fix":"Move ManageUsers into an End-user module and keep identity rules in Core."},{"id":"foundation-business","severity":"medium","title":"Audit library stores business records","modules":["Audit_Lib"],"detail":"Audit_Lib owns the non-static BusinessAudit entity. Business data in Foundation couples technical services to business rules.","fix":"Move BusinessAudit into a Core audit service and keep generic logging in the library."},{"id":"unused-public","severity":"low","title":"A legacy order action has no input consumers","modules":["Orders_CS"],"detail":"RepriceLegacyOrder is public but no other input module uses it. It expands the interface that must be maintained.","fix":"Check consumers outside this snapshot, then make the action private or remove it if no longer needed."},{"id":"large-module","severity":"low","title":"Order management has grown large","modules":["Orders_CS"],"detail":"Orders_CS contains more than 150 actions, screens and entities. A large module is harder to understand and change safely.","fix":"Consider separating pricing, order storage and fulfilment along clear business responsibilities."},{"id":"missing-description","severity":"low","title":"Shipping has undocumented public elements","modules":["Shipping_API"],"detail":"Three public elements have no description. Consumers must inspect their implementation to understand the contract.","fix":"Describe the purpose, inputs and expected results of the public shipping elements."}],"layout":{"crossings":7,"ranks":7}}</script>
 <script>
 'use strict';
 (() => {
 const D = JSON.parse(document.getElementById('oml-architecture').textContent);
 const $ = id => document.getElementById(id);
+const compare = (a,b) => a < b ? -1 : a > b ? 1 : 0;
 const modules = (D.modules || []).slice().sort((a,b) => compare(a.name,b.name));
 const edges = D.edges || [], findings = D.findings || [];
 const byName = new Map(modules.map(m => [m.name,m]));
-const layers = [['EndUser','End-user','Screens and experiences that people use.','--ui'],['Core','Core','Business rules and data shared by user experiences.','--core'],['Foundation','Foundation','Reusable technical services, themes and building blocks.','--foundation']];
-function compare(a,b) { return a < b ? -1 : a > b ? 1 : 0; }
+const usable = edges.filter(e => byName.has(e.from) && byName.has(e.to) && e.from !== e.to);
+const BANDS = [['EndUser','End-user','Screens and experiences that people use.','--ui'],['Core','Core','Business rules and data shared by user experiences.','--core'],['Foundation','Foundation','Reusable technical services, themes and building blocks.','--foundation'],['Platform','Platform','OutSystems platform and modules outside the input.','--muted']];
+const CARD_W = 180, CARD_H = 70, DUMMY_W = 8, GAP = 18, LANE_GAP = 6, ROW_GAP = 66, PAD = 28, LABEL_W = 160, X0 = LABEL_W + 22, PASSES = 12, BIG = 30;
+// Row width and level count: the module view wraps at 6 cards and keeps up to 3 levels per layer; the application view wraps at 4 and keeps 1.
+const MODULE_VIEW = {cols:6,levels:3}, APP_VIEW = {cols:4,levels:1};
 function el(tag,text,cls,parent) { const n=document.createElement(tag); if(text!==undefined)n.textContent=text; if(cls)n.className=cls; if(parent)parent.append(n); return n; }
 function svg(tag,attrs,parent) { const n=document.createElementNS('http://www.w3.org/2000/svg',tag); for(const [k,v] of Object.entries(attrs || {}))n.setAttribute(k,v); if(parent)parent.append(n); return n; }
 function st(text,x,y,cls,parent) { const n=svg('text',{x,y,class:cls},parent); n.textContent=text; return n; }
 function fitText(node,text,width) { const chars=Array.from(text); node.textContent=text; while(chars.length&&node.getComputedTextLength()>width) { chars.pop(); node.textContent=chars.join('')+'…'; } }
 function button(text,fn,parent) { const b=el('button',text,'link',parent); b.addEventListener('click',fn); return b; }
+function wrap(text,max) { const out=[]; let line=''; for(const w of text.split(' ')) { if(line&&(line+' '+w).length>max) { out.push(line); line=w; } else line=line?line+' '+w:w; } if(line)out.push(line); return out; }
+function say(text) { $('status').textContent=text; }
 function theme(value) { document.documentElement.dataset.theme=value; $('theme').textContent=value==='dark'?'Light theme':'Dark theme'; $('theme').setAttribute('aria-pressed',String(value==='light')); }
 let saved; try { saved=localStorage.getItem('oml-architecture-theme'); } catch {}
 theme(saved==='light'||saved==='dark'?saved:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
 $('theme').onclick=()=>{ const t=document.documentElement.dataset.theme==='dark'?'light':'dark'; theme(t); try { localStorage.setItem('oml-architecture-theme',t); } catch {} };
-const appNames=(D.applications || []).map(a=>a.name);
-$('title').textContent=appNames.length?appNames.join(' · ')+' — Architecture':'Architecture'; document.title=$('title').textContent;
-$('generated').textContent='Generated '+(D.generatedAt || '—')+' · oml '+(D.omlVersion || '—');
-for(const [label,count,color] of [['Input modules',modules.filter(m=>!m.external).length,'--core'],['Applications',appNames.length,'--ui'],['Dependencies',edges.length,'--foundation'],['External modules',modules.filter(m=>m.external).length,'--core'],...['high','medium','low'].map(s=>[s[0].toUpperCase()+s.slice(1)+' findings',findings.filter(f=>f.severity===s).length,s==='high'?'--red':'--core'])]) { const box=el('div',undefined,'stat',$('stats')); box.style.setProperty('--accent',`var(${color})`); el('b',count,undefined,box); el('span',label,undefined,box); }
-// Fixed shelves within each band. Dependency barycenters determine the stable order;
-// application outlines stay intact, and cards wrap rather than growing a long row.
-let ranks=new Map(modules.map((m,i)=>[m.name,i]));
-for(let pass=0;pass<4;pass++) { const scores=new Map(modules.map(m=>{const ns=edges.filter(e=>e.from===m.name||e.to===m.name).map(e=>ranks.get(e.from===m.name?e.to:e.from)).filter(v=>v!==undefined); return [m.name,ns.length?ns.reduce((a,b)=>a+b,0)/ns.length:ranks.get(m.name)];})); modules.sort((a,b)=>scores.get(a.name)-scores.get(b.name)||compare(a.name,b.name)); ranks=new Map(modules.map((m,i)=>[m.name,i])); }
-const positions=new Map(), nodeViews=new Map(), edgeViews=[];
-const innerWidth=1280, extX=innerWidth+42, cardW=214, cardH=70, gap=18;
-let y=12;
-for(const [layer,label,note,color] of layers) {
- const start=y, band=svg('g',{},$('bands'));
- const bg=svg('rect',{x:8,y:start,width:innerWidth+300,height:200,rx:12,class:'band'},band);
- st(label,28,start+32,'band-title',band).style.fill=`var(${color})`;
- st(note,28,start+56,'band-note',band);
- const own=modules.filter(m=>!m.external&&m.layer===layer), apps=[...new Set(own.map(m=>m.application || '(no application)'))];
- let x=28, rowY=start+82, rowH=0;
- apps.forEach(app=>{
-  const ms=own.filter(m=>(m.application || '(no application)')===app);
-  const cols=Math.min(3,ms.length===4?2:ms.length), width=cols*(cardW+gap)+14, height=Math.ceil(ms.length/cols)*(cardH+gap)+44;
-  if(x+width>innerWidth&&x>28) { x=28; rowY+=rowH+22; rowH=0; }
-  const appIndex=Math.max(0,appNames.indexOf(app)), stroke=`var(--group${appIndex%4})`;
-  svg('rect',{x,y:rowY,width,height,rx:10,class:'app-group',stroke},band);
-  const appLabel=st(app,x+12,rowY+23,'app-label',band); appLabel.style.fill=stroke; fitText(appLabel,app,width-24);
-  svg('title',{},appLabel).textContent=app;
-  ms.forEach((m,i)=>positions.set(m.name,{x:x+12+(i%cols)*(cardW+gap),y:rowY+36+Math.floor(i/cols)*(cardH+gap),m,color}));
-  x+=width+20; rowH=Math.max(rowH,height);
+
+// Applications, platform modules and the starting view.
+const appOf = m => !m.external && m.application && m.application !== '(no application)' ? m.application : null;
+const bandOf = m => { if(m.external)return 3; const i=['EndUser','Core','Foundation'].indexOf(m.layer); return i<0?2:i; };
+const listed = (D.applications || []).map(a => a.name);
+const rank = a => listed.indexOf(a) < 0 ? 1e9 : listed.indexOf(a);
+const appNames = [...new Set(modules.map(appOf).filter(Boolean))].sort((a,b) => rank(a)-rank(b) || compare(a,b));
+const inputMods = modules.filter(m => !m.external), externals = modules.filter(m => m.external);
+const appMods = new Map(appNames.map(a => [a, modules.filter(m => appOf(m)===a)]));
+const some = (names,max=4) => names.length>max ? names.slice(0,max).join(' · ')+' +'+(names.length-max)+' more' : names.join(' · ');
+// A loose .oml has no application: the module names are the title.
+const label = appNames.length ? some(appNames) : some(inputMods.map(m => m.name));
+$('title').textContent = label ? label+' — Architecture' : 'Architecture'; document.title = $('title').textContent;
+$('generated').textContent = 'Generated '+(D.generatedAt || '—')+' · oml '+(D.omlVersion || '—');
+for(const [text,count,color] of [['Input modules',inputMods.length,'--core'],['Applications',appNames.length,'--ui'],['Dependencies',edges.length,'--foundation'],['External modules',externals.length,'--core'],...['high','medium','low'].map(s => [s[0].toUpperCase()+s.slice(1)+' findings',findings.filter(f => f.severity===s).length,s==='high'?'--red':'--core'])]) { const box=el('div',undefined,'stat',$('stats')); box.style.setProperty('--accent',`var(${color})`); el('b',count,undefined,box); el('span',text,undefined,box); }
+const big = inputMods.length > BIG;
+const state = { expanded:new Set(big ? [] : appNames), platform:!big && externals.length <= 8, weak:!big };
+// An edge is a finding when both ends belong to a dependency finding (every edge inside a cycle lies on that cycle).
+const flagged = new Set();
+for(const f of findings) if(['upward-reference','side-reference-enduser','cycle'].includes(f.id)) for(const a of f.modules || []) for(const b of f.modules || []) if(a!==b) flagged.add(a+'\u0000'+b);
+const violation = e => flagged.has(e.from+'\u0000'+e.to);
+
+// ---- Layout: the same algorithm as src/Core/ArchitectureLayout.cs (the JSON layout.crossings comes from there). ----
+function structure(n,nodeRank,R,pairs,nodeKey,dummyKey) {
+ const seen=new Set(), keys=[];
+ for(const [a,b] of pairs) { const k=Math.min(a,b)*n+Math.max(a,b); if(!seen.has(k)) { seen.add(k); keys.push(k); } }
+ keys.sort((x,y) => x-y);
+ const itemRank=nodeRank.slice(), up=[], down=[], keyOf=[], links=[];
+ for(let v=0;v<n;v++) { up.push([]); down.push([]); keyOf.push(nodeKey(v)); }
+ for(const key of keys) {
+  const lo=Math.floor(key/n), hi=key%n; let top=lo, bot=hi;
+  if(nodeRank[top]>nodeRank[bot]) [top,bot]=[bot,top];
+  if(nodeRank[top]===nodeRank[bot]) continue;
+  const chain=[top];
+  for(let r=nodeRank[top]+1;r<nodeRank[bot];r++) { chain.push(itemRank.length); itemRank.push(r); up.push([]); down.push([]); keyOf.push(dummyKey(key,r)); }
+  chain.push(bot);
+  for(let i=0;i+1<chain.length;i++) { down[chain[i]].push(chain[i+1]); up[chain[i+1]].push(chain[i]); }
+  links.push({key,top,bot,chain});
+ }
+ const ranks=Array.from({length:R},() => []);
+ itemRank.forEach((r,i) => ranks[r].push(i));
+ ranks.forEach(r => r.sort((x,y) => keyOf[x]-keyOf[y] || x-y));
+ const S={n,itemRank,up,down,ranks,links,pos:new Array(itemRank.length).fill(0),crossings:0};
+ reindex(S); return S;
+}
+function reindex(S) { S.ranks.forEach(r => r.forEach((i,p) => S.pos[i]=p)); }
+function inversions(a,m) { const t=new Array(m+1).fill(0); let c=0; for(let j=0;j<a.length;j++) { let s=0; for(let i=a[j]+1;i>0;i-=i&-i)s+=t[i]; c+=j-s; for(let i=a[j]+1;i<=m;i+=i&-i)t[i]++; } return c; }
+function count(S) { let total=0; for(let r=0;r+1<S.ranks.length;r++) { const segs=[]; for(const u of S.ranks[r]) for(const l of S.down[u].map(w => S.pos[w]).sort((x,y) => x-y)) segs.push(l); total+=inversions(segs,S.ranks[r+1].length); } return total; }
+function sortRank(S,r,ref) { const rank=S.ranks[r], score=new Map(); for(const i of rank) { const ns=ref[i]; score.set(i, ns.length ? ns.reduce((s,k) => s+S.pos[k],0)/ns.length : S.pos[i]); } rank.sort((x,y) => score.get(x)-score.get(y)); rank.forEach((i,p) => S.pos[i]=p); }
+function pairCross(S,u,v) { let c=0; for(const a of S.up[u]) for(const b of S.up[v]) if(S.pos[a]>S.pos[b])c++; for(const a of S.down[u]) for(const b of S.down[v]) if(S.pos[a]>S.pos[b])c++; return c; }
+function transpose(S) {
+ let improved=true;
+ for(let guard=0;improved&&guard<10;guard++) { improved=false;
+  for(const rank of S.ranks) for(let p=0;p+1<rank.length;p++) { const u=rank[p], v=rank[p+1]; if(pairCross(S,v,u)<pairCross(S,u,v)) { rank[p]=v; rank[p+1]=u; S.pos[v]=p; S.pos[u]=p+1; improved=true; } }
+ }
+}
+function sweep(S) {
+ let best=S.ranks.map(r => r.slice()), bestCount=count(S);
+ for(let pass=0;pass<PASSES&&bestCount>0;pass++) {
+  if(pass%2===0) for(let r=1;r<S.ranks.length;r++) sortRank(S,r,S.up); else for(let r=S.ranks.length-2;r>=0;r--) sortRank(S,r,S.down);
+  transpose(S);
+  const c=count(S); if(c<bestCount) { bestCount=c; best=S.ranks.map(r => r.slice()); }
+ }
+ S.ranks=best; reindex(S); return bestCount;
+}
+function layoutGraph(bands,pairs,cols,maxLevels) {
+ const n=bands.length, out=Array.from({length:n},() => []);
+ for(const [a,b] of pairs) if(bands[a]===bands[b]) out[a].push(b);
+ out.forEach(l => l.sort((x,y) => x-y));
+ const color=new Array(n).fill(0), back=new Set(), level=new Array(n).fill(0);
+ const dfs = v => { color[v]=1; for(const w of out[v]) { if(color[w]===1)back.add(v*n+w); else if(color[w]===0)dfs(w); } color[v]=2; };
+ for(let v=0;v<n;v++) if(color[v]===0)dfs(v);
+ const indegree=new Array(n).fill(0);
+ for(let v=0;v<n;v++) for(const w of out[v]) if(!back.has(v*n+w))indegree[w]++;
+ const queue=[]; for(let v=0;v<n;v++) if(indegree[v]===0)queue.push(v);
+ for(let h=0;h<queue.length;h++) { const u=queue[h]; for(const w of out[u]) { if(back.has(u*n+w))continue; level[w]=Math.max(level[w],level[u]+1); if(--indegree[w]===0)queue.push(w); } }
+ const groups=new Map();
+ for(let v=0;v<n;v++) { const k=bands[v]*(n+1)+Math.min(level[v],maxLevels-1); if(!groups.has(k))groups.set(k,[]); groups.get(k).push(v); }
+ const wide=[...groups.keys()].sort((x,y) => x-y).map(k => groups.get(k));
+ const rank1=new Array(n); wide.forEach((g,r) => g.forEach(v => rank1[v]=r));
+ // Dependencies between two modules of the same level are drawn as arcs inside the band; they take no part in the layout.
+ const linkPairs=pairs.filter(([a,b]) => rank1[a]!==rank1[b]);
+ const s1=structure(n,rank1,wide.length,linkPairs,v => v,(key) => 1e9+key);
+ s1.crossings=sweep(s1);
+ if(wide.every(g => g.length<=cols)) return s1;
+ // Wrap wide levels into rows of at most `cols` nodes, in the order the sweeps found.
+ const rank2=new Array(n), wideOf=[]; let rows=0;
+ wide.forEach((_,w) => {
+  const ordered=s1.ranks[w].filter(i => i<n), total=ordered.length, k=Math.ceil(total/cols); let p=0;
+  for(let r=0;r<k;r++) { const size=Math.floor(total/k)+(r<total%k?1:0); for(let c=0;c<size;c++)rank2[ordered[p++]]=rows+r; wideOf.push(w); }
+  rows+=k;
  });
- const ext=modules.filter(m=>m.external&&m.layer===layer);
- if(ext.length)st('External · not in input',extX,start+84,'app-label',band);
- ext.forEach((m,i)=>positions.set(m.name,{x:extX,y:start+98+i*(cardH+gap),m,color}));
- const end=Math.max(start+170,rowY+rowH+20,start+98+ext.length*(cardH+gap));
- bg.setAttribute('height',end-start); y=end+18;
+ const byKey=new Map(s1.links.map(l => [l.key,l]));
+ const dummyKey=(key,r) => { const l=byKey.get(key); return l ? s1.pos[l.chain.find(i => s1.itemRank[i]===wideOf[r])] : 0; };
+ const s2=structure(n,rank2,rows,linkPairs,v => s1.pos[v],dummyKey);
+ s2.crossings=sweep(s2); return s2;
 }
-// Treat only dependency findings as edge violations; unrelated module warnings do not color edges.
-function violation(e) { return findings.some(f=>['upward-reference','side-reference-enduser','cycle'].includes(f.id) && (f.id==='cycle' ? (f.modules || []).some((n,i,a)=>n===e.from&&a[(i+1)%a.length]===e.to) : (f.modules || []).includes(e.from)&&(f.modules || []).includes(e.to))); }
-for(const [i,e] of edges.entries()) {
- const a=positions.get(e.from), b=positions.get(e.to); if(!a||!b)continue;
- const same=a.m.layer===b.m.layer;
- let path;
- if(same) { const ax=a.x+cardW/2,bx=b.x+cardW/2, lift=Math.min(a.y,b.y)-22-(i%5)*6; path=`M${ax},${a.y} C${ax},${lift} ${bx},${lift} ${bx},${b.y}`; if(a===b)path=`M${a.x+cardW-30},${a.y} C${a.x+cardW+40},${a.y-55} ${a.x+cardW+40},${a.y+35} ${a.x+cardW},${a.y+35}`; }
- else { const down=b.y>a.y, ax=a.x+cardW/2, ay=a.y+(down?cardH:0), bx=b.x+cardW/2, by=b.y+(down?0:cardH), mid=(ay+by)/2; path=`M${ax},${ay} C${ax},${mid} ${bx},${mid} ${bx},${by}`; }
- const bad=violation(e), n=svg('path',{d:path,class:'edge'+(!e.strong?' weak':'')+(bad?' violation':''),'marker-end':`url(#${bad?'arrow-red':'arrow'})`},$('edges'));
- svg('title',{},n).textContent=e.from+' uses '+e.to+': '+(e.elements || []).map(v=>v.kind+' '+v.name).join(', '); edgeViews.push({n,e});
+
+// ---- View: nodes are modules, collapsed applications, or the collapsed Platform group. ----
+let nodes=[], links=[], nodeIndex=new Map(), S=null, pos=[], world={x:0,y:0,w:1000,h:600}, layoutMs=0;
+const nodeViews=new Map(), linkViews=[];
+let sel={names:[],active:null}, printing=false;
+const graph=$('graph');
+// An application sits in the layer most of its modules are in; a tie goes to the layer nearer the user.
+function appBand(ms) { const c=[0,0,0]; ms.forEach(m => c[bandOf(m)]++); return c.indexOf(Math.max(...c)); }
+function moduleNode(m) { return {id:'m:'+m.name,type:'module',name:m.name,m,mods:[m],band:bandOf(m),key:m.application || ''}; }
+function buildView() {
+ nodes=[];
+ for(const m of modules) { if(m.external) { if(state.platform)nodes.push(moduleNode(m)); } else if(!appOf(m) || state.expanded.has(appOf(m)))nodes.push(moduleNode(m)); }
+ for(const a of appNames) if(!state.expanded.has(a)) { const ms=appMods.get(a); nodes.push({id:'a:'+a,type:'app',name:a,mods:ms,band:appBand(ms),key:a}); }
+ if(externals.length && !state.platform)nodes.push({id:'p:',type:'platform',name:'Platform',mods:externals,band:3,key:''});
+ nodes.sort((a,b) => a.band-b.band || compare(a.key,b.key) || compare(a.name,b.name));
+ nodeIndex=new Map(); nodes.forEach((nd,i) => nd.mods.forEach(m => { if(!nodeIndex.has(m.name))nodeIndex.set(m.name,i); }));
+ const n=nodes.length, info=new Map(), seen=new Set(), pairs=[];
+ for(const e of usable) {
+  if(!state.weak && !e.strong && !violation(e))continue;
+  if(!state.platform && byName.get(e.to).external)continue; // lines to the closed Platform box would only add noise
+  const a=nodeIndex.get(e.from), b=nodeIndex.get(e.to); if(a===undefined||b===undefined||a===b)continue;
+  if(!seen.has(a+'>'+b)) { seen.add(a+'>'+b); pairs.push([a,b]); }
+  const key=Math.min(a,b)*n+Math.max(a,b); let li=info.get(key); if(!li) { li={items:[],strong:false,bad:false}; info.set(key,li); }
+  li.items.push({e,a,b}); li.strong=li.strong||Boolean(e.strong); li.bad=li.bad||violation(e);
+ }
+ const params=nodes.some(nd => nd.type==='app') ? APP_VIEW : MODULE_VIEW;
+ const t0=performance.now();
+ S=layoutGraph(nodes.map(nd => nd.band),pairs,params.cols,params.levels);
+ layoutMs=performance.now()-t0;
+ const linked=new Set(S.links.map(l => l.key));
+ links=S.links.map(l => ({...l,...info.get(l.key),a:l.top,b:l.bot}));
+ for(const [key,li] of info) if(!linked.has(key)) { const lo=Math.floor(key/n), hi=key%n; links.push({key,top:lo,bot:hi,chain:[lo,hi],arc:true,...li,a:lo,b:hi}); }
 }
-for(const m of modules) {
- const p=positions.get(m.name); if(!p)continue;
- const g=svg('g',{class:'node'+(m.external?' external':''),tabindex:0,role:'button','aria-label':`${m.name}, ${m.layer}, ${m.application || ''}${m.external?', external':''}`,transform:`translate(${p.x},${p.y})`},$('nodes'));
- svg('rect',{width:cardW,height:cardH,rx:9,stroke:`var(${p.color})`},g);
- fitText(st(m.name,12,26,'name',g),m.name,cardW-24); st(m.external?'External producer':m.kind || 'Unknown',12,47,'meta',g);
- const count=findings.filter(f=>(f.modules || []).includes(m.name)).length;
- if(count)st(`${count} !`,cardW-34,59,'meta',g).style.fill='var(--red)';
- svg('title',{},g).textContent=m.name+(m.description?' — '+m.description:'');
- g.addEventListener('click',()=>select(m.name)); g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();select(m.name);}});
- g.addEventListener('focus',()=>{ if(!printing&&g.matches(':focus-visible'))zoomTo([m.name],false); });
- nodeViews.set(m.name,g);
+function place() {
+ const N=nodes.length, R=S.ranks.length, wOf=i => i<N?CARD_W:DUMMY_W, gapOf=(i,j) => i<N&&j<N?GAP:LANE_GAP;
+ const bandOfRank=S.ranks.map(r => nodes[r.find(i => i<N)].band), rankY=new Array(R), bandBoxes=[];
+ let y=10;
+ for(const b of externals.length?[0,1,2,3]:[0,1,2]) {
+  const rs=[]; for(let r=0;r<R;r++) if(bandOfRank[r]===b)rs.push(r);
+  if(!rs.length) { bandBoxes.push({b,y,h:44,rows:0,count:0}); y+=54; continue; }
+  const top=y; let yy=y+PAD+(b===3&&state.platform?34:0);
+  rs.forEach((r,k) => { rankY[r]=yy; yy+=CARD_H+(k+1<rs.length?ROW_GAP:0); });
+  bandBoxes.push({b,y:top,h:yy+PAD-top,rows:rs.length,count:nodes.filter(nd => nd.band===b).length}); y=yy+PAD+10;
+ }
+ const cx=new Array(S.itemRank.length).fill(0);
+ for(const rank of S.ranks) { let x=X0; rank.forEach((i,k) => { cx[i]=x+wOf(i)/2; x+=wOf(i)+(k+1<rank.length?gapOf(i,rank[k+1]):0); }); }
+ // Best centers for one row: closest to the wanted centers while keeping order and spacing (pool adjacent violators).
+ const pack = (rank,want) => {
+  const off=[0]; for(let k=1;k<rank.length;k++) off.push(off[k-1]+(wOf(rank[k-1])+wOf(rank[k]))/2+gapOf(rank[k-1],rank[k]));
+  const blocks=[];
+  rank.forEach((_,k) => { blocks.push({sum:want[k]-off[k],n:1}); while(blocks.length>1&&blocks[blocks.length-2].sum/blocks[blocks.length-2].n>blocks[blocks.length-1].sum/blocks[blocks.length-1].n) { const t=blocks.pop(); blocks[blocks.length-1].sum+=t.sum; blocks[blocks.length-1].n+=t.n; } });
+  let k=0; const c=[]; for(const bl of blocks) for(let j=0;j<bl.n;j++,k++) c.push(bl.sum/bl.n+off[k]);
+  const shift=Math.max(0,X0-(c[0]-wOf(rank[0])/2));
+  rank.forEach((i,j) => cx[i]=c[j]+shift);
+ };
+ for(let it=0;it<12;it++) {
+  const down=it%2===0, ref=down?S.up:S.down;
+  for(let t=1;t<R;t++) { const r=down?t:R-1-t, rank=S.ranks[r]; pack(rank,rank.map(i => ref[i].length?ref[i].reduce((s,k) => s+cx[k],0)/ref[i].length:cx[i])); }
+ }
+ let minX=Infinity, maxX=-Infinity;
+ S.ranks.forEach(r => r.forEach(i => { minX=Math.min(minX,cx[i]-wOf(i)/2); maxX=Math.max(maxX,cx[i]+wOf(i)/2); }));
+ const dx=X0-minX; cx.forEach((_,i) => cx[i]+=dx);
+ pos=nodes.map((_,i) => ({x:cx[i]-CARD_W/2,y:rankY[S.itemRank[i]]}));
+ world={x:0,y:0,w:Math.max(maxX+dx+40,900),h:y};
+ return {cx,rankY,bandBoxes};
 }
-const graph=$('graph'), world={x:0,y:0,w:innerWidth+320,h:y};
-graph.style.setProperty('--graph-ratio',String(world.w/world.h));
-let view={...world}, selected=new Set(), activeName=null, printing=false;
+
+// ---- Drawing ----
+function draw(g) {
+ const N=nodes.length;
+ $('bands').replaceChildren(); $('edges').replaceChildren(); $('nodes').replaceChildren(); nodeViews.clear(); linkViews.length=0;
+ for(const bb of g.bandBoxes) {
+  const [,title,note,color]=BANDS[bb.b], band=svg('g',{},$('bands'));
+  svg('rect',{x:8,y:bb.y,width:world.w-16,height:bb.h,rx:12,class:'band'},band);
+  const head=st(title,28,bb.rows?bb.y+bb.h/2-10:bb.y+bb.h/2+7,'band-title',band); head.style.fill=`var(${color})`;
+  if(bb.rows) { st(bb.count+(bb.count===1?' item':' items'),28,bb.y+bb.h/2+10,'band-note',band); wrap(note,23).forEach((line,k) => st(line,28,bb.y+bb.h/2+27+k*15,'band-note',band)); }
+  else st('no modules in this layer',28+head.getComputedTextLength()+12,bb.y+bb.h/2+6,'band-note',band);
+ }
+ if(state.platform && externals.length) {
+  const ps=nodes.map((nd,i) => i).filter(i => nodes[i].band===3);
+  if(ps.length) {
+   const x1=Math.min(...ps.map(i => pos[i].x))-14, x2=Math.max(...ps.map(i => pos[i].x))+CARD_W+14, y1=Math.min(...ps.map(i => pos[i].y))-34, y2=Math.max(...ps.map(i => pos[i].y))+CARD_H+14;
+   const grp=svg('g',{},$('nodes'));
+   svg('rect',{x:x1,y:y1,width:x2-x1,height:y2-y1,rx:10,class:'box'},grp);
+   st(`Platform · ${externals.length} ${externals.length===1?'module':'modules'}`,x1+14,y1+22,'box-label',grp);
+   const t=svg('g',{class:'box-toggle',tabindex:0,role:'button','aria-label':'Collapse the Platform group'},grp);
+   svg('rect',{x:x2-96,y:y1+6,width:84,height:24,rx:6},t); st('Collapse',x2-54,y1+22,undefined,t);
+   t.addEventListener('click',() => setPlatform(false)); t.addEventListener('keydown',e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); setPlatform(false); } });
+  }
+ }
+ // Ports: edges leave the bottom of the upper card and enter the top of the lower card, spread by where they go.
+ const portOut=new Map(), portIn=new Map(), add=(map,key,item) => { if(!map.has(key))map.set(key,[]); map.get(key).push(item); };
+ links.forEach((l,k) => { if(l.arc)return; add(portOut,l.top,{k,x:g.cx[l.chain[1]]}); add(portIn,l.bot,{k,x:g.cx[l.chain[l.chain.length-2]]}); });
+ const portX=new Map();
+ for(const [map,tag] of [[portOut,'o'],[portIn,'i']]) for(const [node,list] of map) { list.sort((a,b) => a.x-b.x || a.k-b.k); list.forEach((p,j) => portX.set(tag+p.k,pos[node].x+10+(j+1)*(CARD_W-20)/(list.length+1))); }
+ const plural = (n,one,many) => `${n} ${n===1?one:many}`;
+ function linkTitle(l) {
+  const lines=l.items.slice(0,8).map(it => it.e.from+' uses '+it.e.to+': '+(it.e.elements || []).map(v => v.kind+' '+v.name).join(', '));
+  const bad=l.items.filter(it => violation(it.e)).length, head=[];
+  if(l.items.length>1)head.push(plural(l.items.length,'dependency','dependencies')+(bad?`, ${bad} of them ${bad===1?'is a finding':'are findings'}`:''));
+  if(l.items.some(it => it.a===l.bot && !violation(it.e)) && (nodes[l.top].type!=='module'||nodes[l.bot].type!=='module'))head.push('Drawn upward because an application sits in the layer where most of its modules are. That alone is not a finding.');
+  return head.concat(lines).join('\n')+(l.items.length>8?`\n… and ${l.items.length-8} more`:'');
+ }
+ // An arc joins two cards of the same level: over the top inside one row, or straight down to the card in the row below.
+ function arcPath(l) {
+  const pa=pos[l.top], pb=pos[l.bot];
+  if(pa.y===pb.y) { const [L,R]=pa.x<=pb.x?[l.top,l.bot]:[l.bot,l.top], x1=pos[L].x+CARD_W/2+14, x2=pos[R].x+CARD_W/2-14, y=pa.y, lift=30+Math.min(24,(x2-x1)/50); return {d:`M${x1},${y} C${x1},${y-lift} ${x2},${y-lift} ${x2},${y}`,start:L,mid:{x:(x1+x2)/2,y:y-lift*.75}}; }
+  const [U,W]=pa.y<pb.y?[l.top,l.bot]:[l.bot,l.top], x1=pos[U].x+CARD_W/2, x2=pos[W].x+CARD_W/2, y1=pos[U].y+CARD_H, y2=pos[W].y, ym=(y1+y2)/2;
+  return {d:`M${x1},${y1} C${x1},${ym} ${x2},${ym} ${x2},${y2}`,start:U,mid:{x:(x1+x2)/2,y:ym}};
+ }
+ links.forEach((l,k) => {
+  let d, mid=null, start=l.top;
+  if(l.arc) { const a=arcPath(l); d=a.d; mid=a.mid; start=a.start; }
+  else {
+   const c=l.chain, last=c.length-1;
+   let px=portX.get('o'+k), py=pos[c[0]].y+CARD_H; d=`M${px},${py}`;
+   const hop=Math.floor((last-1)/2);
+   for(let i=1;i<=last;i++) {
+    const tx=i===last?portX.get('i'+k):g.cx[c[i]], ty=g.rankY[S.itemRank[c[i]]], ym=(py+ty)/2;
+    d+=` C${px},${ym} ${tx},${ym} ${tx},${ty}`;
+    if(i-1===hop)mid={x:(px+tx)/2,y:(py+ty)/2};
+    if(i<last) { d+=` L${tx},${ty+CARD_H}`; px=tx; py=ty+CARD_H; }
+   }
+  }
+  const end=l.items.some(it => it.a===start), first=l.items.some(it => it.a!==start), red=l.bad;
+  const p=svg('path',{d,class:'edge'+(l.strong?'':' weak')+(red?' violation':'')},$('edges'));
+  if(end)p.setAttribute('marker-end',`url(#${red?'arrow-red':'arrow'})`);
+  if(first)p.setAttribute('marker-start',`url(#${red?'arrow-red':'arrow'})`);
+  const title=linkTitle(l);
+  svg('title',{},p).textContent=title;
+  let badge=null;
+  if(l.items.length>1 && mid) { badge=svg('g',{class:'badge'},$('edges')); svg('circle',{cx:mid.x,cy:mid.y,r:9},badge); st(String(l.items.length),mid.x,mid.y,undefined,badge); svg('title',{},badge).textContent=title; }
+  linkViews.push({p,badge,l});
+ });
+ nodes.forEach((nd,i) => {
+  const m=nd.m, p=pos[i], color=BANDS[nd.band][3];
+  const found=findings.filter(f => (f.modules || []).some(x => nd.mods.some(m2 => m2.name===x))).length;
+  const gEl=svg('g',{class:'node'+(m&&m.external?' external':'')+(nd.type!=='module'?' '+nd.type:''),tabindex:0,role:'button',transform:`translate(${p.x},${p.y})`},$('nodes'));
+  if(nd.type!=='module') { svg('rect',{x:8,y:8,width:CARD_W,height:CARD_H,rx:9,class:'stack'},gEl); svg('rect',{x:4,y:4,width:CARD_W,height:CARD_H,rx:9,class:'stack'},gEl); }
+  svg('rect',{width:CARD_W,height:CARD_H,rx:9,class:'card',stroke:`var(${color})`},gEl);
+  let meta, third='', title, aria;
+  if(nd.type==='module') {
+   const app=appOf(m); meta=m.external?'External producer':(m.kind || 'Unknown')+(app?' · '+app:'');
+   if(app)svg('rect',{x:0,y:12,width:5,height:CARD_H-24,rx:2,fill:`var(--group${appNames.indexOf(app)%4})`},gEl);
+   title=m.name+(m.description?' — '+m.description:'');
+   aria=`${m.name}, ${m.layer}, ${m.application || ''}${m.external?', external':''}`;
+  } else {
+   const n=nd.mods.length; meta=plural(n,'module','modules');
+   const counts=[0,1,2,3].map(b => [b,nd.mods.filter(x => bandOf(x)===b).length]).filter(([,c]) => c>0);
+   third=nd.type==='app'?counts.map(([b,c]) => `${c} ${BANDS[b][1]}`).join(' · '):`used by ${plural(platformUsers,'module','modules')}`;
+   st('+',CARD_W-18,60,'plus',gEl); title=nd.name+' — click to show its modules'+(third?'\n'+third:'');
+   aria=`${nd.type==='app'?'Application':'Platform group'} ${nd.name}, ${meta}${third&&nd.type==='app'?' ('+third+')':''}, collapsed. Press Enter to show the modules.`;
+   gEl.setAttribute('aria-expanded','false');
+  }
+  if(found)aria+=`, ${plural(found,'finding','findings')}`;
+  gEl.setAttribute('aria-label',aria);
+  fitText(st(nd.name,14,26,'name',gEl),nd.name,CARD_W-(found?50:nd.type==='module'?28:44));
+  fitText(st(meta,14,46,'meta',gEl),meta,CARD_W-28);
+  if(third)fitText(st(third,14,62,'meta',gEl),third,CARD_W-50);
+  if(found) { const f=svg('g',{class:'fmark'},gEl); svg('circle',{cx:CARD_W-18,cy:18,r:10},f); st(String(found),CARD_W-18,18,undefined,f); svg('title',{},f).textContent=plural(found,'finding','findings'); }
+  svg('title',{},gEl).textContent=title;
+  const open=() => nd.type==='app'?openApp(nd.name):nd.type==='platform'?setPlatform(true,true):select(nd.name);
+  gEl.addEventListener('click',open); gEl.addEventListener('keydown',e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); open(); } });
+  gEl.addEventListener('focus',() => { if(!printing&&gEl.matches(':focus-visible'))zoomTo(nd.mods.map(x => x.name),false); });
+  nodeViews.set(i,gEl);
+ });
+}
+const modeNow = () => { const all=appNames.every(a => state.expanded.has(a)), none=appNames.every(a => !state.expanded.has(a)); return all?'modules':none?'applications':'mixed'; };
+const platformUsers = new Set(usable.filter(e => byName.get(e.to).external && !byName.get(e.from).external).map(e => e.from)).size;
+const hasWeak = usable.some(e => !e.strong && !violation(e));
+function syncToolbar() {
+ const mode=modeNow();
+ $('view-apps').setAttribute('aria-pressed',String(mode==='applications')); $('view-modules').setAttribute('aria-pressed',String(mode==='modules'));
+ $('weak').setAttribute('aria-pressed',String(state.weak)); $('platform').setAttribute('aria-pressed',String(state.platform));
+ $('detail-level').hidden=!appNames.length; $('platform').hidden=!externals.length; $('weak').hidden=!hasWeak; $('app-hint').hidden=!appNames.length;
+ // The numbers behind the layout stay in data attributes for the tests; the footer shows plain counts.
+ const stat=$('layout-stat'), moduleView=mode==='modules'&&(state.platform||!externals.length)&&(state.weak||!hasWeak);
+ stat.textContent=`${inputMods.length} ${inputMods.length===1?'module':'modules'} · ${edges.length} ${edges.length===1?'dependency':'dependencies'}`;
+ stat.dataset.crossings=String(S.crossings); stat.dataset.moduleView=String(moduleView); stat.dataset.ms=layoutMs.toFixed(1); stat.dataset.rows=String(S.ranks.length);
+}
+// Fit to the width of the canvas; a tall diagram scrolls on the page. A phone gets at most 80% of the screen height.
+function sizeGraph() {
+ const cw=graph.clientWidth || 1000, narrow=cw<700, cap=narrow?Math.max(260,.8*innerHeight):900;
+ graph.style.setProperty('--graph-h',Math.round(Math.min(cap,Math.max(narrow?220:420,cw*world.h/world.w)))+'px');
+ graph.style.setProperty('--graph-ratio',String(world.w/world.h));
+}
+function render() {
+ const keyboard=graph.contains(document.activeElement)&&document.activeElement!==graph;
+ buildView(); const g=place(); draw(g); syncToolbar(); highlight(); search(true);
+ sizeGraph(); fitAll();
+ // Rebuilding the cards drops keyboard focus; put it back on the selection.
+ if(keyboard) { const i=sel.names.length?nodeIndex.get(sel.names[0]):undefined; if(i!==undefined)nodeViews.get(i).focus({preventScroll:true}); }
+}
+
+// ---- Camera ----
+let view={...world};
 function update() { graph.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`); }
-function bounds(names) { const ps=names.map(n=>positions.get(n)).filter(Boolean); if(!ps.length)return null; const x=Math.min(...ps.map(p=>p.x))-45,y=Math.min(...ps.map(p=>p.y))-45; return {x,y,w:Math.max(...ps.map(p=>p.x+cardW))-x+45,h:Math.max(...ps.map(p=>p.y+cardH))-y+45}; }
-function fitBox(b) { const ratio=(graph.clientWidth || 1000)/(graph.clientHeight || 650), w=Math.max(b.w,b.h*ratio),h=w/ratio; view={x:b.x+(b.w-w)/2,y:b.y+(b.h-h)/2,w,h}; update(); }
+function bounds(names) {
+ const ids=[...new Set(names.map(n => nodeIndex.get(n)).filter(v => v!==undefined))]; if(!ids.length)return null;
+ const x=Math.min(...ids.map(i => pos[i].x))-45, y=Math.min(...ids.map(i => pos[i].y))-45;
+ return {x,y,w:Math.max(...ids.map(i => pos[i].x+CARD_W))-x+45,h:Math.max(...ids.map(i => pos[i].y+CARD_H))-y+45};
+}
+function fitBox(b,min=0) { const ratio=(graph.clientWidth || 1000)/(graph.clientHeight || 650), w=Math.max(b.w,b.h*ratio,min),h=w/ratio; view={x:b.x+(b.w-w)/2,y:b.y+(b.h-h)/2,w,h}; update(); }
+// Never magnify the whole diagram: a small diagram is shown at natural size.
+function fitAll() { fitBox(world,graph.clientWidth || 1000); }
 function zoomTo(names,close=true) { const b=bounds(names); if(b) { if(!close){b.x-=120;b.y-=100;b.w+=240;b.h+=200;} fitBox(b); } }
 function zoom(factor,cx=graph.clientWidth/2,cy=graph.clientHeight/2) { const r=graph.getBoundingClientRect(),nx=cx/r.width,ny=cy/r.height,f=Math.max(240/view.w,Math.min(world.w*5/view.w,factor)); view={x:view.x+view.w*nx*(1-f),y:view.y+view.h*ny*(1-f),w:view.w*f,h:view.h*f};update(); }
-function highlight(names) { selected=new Set(names); const related=new Set(names); if(activeName)edges.forEach(e=>{if(e.from===activeName||e.to===activeName){related.add(e.from);related.add(e.to);}}); for(const [name,n] of nodeViews) {n.classList.toggle('faded',selected.size>0&&!related.has(name));n.classList.toggle('selected',selected.has(name));n.setAttribute('aria-pressed',String(selected.has(name)));} edgeViews.forEach(({n,e})=>{const on=activeName?e.from===activeName||e.to===activeName:selected.has(e.from)&&selected.has(e.to);n.classList.toggle('faded',selected.size>0&&!on);n.classList.toggle('active',selected.size>0&&on);}); }
+
+// ---- Selection and details ----
+function highlight() {
+ const ids=new Set(sel.names.map(n => nodeIndex.get(n)).filter(v => v!==undefined)), act=sel.active===null?undefined:nodeIndex.get(sel.active), related=new Set(ids);
+ if(act!==undefined) for(const l of links) if(l.a===act||l.b===act) { related.add(l.a); related.add(l.b); }
+ for(const [i,n] of nodeViews) { n.classList.toggle('faded',ids.size>0&&!related.has(i)); n.classList.toggle('selected',ids.has(i)); n.setAttribute('aria-pressed',String(ids.has(i))); }
+ for(const {p,badge,l} of linkViews) { const on=act!==undefined?l.a===act||l.b===act:ids.has(l.a)&&ids.has(l.b); for(const x of [p,badge]) if(x) { x.classList.toggle('faded',ids.size>0&&!on); x.classList.toggle('active',ids.size>0&&on); } }
+}
 function section(title,parent=$('details')) {const s=el('section',undefined,'detail-section',parent);el('h3',title,undefined,s);return s;}
 function list(title,items,line=v=>typeof v==='string'?v:JSON.stringify(v)) { const s=section(title);if(!items.length){el('p','None recorded.','hint',s);return;}const ul=el('ul',undefined,undefined,s);items.forEach(v=>el('li',line(v),undefined,ul)); }
-function renderFinding(f,parent) { const box=el('article',undefined,'finding',parent); button(f.title || f.id,()=>{activeName=null;highlight(f.modules || []);zoomTo(f.modules || []);},box);el('p',f.detail || '',undefined,box);el('p','Suggested fix: '+(f.fix || ''),'fix',box); el('div',(f.modules || []).join(' · '),'hint',box); }
-function connections(title,es,out) { const s=section(title); if(!es.length)el('p','None recorded.','hint',s); es.forEach(e=>{const n=out?e.to:e.from;button(n,()=>select(n),s);el('div',(e.strong?'Strong':'Weak')+' · '+(e.elements || []).map(v=>v.kind+': '+v.name).join(', '),'hint',s);}); }
-function select(name) {
- const m=byName.get(name);if(!m)return; activeName=name;highlight([name]);zoomTo([name],false);
- const d=$('details'); d.replaceChildren();el('h2',m.name,undefined,d);el('p',`${m.layer} · ${m.layerReason || 'No reason recorded'}`,undefined,d);el('p','Application: '+(m.application || '(no application)'),undefined,d);
+function renderFinding(f,parent) { const box=el('article',undefined,'finding',parent); button(f.title || f.id,() => { sel={names:f.modules || [],active:null}; highlight(); zoomTo(f.modules || []); },box);el('p',f.detail || '',undefined,box);el('p','Suggested fix: '+(f.fix || ''),'fix',box); el('div',(f.modules || []).join(' · '),'hint',box); }
+function connections(title,names,es,out) { const s=section(title); if(!es.length)el('p','None recorded.','hint',s); es.forEach(e => { const n=out?e.to:e.from; button(n,() => select(n),s); el('div',(e.strong?'Strong':'Weak')+' · '+(e.elements || []).map(v => v.kind+': '+v.name).join(', '),'hint',s); }); }
+function findingsFor(names,d) { const fs=section('Findings'), matches=findings.filter(f => (f.modules || []).some(n => names.includes(n))); if(!matches.length)el('p','No findings.','hint',fs); matches.forEach(f => renderFinding(f,fs)); }
+function details() { const d=$('details'); d.replaceChildren(); return d; }
+function intro() { const d=details(); el('h2','Explore the architecture',undefined,d); el('p','Select a module or application to see what it does, what it uses, and who uses it.',undefined,d); el('p','The layers separate user experiences, business logic, and shared building blocks. Read the canvas from top to bottom. A colored stripe on a card marks modules from the same application.','hint',d); }
+function showModule(m) {
+ const d=details(), name=m.name; el('h2',m.name,undefined,d);el('p',`${m.layer} · ${m.layerReason || 'No reason recorded'}`,undefined,d);el('p','Application: '+(m.application || '(no application)'),undefined,d);
+ const app=appOf(m); if(app) { const b=el('button','Collapse '+app,'link',d); b.addEventListener('click',() => closeApp(app)); }
  el('p',m.external?'External producer. Only its name and inferred layer are known.':m.description || 'No module description recorded.',undefined,d);
  if(!m.external) {
-  const counts=section('Contents'), dl=el('dl',undefined,undefined,counts);Object.entries(m.counts || {}).forEach(([k,v])=>{el('dt',k.replace(/([A-Z])/g,' $1').replace(/^./,s=>s.toUpperCase()),undefined,dl);el('dd',v,undefined,dl);});
-  const pub=Object.entries(m.public || {}).flatMap(([k,vs])=>(vs || []).map(v=>k+': '+v));list('Public elements',pub);
-  list('Entities',m.entities || [],e=>`${e.name}${e.public?' (public)':''} · ${e.attributes} attributes${(e.references || []).length?' · refers to '+e.references.join(', '):''}`);
-  list('Screens',m.screens || []);list('REST exposed',m.restExposed || [],r=>`${r.name} · ${r.methods} methods`);list('REST consumed',m.restConsumed || [],r=>`${r.name} · ${r.methods} methods${r.baseUrl?' · '+r.baseUrl:''}`);list('Timers',m.timers || []);list('Processes',m.processes || []);
+  const counts=section('Contents'), dl=el('dl',undefined,undefined,counts);Object.entries(m.counts || {}).forEach(([k,v]) => {el('dt',k.replace(/([A-Z])/g,' $1').replace(/^./,s => s.toUpperCase()),undefined,dl);el('dd',v,undefined,dl);});
+  const pub=Object.entries(m.public || {}).flatMap(([k,vs]) => (vs || []).map(v => k+': '+v));list('Public elements',pub);
+  list('Entities',m.entities || [],e => `${e.name}${e.public?' (public)':''} · ${e.attributes} attributes${(e.references || []).length?' · refers to '+e.references.join(', '):''}`);
+  list('Screens',m.screens || []);list('REST exposed',m.restExposed || [],r => `${r.name} · ${r.methods} methods`);list('REST consumed',m.restConsumed || [],r => `${r.name} · ${r.methods} methods${r.baseUrl?' · '+r.baseUrl:''}`);list('Timers',m.timers || []);list('Processes',m.processes || []);
  }
- connections('Uses',edges.filter(e=>e.from===name),true);connections('Used by',edges.filter(e=>e.to===name),false);
- const fs=section('Findings for this module'), matches=findings.filter(f=>(f.modules || []).includes(name)); if(!matches.length)el('p','No findings.','hint',fs);matches.forEach(f=>renderFinding(f,fs));
+ connections('Uses',[name],edges.filter(e => e.from===name),true);connections('Used by',[name],edges.filter(e => e.to===name),false);
+ findingsFor([name],d);
 }
-for(const s of ['high','medium','low']) { const fs=findings.filter(f=>f.severity===s),box=el('section',undefined,'severity',$('findings'));el('h3',`${s[0].toUpperCase()+s.slice(1)} priority · ${fs.length}`,s,box);if(!fs.length)el('p','No findings.','hint',box);fs.forEach(f=>renderFinding(f,box)); }
-function reset() { activeName=null;highlight([]);$('search').value='';search();$('details').replaceChildren();el('h2','Explore the architecture',undefined,$('details'));el('p','Select a module to see its contents and dependencies.',undefined,$('details'));fitBox(world); }
-function search() { const q=$('search').value.trim().toLowerCase(),result=$('search-results');result.replaceChildren();let count=0;for(const m of modules) { const names=[m.name,...Object.values(m.public || {}).flat(),...(m.entities || []).map(e=>e.name),...(m.screens || []),...(m.timers || []),...(m.processes || []),...(m.restExposed || []).map(r=>r.name),...(m.restConsumed || []).map(r=>r.name),...edges.filter(e=>e.from===m.name).flatMap(e=>(e.elements || []).map(v=>v.name))];const match=q&&names.some(n=>String(n).toLowerCase().includes(q));const n=nodeViews.get(m.name);if(n)n.classList.toggle('match',Boolean(match));if(match){count++;button(m.name,()=>select(m.name),result);}}if(q)el('span',`${count} matching modules`,'hint',result); }
-$('search').addEventListener('input',search);$('reset').onclick=reset;$('fit').onclick=()=>fitBox(world);$('zoom-in').onclick=()=>zoom(.8);$('zoom-out').onclick=()=>zoom(1.25);
+// Application and Platform summaries group the module-level dependencies by the other side.
+function groupSummary(title,names,out) {
+ const s=section(title), set=new Set(names), groups=new Map();
+ for(const e of edges) { const inside=set.has(out?e.from:e.to), other=out?e.to:e.from; if(!inside||set.has(other))continue; const om=byName.get(other), key=!om?other:om.external?'Platform':appOf(om)||other; const g=groups.get(key)||{n:0,strong:false}; g.n++; g.strong=g.strong||Boolean(e.strong); groups.set(key,g); }
+ if(!groups.size)el('p','None recorded.','hint',s);
+ for(const [key,g] of [...groups].sort((a,b) => compare(a[0],b[0]))) { el('div',`${key} · ${g.n} ${g.n===1?'dependency':'dependencies'} · ${g.strong?'strong':'weak'}`,undefined,s); }
+}
+function showGroup(title,names,note,collapse) {
+ const d=details(); el('h2',title,undefined,d); el('p',note,undefined,d);
+ if(collapse)el('button','Collapse','link',d).addEventListener('click',collapse);
+ const ms=section(`Modules · ${names.length}`); names.forEach(n => button(n,() => select(n),ms));
+ groupSummary('Uses',names,true); groupSummary('Used by',names,false); findingsFor(names,d);
+}
+function showApp(app) { const ms=appMods.get(app); showGroup(app,ms.map(m => m.name),`Application with ${ms.length} ${ms.length===1?'module':'modules'}.`,() => closeApp(app)); }
+function showPlatform() { showGroup('Platform',externals.map(m => m.name),'OutSystems platform modules and other modules outside the input. Only their names and inferred layers are known.',() => setPlatform(false)); }
+function select(name) {
+ const m=byName.get(name); if(!m)return;
+ const app=appOf(m); let changed=false;
+ if(m.external&&!state.platform) { state.platform=true; changed=true; }
+ if(app&&!state.expanded.has(app)) { state.expanded.add(app); changed=true; }
+ sel={names:[name],active:name}; if(changed)render(); else highlight();
+ zoomTo([name],false); showModule(m);
+}
+function openApp(app) { state.expanded.add(app); sel={names:appMods.get(app).map(m => m.name),active:null}; render(); zoomTo(sel.names,false); showApp(app); say(`${app} opened: ${sel.names.length} modules`); }
+function closeApp(app) { state.expanded.delete(app); sel={names:appMods.get(app).map(m => m.name),active:null}; render(); zoomTo(sel.names,false); showApp(app); say(`${app} collapsed`); }
+function setPlatform(open,show) { state.platform=open; sel=show||!open?{names:externals.map(m => m.name),active:null}:{names:[],active:null}; render(); if(sel.names.length) { zoomTo(sel.names,false); showPlatform(); } say(open?'Platform modules shown':'Platform modules collapsed'); }
+function setMode(all) { state.expanded=new Set(all?appNames:[]); sel={names:[],active:null}; render(); say(all?'Showing modules':'Showing applications'); }
+for(const s of ['high','medium','low']) { const fs=findings.filter(f => f.severity===s),box=el('section',undefined,'severity',$('findings'));el('h3',`${s[0].toUpperCase()+s.slice(1)} priority · ${fs.length}`,s,box);if(!fs.length)el('p','No findings.','hint',box);fs.forEach(f => renderFinding(f,box)); }
+function reset() { sel={names:[],active:null};highlight();$('search').value='';search();intro();fitAll(); }
+function search(keep) {
+ const q=$('search').value.trim().toLowerCase(),result=$('search-results');result.replaceChildren();let count=0;
+ const matched=new Set();
+ for(const m of modules) { const names=[m.name,...Object.values(m.public || {}).flat(),...(m.entities || []).map(e => e.name),...(m.screens || []),...(m.timers || []),...(m.processes || []),...(m.restExposed || []).map(r => r.name),...(m.restConsumed || []).map(r => r.name),...edges.filter(e => e.from===m.name).flatMap(e => (e.elements || []).map(v => v.name))];
+  if(q&&names.some(n => String(n).toLowerCase().includes(q))) { count++; matched.add(nodeIndex.get(m.name)); button(m.name,() => select(m.name),result); } }
+ for(const [i,n] of nodeViews) n.classList.toggle('match',matched.has(i));
+ if(q)el('span',`${count} matching modules`,'hint',result);
+}
+$('search').addEventListener('input',() => search());$('reset').onclick=reset;$('fit').onclick=fitAll;$('zoom-in').onclick=() => zoom(.8);$('zoom-out').onclick=() => zoom(1.25);
+$('view-apps').onclick=() => setMode(false);$('view-modules').onclick=() => setMode(true);
+$('weak').onclick=() => { state.weak=!state.weak; render(); say(state.weak?'Weak links shown':'Weak links hidden'); };
+$('platform').onclick=() => setPlatform(!state.platform);
 graph.addEventListener('wheel',e=>{e.preventDefault();const r=graph.getBoundingClientRect();zoom(Math.exp(Math.max(-.3,Math.min(.3,e.deltaY*.002))),e.clientX-r.left,e.clientY-r.top);},{passive:false});
 const pointers=new Map();let drag=null,pinch=null,moved=false;
 graph.addEventListener('pointerdown',e=>{ if(e.button!==0)return; pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});moved=false;if(pointers.size===1) {drag={x:e.clientX,y:e.clientY,v:{...view}};if(!e.target.closest('.node'))graph.setPointerCapture(e.pointerId);} if(pointers.size===2){ const ps=[...pointers.values()];pinch=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y); } });
 graph.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;const old=pointers.get(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}); if(drag?Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>3:Math.abs(e.clientX-old.x)+Math.abs(e.clientY-old.y)>2)moved=true;if(pointers.size===2){const ps=[...pointers.values()],dist=Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y),r=graph.getBoundingClientRect();if(pinch&&dist)zoom(pinch/dist,(ps[0].x+ps[1].x)/2-r.left,(ps[0].y+ps[1].y)/2-r.top);pinch=dist;} else if(drag&&moved){view={...drag.v,x:drag.v.x-(e.clientX-drag.x)*drag.v.w/graph.clientWidth,y:drag.v.y-(e.clientY-drag.y)*drag.v.h/graph.clientHeight};update();} });
 function release(e){pointers.delete(e.pointerId);drag=null;pinch=null;}
 graph.addEventListener('pointerup',release);graph.addEventListener('pointercancel',release);graph.addEventListener('lostpointercapture',release);graph.addEventListener('click',e=>{if(moved){e.stopImmediatePropagation();moved=false;}},true);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){reset();return;}if(e.target instanceof Element&&e.target.matches('input,textarea'))return;if(!graph.contains(document.activeElement)&&document.activeElement!==graph)return;let used=true;switch(e.key){case '+':case '=':zoom(.8);break;case '-':zoom(1.25);break;case '0':fitBox(world);break;case 'ArrowLeft':view.x-=view.w*.08;update();break;case 'ArrowRight':view.x+=view.w*.08;update();break;case 'ArrowUp':view.y-=view.h*.08;update();break;case 'ArrowDown':view.y+=view.h*.08;update();break;default:used=false;}if(used)e.preventDefault();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){reset();return;}if(e.target instanceof Element&&e.target.matches('input,textarea'))return;if(!graph.contains(document.activeElement)&&document.activeElement!==graph)return;let used=true;switch(e.key){case '+':case '=':zoom(.8);break;case '-':zoom(1.25);break;case '0':fitAll();break;case 'ArrowLeft':view.x-=view.w*.08;update();break;case 'ArrowRight':view.x+=view.w*.08;update();break;case 'ArrowUp':view.y-=view.h*.08;update();break;case 'ArrowDown':view.y+=view.h*.08;update();break;default:used=false;}if(used)e.preventDefault();});
 let beforePrint;window.addEventListener('beforeprint',()=>{printing=true;beforePrint={...view};view={...world};update();});window.addEventListener('afterprint',()=>{printing=false;if(beforePrint){view=beforePrint;update();}});
-window.addEventListener('resize',()=>fitBox(world));fitBox(world);
+window.addEventListener('resize',() => { sizeGraph(); fitAll(); });
+intro();
+render();
 })();
 </script>
 </body>

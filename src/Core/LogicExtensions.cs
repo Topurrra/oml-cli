@@ -19,7 +19,7 @@ partial class Builder
         {
             if (WebUi.IsTraditional(m) || m.Kind.ToString() == "Service")
                 throw new ModelError("globalExceptionHandler requires a Reactive or Mobile module");
-            var found = ElementPaths.Resolve(m, name);
+            var found = ElementPaths.Resolve(m, name, write: true);
             if (found is not IOnExceptionAction)
             {
                 if (!m.ClientActions.Any(a => ReferenceEquals(a, found)))
@@ -40,9 +40,14 @@ partial class Builder
                 ?? throw new ModelError($"unknown system event '{key}'");
             var client = property is "OnApplicationReady" or "OnApplicationResume";
             var wanted = client ? typeof(OutSystems.Model.Logic.IClientActionSignature) : typeof(OutSystems.Model.Logic.IServerActionSignature);
-            Refs.Find(m, destination, wanted);
-            if (Reflect.Get(m, property) is not null)
-                throw new ModelError($"{property} already exists; edit its flow instead");
+            var target = Refs.Find(m, destination, wanted);
+            if (Reflect.Get(m, property) is { } old)
+            {
+                // The same handler again is the same spec applied again; another one is a change of an existing flow.
+                var calls = Elements(Reflect.Get(old, "Nodes")).Where(n => n is not OutSystems.Model.Logic.Nodes.IStartNode and not OutSystems.Model.Logic.Nodes.IEndNode).ToList();
+                if (calls.Count == 1 && Reflect.Get(calls[0], "Action") is { } action && Equals(action, target)) { existing.Add("system event " + property); return; }
+                throw new ModelError($"{property} already exists and does not just call {destination}; edit its flow instead (edits insertNodes, set)");
+            }
             var ev = Reflect.Call(m, "Create" + property)!;
             flows.Add((property, () => Flow(ev, new() { JsonSerializer.SerializeToElement(new { kind = "execute", action = destination }) }, property)));
             created.Add("system event " + property);
@@ -54,8 +59,12 @@ partial class Builder
         var collection = client ? "ClientVariables" : "SessionVariables";
         foreach (var s in specs ?? new()) Try(collection + "." + s.Name, () =>
         {
-            if (Elements(Reflect.Get(m, collection)).Any(v => Model.NameOf(v) == s.Name))
-            { existing.Add(collection + " " + s.Name); return; }
+            if (Elements(Reflect.Get(m, collection)).FirstOrDefault(v => Model.NameOf(v) == s.Name) is { } found)
+            {
+                ReuseVariable(collection, found, s, Reuse.Item(Raw, client ? "clientVariables" : "sessionVariables", s.Name));
+                existing.Add(collection + " " + s.Name);
+                return;
+            }
             var variable = client ? Reflect.Call(m, "CreateClientVariable", s.Name, services.NewKey())!
                 : Reflect.Call(m, "CreateSessionVariable", false, s.Name, services.NewKey())!;
             if (!Fresh(variable, s.Name, collection)) return;
@@ -77,7 +86,7 @@ partial class Builder
         if (flow is null)
         {
             flow = web ? m.CreateWebFlow(s.Flow, services.NewKey()) : m.CreateMobileFlow(s.Flow, services.NewKey());
-            if (!Fresh(flow, s.Flow, "onException flow")) throw new ModelError("UI flow name is taken");
+            FreshOrThrow(flow, s.Flow, "UI flow");
             created.Add("flow " + s.Flow);
         }
         var handler = Reflect.Get(flow, "OnExceptionHandler");
@@ -88,7 +97,7 @@ partial class Builder
             return handler;
         }
         handler = Reflect.Call(flow, "CreateOnExceptionHandler", s.Name)!;
-        if (!Fresh(handler, s.Name, "onException")) throw new ModelError("handler name is taken");
+        FreshOrThrow(handler, s.Name, "handler");
         Body(handler, new ActionSpec(s.Name, Locals: s.Locals, Flow: s.Nodes), "onException " + s.Name);
         created.Add("onException " + s.Name);
         return handler;

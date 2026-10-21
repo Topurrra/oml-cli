@@ -52,7 +52,8 @@ public static partial class Cli
         return Emit(new { created = outPath, name, kind = segmentation.ToString() });
     }
 
-    // Backup, copy, reopen-verify, restore on failure (skill section 16).
+    // Validate, backup, copy, verify, restore on failure (skill section 16). The installed file is verified by its
+    // SHA-256 against the exact bytes that were validated, so loading those same bytes again would add nothing.
     static int Install(string staged, string target)
     {
         staged = Path.GetFullPath(staged);
@@ -60,29 +61,51 @@ public static partial class Cli
         if (!File.Exists(staged) || !File.Exists(target)) throw new CliError("Both staged and target must exist.", 2);
         if (string.Equals(staged, target, StringComparison.OrdinalIgnoreCase)) throw new CliError("Staged and target are the same file.", 2);
 
-        var stagedErrors = Model.Errors(Load(staged));
-        if (stagedErrors.Length > 0)
-            throw new CliError($"Staged module has {stagedErrors.Length} validation errors; refusing to install.");
+        var bytes = File.ReadAllBytes(staged);
+        var validatedHash = Convert.ToHexString(SHA256.HashData(bytes));
+        using (var module = Model.Load(bytes, "load staged", staged))
+        {
+            var stagedErrors = Model.Errors(module, "validate staged");
+            if (stagedErrors.Length > 0)
+                throw new CliError($"Staged module has {stagedErrors.Length} validation errors; refusing to install.");
+        }
 
+        if (new FileInfo(target).IsReadOnly) throw new CliError($"Target is read-only: {target}. Nothing installed.", 2);
         var backup = $"{target}.{DateTime.Now:yyyyMMdd-HHmmss}.bak";
         if (File.Exists(backup)) throw new CliError($"Backup already exists: {backup}", 2);
-        var targetHash = Hash(target);
-        File.Copy(target, backup);
-        if (Hash(backup) != targetHash) throw new CliError("Backup hash mismatch; nothing installed.", 2);
+        var targetHash = Timings.Measure("backup", () =>
+        {
+            var hash = Hash(target);
+            File.Copy(target, backup);
+            if (Hash(backup) != hash) throw new CliError("Backup hash mismatch; nothing installed.", 2);
+            return hash;
+        });
 
-        File.Copy(staged, target, overwrite: true);
-        try
+        Timings.Measure("copy", () =>
         {
-            if (Hash(target) != Hash(staged)) throw new CliError("Installed hash differs from staged.");
-            var errors = Model.Errors(Load(target));
-            if (errors.Length > 0) throw new CliError($"Installed module reopened with {errors.Length} errors.");
-        }
-        catch
-        {
-            File.Copy(backup, target, overwrite: true);
-            throw;
-        }
-        return Emit(new { installed = target, backup, sha256 = Hash(target) });
+            string? failure = null;
+            try
+            {
+                File.WriteAllBytes(target, bytes);
+                if (Hash(target) != validatedHash) failure = "the installed hash differs from the validated staged file";
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { failure = e.Message; }
+            if (failure is null) return;
+            // A write that failed before it changed anything (a locked file) leaves the target as it was: say so.
+            if (TryHash(target) == targetHash)
+                throw new CliError($"Nothing installed: {failure} The target is unchanged; backup kept at {backup}.", 2);
+            try { File.Copy(backup, target, overwrite: true); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            { throw new CliError($"Install failed ({failure}), and restoring the backup failed too ({e.Message}). Copy {backup} over {target} by hand.", 2); }
+            throw new CliError($"Install failed ({failure}). The target was restored from {backup}.");
+        });
+        return Emit(new { installed = target, backup, sha256 = validatedHash });
+    }
+
+    static string? TryHash(string path)
+    {
+        try { return Hash(path); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
     }
 
     static string Hash(string path)

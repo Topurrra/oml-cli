@@ -8,8 +8,8 @@
       { "name": "CategoryId", "type": "Category Identifier" }, { "name": "Price", "type": "Decimal" }
     ] }
   ],
-  "serverActions": [{ "name": "CategoryTotals", "public": true,
-    "outputs": [{ "name": "CategoryCount", "type": "Integer" }], "flow": [
+  "serverActions": [{ "name": "CategoryTotals", "description": "Number of product categories.",
+    "outputs": [{ "name": "CategoryCount", "type": "Integer", "description": "Categories that have products." }], "flow": [
     { "kind": "aggregate", "name": "Totals", "sources": ["Product", "Category"],
       "joins": [{ "type": "only with", "left": "Product", "right": "Category", "condition": "Product.CategoryId = Category.Id" }],
       "filters": ["Product.Price >= 0"],

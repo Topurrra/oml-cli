@@ -18,7 +18,7 @@ namespace OmlCli;
 // or writes to LifeTime.
 static partial class Dashboard
 {
-    const string Usage = "oml dashboard [--port N] [--no-open]";
+    const string Usage = "oml dashboard [--port N] [--no-open] [--module <file.oml>]";
     const long MaxBody = 200L * 1024 * 1024; // per request, uploads included
     static string key = "";
     static int port;
@@ -28,9 +28,19 @@ static partial class Dashboard
     {
         int? requested = null;
         var open = true;
+        string? module = null;
         for (var i = 0; i < args.Length; i++)
         {
             if (args[i] == "--no-open") open = false;
+            else if (args[i] == "--module" && i + 1 < args.Length && module is null)
+            {
+                module = Path.GetFullPath(args[++i]);
+                if (!File.Exists(module) || !Path.GetExtension(module).Equals(".oml", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.Error.WriteLine($"--module needs an existing .oml file: {module}");
+                    return 2;
+                }
+            }
             else if (args[i] == "--port" && i + 1 < args.Length && int.TryParse(args[++i], out var p) && p is >= 1024 and <= 65535) requested = p;
             else { Console.Error.WriteLine($"Usage: {Usage} (port 1024-65535)"); return 2; }
         }
@@ -47,6 +57,8 @@ static partial class Dashboard
         _ = Serve(listener);
 
         var url = $"http://127.0.0.1:{port}/?key={key}";
+        // The page opens a module from #/explorer?module=<path> (see route() in web/app.js).
+        if (module is not null) url += "#/explorer?module=" + Uri.EscapeDataString(module);
         Console.WriteLine(JsonOutput.Serialize(new { url, workFolder = WorkRoot }));
         Console.WriteLine($"oml dashboard is running at {url}");
         Console.WriteLine("Keep this window open while you use it. Press Ctrl+C to stop.");
@@ -226,7 +238,7 @@ static partial class Dashboard
     // Every command runs on this one thread, one at a time: they share Console.Out, and Service Studio's model is not
     // meant for parallel use. Long commands make the next ones wait; the page shows them as running.
     static readonly BlockingCollection<Action> Queue = new();
-    static MethodInfo? capture;
+    static MethodInfo? capture, abandoned;
 
     static void Worker()
     {
@@ -249,10 +261,14 @@ static partial class Dashboard
         return done.Task;
     }
 
-    static Result Execute(string[] args)
+    // Also `oml setup run`, which runs one command the same way outside the dashboard.
+    internal static Result Execute(string[] args)
     {
         string stdout, stderr;
         int code;
+        // After a self-test past its limit (Core), every command is refused with its message; see Cli.SelfTestAbandoned.
+        if (capture is not null && (abandoned ??= capture.DeclaringType!.GetMethod("SelfTestAbandoned")!).Invoke(null, null) is string stopped)
+            return new Result(2, new JsonObject { ["error"] = stopped }, "", CliText(args));
         if (LauncherCommands.Contains(args[0]))
         {
             var (previousOut, previousError) = (Console.Out, Console.Error);

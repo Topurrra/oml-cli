@@ -24,7 +24,7 @@ static class ModuleReferences
                 var property = Reflect.Property(target, "Name", writable: true) ?? throw new ModelError("reference name is not writable on this build");
                 rules.RenameReference((IObjectSignature)target);
                 property.SetValue(target, alias);
-                if (Model.NameOf(target) != alias) throw new ModelError($"alias renamed to {Model.NameOf(target)}");
+                if (Model.NameOf(target) != alias) throw new ModelError($"alias {alias}: {NameClash.Taken(target, alias)}; the model renamed it {Model.NameOf(target)}");
             }
             catch (Exception e) when (e is ModelError or ArgumentException or InvalidOperationException or TargetInvocationException)
             { problems.Add($"reference alias {qualified}: {(e.InnerException ?? e).Message}"); }
@@ -115,7 +115,7 @@ static class ModuleReferences
                         if (result is not IObjectSignature imported || !Same(imported, element))
                             throw new ModelError("AddDependency did not return the requested element");
                         if (Model.NameOf(imported) != Model.NameOf(element))
-                            throw new ModelError($"name clash; model renamed the reference to {Model.NameOf(imported)}");
+                            throw new ModelError($"name clash: {NameClash.Taken(imported, Model.NameOf(element)!)}; model renamed the reference to {Model.NameOf(imported)}");
                         created.Add(where);
                     }
                     catch (Exception e) { problems.Add($"{where}: {Reason(e)}"); }

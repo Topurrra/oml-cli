@@ -1,0 +1,44 @@
+{
+ "module": {
+  "description": "Traditional fixture."
+ },
+ "sessionVariables": [
+  {
+   "name": "CartId",
+   "type": "Integer"
+  }
+ ],
+ "screens": [
+  {
+   "name": "Notice",
+   "access": {
+    "anonymous": false,
+    "registered": true
+   },
+   "inputs": [
+    {
+     "name": "Message"
+    }
+   ],
+   "widgets": [
+    {
+     "type": "Expression",
+     "name": "SafeMessage",
+     "value": "EncodeHtml(Message)",
+     "escapeContent": false
+    },
+    {
+     "type": "Expression",
+     "name": "BoldTitle",
+     "value": "\"<b>Notice</b>\"",
+     "escapeContent": false
+    },
+    {
+     "type": "Expression",
+     "name": "PlainMessage",
+     "value": "Message"
+    }
+   ]
+  }
+ ]
+}

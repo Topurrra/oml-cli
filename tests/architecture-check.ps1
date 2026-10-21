@@ -43,14 +43,17 @@ $lib = Apply-ArchitectureModule $lib0 @{
     references=@(@{producer=$cs;elements=@('PlaceOrder')})
     entities=@(@{name='MisplacedEntity';attributes=@(@{name='Value'})})
 } (Join-Path $inputs 'Shop_Lib.oml')
-$cw = New-ArchitectureModule 'Shop_CW' @{
+$cw = New-ArchitectureModule 'Shop_UI' @{
     references=@(@{producer=$cs;elements=@('Customer','Status','OrderDto','PlaceOrder','ClientHello')},@{producer=$th;elements=@('ShopTheme','ShopViewer')})
     screens=@(@{name='Orders';widgets=@(@{type='Text';text='Orders'})})
     blocks=@(@{name='OrderCard'})
-    edits=@(@{op='set';element='OrderCard';properties=@{public=$true}})
-} (Join-Path $dir 'Shop_CW.oml')
-$admin = New-ArchitectureModule 'Admin_CW' @{references=@(@{producer=$cw;elements=@('OrderCard')});screens=@(@{name='Admin'})} (Join-Path $inputs 'Admin_CW.oml')
-$large = New-ArchitectureModule 'Large_CS' @{serverActions=@(1..151 | ForEach-Object {@{name="Action$_";flow=@()}})} (Join-Path $inputs 'Large_CS.oml')
+    edits=@(@{op='set';element='OrderCard';properties=@{public=$true}},@{op='set';element='Orders';properties=@{public=$true}})
+} (Join-Path $dir 'Shop_UI.oml')
+$admin = New-ArchitectureModule 'Admin_UI' @{references=@(@{producer=$cw;elements=@('OrderCard')});screens=@(@{name='Admin';flow='AdminFlow'})} (Join-Path $inputs 'Admin_UI.oml')
+# A screen destination is a weak link between End-user modules, not a side reference.
+$portal = New-ArchitectureModule 'Portal_UI' @{references=@(@{producer=$cw;elements=@('Orders')});screens=@(@{name='Portal';flow='PortalFlow'})} (Join-Path $inputs 'Portal_UI.oml')
+# Entities, static entities and structures alone are a weak dependency.
+$large = New-ArchitectureModule 'Large_CS' @{references=@(@{producer=$cs;elements=@('Customer','Status','OrderDto')});serverActions=@(1..151 | ForEach-Object {@{name="Action$_";flow=@()}})} (Join-Path $inputs 'Large_CS.oml')
 Run-ArchitectureCommand @('app','pack',(Join-Path $inputs 'shop.oap'),'--name','Shop',$cs,$cw) | Out-Null
 # A loose copy must still get its package application, and must only appear once.
 Copy-Item $cs (Join-Path $inputs 'Shop_CS.oml')
@@ -61,12 +64,13 @@ $beforeTemps = @(Get-ChildItem $env:TEMP -Directory -Filter 'oml-architecture-*'
 $report = Run-ArchitectureCommand @('architecture','--in',$inputs,'--out',$html,'--json',$json,'--team-label','Shop Team')
 $data = Get-Content $json -Raw | ConvertFrom-Json
 Check-Architecture ($data.schema -eq 1 -and $data.generatedAt -and $data.omlVersion -and $data.input.team -eq 'Shop Team') 'Schema header or team label'
-Check-Architecture (@($data.modules | Where-Object {-not $_.external}).Count -eq 6 -and $data.applications.Count -eq 2) 'Module/application totals'
+Check-Architecture ($data.layout.crossings -is [long] -and $data.layout.crossings -ge 0 -and $data.layout.ranks -ge 3) 'Layout object (crossings, ranks)'
+Check-Architecture (@($data.modules | Where-Object {-not $_.external}).Count -eq 7 -and $data.applications.Count -eq 2) 'Module/application totals'
 Check-Architecture (($data.applications | Where-Object name -eq Shop).modules.Count -eq 2) 'Package application membership'
 Check-Architecture ($report.warnings -join ' ' -match 'unreadable.oml' -and $report.warnings -join ' ' -match 'duplicate module') 'Unreadable or duplicate warning'
-foreach ($name in @('Shop_Th','Shop_Lib','Shop_CS','Shop_CW','Admin_CW','Large_CS')) {
+foreach ($name in @('Shop_Th','Shop_Lib','Shop_CS','Shop_UI','Admin_UI','Portal_UI','Large_CS')) {
     $m = $data.modules | Where-Object name -eq $name
-    $expected = if ($name -match '_CW$') {'EndUser'} elseif ($name -match '_CS$') {'Core'} else {'Foundation'}
+    $expected = if ($name -match '_UI$') {'EndUser'} elseif ($name -match '_CS$') {'Core'} else {'Foundation'}
     Check-Architecture ($m.layer -eq $expected -and $m.layerReason -like 'suffix *') "Layer or reason for $name"
     foreach ($field in @('name','application','external','kind','layer','layerReason','description','counts','public','entities','screens','restExposed','restConsumed','timers','processes')) {
         Check-Architecture ($m.PSObject.Properties.Name -contains $field) "Missing module field $name.$field"
@@ -80,14 +84,19 @@ $core = $data.modules | Where-Object name -eq Shop_CS
 Check-Architecture ($core.counts.entities -eq 2 -and $core.counts.staticEntities -eq 1 -and $core.counts.screens -eq 1) 'Own content counts'
 Check-Architecture (($core.entities | Where-Object name -eq Order).references -contains 'Customer') 'Entity foreign key'
 Check-Architecture ($core.restExposed[0].methods -eq 1 -and $core.restConsumed[0].baseUrl -eq 'https://example.test') 'REST metadata'
-$edge = $data.edges | Where-Object { $_.from -eq 'Shop_CW' -and $_.to -eq 'Shop_CS' }
+$edge = $data.edges | Where-Object { $_.from -eq 'Shop_UI' -and $_.to -eq 'Shop_CS' }
 Check-Architecture $edge.strong 'Data/logic dependency should be strong'
 foreach ($kind in @('Entity','StaticEntity','Structure','ServerAction','ClientAction')) { Check-Architecture ($edge.elements.kind -contains $kind) "Missing reference kind $kind" }
-$weak = $data.edges | Where-Object { $_.from -eq 'Shop_CW' -and $_.to -eq 'Shop_Th' }
-Check-Architecture (-not $weak.strong -and $weak.elements.kind -contains 'Theme') 'Theme reference should be weak'
-Check-Architecture ($weak.elements.kind -contains 'Role' -and $weak.elements.kind -notcontains 'ServerAction') 'Role helpers must not turn a weak reference into a strong reference'
-$side = $data.edges | Where-Object { $_.from -eq 'Admin_CW' -and $_.to -eq 'Shop_CW' }
+$themed = $data.edges | Where-Object { $_.from -eq 'Shop_UI' -and $_.to -eq 'Shop_Th' }
+Check-Architecture ($themed.strong -and $themed.elements.kind -contains 'Theme' -and $themed.elements.kind -contains 'Role' -and $themed.elements.kind -notcontains 'ServerAction') 'Theme and role reference should be strong, without generated role helper actions'
+$weak = $data.edges | Where-Object { $_.from -eq 'Large_CS' -and $_.to -eq 'Shop_CS' }
+Check-Architecture (-not $weak.strong -and (@($weak.elements.kind | Sort-Object -Unique) -join ',') -eq 'Entity,StaticEntity,Structure') "Entity/structure-only reference should be weak: $($weak | ConvertTo-Json -Depth 5 -Compress)"
+$side = $data.edges | Where-Object { $_.from -eq 'Admin_UI' -and $_.to -eq 'Shop_UI' }
 Check-Architecture ($side.strong -and $side.elements.kind -contains 'Block') 'Block reference should be strong'
+$screenOnly = $data.edges | Where-Object { $_.from -eq 'Portal_UI' -and $_.to -eq 'Shop_UI' }
+Check-Architecture (-not $screenOnly.strong -and (@($screenOnly.elements.kind | Sort-Object -Unique) -join ',') -eq 'Screen') "Screen-only reference should be weak: $($screenOnly | ConvertTo-Json -Depth 5 -Compress)"
+Check-Architecture (@($data.findings | Where-Object { $_.id -eq 'side-reference-enduser' -and $_.modules -contains 'Portal_UI' }).Count -eq 0) 'A screen-only End-user reference must not be a side reference'
+Check-Architecture (@($data.findings | Where-Object { $_.id -eq 'side-reference-enduser' -and $_.modules -contains 'Admin_UI' }).Count -eq 1) 'A block End-user reference must be a side reference'
 foreach ($id in @('upward-reference','side-reference-enduser','cycle','core-ui','foundation-business','unused-public','large-module','missing-description')) {
     $found = @($data.findings | Where-Object id -eq $id)
     Check-Architecture ($found.Count -gt 0) "Missing finding $id"
@@ -106,11 +115,11 @@ foreach ($name in @('Shop_Th','Shop_Lib')) {
     $external = $filtered.modules | Where-Object name -eq $name
     Check-Architecture ($external.external -and $external.application -eq '(external)' -and @($external.PSObject.Properties).Count -eq 5) "External producer $name"
 }
-$layers = Join-Path $dir 'layers.json'; '{"Shop*":"Core","Shop_CW":"Foundation"}' | Set-Content $layers
+$layers = Join-Path $dir 'layers.json'; '{"Shop*":"Core","Shop_UI":"Foundation"}' | Set-Content $layers
 $overrideJson = Join-Path $dir 'override.json'
 Run-ArchitectureCommand @('architecture','--in',$inputs,'--layers',$layers,'--out',(Join-Path $dir 'override.html'),'--json',$overrideJson) | Out-Null
 $overridden = Get-Content $overrideJson -Raw | ConvertFrom-Json
-Check-Architecture (($overridden.modules | Where-Object name -eq Shop_CW).layer -eq 'Foundation') 'Exact layer override'
+Check-Architecture (($overridden.modules | Where-Object name -eq Shop_UI).layer -eq 'Foundation') 'Exact layer override'
 Check-Architecture (($overridden.modules | Where-Object name -eq Shop_Th).layer -eq 'Core' -and ($overridden.modules | Where-Object name -eq Shop_Th).layerReason -eq 'override') 'Wildcard layer override'
 $originalHash = (Get-FileHash $html).Hash
 $refused = & $Oml architecture --in $inputs --out $html | ConvertFrom-Json
@@ -130,4 +139,4 @@ $extensionJson = Join-Path $dir 'native.json'
 Run-ArchitectureCommand @('architecture','--in',$extensionPackage,'--in',$extensionPackage,'--app','Native','--app','Shop','--out',(Join-Path $dir 'native.html'),'--json',$extensionJson) | Out-Null
 $extensionData = Get-Content $extensionJson -Raw | ConvertFrom-Json
 Check-Architecture ($extensionData.modules.Count -eq 1 -and $extensionData.modules[0].kind -eq 'Extension' -and $extensionData.modules[0].layer -eq 'Foundation' -and $extensionData.modules[0].application -eq 'Native') 'Packaged extension, repeated inputs or repeated app filters'
-Write-Host "ok   architecture: layers, grouping, edges, eight findings, filtering, overrides, schema, overwrite; $($report.elapsedSeconds)s for six modules"
+Write-Host "ok   architecture: layers, grouping, edges, eight findings, filtering, overrides, schema, overwrite; $($report.elapsedSeconds)s for seven modules"

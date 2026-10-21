@@ -61,7 +61,7 @@ static class Scaffolding
         }
         else
         {
-            inputs.Add(new(name + "Id", name + " Identifier"));
+            inputs.Add(new(name + "Id", name + " Identifier", Mandatory: false)); // optional: no Id opens the form for a new record
             fetch = J(new { name = aggregate, sources = new[] { name }, filters = new[] { name + "." + id + " = " + name + "Id" }, maxRecords = 1 });
             var fields = new List<object>();
             foreach (var a in attrs.Where(a => a.Name != id))

@@ -35,7 +35,7 @@
     {
       "name": "Shared Platform",
       "modules": [
-        "Shared_CW",
+        "Shared_UI",
         "Identity_CS",
         "Audit_Lib",
         "Common_Lib",
@@ -542,12 +542,12 @@
       "processes": []
     },
     {
-      "name": "Shared_CW",
+      "name": "Shared_UI",
       "application": "Shared Platform",
       "external": false,
       "kind": "Reactive",
       "layer": "EndUser",
-      "layerReason": "suffix _CW",
+      "layerReason": "suffix _UI",
       "description": "Shared CW provides shared capabilities for Shared Platform.",
       "counts": {
         "entities": 0,
@@ -808,7 +808,7 @@
     {
       "from": "Shop_Portal",
       "to": "Customers_Core",
-      "strong": true,
+      "strong": false,
       "elements": [
         {
           "kind": "Entity",
@@ -819,7 +819,7 @@
     {
       "from": "Shop_Portal",
       "to": "Commerce_Theme",
-      "strong": false,
+      "strong": true,
       "elements": [
         {
           "kind": "Theme",
@@ -867,7 +867,7 @@
     {
       "from": "Operations_App",
       "to": "Shipping_API",
-      "strong": true,
+      "strong": false,
       "elements": [
         {
           "kind": "ServiceAction",
@@ -878,7 +878,7 @@
     {
       "from": "Operations_App",
       "to": "Design_Th",
-      "strong": false,
+      "strong": true,
       "elements": [
         {
           "kind": "Theme",
@@ -922,7 +922,7 @@
     {
       "from": "Warehouse_BL",
       "to": "ERP_IS",
-      "strong": true,
+      "strong": false,
       "elements": [
         {
           "kind": "ServiceAction",
@@ -970,7 +970,7 @@
     {
       "from": "Audit_Lib",
       "to": "Orders_CS",
-      "strong": true,
+      "strong": false,
       "elements": [
         {
           "kind": "Entity",
@@ -1001,7 +1001,7 @@
       ]
     },
     {
-      "from": "Shared_CW",
+      "from": "Shared_UI",
       "to": "OutSystemsUI",
       "strong": true,
       "elements": [
@@ -1013,7 +1013,7 @@
     },
     {
       "from": "Shop_Portal",
-      "to": "Shared_CW",
+      "to": "Shared_UI",
       "strong": true,
       "elements": [
         {
@@ -1025,7 +1025,7 @@
     {
       "from": "Design_Th",
       "to": "OutSystemsUI",
-      "strong": false,
+      "strong": true,
       "elements": [
         {
           "kind": "Theme",
@@ -1051,7 +1051,7 @@
     {
       "from": "Support_UI",
       "to": "System",
-      "strong": false,
+      "strong": true,
       "elements": [
         {
           "kind": "Role",
@@ -1083,9 +1083,9 @@
       "modules": [
         "Shop_Portal",
         "Support_UI",
-        "Shared_CW"
+        "Shared_UI"
       ],
-      "detail": "Shop_Portal calls an action in Support_UI and uses a block from Shared_CW. Strong dependencies between End-user modules make their releases harder to separate.",
+      "detail": "Shop_Portal calls an action in Support_UI and uses a block from Shared_UI. Strong dependencies between End-user modules make their releases harder to separate.",
       "fix": "Move the shared support action into Core. Review whether the reusable status block belongs in a Foundation library."
     },
     {

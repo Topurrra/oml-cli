@@ -1,11 +1,12 @@
+// Use a public entity and server action of another module: reference them from a producer file and call them by Module.Name.
 // Run oml find first; ask the user to approve the producer elements before use.
 // Base: fresh CrossDevice. Replace producer path and RecipeProducer qualified names.
 // Producer must export public Product and Product_GetById(Id: Product Identifier).
 // Related keys: references, qualified types, aggregate sources, execute.action.
 {
   "references": [{ "producer": "tmp/recipes/producer.oml", "elements": ["Product", "Product_GetById"] }],
-  "serverActions": [{ "name": "UseCatalog", "public": true, "inputs": [{ "name": "Id", "type": "RecipeProducer.Product Identifier" }],
-    "outputs": [{ "name": "ProductCount", "type": "Integer" }],
+  "serverActions": [{ "name": "UseCatalog", "description": "Counts products of the producer.", "inputs": [{ "name": "Id", "type": "RecipeProducer.Product Identifier" }],
+    "outputs": [{ "name": "ProductCount", "type": "Integer", "description": "Number of products." }],
     "flow": [
       { "kind": "aggregate", "name": "Products", "sources": ["RecipeProducer.Product"], "maxRecords": 10 },
       { "kind": "execute", "action": "RecipeProducer.Product_GetById", "args": { "Id": "Id" } },

@@ -1,0 +1,21 @@
+{
+  "entities": [
+    { "name": "Customer", "description": "A person or company that buys from us.", "attributes": [{ "name": "Name", "length": 100 }, { "name": "Email", "type": "Email" }] },
+    { "name": "Invoice", "description": "A bill sent to a customer.", "attributes": [
+      { "name": "CustomerId", "type": "Customer Identifier" }, { "name": "DueDate", "type": "Date" }, { "name": "Total", "type": "Decimal" }
+    ] }
+  ],
+  "serverActions": [
+    { "name": "Invoice_Approve", "description": "Marks an invoice as approved after the manager checks it.", "inputs": [{ "name": "InvoiceId", "type": "Invoice Identifier" }], "flow": [] },
+    { "name": "GetOverdueInvoices", "description": "Lists unpaid bills.", "outputs": [{ "name": "Count", "type": "Integer" }], "flow": [
+      { "kind": "sql", "name": "FetchLate", "sql": "SELECT {Invoice}.* FROM {Invoice} WHERE {Invoice}.[DueDate] < @Today",
+        "params": [{ "name": "Today", "type": "Date", "value": "CurrDate()" }], "outputs": ["Invoice"], "maxRecords": 100 },
+      { "kind": "assign", "name": "SetCount", "assign": { "Count": "FetchLate.List.Length" } }
+    ] },
+    { "name": "CustomerGreeting", "description": "Builds the welcome line.", "inputs": [{ "name": "Name", "type": "Text" }], "outputs": [{ "name": "Greeting", "type": "Text" }], "flow": [
+      { "kind": "assign", "name": "Build", "assign": { "Greeting": "\"Welcome back, \" + Name" } }
+    ] }
+  ],
+  "blocks": [{ "name": "InvoiceCard", "inputs": [{ "name": "Caption", "type": "Text" }],
+    "widgets": [{ "type": "Container", "style": "\"invoice-card\"", "children": [{ "type": "Expression", "value": "Caption" }, { "type": "Text", "text": "Pay before the due date" }] }] }]
+}

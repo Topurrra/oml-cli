@@ -1,0 +1,135 @@
+{
+  "scripts": [
+    { "name": "PvMiniLib", "file": "minilib.js" },
+    { "name": "PvChartCode", "file": "chart.js" },
+    { "name": "PvUnused", "file": "unused.js" },
+    { "name": "PvBrokenLib", "file": "broken.js" }
+  ],
+  "blocks": [
+    {
+      "name": "PvChart",
+      "requiredScripts": [ "PvMiniLib", "PvChartCode" ],
+      "inputs": [
+        { "name": "Title", "type": "Text", "default": "\"Sales\"" },
+        { "name": "Values", "type": "Text", "default": "\"3,5,2,6\"" }
+      ],
+      "locals": [ { "name": "Name", "type": "Text" } ],
+      "styleSheet": ".pv-chart { min-height: 240px; padding: 8px; color: var(--pv-text, inherit); }\n.pv-area { height: 130px; }\n.pv-bars { display: flex; align-items: flex-end; gap: 6px; height: 120px; }\n.pv-bar { width: 28px; background: var(--pv-bar, #2563eb); }",
+      "onInitialize": "InitChart",
+      "onReady": "DrawChart",
+      "onRender": "PaintChart",
+      "actions": [
+        { "name": "InitChart", "flow": [
+          { "kind": "javaScript", "name": "Init", "javaScript": "window.pvOrder = ['init'];" } ] },
+        { "name": "DrawChart", "flow": [
+          { "kind": "javaScript", "name": "Draw",
+            "inputs": [ { "name": "AreaId", "type": "Text" }, { "name": "Values", "type": "Text" }, { "name": "Title", "type": "Text" } ],
+            "outputs": [ { "name": "Count", "type": "Integer" } ],
+            "args": { "AreaId": "ChartArea.Id", "Values": "Values", "Title": "Title" },
+            "javaScript": "var count = pvDrawChart($parameters.AreaId, $parameters.Values);\n$parameters.Count = count;\nwindow.pvOrder.push('draw');\n$public.FeedbackMessage.showFeedbackMessage($parameters.Title + ': ' + count + ' bars', 1);\n$actions.ChartDrawn(count);\ncontroller.trackEvent('chart-ready');\nconsole.log('chart ready', count);" },
+          { "kind": "javaScript", "name": "Wire",
+            "inputs": [ { "name": "ButtonId", "type": "Text" }, { "name": "StatusId", "type": "Text" }, { "name": "InputId", "type": "Text" }, { "name": "GreetingId", "type": "Text" } ],
+            "args": { "ButtonId": "ToggleButton.Id", "StatusId": "Status.Id", "InputId": "NameInput.Id", "GreetingId": "Greeting.Id" },
+            "javaScript": "var clicks = 0;\nvar status = document.getElementById($parameters.StatusId);\ndocument.getElementById($parameters.ButtonId).addEventListener('click', function () { clicks++; status.textContent = 'Clicked ' + clicks + ' time(s)'; });\nvar greeting = document.getElementById($parameters.GreetingId);\ndocument.getElementById($parameters.InputId).addEventListener('input', function (e) { greeting.textContent = 'Hello ' + e.target.value; });\nsetTimeout(function () { window.pvOrder.push('wire'); $resolve(); }, 30);" } ] },
+        { "name": "PaintChart", "flow": [
+          { "kind": "javaScript", "name": "Paint",
+            "inputs": [ { "name": "AreaId", "type": "Text" } ],
+            "args": { "AreaId": "ChartArea.Id" },
+            "javaScript": "window.pvOrder.push('render');\ndocument.getElementById($parameters.AreaId).setAttribute('data-order', window.pvOrder.join(','));" } ] },
+        { "name": "ChartDrawn", "inputs": [ { "name": "Count", "type": "Integer" } ], "flow": [] },
+        { "name": "Noop", "flow": [] }
+      ],
+      "widgets": [
+        { "type": "Container", "name": "ChartRoot", "style": "\"pv-chart\"", "children": [
+          { "type": "Expression", "name": "ChartTitle", "value": "Title" },
+          { "type": "Container", "name": "ChartArea", "style": "\"pv-area\"" },
+          { "type": "Input", "name": "NameInput", "variable": "Name" },
+          { "type": "Container", "name": "Greeting" },
+          { "type": "Button", "name": "ToggleButton", "onClick": "Noop", "children": [ { "type": "Text", "text": "Count clicks" } ] },
+          { "type": "Container", "name": "Status" }
+        ] }
+      ]
+    },
+    {
+      "name": "PvBroken",
+      "requiredScripts": [ "PvBrokenLib" ],
+      "inputs": [ { "name": "Label", "type": "Text", "default": "\"Broken\"" } ],
+      "onInitialize": "Load",
+      "onReady": "Fail",
+      "onRender": "Late",
+      "actions": [
+        { "name": "Load", "flow": [
+          { "kind": "javaScript", "name": "Net", "inputs": [ { "name": "Label", "type": "Text" } ], "args": { "Label": "Label" },
+            "javaScript": "fetch('https://example.com/data.json').catch(function () {});\nvar img = new Image();\nimg.src = 'https://example.com/pixel.png';\ndocument.body.appendChild(img);\nconsole.warn('label is', $parameters.Label);\n$actions.Loaded($parameters.Label);" } ] },
+        { "name": "Loaded", "inputs": [ { "name": "Text", "type": "Text" } ], "flow": [] },
+        { "name": "Fail", "flow": [
+          { "kind": "javaScript", "name": "Throw", "javaScript": "undefinedHelper();" },
+          { "kind": "javaScript", "name": "Never", "javaScript": "window.pvNeverRan = true;" } ] },
+        { "name": "Late", "flow": [
+          { "kind": "javaScript", "name": "Reject", "javaScript": "setTimeout(function () { $reject(new Error('could not load data')); }, 10);" } ] }
+      ],
+      "widgets": [
+        { "type": "Container", "name": "BrokenRoot", "children": [ { "type": "Text", "text": "Broken block" } ] }
+      ]
+    },
+    {
+      "name": "PvFlow",
+      "inputs": [ { "name": "Mode", "type": "Text", "default": "\"bar\"" } ],
+      "onReady": "Branch",
+      "actions": [
+        { "name": "Branch", "flow": [
+          { "kind": "if", "name": "IsBar", "condition": "Mode = \"bar\"", "true": "BarJs", "false": "LineJs" },
+          { "kind": "javaScript", "name": "BarJs", "javaScript": "window.pvFlow = ['bar'];", "next": "Pick" },
+          { "kind": "javaScript", "name": "LineJs", "javaScript": "window.pvFlow = ['line'];", "next": "Pick" },
+          { "kind": "switch", "name": "Pick", "cases": [ { "condition": "Mode = \"x\"", "next": "CaseJs" } ], "otherwise": "OtherJs" },
+          { "kind": "javaScript", "name": "CaseJs", "javaScript": "window.pvFlow.push('case');", "next": "Long" },
+          { "kind": "javaScript", "name": "OtherJs", "javaScript": "window.pvFlow.push('other');", "next": "Long" },
+          { "kind": "if", "name": "Long", "condition": "Length(Mode) > 2", "true": "YesJs", "false": "NoJs" },
+          { "kind": "javaScript", "name": "YesJs", "javaScript": "window.pvFlow.push('yes');", "next": "End" },
+          { "kind": "javaScript", "name": "NoJs", "javaScript": "window.pvFlow.push('no');\nconsole.log('Olá ✓ ' + document.getElementById('FlowRoot').textContent);" }
+        ] }
+      ],
+      "widgets": [ { "type": "Container", "name": "FlowRoot", "children": [ { "type": "Text", "text": "Ação" } ] } ]
+    },
+    {
+      "name": "PvNav",
+      "inputs": [ { "name": "Target", "type": "Text", "default": "\"about:blank\"" } ],
+      "onReady": "Go",
+      "actions": [
+        { "name": "Go", "flow": [
+          { "kind": "javaScript", "name": "Leave", "inputs": [ { "name": "Url", "type": "Text" } ], "args": { "Url": "Target" },
+            "javaScript": "window.open($parameters.Url + 'window');\nvar a = document.createElement('a');\na.href = $parameters.Url + 'anchor';\na.ping = $parameters.Url + 'ping';\ndocument.body.appendChild(a);\na.click();\nlocation.href = $parameters.Url + 'navigate';" } ] }
+      ],
+      "widgets": [ { "type": "Container", "name": "NavRoot", "children": [ { "type": "Text", "text": "Stays here" } ] } ]
+    },
+    {
+      "name": "PvSlow",
+      "onReady": "Wait1",
+      "onRender": "Wait2",
+      "actions": [
+        { "name": "Wait1", "flow": [ { "kind": "javaScript", "name": "Never1", "javaScript": "if (window.pvNever) $resolve();" } ] },
+        { "name": "Wait2", "flow": [ { "kind": "javaScript", "name": "Never2", "javaScript": "if (window.pvNever) $resolve();" } ] }
+      ],
+      "widgets": [ { "type": "Container", "name": "SlowRoot" } ]
+    },
+    {
+      "name": "PvLoop",
+      "onReady": "Spin",
+      "actions": [ { "name": "Spin", "flow": [ { "kind": "javaScript", "name": "Forever", "javaScript": "for (;;) {}" } ] } ],
+      "widgets": [ { "type": "Container", "name": "LoopRoot" } ]
+    },
+    {
+      "name": "PvTwice",
+      "widgets": [ { "type": "Container", "name": "TwiceRoot", "children": [
+        { "type": "BlockInstance", "sourceBlock": "PvFlow", "args": { "Mode": "\"bar\"" } },
+        { "type": "BlockInstance", "sourceBlock": "PvFlow", "args": { "Mode": "\"line\"" } },
+        { "type": "BlockInstance", "sourceBlock": "PvSyntax" }, { "type": "BlockInstance", "sourceBlock": "PvSyntax" } ] } ]
+    },
+    {
+      "name": "PvSyntax",
+      "onReady": "Draw",
+      "actions": [ { "name": "Draw", "flow": [ { "kind": "javaScript", "name": "Broken", "javaScript": "var x = [1, 2;" } ] } ],
+      "widgets": [ { "type": "Container", "name": "SyntaxRoot" } ]
+    }
+  ]
+}

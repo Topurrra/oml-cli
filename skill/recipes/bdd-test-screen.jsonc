@@ -1,0 +1,507 @@
+// Build BDD test screens that call a public server action and assert its result, in a separate test module.
+// Output of: oml test scaffold OrderCore.oml PlaceOrder --bdd BDDFramework.oml --producer tmp/recipes/OrderCore.oml
+// Base: a test module made from the BDD Framework Client Side app type (saved with oml pull), or a NEW CrossDevice module
+// (oml new OrderCore_Tests.oml --kind CrossDevice). Never the module under test.
+// Needs BDDFramework Client Side (Forge) and the module under test as producer .oml files; replace both paths.
+// Unverified against the real BDDFramework Client Side: built from a stand-in with the documented block names.
+// Run the command for your own actions instead of copying this file. Then replace every TODO.
+// Related keys: references, onException, screens, BlockInstance placeholders and events, exceptionHandler.
+{
+  "references": [
+    {
+      "producer": "tmp/recipes/BDDFramework.oml",
+      "elements": [
+        "BDDScenario",
+        "BDDStep",
+        "FinalResult",
+        "AssertTrue"
+      ]
+    },
+    {
+      "producer": "tmp/recipes/OrderCore.oml",
+      "elements": [
+        "PlaceOrder",
+        "OrderLine"
+      ]
+    }
+  ],
+  "onException": {
+    "name": "OnException",
+    "flow": "TestFlow",
+    "nodes": [
+      {
+        "kind": "exceptionHandler",
+        "name": "OnAllErrors",
+        "exception": "AllExceptions"
+      },
+      {
+        "kind": "message",
+        "message": "OnAllErrors.ExceptionMessage",
+        "type": "error"
+      }
+    ]
+  },
+  "screens": [
+    {
+      "name": "PlaceOrder_Tests",
+      "flow": "TestFlow",
+      "title": "\"PlaceOrder tests\"",
+      "locals": [
+        {
+          "name": "HappyPath_CustomerName",
+          "type": "Text"
+        },
+        {
+          "name": "HappyPath_Quantity",
+          "type": "Integer"
+        },
+        {
+          "name": "HappyPath_Express",
+          "type": "Boolean"
+        },
+        {
+          "name": "HappyPath_Line",
+          "type": "OrderCore.OrderLine"
+        },
+        {
+          "name": "HappyPath_Extra",
+          "type": "OrderCore.OrderLine"
+        },
+        {
+          "name": "HappyPath_Attachment",
+          "type": "Binary Data"
+        },
+        {
+          "name": "HappyPath_OrderNumber",
+          "type": "Text"
+        },
+        {
+          "name": "HappyPath_Total",
+          "type": "Decimal"
+        },
+        {
+          "name": "HappyPath_Receipt",
+          "type": "OrderCore.OrderLine"
+        },
+        {
+          "name": "RaisesInvalidQuantity_CustomerName",
+          "type": "Text"
+        },
+        {
+          "name": "RaisesInvalidQuantity_Quantity",
+          "type": "Integer"
+        },
+        {
+          "name": "RaisesInvalidQuantity_Express",
+          "type": "Boolean"
+        },
+        {
+          "name": "RaisesInvalidQuantity_Line",
+          "type": "OrderCore.OrderLine"
+        },
+        {
+          "name": "RaisesInvalidQuantity_Extra",
+          "type": "OrderCore.OrderLine"
+        },
+        {
+          "name": "RaisesInvalidQuantity_Attachment",
+          "type": "Binary Data"
+        },
+        {
+          "name": "RaisesInvalidQuantity_Raised",
+          "type": "Boolean"
+        },
+        {
+          "name": "RaisesInvalidQuantity_Message",
+          "type": "Text"
+        },
+        {
+          "name": "EmptyCustomerName_CustomerName",
+          "type": "Text"
+        },
+        {
+          "name": "EmptyCustomerName_Quantity",
+          "type": "Integer"
+        },
+        {
+          "name": "EmptyCustomerName_Express",
+          "type": "Boolean"
+        },
+        {
+          "name": "EmptyCustomerName_Line",
+          "type": "OrderCore.OrderLine"
+        },
+        {
+          "name": "EmptyCustomerName_Extra",
+          "type": "OrderCore.OrderLine"
+        },
+        {
+          "name": "EmptyCustomerName_Attachment",
+          "type": "Binary Data"
+        },
+        {
+          "name": "EmptyCustomerName_Raised",
+          "type": "Boolean"
+        },
+        {
+          "name": "EmptyCustomerName_Message",
+          "type": "Text"
+        }
+      ],
+      "actions": [
+        {
+          "name": "HappyPath_Given",
+          "flow": [
+            {
+              "kind": "assign",
+              "name": "SetInputs",
+              "assign": {
+                "HappyPath_CustomerName": "\"TODO\"",
+                "HappyPath_Quantity": "0 /* TODO */",
+                "HappyPath_Express": "False /* TODO */"
+              }
+            },
+            {
+              "kind": "comment",
+              "text": "TODO: set HappyPath_Line (OrderCore.OrderLine), HappyPath_Extra (OrderCore.OrderLine), HappyPath_Attachment (Binary Data) to test values."
+            }
+          ]
+        },
+        {
+          "name": "HappyPath_When",
+          "flow": [
+            {
+              "kind": "execute",
+              "name": "CallPlaceOrder",
+              "action": "OrderCore.PlaceOrder",
+              "args": {
+                "CustomerName": "HappyPath_CustomerName",
+                "Quantity": "HappyPath_Quantity",
+                "Express": "HappyPath_Express",
+                "Line": "HappyPath_Line",
+                "Extra": "HappyPath_Extra",
+                "Attachment": "HappyPath_Attachment"
+              }
+            },
+            {
+              "kind": "assign",
+              "name": "KeepResults",
+              "assign": {
+                "HappyPath_OrderNumber": "CallPlaceOrder.OrderNumber",
+                "HappyPath_Total": "CallPlaceOrder.Total",
+                "HappyPath_Receipt": "CallPlaceOrder.Receipt"
+              }
+            }
+          ]
+        },
+        {
+          "name": "HappyPath_Then",
+          "flow": [
+            {
+              "kind": "execute",
+              "name": "CheckOrderNumber",
+              "action": "BDDFramework.AssertTrue",
+              "args": {
+                "Condition": "HappyPath_OrderNumber <> \"\" /* TODO: compare with the expected value */",
+                "FailureMessage": "\"OrderNumber was returned\""
+              }
+            },
+            {
+              "kind": "execute",
+              "name": "CheckTotal",
+              "action": "BDDFramework.AssertTrue",
+              "args": {
+                "Condition": "HappyPath_Total <> 0 /* TODO: compare with the expected value */",
+                "FailureMessage": "\"Total was returned\""
+              }
+            },
+            {
+              "kind": "execute",
+              "name": "CheckReceipt",
+              "action": "BDDFramework.AssertTrue",
+              "args": {
+                "Condition": "False /* TODO: check Receipt */",
+                "FailureMessage": "\"Receipt was returned\""
+              }
+            }
+          ]
+        },
+        {
+          "name": "RaisesInvalidQuantity_Given",
+          "flow": [
+            {
+              "kind": "assign",
+              "name": "SetInputs",
+              "assign": {
+                "RaisesInvalidQuantity_CustomerName": "\"TODO\"",
+                "RaisesInvalidQuantity_Quantity": "0 /* TODO */",
+                "RaisesInvalidQuantity_Express": "False /* TODO */"
+              }
+            },
+            {
+              "kind": "comment",
+              "text": "TODO: set RaisesInvalidQuantity_Line (OrderCore.OrderLine), RaisesInvalidQuantity_Extra (OrderCore.OrderLine), RaisesInvalidQuantity_Attachment (Binary Data) to test values."
+            }
+          ]
+        },
+        {
+          "name": "RaisesInvalidQuantity_When",
+          "flow": [
+            {
+              "kind": "execute",
+              "name": "CallPlaceOrder",
+              "action": "OrderCore.PlaceOrder",
+              "args": {
+                "CustomerName": "RaisesInvalidQuantity_CustomerName",
+                "Quantity": "RaisesInvalidQuantity_Quantity",
+                "Express": "RaisesInvalidQuantity_Express",
+                "Line": "RaisesInvalidQuantity_Line",
+                "Extra": "RaisesInvalidQuantity_Extra",
+                "Attachment": "RaisesInvalidQuantity_Attachment"
+              },
+              "next": "End"
+            },
+            {
+              "kind": "exceptionHandler",
+              "name": "OnError",
+              "exception": "AllExceptions"
+            },
+            {
+              "kind": "assign",
+              "name": "KeepError",
+              "assign": {
+                "RaisesInvalidQuantity_Raised": "True",
+                "RaisesInvalidQuantity_Message": "OnError.ExceptionMessage"
+              },
+              "next": "End"
+            }
+          ]
+        },
+        {
+          "name": "RaisesInvalidQuantity_Then",
+          "flow": [
+            {
+              "kind": "execute",
+              "name": "CheckRaised",
+              "action": "BDDFramework.AssertTrue",
+              "args": {
+                "Condition": "RaisesInvalidQuantity_Raised",
+                "FailureMessage": "\"PlaceOrder raised an exception\""
+              }
+            },
+            {
+              "kind": "execute",
+              "name": "CheckMessage",
+              "action": "BDDFramework.AssertTrue",
+              "args": {
+                "Condition": "RaisesInvalidQuantity_Message = \"Quantity must be positive\"",
+                "FailureMessage": "\"The message is \"\"Quantity must be positive\"\"\""
+              }
+            }
+          ]
+        },
+        {
+          "name": "EmptyCustomerName_Given",
+          "flow": [
+            {
+              "kind": "assign",
+              "name": "SetInputs",
+              "assign": {
+                "EmptyCustomerName_CustomerName": "\"\"",
+                "EmptyCustomerName_Quantity": "0 /* TODO */",
+                "EmptyCustomerName_Express": "False /* TODO */"
+              }
+            },
+            {
+              "kind": "comment",
+              "text": "TODO: set EmptyCustomerName_Line (OrderCore.OrderLine), EmptyCustomerName_Extra (OrderCore.OrderLine), EmptyCustomerName_Attachment (Binary Data) to test values."
+            }
+          ]
+        },
+        {
+          "name": "EmptyCustomerName_When",
+          "flow": [
+            {
+              "kind": "execute",
+              "name": "CallPlaceOrder",
+              "action": "OrderCore.PlaceOrder",
+              "args": {
+                "CustomerName": "EmptyCustomerName_CustomerName",
+                "Quantity": "EmptyCustomerName_Quantity",
+                "Express": "EmptyCustomerName_Express",
+                "Line": "EmptyCustomerName_Line",
+                "Extra": "EmptyCustomerName_Extra",
+                "Attachment": "EmptyCustomerName_Attachment"
+              },
+              "next": "End"
+            },
+            {
+              "kind": "exceptionHandler",
+              "name": "OnError",
+              "exception": "AllExceptions"
+            },
+            {
+              "kind": "assign",
+              "name": "KeepError",
+              "assign": {
+                "EmptyCustomerName_Raised": "True",
+                "EmptyCustomerName_Message": "OnError.ExceptionMessage"
+              },
+              "next": "End"
+            }
+          ]
+        },
+        {
+          "name": "EmptyCustomerName_Then",
+          "flow": [
+            {
+              "kind": "execute",
+              "name": "CheckRefused",
+              "action": "BDDFramework.AssertTrue",
+              "args": {
+                "Condition": "EmptyCustomerName_Raised /* TODO: or check the outputs, if PlaceOrder reports this without an exception */",
+                "FailureMessage": "\"PlaceOrder refused an empty CustomerName\""
+              }
+            }
+          ]
+        }
+      ],
+      "widgets": [
+        {
+          "type": "Text",
+          "text": "PlaceOrder tests"
+        },
+        {
+          "type": "BlockInstance",
+          "name": "HappyPathScenario",
+          "sourceBlock": "BDDFramework.BDDScenario",
+          "args": {
+            "Description": "\"PlaceOrder: happy path\""
+          },
+          "placeholders": {
+            "Steps": [
+              {
+                "type": "BlockInstance",
+                "sourceBlock": "BDDFramework.BDDStep",
+                "args": {
+                  "Description": "\"Given valid inputs (TODO: real test values)\""
+                },
+                "events": {
+                  "StepAction": "HappyPath_Given"
+                }
+              },
+              {
+                "type": "BlockInstance",
+                "sourceBlock": "BDDFramework.BDDStep",
+                "args": {
+                  "Description": "\"When PlaceOrder is called\""
+                },
+                "events": {
+                  "StepAction": "HappyPath_When"
+                }
+              },
+              {
+                "type": "BlockInstance",
+                "sourceBlock": "BDDFramework.BDDStep",
+                "args": {
+                  "Description": "\"Then OrderNumber, Total, Receipt are returned\""
+                },
+                "events": {
+                  "StepAction": "HappyPath_Then"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "BlockInstance",
+          "name": "RaisesInvalidQuantityScenario",
+          "sourceBlock": "BDDFramework.BDDScenario",
+          "args": {
+            "Description": "\"PlaceOrder raises InvalidQuantity\""
+          },
+          "placeholders": {
+            "Steps": [
+              {
+                "type": "BlockInstance",
+                "sourceBlock": "BDDFramework.BDDStep",
+                "args": {
+                  "Description": "\"Given inputs that make PlaceOrder raise InvalidQuantity (TODO: values)\""
+                },
+                "events": {
+                  "StepAction": "RaisesInvalidQuantity_Given"
+                }
+              },
+              {
+                "type": "BlockInstance",
+                "sourceBlock": "BDDFramework.BDDStep",
+                "args": {
+                  "Description": "\"When PlaceOrder is called\""
+                },
+                "events": {
+                  "StepAction": "RaisesInvalidQuantity_When"
+                }
+              },
+              {
+                "type": "BlockInstance",
+                "sourceBlock": "BDDFramework.BDDStep",
+                "args": {
+                  "Description": "\"Then InvalidQuantity is raised\""
+                },
+                "events": {
+                  "StepAction": "RaisesInvalidQuantity_Then"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "BlockInstance",
+          "name": "EmptyCustomerNameScenario",
+          "sourceBlock": "BDDFramework.BDDScenario",
+          "args": {
+            "Description": "\"PlaceOrder refuses an empty CustomerName\""
+          },
+          "placeholders": {
+            "Steps": [
+              {
+                "type": "BlockInstance",
+                "sourceBlock": "BDDFramework.BDDStep",
+                "args": {
+                  "Description": "\"Given an empty CustomerName\""
+                },
+                "events": {
+                  "StepAction": "EmptyCustomerName_Given"
+                }
+              },
+              {
+                "type": "BlockInstance",
+                "sourceBlock": "BDDFramework.BDDStep",
+                "args": {
+                  "Description": "\"When PlaceOrder is called\""
+                },
+                "events": {
+                  "StepAction": "EmptyCustomerName_When"
+                }
+              },
+              {
+                "type": "BlockInstance",
+                "sourceBlock": "BDDFramework.BDDStep",
+                "args": {
+                  "Description": "\"Then PlaceOrder refuses it\""
+                },
+                "events": {
+                  "StepAction": "EmptyCustomerName_Then"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "BlockInstance",
+          "sourceBlock": "BDDFramework.FinalResult"
+        }
+      ]
+    }
+  ]
+}

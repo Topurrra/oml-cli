@@ -6,7 +6,7 @@
 {
   "roles": [{ "name": "Auditor", "persistent": true }],
   "exceptions": ["NotAuthorized"],
-  "serverActions": [{ "name": "AuditReport_Load", "public": true, "outputs": [{ "name": "Summary", "type": "Text" }], "flow": [
+  "serverActions": [{ "name": "AuditReport_Load", "description": "Audit summary; Auditor role only.", "outputs": [{ "name": "Summary", "type": "Text", "description": "The summary text." }], "flow": [
     { "kind": "execute", "name": "Check", "action": "CheckAuditorRole", "args": { "UserId": "GetUserId()" } },
     { "kind": "if", "name": "IsAuditor", "condition": "Check.HasRole", "true": "Build", "false": "Denied" },
     { "kind": "assign", "name": "Build", "assign": { "Summary": "\"All records reviewed\"" }, "next": "End" },

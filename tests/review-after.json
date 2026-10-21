@@ -1,0 +1,34 @@
+// The change for tests/review-check.ps1, applied to the module made from review-before.json.
+{
+  "entities": [
+    { "name": "Customer", "attributes": [{ "name": "Phone", "type": "Phone Number" }], "indexes": [{ "attributes": ["Email"], "unique": true }] },
+    { "name": "Invoice", "attributes": [{ "name": "Number", "length": 20 }] }
+  ],
+  "staticEntities": [{ "name": "Status", "records": [{ "identifier": "Cancelled", "label": "Cancelled", "order": 3 }] }],
+  "structures": [{ "name": "OrderDto", "attributes": [{ "name": "Note", "type": "Text" }] }],
+  "roles": [{ "name": "Auditor" }],
+  "themes": [{ "name": "AppTheme", "styleSheet": ".title { color: navy; font-weight: 600; }" }],
+  "restClients": [{ "name": "Weather", "baseUrl": "https://api.example.com", "actions": [
+    { "name": "GetAlerts", "method": "GET", "url": "/alerts" } ] }],
+  "restServices": [{ "name": "OrdersApi", "actions": [{ "name": "Health" }] }],
+  "serverActions": [{ "name": "ExportOrders", "public": true, "flow": [] }],
+  "screens": [{ "name": "Orders", "styleSheet": ".orders { margin: 0; }" }],
+  "edits": [
+    { "op": "set", "element": "CreateOrderFor/ValidTotal", "properties": { "condition": "Total > 0" } },
+    { "op": "rename", "element": "CreateOrderFor/Prepare", "to": "PrepareOrder" },
+    { "op": "insertNodes", "action": "CreateOrderFor", "after": "PrepareOrder", "flow": [{ "kind": "assign", "name": "Audit", "assign": { "Rec.Total": "Total" } }] },
+    { "op": "addVariables", "action": "CreateOrderFor", "inputs": [{ "name": "Note", "type": "Text", "mandatory": false }] },
+    { "op": "rename", "element": "FormatTotal/Prefix", "to": "LabelPrefix" },
+    { "op": "addToAggregate", "aggregate": "SumOrders/GetOrders", "filters": ["Order.Total > 0"] },
+    { "op": "set", "element": "Report/ReadTotals", "properties": { "statement": "SELECT {Order}.[Total] FROM {Order} WHERE {Order}.[Total] > 0" } },
+    { "op": "set", "element": "MaxItems", "properties": { "defaultValue": "100" } },
+    { "op": "set", "element": "Nightly", "properties": { "timeoutInMinutes": 30 } },
+    { "op": "set", "element": "Approval", "properties": { "detail": "\"Order approval\"" } },
+    { "op": "addWidgets", "screen": "Card", "widgets": [{ "type": "Expression", "name": "CardFooter", "value": "\"Footer\"" }] },
+    { "op": "addWidgets", "screen": "Orders", "parent": "Header", "index": 1, "widgets": [{ "type": "Expression", "name": "Hint", "value": "\"Enter a total\"" }] },
+    { "op": "set", "element": "Orders/CountText", "properties": { "value": "\"Total orders: \" + GetOrders.Count" } },
+    { "op": "rename", "element": "Orders/TotalInput", "to": "AmountInput" },
+    { "op": "set", "element": "Orders/SaveButton", "properties": { "style": "\"btn btn-secondary\"" } },
+    { "op": "setAccess", "screen": "Orders", "anonymous": true }
+  ]
+}

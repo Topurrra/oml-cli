@@ -1,7 +1,9 @@
-// Build a Reactive form: client-side checks with messages, a server save that raises a user exception, and the screen handling it.
-// Base: a copy of your Reactive module with LayoutTopMenu and a handler. Rename Contact, ContactForm, InvalidContact and the texts together.
-// Related keys: exceptions, serverActions, raiseException, screens, locals, actions, exceptionHandler, mandatory, If with trueBranch.
-// The server action repeats the checks, because client checks can be bypassed. Add attributes and checks as your entity needs.
+// Build a Reactive form with the standard validation pattern, a server save that raises a user exception, and the screen handling it.
+// Base: a copy of your Reactive module with LayoutTopMenu and a handler. Rename Contact, ContactForm, ContactFormBody, InvalidContact and the texts together.
+// Related keys: exceptions, serverActions, raiseException, screens, locals, actions, exceptionHandler, mandatory, inputType.
+// oml leaves the Save button's On Click Built-in Validations at Yes (the default): empty mandatory inputs and values of the wrong type (Email, Number) are marked before Save runs.
+// Save adds its own checks: it sets <Input>.Valid = False and <Input>.ValidationMessage, and the input shows the message. Then it reads ContactFormBody.Valid,
+// which is False when any input in the form is invalid. The server action repeats the checks, because client checks can be bypassed.
 {
   "exceptions": ["InvalidContact"],
   "entities": [{ "name": "Contact", "attributes": [
@@ -14,24 +16,25 @@
     "inputs": [{ "name": "Contact", "type": "Contact", "mandatory": true }],
     "outputs": [{ "name": "Id", "type": "Contact Identifier" }], "flow": [
       { "kind": "if", "name": "HasName", "condition": "Trim(Contact.Name) <> \"\"", "true": "HasEmail", "false": "NameMissing" },
-      { "kind": "if", "name": "HasEmail", "condition": "Index(Contact.Email, \"@\") > 0", "true": "Save", "false": "EmailInvalid" },
+      { "kind": "if", "name": "HasEmail", "condition": "Index(Contact.Email, \"@\") > 0", "true": "HasValidAge", "false": "EmailInvalid" },
+      { "kind": "if", "name": "HasValidAge", "condition": "Contact.Age >= 0 and Contact.Age <= 150", "true": "Save", "false": "AgeInvalid" },
       { "kind": "execute", "name": "Save", "action": "CreateOrUpdateContact", "args": { "Source": "Contact" } },
       { "kind": "assign", "name": "ReturnId", "assign": { "Id": "Save.Id" }, "next": "End" },
       { "kind": "raiseException", "name": "NameMissing", "exception": "InvalidContact", "message": "\"Name is required\"" },
-      { "kind": "raiseException", "name": "EmailInvalid", "exception": "InvalidContact", "message": "\"Enter a valid email address\"" }
+      { "kind": "raiseException", "name": "EmailInvalid", "exception": "InvalidContact", "message": "\"Enter a valid email address\"" },
+      { "kind": "raiseException", "name": "AgeInvalid", "exception": "InvalidContact", "message": "\"Enter an age from 0 to 150\"" }
     ] }],
   "screens": [{ "name": "ContactForm", "layout": "LayoutTopMenu", "access": { "anonymous": false, "registered": true },
     "title": [{ "type": "Text", "text": "New contact" }],
-    "locals": [
-      { "name": "NewContact", "type": "Contact" },
-      { "name": "NameError", "type": "Text" },
-      { "name": "EmailError", "type": "Text" }
-    ],
+    "locals": [{ "name": "NewContact", "type": "Contact" }],
     "actions": [{ "name": "Save", "flow": [
-      { "kind": "assign", "name": "Check", "assign": {
-        "NameError": "If(Trim(NewContact.Name) = \"\", \"Enter the contact name\", \"\")",
-        "EmailError": "If(Index(NewContact.Email, \"@\") > 0, \"\", \"Enter a valid email address\")" } },
-      { "kind": "if", "name": "ClientValid", "condition": "NameError = \"\" and EmailError = \"\"", "true": "SaveContact", "false": "Fix" },
+      { "kind": "if", "name": "CheckName", "condition": "Trim(NewContact.Name) <> \"\"", "true": "CheckAge", "false": "NameInvalid" },
+      { "kind": "assign", "name": "NameInvalid", "assign": {
+        "NameInput.Valid": "False", "NameInput.ValidationMessage": "\"Enter the contact name\"" }, "next": "CheckAge" },
+      { "kind": "if", "name": "CheckAge", "condition": "NewContact.Age >= 0 and NewContact.Age <= 150", "true": "FormValid", "false": "AgeInvalid" },
+      { "kind": "assign", "name": "AgeInvalid", "assign": {
+        "AgeInput.Valid": "False", "AgeInput.ValidationMessage": "\"Enter an age from 0 to 150\"" }, "next": "FormValid" },
+      { "kind": "if", "name": "FormValid", "condition": "ContactFormBody.Valid", "true": "SaveContact", "false": "Fix" },
       { "kind": "message", "name": "Fix", "message": "\"Fix the highlighted fields\"", "type": "warning", "next": "End" },
       { "kind": "execute", "name": "SaveContact", "action": "Contact_Save", "args": { "Contact": "NewContact" } },
       { "kind": "message", "name": "Saved", "message": "\"Contact saved\"", "type": "success", "next": "End" },
@@ -40,11 +43,9 @@
     ] }],
     "widgets": [{ "type": "Form", "name": "ContactFormBody", "style": "\"card padding-m\"", "children": [
       { "type": "Label", "children": [{ "type": "Text", "text": "Name" }] },
-      { "type": "Input", "name": "NameInput", "variable": "NewContact.Name", "mandatory": "True", "maxLength": 100, "prompt": "\"Full name\"", "style": "If(NameError = \"\", \"form-control\", \"form-control not-valid\")" },
-      { "type": "If", "condition": "NameError <> \"\"", "trueBranch": [{ "type": "Container", "style": "\"validation-message\"", "children": [{ "type": "Expression", "value": "NameError" }] }] },
+      { "type": "Input", "name": "NameInput", "variable": "NewContact.Name", "mandatory": "True", "maxLength": 100, "prompt": "\"Full name\"" },
       { "type": "Label", "children": [{ "type": "Text", "text": "Email" }] },
-      { "type": "Input", "name": "EmailInput", "variable": "NewContact.Email", "mandatory": "True", "inputType": "Email", "maxLength": 250, "prompt": "\"name@example.com\"", "style": "If(EmailError = \"\", \"form-control\", \"form-control not-valid\")" },
-      { "type": "If", "condition": "EmailError <> \"\"", "trueBranch": [{ "type": "Container", "style": "\"validation-message\"", "children": [{ "type": "Expression", "value": "EmailError" }] }] },
+      { "type": "Input", "name": "EmailInput", "variable": "NewContact.Email", "mandatory": "True", "inputType": "Email", "maxLength": 250, "prompt": "\"name@example.com\"" },
       { "type": "Label", "children": [{ "type": "Text", "text": "Age" }] },
       { "type": "Input", "name": "AgeInput", "variable": "NewContact.Age", "inputType": "Number", "prompt": "\"Optional\"" },
       { "type": "Checkbox", "name": "NewsletterInput", "variable": "NewContact.Newsletter" },

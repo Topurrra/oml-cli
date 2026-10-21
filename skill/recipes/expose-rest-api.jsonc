@@ -10,19 +10,19 @@
     { "name": "Status", "length": 20 }
   ] }],
   "structures": [
-    { "name": "OrderRequest", "public": true, "attributes": [{ "name": "Product" }, { "name": "Quantity", "type": "Integer" }] },
-    { "name": "OrderResponse", "public": true, "attributes": [{ "name": "Id", "type": "Long Integer" }, { "name": "Product" }, { "name": "Quantity", "type": "Integer" }, { "name": "Status" }] }
+    { "name": "OrderRequest", "public": true, "description": "Body of a new order.", "attributes": [{ "name": "Product" }, { "name": "Quantity", "type": "Integer" }] },
+    { "name": "OrderResponse", "public": true, "description": "An order as the API returns it.", "attributes": [{ "name": "Id", "type": "Long Integer" }, { "name": "Product" }, { "name": "Quantity", "type": "Integer" }, { "name": "Status" }] }
   ],
   "serverActions": [
-    { "name": "Order_Get", "public": true, "inputs": [{ "name": "Id", "type": "Order Identifier", "mandatory": true }],
-      "outputs": [{ "name": "Response", "type": "OrderResponse" }], "flow": [
+    { "name": "Order_Get", "description": "Reads one order.", "inputs": [{ "name": "Id", "type": "Order Identifier", "mandatory": true }],
+      "outputs": [{ "name": "Response", "type": "OrderResponse", "description": "The order." }], "flow": [
         { "kind": "aggregate", "name": "Match", "sources": ["Order"], "filters": ["Order.Id = Id"], "maxRecords": 1 },
         { "kind": "assign", "name": "Map", "assign": {
           "Response.Id": "Match.List.Current.Order.Id", "Response.Product": "Match.List.Current.Order.Product",
           "Response.Quantity": "Match.List.Current.Order.Quantity", "Response.Status": "Match.List.Current.Order.Status" } }
       ] },
-    { "name": "Order_Place", "public": true, "inputs": [{ "name": "Request", "type": "OrderRequest", "mandatory": true }],
-      "outputs": [{ "name": "Response", "type": "OrderResponse" }], "locals": [{ "name": "NewOrder", "type": "Order" }], "flow": [
+    { "name": "Order_Place", "description": "Checks and creates an order.", "inputs": [{ "name": "Request", "type": "OrderRequest", "mandatory": true, "description": "The new order." }],
+      "outputs": [{ "name": "Response", "type": "OrderResponse", "description": "The created order." }], "locals": [{ "name": "NewOrder", "type": "Order" }], "flow": [
         { "kind": "if", "name": "ValidQuantity", "condition": "Request.Quantity > 0 and Trim(Request.Product) <> \"\"", "true": "Fill", "false": "Invalid" },
         { "kind": "assign", "name": "Fill", "assign": { "NewOrder.Product": "Request.Product", "NewOrder.Quantity": "Request.Quantity", "NewOrder.Status": "\"Received\"" } },
         { "kind": "execute", "name": "Save", "action": "CreateOrder", "args": { "Source": "NewOrder" } },

@@ -1,0 +1,78 @@
+// Build a reusable confirm popup block that fires events, and a screen that opens it and handles them.
+// Base: a copy of your Reactive module with LayoutTopMenu and a handler. Rename Note, Notes and ConfirmDialog together.
+// Related keys: blocks.events, triggerEvent, BlockInstance events, onParametersChanged, Popup (showPopup), refreshData.
+// The block owns no data: the screen opens it with an input, and closes it in the event handlers.
+// OnConfirm is mandatory (the default), so every instance must handle it; OnCancel is optional.
+{
+  "entities": [{ "name": "Note", "attributes": [{ "name": "Text", "length": 200, "mandatory": true }] }],
+  "serverActions": [{ "name": "Note_Delete", "inputs": [{ "name": "Id", "type": "Note Identifier", "mandatory": true }], "flow": [
+    { "kind": "execute", "name": "Delete", "action": "DeleteNote", "args": { "Id": "Id" } }
+  ] }],
+  "blocks": [{ "name": "ConfirmDialog", "flow": "Common",
+    "inputs": [
+      { "name": "Show", "type": "Boolean" },
+      { "name": "Message", "type": "Text" },
+      { "name": "ItemId", "type": "Note Identifier" }
+    ],
+    "locals": [{ "name": "Busy", "type": "Boolean" }],
+    "events": [
+      { "name": "OnConfirm", "inputs": [{ "name": "ItemId", "type": "Note Identifier", "mandatory": true }] },
+      { "name": "OnCancel", "mandatory": false }
+    ],
+    "actions": [
+      { "name": "Confirm", "flow": [
+        { "kind": "assign", "name": "Lock", "assign": { "Busy": "True" } },
+        { "kind": "triggerEvent", "name": "FireConfirm", "event": "OnConfirm", "args": { "ItemId": "ItemId" } }
+      ] },
+      { "name": "Cancel", "flow": [{ "kind": "triggerEvent", "name": "FireCancel", "event": "OnCancel" }] },
+      { "name": "Reset", "flow": [{ "kind": "assign", "name": "Unlock", "assign": { "Busy": "False" } }] }
+    ],
+    "onParametersChanged": "Reset",
+    "widgets": [{ "type": "Popup", "name": "ConfirmPopup", "showPopup": "Show", "children": [
+      { "type": "Container", "style": "\"padding-m\"", "children": [
+        { "type": "Expression", "value": "Message" },
+        { "type": "Container", "style": "\"margin-top-m\"", "children": [
+          { "type": "Button", "name": "CancelButton", "onClick": "Cancel", "style": "\"btn\"",
+            "children": [{ "type": "Text", "text": "Cancel" }] },
+          { "type": "Button", "name": "ConfirmButton", "onClick": "Confirm", "enabled": "not Busy", "style": "\"btn btn-primary\"",
+            "children": [{ "type": "Text", "text": "Delete" }] }
+        ] }
+      ] }
+    ] }]
+  }],
+  "screens": [{ "name": "Notes", "layout": "LayoutTopMenu", "access": { "anonymous": false, "registered": true },
+    "title": [{ "type": "Text", "text": "Notes" }],
+    "locals": [
+      { "name": "ConfirmOpen", "type": "Boolean" },
+      { "name": "SelectedId", "type": "Note Identifier" }
+    ],
+    "aggregates": [{ "name": "FetchNotes", "sources": ["Note"], "sorts": [{ "attribute": "Note.Id", "descending": true }], "maxRecords": 50 }],
+    "actions": [
+      { "name": "AskDelete", "inputs": [{ "name": "Id", "type": "Note Identifier", "mandatory": true }], "flow": [
+        { "kind": "assign", "name": "Open", "assign": { "SelectedId": "Id", "ConfirmOpen": "True" } }
+      ] },
+      // The handler's input has the event input's name, so oml passes it on; use { "action", "args" } to map other names.
+      { "name": "DeleteConfirmed", "inputs": [{ "name": "ItemId", "type": "Note Identifier", "mandatory": true }], "flow": [
+        { "kind": "execute", "name": "Delete", "action": "Note_Delete", "args": { "Id": "ItemId" } },
+        { "kind": "assign", "name": "Close", "assign": { "ConfirmOpen": "False" } },
+        { "kind": "refreshData", "name": "Reload", "dataSource": "FetchNotes" }
+      ] },
+      { "name": "CloseDialog", "flow": [{ "kind": "assign", "name": "Close", "assign": { "ConfirmOpen": "False" } }] }
+    ],
+    "widgets": [
+      { "type": "TableRecords", "name": "NoteTable", "source": "FetchNotes.List", "style": "\"table\"",
+        "headerRow": [
+          { "type": "HeaderCell", "children": [{ "type": "Text", "text": "Note" }] },
+          { "type": "HeaderCell", "children": [{ "type": "Text", "text": "Actions" }] }
+        ],
+        "row": [
+          { "type": "RowCell", "children": [{ "type": "Expression", "value": "FetchNotes.List.Current.Note.Text" }] },
+          { "type": "RowCell", "children": [{ "type": "Link", "onClick": "AskDelete", "args": { "Id": "FetchNotes.List.Current.Note.Id" },
+            "children": [{ "type": "Text", "text": "Delete" }] }] }
+        ] },
+      { "type": "BlockInstance", "name": "DeleteDialog", "sourceBlock": "ConfirmDialog",
+        "args": { "Show": "ConfirmOpen", "Message": "\"Delete this note?\"", "ItemId": "SelectedId" },
+        "events": { "OnConfirm": "DeleteConfirmed", "OnCancel": "CloseDialog" } }
+    ]
+  }]
+}

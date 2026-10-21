@@ -10,11 +10,13 @@ namespace OmlCli;
 // of a normal `oml` command and prints through its own writer, so its JSON comes back inside the result.
 public static partial class Cli
 {
-    // Set by the launcher: the commands that live there and need no Service Studio (`spec`).
+    // Set by the launcher: the commands that live there and need no Service Studio (`spec`, `doc`, `warn`). It takes
+    // the whole step, command name first.
     public static Func<string[], int>? LauncherRun;
+    static readonly string[] LauncherCommands = ["spec", "doc", "warn"];
 
     static readonly string[] RunAllowed =
-        ["apply", "architecture", "census", "describe", "find", "inspect", "openapi", "preview", "spec", "tree", "validate"];
+        ["apply", "architecture", "census", "check", "describe", "doc", "find", "inspect", "openapi", "preview", "review", "spec", "test", "tree", "validate", "warn"];
 
     static readonly Dictionary<string, string> RunRefused = new()
     {
@@ -33,6 +35,7 @@ public static partial class Cli
         if (rest.Count != 1) return null;
 
         var steps = ReadSteps(rest[0]);
+        var timings = Timings.Enabled; // `oml run --timings`: each step reports its own phases
         var total = Stopwatch.StartNew();
         var pretty = JsonOutput.Pretty;
         var results = new JsonArray();
@@ -44,7 +47,7 @@ public static partial class Cli
             for (var i = 0; i < steps.Count; i++)
             {
                 Model.TrimShared();
-                var (code, stdout, stderr, ms) = RunStep(steps[i]);
+                var (code, stdout, stderr, ms) = RunStep(timings && !LauncherCommands.Contains(steps[i][0]) && !steps[i].Contains("--timings") ? [.. steps[i], "--timings"] : steps[i]);
                 JsonOutput.Pretty = pretty;
                 var result = new JsonObject
                 {
@@ -72,13 +75,15 @@ public static partial class Cli
     static List<string[]> ReadSteps(string source)
     {
         string text;
-        try { text = source == "-" ? Console.In.ReadToEnd() : File.ReadAllText(source); }
+        // A pipe is UTF-8 (a byte order mark wins), not the console code page: Git Bash and pwsh 7 send UTF-8.
+        try { text = source != "-" ? File.ReadAllText(source) : Console.IsInputRedirected ? new StreamReader(Console.OpenStandardInput(), Encoding.UTF8).ReadToEnd() : Console.In.ReadToEnd(); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         { throw new CliError($"Cannot read the steps: {e.Message}", 2); }
 
         JsonNode? document;
         try { document = JsonNode.Parse(text, null, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }); }
         catch (JsonException e) { throw new CliError($"Invalid steps JSON: {e.Message}", 2); }
+        if (JsonOutput.UnpairedSurrogatePath(document) is { } bad) throw new CliError($"Invalid steps JSON at {bad}: {JsonOutput.UnpairedSurrogate}", 2);
 
         if ((document as JsonObject)?["steps"] is not JsonArray array || array.Count == 0)
             throw new CliError("The steps file must be {\"steps\": [[\"inspect\", \"App.oml\"], ...]}: a non-empty list of commands.", 2);
@@ -125,15 +130,22 @@ public static partial class Cli
 
     public static string[] Capture(string serviceStudioDir, string[] step)
     {
+        // A self-test past its limit may still hold the model: refuse before anything touches it.
+        if (SelfTest.Abandoned is { } stopped) return ["2", JsonOutput.Serialize(new { error = stopped }), ""];
         Model.ServiceStudioDir = serviceStudioDir;
         Model.ShareModules = true;
         Model.TrimShared();
+        SelfTest.KeepProcess = true;
         var (code, stdout, stderr, _) = RunStep(step, s =>
-            !DashboardAllowed.Contains(s[0]) || (s[0] == "architecture" && s.Contains("--team")) ? Refuse($"'{s[0]}' is not available in the dashboard.")
+            !DashboardAllowed.Contains(s[0]) || (s[0] == "architecture" && s.Contains("--team")) || (s[0] == "preview" && s.Contains("--serve")) ? Refuse($"'{s[0]}' is not available in the dashboard.")
             : s[0] == "image" ? ImageAssets.Run(s[1..])
             : Run(serviceStudioDir, s));
         return [code.ToString(), stdout, stderr];
     }
+
+    // `oml dashboard`: the launcher refuses its own commands too once this is set, because the late self-test
+    // thread may still write to Console.Out while a launcher command has it captured.
+    public static string? SelfTestAbandoned() => SelfTest.Abandoned;
 
     static int RunStepCommand(string[] step)
     {
@@ -142,13 +154,16 @@ public static partial class Cli
             return Refuse($"'{command}' is not allowed inside 'oml run': {reason}. Run it as its own command.");
         if (!RunAllowed.Contains(command))
             return Refuse($"'{command}' is not supported inside 'oml run'. Use one of: {string.Join(", ", RunAllowed)}.");
-        if (command == "architecture" && step.Contains("--team"))
-            return Refuse("'architecture --team' is not allowed inside 'oml run': it reads LifeTime and needs a person's confirmation. Run it as its own command.");
-        if (command == "spec")
+        if (command == "preview" && step.Contains("--serve"))
+            return Refuse("'preview --serve' is not allowed inside 'oml run': it keeps running until Ctrl+C. Run it as its own command.");
+        if (command is "architecture" or "check" && step.Contains("--team"))
+            return Refuse($"'{command} --team' is not allowed inside 'oml run': it reads LifeTime and needs a person's confirmation. Run it as its own command.");
+        if (LauncherCommands.Contains(command))
         {
-            if (LauncherRun is null) return Refuse("'spec' is not available here: the launcher did not provide it.");
+            if (step.Contains("--timings")) return Refuse($"--timings is not available for {command}.");
+            if (LauncherRun is null) return Refuse($"'{command}' is not available here: the launcher did not provide it.");
             JsonOutput.Pretty = step.Contains("--pretty");
-            return LauncherRun(step.Skip(1).Where(a => a != "--pretty").ToArray());
+            return LauncherRun(step.Where(a => a != "--pretty").ToArray());
         }
         return Run(Model.ServiceStudioDir, step);
     }

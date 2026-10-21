@@ -1,0 +1,1014 @@
+{
+ "module": {
+  "description": "Fixture for oml check: each rule fires once."
+ },
+ "roles": [
+  {
+   "name": "Clerk",
+   "description": "Staff."
+  }
+ ],
+ "siteProperties": [
+  {
+   "name": "ApiToken"
+  }
+ ],
+ "entities": [
+  {
+   "name": "Customer",
+   "public": true,
+   "description": "A customer.",
+   "attributes": [
+    {
+     "name": "Name"
+    }
+   ]
+  },
+  {
+   "name": "Order",
+   "attributes": [
+    {
+     "name": "CustomerId",
+     "type": "Customer Identifier"
+    },
+    {
+     "name": "Total",
+     "type": "Decimal"
+    }
+   ]
+  }
+ ],
+ "structures": [
+  {
+   "name": "OrderDto",
+   "public": true,
+   "attributes": [
+    {
+     "name": "Caption"
+    }
+   ]
+  }
+ ],
+ "serverActions": [
+  {
+   "name": "Ping",
+   "flow": []
+  },
+  {
+   "name": "ForUser",
+   "inputs": [
+    {
+     "name": "UserId",
+     "type": "User Identifier"
+    }
+   ],
+   "flow": []
+  },
+  {
+   "name": "NeverCalled",
+   "flow": []
+  },
+  {
+   "name": "UnusedQuery",
+   "public": true,
+   "description": "Reads data it never uses.",
+   "flow": [
+    {
+     "kind": "aggregate",
+     "name": "GetIgnored",
+     "sources": [
+      "Customer"
+     ],
+     "maxRecords": 1
+    }
+   ]
+  },
+  {
+   "name": "SetSite",
+   "public": true,
+   "description": "Writes a site property.",
+   "flow": [
+    {
+     "kind": "assign",
+     "name": "Write",
+     "assign": {
+      "Site.ApiToken": "\"x\""
+     }
+    }
+   ]
+  },
+  {
+   "name": "LoopQuery",
+   "public": true,
+   "description": "Query in a loop.",
+   "outputs": [
+    {
+     "name": "Total",
+     "type": "Decimal",
+     "description": "Sum."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "aggregate",
+     "name": "GetCustomers",
+     "sources": [
+      "Customer"
+     ],
+     "maxRecords": 10
+    },
+    {
+     "kind": "forEach",
+     "name": "Outer",
+     "recordList": "GetCustomers.List",
+     "cycle": "Inner",
+     "next": "End"
+    },
+    {
+     "kind": "forEach",
+     "name": "Inner",
+     "recordList": "GetCustomers.List",
+     "cycle": "GetOrders",
+     "next": "Outer"
+    },
+    {
+     "kind": "aggregate",
+     "name": "GetOrders",
+     "sources": [
+      "Order"
+     ],
+     "filters": [
+      "Order.CustomerId = GetCustomers.List.Current.Customer.Id"
+     ],
+     "maxRecords": 5
+    },
+    {
+     "kind": "assign",
+     "name": "Add",
+     "assign": {
+      "Total": "Total + GetOrders.List.Current.Order.Total"
+     },
+     "next": "Inner"
+    }
+   ]
+  },
+  {
+   "name": "InlineSearch",
+   "public": true,
+   "description": "Inline SQL fed by an input.",
+   "inputs": [
+    {
+     "name": "Filter",
+     "description": "SQL condition."
+    }
+   ],
+   "outputs": [
+    {
+     "name": "Count",
+     "type": "Integer",
+     "description": "Rows."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "sql",
+     "name": "Search",
+     "sql": "SELECT {Customer}.* FROM {Customer} WHERE @Condition",
+     "params": [
+      {
+       "name": "Condition",
+       "value": "\"(\" + Filter + \")\"",
+       "expandInline": true
+      }
+     ],
+     "outputs": [
+      "Customer"
+     ],
+     "maxRecords": 10
+    },
+    {
+     "kind": "assign",
+     "name": "CountRows",
+     "assign": {
+      "Count": "Search.List.Length"
+     }
+    }
+   ]
+  },
+  {
+   "name": "LongFlow",
+   "public": true,
+   "description": "41 nodes.",
+   "outputs": [
+    {
+     "name": "X",
+     "type": "Integer",
+     "description": "Result."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "assign",
+     "name": "Add1",
+     "assign": {
+      "X": "X + 1"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add2",
+     "assign": {
+      "X": "X + 2"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add3",
+     "assign": {
+      "X": "X + 3"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add4",
+     "assign": {
+      "X": "X + 4"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add5",
+     "assign": {
+      "X": "X + 5"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add6",
+     "assign": {
+      "X": "X + 6"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add7",
+     "assign": {
+      "X": "X + 7"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add8",
+     "assign": {
+      "X": "X + 8"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add9",
+     "assign": {
+      "X": "X + 9"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add10",
+     "assign": {
+      "X": "X + 10"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add11",
+     "assign": {
+      "X": "X + 11"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add12",
+     "assign": {
+      "X": "X + 12"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add13",
+     "assign": {
+      "X": "X + 13"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add14",
+     "assign": {
+      "X": "X + 14"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add15",
+     "assign": {
+      "X": "X + 15"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add16",
+     "assign": {
+      "X": "X + 16"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add17",
+     "assign": {
+      "X": "X + 17"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add18",
+     "assign": {
+      "X": "X + 18"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add19",
+     "assign": {
+      "X": "X + 19"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add20",
+     "assign": {
+      "X": "X + 20"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add21",
+     "assign": {
+      "X": "X + 21"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add22",
+     "assign": {
+      "X": "X + 22"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add23",
+     "assign": {
+      "X": "X + 23"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add24",
+     "assign": {
+      "X": "X + 24"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add25",
+     "assign": {
+      "X": "X + 25"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add26",
+     "assign": {
+      "X": "X + 26"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add27",
+     "assign": {
+      "X": "X + 27"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add28",
+     "assign": {
+      "X": "X + 28"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add29",
+     "assign": {
+      "X": "X + 29"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add30",
+     "assign": {
+      "X": "X + 30"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add31",
+     "assign": {
+      "X": "X + 31"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add32",
+     "assign": {
+      "X": "X + 32"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add33",
+     "assign": {
+      "X": "X + 33"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add34",
+     "assign": {
+      "X": "X + 34"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add35",
+     "assign": {
+      "X": "X + 35"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add36",
+     "assign": {
+      "X": "X + 36"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add37",
+     "assign": {
+      "X": "X + 37"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add38",
+     "assign": {
+      "X": "X + 38"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add39",
+     "assign": {
+      "X": "X + 39"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add40",
+     "assign": {
+      "X": "X + 40"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Add41",
+     "assign": {
+      "X": "X + 41"
+     }
+    }
+   ]
+  },
+  {
+   "name": "Nested",
+   "public": true,
+   "description": "Nesting sample.",
+   "inputs": [
+    {
+     "name": "N",
+     "type": "Integer",
+     "description": "Level."
+    }
+   ],
+   "outputs": [
+    {
+     "name": "R",
+     "type": "Integer",
+     "description": "Result."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "if",
+     "name": "If1",
+     "condition": "N > 1",
+     "true": "If2",
+     "false": "Join"
+    },
+    {
+     "kind": "if",
+     "name": "If2",
+     "condition": "N > 2",
+     "true": "If3",
+     "false": "Join"
+    },
+    {
+     "kind": "if",
+     "name": "If3",
+     "condition": "N > 3",
+     "true": "If4",
+     "false": "Join"
+    },
+    {
+     "kind": "if",
+     "name": "If4",
+     "condition": "N > 4",
+     "true": "If5",
+     "false": "Join"
+    },
+    {
+     "kind": "if",
+     "name": "If5",
+     "condition": "N > 5",
+     "true": "Deep",
+     "false": "Join"
+    },
+    {
+     "kind": "assign",
+     "name": "Deep",
+     "assign": {
+      "R": "5"
+     },
+     "next": "Join"
+    },
+    {
+     "kind": "assign",
+     "name": "Join",
+     "assign": {
+      "R": "R + 1"
+     },
+     "next": "End"
+    }
+   ]
+  },
+  {
+   "name": "CopyA",
+   "public": true,
+   "description": "Copy sample.",
+   "outputs": [
+    {
+     "name": "X",
+     "type": "Integer",
+     "description": "Result."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "assign",
+     "name": "Step1",
+     "assign": {
+      "X": "1"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step2",
+     "assign": {
+      "X": "X + 2"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step3",
+     "assign": {
+      "X": "X * 3"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step4",
+     "assign": {
+      "X": "X - 4"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step5",
+     "assign": {
+      "X": "X + 5"
+     }
+    }
+   ]
+  },
+  {
+   "name": "CopyB",
+   "public": true,
+   "description": "Copy sample.",
+   "outputs": [
+    {
+     "name": "X",
+     "type": "Integer",
+     "description": "Result."
+    }
+   ],
+   "flow": [
+    {
+     "kind": "assign",
+     "name": "Step1",
+     "assign": {
+      "X": "1"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step2",
+     "assign": {
+      "X": "X + 2"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step3",
+     "assign": {
+      "X": "X * 3"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step4",
+     "assign": {
+      "X": "X - 4"
+     }
+    },
+    {
+     "kind": "assign",
+     "name": "Step5",
+     "assign": {
+      "X": "X + 5"
+     }
+    }
+   ]
+  },
+  {
+   "name": "Cleanup",
+   "public": true,
+   "description": "Timer action.",
+   "flow": []
+  },
+  {
+   "name": "InlinePrivate",
+   "inputs": [
+    {
+     "name": "Filter"
+    }
+   ],
+   "outputs": [
+    {
+     "name": "Count",
+     "type": "Integer"
+    }
+   ],
+   "flow": [
+    {
+     "kind": "sql",
+     "name": "Search",
+     "sql": "SELECT {Customer}.* FROM {Customer} WHERE @Condition",
+     "maxRecords": 10,
+     "params": [
+      {
+       "name": "Condition",
+       "value": "Filter",
+       "expandInline": true
+      }
+     ],
+     "outputs": [
+      "Customer"
+     ]
+    },
+    {
+     "kind": "assign",
+     "name": "CountRows",
+     "assign": {
+      "Count": "Search.List.Length"
+     }
+    }
+   ]
+  },
+  {
+   "name": "CallPrivate",
+   "public": true,
+   "description": "Calls the private inline query.",
+   "flow": [
+    {
+     "kind": "execute",
+     "action": "InlinePrivate",
+     "args": {
+      "Filter": "\"1 = 1\""
+     }
+    }
+   ]
+  }
+ ],
+ "clientActions": [
+  {
+   "name": "ClientLoop",
+   "public": true,
+   "description": "Server call in a loop.",
+   "locals": [
+    {
+     "name": "Numbers",
+     "type": "List of Integer"
+    }
+   ],
+   "flow": [
+    {
+     "kind": "forEach",
+     "name": "Each",
+     "recordList": "Numbers",
+     "cycle": "Ping",
+     "next": "End"
+    },
+    {
+     "kind": "execute",
+     "action": "Ping",
+     "next": "Each"
+    }
+   ]
+  },
+  {
+   "name": "ClientTwice",
+   "public": true,
+   "description": "Two server calls.",
+   "flow": [
+    {
+     "kind": "execute",
+     "name": "Ping1",
+     "action": "Ping"
+    },
+    {
+     "kind": "execute",
+     "name": "Ping2",
+     "action": "Ping"
+    }
+   ]
+  },
+  {
+   "name": "ClientUser",
+   "public": true,
+   "description": "Sends the user from the client.",
+   "locals": [
+    {
+     "name": "Me",
+     "type": "User Identifier"
+    }
+   ],
+   "flow": [
+    {
+     "kind": "assign",
+     "name": "Remember",
+     "assign": {
+      "Me": "GetUserId()"
+     }
+    },
+    {
+     "kind": "execute",
+     "action": "ForUser",
+     "args": {
+      "UserId": "Me"
+     }
+    }
+   ]
+  }
+ ],
+ "timers": [
+  {
+   "name": "NightlyCleanup",
+   "action": "Cleanup",
+   "schedule": "",
+   "timeout": 60
+  }
+ ],
+ "restServices": [
+  {
+   "name": "OrdersApi",
+   "actions": [
+    {
+     "name": "Health",
+     "method": "GET",
+     "url": "/health"
+    }
+   ]
+  }
+ ],
+ "blocks": [
+  {
+   "name": "UserCard",
+   "inputs": [
+    {
+     "name": "UserId",
+     "type": "User Identifier"
+    }
+   ],
+   "widgets": [
+    {
+     "type": "Text",
+     "text": "Card"
+    }
+   ]
+  }
+ ],
+ "screens": [
+  {
+   "name": "Orders",
+   "access": {
+    "roles": [
+     "Clerk"
+    ]
+   },
+   "aggregates": [
+    {
+     "name": "GetAll",
+     "sources": [
+      "Customer"
+     ],
+     "maxRecords": 50
+    }
+   ],
+   "dataActions": [
+    {
+     "name": "LoadSql",
+     "outputs": [
+      {
+       "name": "Rows",
+       "type": "Integer"
+      }
+     ],
+     "flow": [
+      {
+       "kind": "sql",
+       "name": "AllCustomers",
+       "sql": "SELECT {Customer}.* FROM {Customer}",
+       "outputs": [
+        "Customer"
+       ]
+      },
+      {
+       "kind": "aggregate",
+       "name": "AllOrders",
+       "sources": [
+        "Order"
+       ]
+      },
+      {
+       "kind": "assign",
+       "name": "CountRows",
+       "assign": {
+        "Rows": "AllCustomers.List.Length + AllOrders.List.Length"
+       }
+      }
+     ]
+    }
+   ],
+   "widgets": [
+    {
+     "type": "Expression",
+     "value": "GetAll.Count"
+    },
+    {
+     "type": "Expression",
+     "value": "LoadSql.Rows"
+    }
+   ]
+  },
+  {
+   "name": "Dashboard",
+   "access": {
+    "roles": [
+     "Clerk"
+    ]
+   },
+   "actions": [
+    {
+     "name": "LoadOnReady",
+     "flow": [
+      {
+       "kind": "execute",
+       "action": "Ping"
+      }
+     ]
+    }
+   ],
+   "onReady": "LoadOnReady"
+  },
+  {
+   "name": "PublicHome",
+   "access": {
+    "anonymous": true
+   },
+   "aggregates": [
+    {
+     "name": "GetPublic",
+     "sources": [
+      "Customer"
+     ],
+     "maxRecords": 10
+    }
+   ],
+   "widgets": [
+    {
+     "type": "Expression",
+     "value": "GetPublic.Count"
+    }
+   ]
+  },
+  {
+   "name": "Team",
+   "access": {
+    "roles": [
+     "Clerk"
+    ]
+   },
+   "widgets": [
+    {
+     "type": "BlockInstance",
+     "sourceBlock": "UserCard",
+     "args": {
+      "UserId": "GetUserId()"
+     }
+    }
+   ]
+  },
+  {
+   "name": "Profile",
+   "access": {
+    "registered": true
+   }
+  },
+  {
+   "name": "Counter",
+   "access": {
+    "roles": [
+     "Clerk"
+    ]
+   },
+   "locals": [
+    {
+     "name": "Renders",
+     "type": "Integer"
+    }
+   ],
+   "actions": [
+    {
+     "name": "CountRenders",
+     "flow": [
+      {
+       "kind": "assign",
+       "name": "AddOne",
+       "assign": {
+        "Renders": "Renders + 1"
+       }
+      }
+     ]
+    }
+   ],
+   "onRender": "CountRenders",
+   "widgets": [
+    {
+     "type": "Expression",
+     "value": "Renders"
+    }
+   ]
+  }
+ ],
+ "edits": [
+  {
+   "op": "set",
+   "element": "Customer",
+   "properties": {
+    "ExposeReadOnly": false
+   }
+  }
+ ],
+ "clientVariables": [
+  {
+   "name": "AuthToken"
+  }
+ ]
+}

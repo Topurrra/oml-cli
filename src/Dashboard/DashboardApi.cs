@@ -39,7 +39,7 @@ static partial class Dashboard
                 (true, "spec/schema") => Wrap(await Oml("spec", "schema")),
                 (true, "recipes") => Recipes(),
                 (true, "doc/rules") => Doc("rules.md"),
-                (true, "doc/checklist") => Doc("ui-checklist.md"),
+                (true, "doc/checklist") => Doc("doc.ui-checklist.md"),
                 (true, "lt/environments") => await LifeTimeRead("environments"),
                 (true, "lt/apps") => await LifeTimeRead("apps", request.QueryString["env"]),
                 (true, "lt/status") => await LifeTimeRead("status", request.QueryString["key"]),

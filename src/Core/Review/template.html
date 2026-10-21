@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review</title>
+<style>
+:root { color-scheme:dark; --bg:#0a0a0f; --panel:#11111a; --card:#161620; --card2:#1c1c28; --line:#353548; --text:#f5f5f7; --muted:#aaaabb; --red:#ff6476; --amber:#f5bd60; --blue:#8abbff; --green:#59dfb6; }
+:root[data-theme="light"] { color-scheme:light; --bg:#f4f5f9; --panel:#fff; --card:#fff; --card2:#eef0f6; --line:#b8becf; --text:#202332; --muted:#515b70; --red:#bc233a; --amber:#8a5a00; --blue:#2457ad; --green:#087755; }
+* { box-sizing:border-box; } [hidden] { display:none!important; }
+body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+button,select,input { font:inherit; color:var(--text); background:var(--card); border:1px solid var(--line); border-radius:8px; padding:7px 11px; }
+button { cursor:pointer; } button:hover { border-color:var(--red); } :focus-visible { outline:3px solid var(--blue); outline-offset:2px; }
+header { display:flex; align-items:center; gap:16px; padding:20px 26px; border-bottom:1px solid var(--line); background:linear-gradient(180deg,var(--panel),var(--bg)); flex-wrap:wrap; }
+.mark { display:grid; place-items:center; width:42px; height:42px; background:linear-gradient(135deg,#ff3d52,#c42030); border-radius:11px; color:white; font-size:23px; font-weight:800; }
+header > div:nth-child(2) { min-width:0; flex:1 1 360px; }
+h1 { margin:0; font-size:22px; letter-spacing:-.02em; overflow-wrap:anywhere; } h2 { font-size:16px; margin:0; } h3 { font-size:15px; margin:0; }
+.sub { color:var(--muted); font-size:12px; overflow-wrap:anywhere; } .tools { margin-left:auto; }
+.note { margin:14px 26px 0; border:1px solid var(--amber); border-left:4px solid var(--amber); border-radius:10px; padding:8px 14px; background:var(--panel); }
+.stats { display:flex; gap:10px; padding:14px 26px; flex-wrap:wrap; }
+.stat { flex:1; min-width:110px; background:linear-gradient(180deg,var(--card),var(--card2)); border:1px solid var(--line); border-left:3px solid var(--accent,var(--blue)); border-radius:10px; padding:8px 14px; }
+.stat b { display:block; font-size:24px; line-height:1.3; } .stat span { color:var(--muted); font-size:12px; }
+.filters { display:flex; gap:10px; padding:4px 26px 14px; flex-wrap:wrap; align-items:end; }
+.filters label { display:flex; flex-direction:column; gap:3px; font-size:12px; color:var(--muted); } .filters input { width:240px; max-width:100%; }
+#count { color:var(--muted); font-size:12px; margin-left:auto; align-self:center; }
+section.part { margin:0 26px 18px; display:grid; gap:10px; } section.part > h2 { margin-top:6px; }
+.card { background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--tone,var(--blue)); border-radius:10px; padding:12px 16px; overflow-wrap:anywhere; }
+.card.added { --tone:var(--green); } .card.removed,.card.recreated,.card.risk,.card.high { --tone:var(--red); } .card.renamed,.card.medium { --tone:var(--amber); } .card.changed,.card.low { --tone:var(--blue); }
+.head { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+.badge { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--tone); border:1px solid var(--tone); border-radius:999px; padding:0 8px; }
+.chip { font-size:11px; color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:0 8px; }
+.where { font-family:ui-monospace,Consolas,monospace; font-size:12px; color:var(--muted); margin:4px 0 2px; }
+.card.info { --tone:var(--blue); }
+.diff { font:12px/1.45 ui-monospace,Consolas,monospace; white-space:pre-wrap; overflow-wrap:anywhere; background:var(--card2); border-radius:8px; padding:8px 10px; margin:6px 0 0; }
+.diff .add { color:var(--green); } .diff .del { color:var(--red); } .card details { margin-top:6px; } .card summary { cursor:pointer; color:var(--muted); font-size:12px; }
+.card ul { margin:6px 0 0; padding-left:20px; } .card li { margin:2px 0; } .card p { margin:4px 0; }
+.empty { padding:18px; text-align:center; color:var(--muted); border:1px dashed var(--line); border-radius:10px; }
+.problems { margin:0 26px 16px; border:1px solid var(--red); border-radius:10px; padding:10px 16px; background:var(--panel); } .problems h2 { color:var(--red); }
+footer { padding:0 26px 22px; color:var(--muted); font-size:12px; }
+@media(max-width:700px) { header,.stats,.filters { padding-left:16px; padding-right:16px; } .note,section.part,.problems { margin-left:16px; margin-right:16px; } footer { padding:0 16px 18px; } }
+@media print { :root,:root[data-theme] { --bg:white; --panel:white; --card:white; --card2:#eee; --line:#999; --text:#111; --muted:#444; --red:#ac1730; --amber:#7a4f00; --blue:#2457ad; --green:#087755; } .tools,.filters { display:none; } .card { break-inside:avoid; } }
+</style>
+</head>
+<body>
+<header><div class="mark" aria-hidden="true">R</div><div><h1 id="title">Review</h1><div class="sub" id="files"></div><div class="sub" id="generated"></div></div><div class="tools"><button id="theme" aria-label="Switch color theme">Theme</button></div></header>
+<p class="note" id="note"></p>
+<section class="stats" aria-label="Counts" id="stats"></section>
+<section class="filters" aria-label="Filters">
+<label>Area<select id="f-area"><option value="">All</option></select></label>
+<label>Change<select id="f-change"><option value="">All</option><option value="added">Added</option><option value="removed">Removed</option><option value="recreated">Recreated</option><option value="renamed">Renamed</option><option value="changed">Changed</option></select></label>
+<label>Search<input id="f-text" type="search" placeholder="Name, kind or detail…" autocomplete="off"></label>
+<label id="rule-filter" hidden>Risk rule<select id="f-rule"><option value="">All</option></select></label>
+<span id="count" aria-live="polite"></span>
+</section>
+<section class="problems" id="problems" hidden aria-label="Not checked"><h2>Not checked</h2><ul id="problem-list"></ul></section>
+<section class="part" id="risks" aria-label="Risks"><h2>Risks</h2></section>
+<section class="part" id="changes" aria-label="Changes"><h2>Changes</h2></section>
+<section class="part" id="findings" aria-label="New check findings"><h2>New check findings</h2></section>
+<footer id="footer">Generated by oml review. Risks follow the production rules of the oml skill (rules.md). Findings come from oml check on both files; only new ones are listed.</footer>
+<script type="application/json" id="oml-review">/*__REVIEW_JSON__*/</script>
+<script>
+'use strict';
+(() => {
+const $=id=>document.getElementById(id);
+const D=JSON.parse($('oml-review').textContent);
+const S=D.summary||{}, risks=D.risks||[], changes=D.changes||[], findings=D.newFindings||[];
+const AREAS={data:'Data model',logic:'Logic',ui:'Screens and UI',integrations:'Integrations',security:'Roles and access',settings:'Settings, timers and processes',references:'References',other:'Other'};
+function el(tag,text,cls,parent) { const n=document.createElement(tag); if(text!==undefined&&text!==null)n.textContent=text; if(cls)n.className=cls; if(parent)parent.append(n); return n; }
+function theme(value) { document.documentElement.dataset.theme=value; $('theme').textContent=value==='dark'?'Light theme':'Dark theme'; $('theme').setAttribute('aria-pressed',String(value==='light')); }
+let saved; try { saved=localStorage.getItem('oml-review-theme'); } catch {}
+theme(saved==='light'||saved==='dark'?saved:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+$('theme').onclick=()=>{ const t=document.documentElement.dataset.theme==='dark'?'light':'dark'; theme(t); try { localStorage.setItem('oml-review-theme',t); } catch {} };
+const file=p=>String(p||'').split(/[\\/]/).pop();
+$('title').textContent=(D.module||'Module')+' — Review'; document.title=$('title').textContent;
+$('files').textContent='Before: '+file(D.before)+' · After: '+file(D.after);
+const when=new Date(D.generatedAt);
+$('generated').textContent='Generated '+(isNaN(when)?'—':when.toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'}))+' · oml '+(D.omlVersion||'—')+' · '+(D.elapsedSeconds??'—')+' s';
+$('note').textContent=D.note||'';
+for(const [label,count,color] of [['Added',S.added,'--green'],['Removed',S.removed,'--red'],['Recreated',S.recreated,'--red'],['Renamed',S.renamed,'--amber'],['Changed',S.changed,'--blue'],['Risks',S.risks,'--red'],['To look at',S.info,'--blue'],['New findings',S.newFindings,'--amber'],['Resolved findings',S.resolvedFindings,'--green']]) {
+ const box=el('div',undefined,'stat',$('stats')); box.style.setProperty('--accent',`var(${color})`); el('b',String(count??0),undefined,box); el('span',label,undefined,box);
+}
+for(const a of [...new Set(changes.map(c=>c.area))]) { const o=el('option',AREAS[a]||a,undefined,$('f-area')); o.value=a; }
+const problems=[...(D.skipped||[]),...(D.warnings||[])];
+if(problems.length) { $('problems').hidden=false; for(const p of problems) el('li',p,undefined,$('problem-list')); }
+const riskViews=risks.map(r=>{
+ const card=el('article',undefined,'card '+(r.info?'info':'risk'),$('risks')); const head=el('div',undefined,'head',card);
+ el('span',(r.info?'Info · rule ':'Rule ')+r.rule,'badge',head); el('h3',r.element,undefined,head); if(r.ruleName) el('span',r.ruleName,'chip',head);
+ el('p',r.text,undefined,card);
+ return {r,card,text:[r.element,r.text,r.ruleName].join(' ').toLowerCase()};
+});
+// Many risks: a rule filter, and the text search covers them too.
+if(risks.length>10) { $('rule-filter').hidden=false; for(const n of [...new Set(risks.map(r=>r.rule))].sort((a,b)=>a-b)) { const o=el('option','Rule '+n,undefined,$('f-rule')); o.value=String(n); } }
+if(!risks.length) el('div','No production-rule risks found.','empty',$('risks'));
+const views=changes.map(c=>{
+ const card=el('article',undefined,'card '+c.change,$('changes')); const head=el('div',undefined,'head',card);
+ el('span',c.change,'badge',head); el('h3',c.kind+' '+c.name,undefined,head); el('span',AREAS[c.area]||c.area,'chip',head);
+ if((c.details||[]).length) { const ul=el('ul',undefined,undefined,card); for(const d of c.details) el('li',d,undefined,ul); }
+ for(const x of c.texts||[]) {
+  const box=el('details',undefined,undefined,card); el('summary','Changed lines of '+x.subject,undefined,box);
+  const pre=el('pre',undefined,'diff',box);
+  for(const line of x.lines||[]) el('div',line,line.startsWith('+ ')?'add':line.startsWith('- ')?'del':undefined,pre);
+ }
+ return {c,card,text:[c.kind,c.name,c.change,...(c.details||[])].join(' ').toLowerCase()};
+});
+const empty=el('div',changes.length?'No change matches the filters.':'No changes.','empty',$('changes'));
+for(const f of findings) {
+ const card=el('article',undefined,'card '+f.severity,$('findings')); const head=el('div',undefined,'head',card);
+ el('span',f.severity,'badge',head); el('h3',f.title,undefined,head); el('span',f.rule,'chip',head);
+ el('div',f.element||'(module)','where',card); if(f.detail) el('p',f.detail,undefined,card);
+ if(f.fix) { const p=el('p',undefined,undefined,card); el('b','Fix: ',undefined,p); p.append(document.createTextNode(f.fix)); }
+}
+if(!findings.length) el('div','No new findings.','empty',$('findings'));
+function apply() {
+ const area=$('f-area').value, change=$('f-change').value, text=$('f-text').value.trim().toLowerCase();
+ let shown=0;
+ for(const v of views) { const ok=(!area||v.c.area===area)&&(!change||v.c.change===change)&&(!text||v.text.includes(text)); v.card.hidden=!ok; if(ok)shown++; }
+ empty.hidden=shown>0;
+ const rule=$('f-rule').value;
+ for(const v of riskViews) v.card.hidden=!((!rule||String(v.r.rule)===rule)&&(!text||v.text.includes(text)));
+ $('count').textContent=shown+' of '+changes.length+' changes shown';
+}
+for(const id of ['f-area','f-change','f-rule']) $(id).addEventListener('change',apply);
+$('f-text').addEventListener('input',apply);
+apply();
+})();
+</script>
+</body>
+</html>

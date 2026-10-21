@@ -14,25 +14,41 @@ Not a terminal person? `oml dashboard` opens a local web page with the same tool
 
 *Screenshot: `docs/dashboard.png`, the Home page in the dark theme.*
 
-Start it with `oml dashboard`, or double-click `oml-dashboard.cmd` next to `oml.exe`. It opens your browser; keep its window open, and press Ctrl+C there to stop it. `--port N` picks the port, `--no-open` does not open the browser.
+Start it with `oml dashboard`, or double-click `oml-dashboard.cmd` next to `oml.exe`. It opens your browser; keep its window open, and press Ctrl+C there to stop it. `--port N` picks the port, `--no-open` does not open the browser, and `--module <file.oml>` opens that module in the Module explorer.
 
 What it can do: check your setup (`doctor`), browse a module and read what each element does (`inspect`, `describe`, `find`), pull the module open in Service Studio, show previews of every screen and block in light and dark, build a clear task for an AI agent, browse the recipes, convert fonts and images, export and fill in OpenAPI files, make architecture pages, read LifeTime, show what agents ran (usage log), and a set of small developer tools (JSON, Base64, JWT, regex, colour contrast, ...). Every action shows the CLI command, with a copy button.
 
 Security: it listens on 127.0.0.1 only, with a random key in its address that every request must send; other sites cannot call it.
 It only reads: it never installs, publishes, refreshes references, or tags or deploys in LifeTime, and the LifeTime token stays in the environment, never in the page.
 
+## Right-click in Explorer
+
+`oml setup` adds right-click entries to Windows Explorer for your user (no admin rights needed):
+
+- On a font (`.ttf`, `.otf`, `.woff`): **oml: Convert to WOFF2**.
+- On an image (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.bmp`, `.svg`): **oml: Optimize image** (WebP for raster images, a smaller SVG for SVG) and **oml: Convert to ICO** (16, 32 and 48 pixels).
+- On a raster image (not `.svg`): **oml: Trace to SVG** (vector paths, for logos and icons).
+- On an `.oml` file: **oml: OpenAPI** and **oml: Open in dashboard**.
+- On a folder: **oml: Convert all fonts to WOFF2**, **oml: Optimize all images** (into a new subfolder) and **oml: Architecture report**.
+
+On Windows 11, choose "Show more options" first. Results are written next to the file and never replace a file; Explorer then shows them. If something fails, a message box says why, and `%LOCALAPPDATA%\oml-cli\setup.log` keeps a line per run.
+`oml setup --status` lists the entries, and `oml setup --remove` removes exactly what `oml setup` added. Run `oml setup` again after you move `oml.exe`, and run `oml setup --remove` before you delete it. A console window may flash for a moment when an entry starts. Each "Open in dashboard" starts a new dashboard window. Details: [commands.md](skill/reference/commands.md#explorer-right-click-entries).
+
 ## What it covers
 
 | Area | What `oml` does |
 |---|---|
-| Build and change | One JSON spec for entities, static entities, CRUD actions, server/service/client actions, flows, aggregates with joins, SQL, REST, screens and blocks (Reactive, Mobile, Traditional Web), timers, roles, processes, translations and resources. New flows are laid out the way Service Studio does it. |
-| Read cheaply | `inspect`, `describe` (what an action or screen does, in a few lines), `find` (which module owns an element). Compact JSON output keeps agent token use low. |
-| Check UI | `preview` renders a block or screen to HTML, takes light/dark and phone-width screenshots, and runs automatic UI checks. |
+| Build and change | One JSON spec for entities, static entities, CRUD actions, server/service/client actions, flows, aggregates with joins, SQL, REST, screens and blocks (Reactive, Mobile, Traditional Web), timers, roles, processes, translations and resources. New flows are laid out the way Service Studio does it. Existing screens, blocks, emails and themes take new CSS, and `replaceWidgets` replaces part of a screen, with no rebuild. |
+| Read cheaply | `inspect`, `describe` (what an action or screen does, in a few lines), `find` (which module owns an element). Compact JSON output keeps agent token use low. `--history` and `--changed-since` show who changed an element and when. |
+| Check UI | `preview` renders a block, screen or email to HTML, runs its scripts and lifecycle JavaScript offline with a stub runtime, takes light/dark and phone-width screenshots (after optional clicks and typing), and runs automatic UI checks. `--serve` shows a live page that reloads when the module changes. |
 | Architecture | `architecture` makes one zoomable HTML page from a folder of `.oap`/`.oml` files or a LifeTime team: applications, modules, End-user/Core/Foundation layers, dependencies and findings. |
+| Check | `check` finds AI Mentor-like patterns (performance, security, maintainability, architecture) in a module, an application or a team in seconds, with a team rules file, a baseline and an HTML report. A subset of AI Mentor, not a replacement. |
+| Review | `review` compares two versions of a module (before and after a change) by the model's own keys, so a rename stays a rename. It lists what changed in plain words (data, logic steps, UI, integrations, roles, settings), the production-rule risks and the new `check` findings, as JSON, Markdown for a pull request, an HTML page or release notes for testers. |
 | REST | `openapi` exports exposed REST APIs as OpenAPI 3.0.3, with `<FILL:` placeholders for contact, servers and examples. |
+| Tests | `test scaffold` writes a spec for BDDFramework test screens of public server actions (Given/When/Then scenarios with TODO test values), to apply to a separate test module. Checked only against a stand-in of BDDFramework. |
 | Service Studio and deploy | `pull` saves the module open in Service Studio to a file (no manual export); 1-Click Publish and Refresh All through Service Studio's MCP server; LifeTime API v2 tags and deployments. |
 | Packages | List, extract and pack `.oap`/`.osp`; inspect and create `.xif` extensions. |
-| Assets | Fonts to WOFF2; convert, resize and shrink images. `apply` removes comments from CSS and JavaScript (license notices stay). |
+| Assets | Fonts to WOFF2; convert, resize and shrink images; multi-size ICO files (favicons, app icons); trace a PNG logo or icon to an SVG with real vector paths; SVG optimization that checks every result against the original pixels. `apply` removes comments from CSS and JavaScript (license notices stay). Long code can come from a file: `{ "file": "code/chart.js" }`. |
 
 Full command list: [skill/reference/commands.md](skill/reference/commands.md). All spec keys: [skill/reference/spec.md](skill/reference/spec.md).
 
@@ -42,16 +58,47 @@ Developers work in Service Studio. Most commands are for AI agents, so agents ca
 
 | Group | Commands | Used by |
 |---|---|---|
-| Dashboard | `dashboard` | Developers |
+| Dashboard and Explorer | `dashboard`, `setup` | Developers |
 | Converters | `font woff2`, `font batch`, `image`, `image batch` | Developers |
 | REST | `openapi` | Developers |
 | Architecture | `architecture` | Developers, architects |
+| Code check | `check`, `review` | Developers, teams, agents |
 | Read a module | `inspect`, `describe`, `find`, `census`, `tree` | Agents |
 | Change a module | `new`, `apply`, `spec`, `run`, `install`, `validate`, `translations export` | Agents |
+| Knowledge | `doc`, `warn` | Agents |
 | UI | `preview` | Agents, sometimes developers |
+| Tests | `test scaffold` | Agents |
 | Packages | `app list`, `app extract`, `app pack`, `extension inspect`, `extension new`, `templates` | Agents, sometimes developers |
 | Service Studio and deploy | `studio`, `pull`, `publish`, `references`, `lt` | Agents; publish and deploy after you confirm |
 | Diagnostics | `version`, `selftest`, `doctor`, `log`, `api`, `widgets` | Agents, maintainers |
+
+## Check
+
+`oml check` reads module files and lists code patterns, like AI Mentor does, in a few seconds. Run it on your own module, application or team before you publish:
+
+```powershell
+oml check Orders_CS.oml
+oml check --in C:\Exports\Payments --out check.html --json check.json
+oml check --team Payments --rules oml-rules.json --baseline last-check.json --fail-on high
+```
+
+Each finding has a rule id, a severity, a category (Security, Performance, Maintainability, Architecture), the module and element path, what is wrong, how to fix it, and the AI Mentor pattern name when there is one. There are 35 rules. Examples: a query inside a loop, a screen query without a row limit, server calls from client loops and screen events, Expand Inline SQL fed by input, `GetUserId()` sent from the client, secret-looking site properties, public entities that are not read-only, long, deep or duplicated flows, and the `oml architecture` findings when you give several modules.
+
+- `oml check --init-rules` writes `oml-rules.json`. Turn rules on or off, set severities and thresholds so that they match your active AI Mentor rules, and list ignored elements with a reason.
+- `--baseline` marks each finding `new` or `existing`; with `--fail-on`, only new findings make the exit code 1.
+- It is a subset of AI Mentor, from the module file alone; your CI keeps using AI Mentor. Severities are oml's defaults, because the OutSystems docs publish none. Exposed REST APIs without authentication are not reported unless you turn that rule on (API gateways such as Kong often authenticate).
+
+Rules, coverage and the file formats: [commands.md](skill/reference/commands.md#check).
+
+## Review
+
+`oml review` compares two versions of one module, for example the module and an agent's staged file, and gives a one-page summary to approve:
+
+```powershell
+oml review Orders.oml Orders.staged.oml --md review.md --out review.html --notes release-notes.md
+```
+
+It matches elements by the model's own keys, so a renamed element is a rename. It says what changed in plain words ("step Audit added after PrepareOrder", "condition Total >= 0 -> Total > 0"), flags production risks with the rule they break (deletes, renames, type or length changes, broken public signatures, data-changing SQL, Anonymous access, new public server actions, unique indexes), and lists only the `check` findings that are new. Logic bugs are not covered; 0 findings does not mean the code is correct. Details: [commands.md](skill/reference/commands.md#review).
 
 ## Benchmarks
 
@@ -121,6 +168,8 @@ oml install App.staged.oml App.oml
 { "entities": [ { "name": "ReviewNote", "attributes": [ { "name": "Text", "length": 250, "mandatory": true } ] } ] }
 ```
 
+A command is slow on a big module? Add `--timings` to see the milliseconds per phase (load, build, save, reopen, ...). `oml run` runs several commands in one process, so Service Studio's model starts once. See [commands.md](skill/reference/commands.md#timings---timings).
+
 ## Use with AI agents
 
 The skill is the `skill/` folder: instructions, rules, recipes and references.
@@ -132,6 +181,8 @@ The skill is the `skill/` folder: instructions, rules, recipes and references.
 Tell the agent where `oml` and the module file are. No file yet? Open the module in Service Studio and let the agent run `oml pull`. The agent then works in a loop: read the module (`inspect`, `describe`, `find`) → copy a recipe into a spec → `apply` to a new staged file → `validate` and `describe` → for UI, `preview` in light and dark → fix and repeat. It asks you before anything that changes a real module or an environment.
 
 To keep agents from reading the whole spec reference, `oml spec <key>` prints only the section for one key (15-60 lines) and `oml spec check <spec.json>` finds typos, wrong types and bad flow targets in milliseconds, before `apply`. `oml spec schema` writes a JSON Schema for autocomplete in VS Code.
+
+**Knowledge for agents.** Short OutSystems rules, written for cheap models, live in `skill/reference/` and are built into `oml.exe`: `oml doc` lists the topics (Reactive UI, OutSystems UI patterns, data, logic, security, REST, processes and timers, architecture, validation messages, ...), `oml doc <topic>` prints one (0.7k to 2.3k tokens), and `oml doc <topic>#<section>` prints one section. `oml warn <id>` prints the cause and fix of a validation message; `apply` already adds that fix as `hint` to each new error or warning it knows. Not sure which topic, key or recipe? `oml doc --search "<words>"` lists the 3 most likely sections, spec keys, recipes, warnings or commands, each with the command that opens it (about 200 tokens). It is a local ranked search (BM25F with OutSystems synonyms, typo fixes and exact-key matching), with no model and no network. `oml find <module.oml> --text "<words>"` ranks a module's own elements by name, description and the text inside them. The default skill load (`SKILL.md` and `rules.md`) is about 2.7k tokens; everything else is read only when a task needs it.
 
 ### How to give tasks to an agent
 
@@ -186,12 +237,14 @@ Tips:
 
 ## Production rules
 
-Agents must assume that everything already in a module also exists in production, with data and with other modules using it. [skill/rules.md](skill/rules.md) has 11 short rules. `apply` enforces four of them and prints the manual step instead:
+Agents must assume that everything already in a module also exists in production, with data and with other modules using it. [skill/rules.md](skill/rules.md) has 11 short rules. `apply` enforces five of them, prints the manual step instead, and warns on rule 7:
 
 - never delete an existing entity (regular or static);
 - never rename or delete existing elements, their parameters or attributes;
-- never change the type, length, decimals or mandatory setting of an existing attribute;
-- never add SQL that changes data (`DELETE`, `UPDATE`, `TRUNCATE`, `DROP`, `ALTER`, `MERGE`).
+- never break the signature of an existing public element: never make it private, no new mandatory input, no input made mandatory, no type change, no input change at all on a public Reactive or Mobile block or screen or a public client action, no new output except on server and service actions, no new event on a public block, no event made mandatory;
+- never change the type, length, decimals, mandatory or auto number setting of an existing attribute, or an existing entity's identifier and options (new attributes and indexes are fine);
+- never add SQL that changes data (`DELETE`, `UPDATE`, `TRUNCATE`, `DROP`, `ALTER`, `MERGE`);
+- a server action that becomes public (new, or private to public) gets a `PublicServerAction` warning: the agent asks you or reports it (rule 7). Other elements may become public with no warning. Service actions get no warning: other modules call them by design. Exposed REST methods have no public setting.
 
 Elements created in the same spec stay fully editable. Flow nodes, widgets and local variables in existing elements can still change.
 
@@ -201,7 +254,7 @@ Agents do the work; people make the decisions that touch production.
 
 | Step | Who |
 |---|---|
-| Read modules, write specs, `apply`, `validate`, `preview`, `architecture`, `openapi` | Agent |
+| Read modules, write specs, `apply`, `validate`, `preview`, `architecture`, `check`, `review`, `openapi`, `test scaffold` | Agent |
 | `install` a staged file over a module | Agent, after you confirm |
 | Publish and refresh references | Agent, after you confirm; you approve Service Studio's connection dialog once per session |
 | LifeTime tags and deployments | Agent, after you confirm; the token stays in environment variables |
@@ -215,6 +268,8 @@ Not supported: debugging, SOAP, downloading OutSystems UI, Traditional Web scree
 - [skill/reference/commands.md](skill/reference/commands.md): every command with options and examples.
 - [skill/reference/spec.md](skill/reference/spec.md): every spec key.
 - [skill/reference/ui-checklist.md](skill/reference/ui-checklist.md): what agents check before UI work is done.
+- Knowledge for agents (also `oml doc <topic>`): [best-practices](skill/reference/best-practices.md), [ui-reactive](skill/reference/ui-reactive.md), [osui-patterns](skill/reference/osui-patterns.md), [data-rules](skill/reference/data-rules.md), [logic-rules](skill/reference/logic-rules.md), [security](skill/reference/security.md), [rest](skill/reference/rest.md), [processes-timers-email](skill/reference/processes-timers-email.md), [architecture-rules](skill/reference/architecture-rules.md), [warnings](skill/reference/warnings.md), [traditional-to-reactive](skill/reference/traditional-to-reactive.md), [troubleshooting](skill/reference/troubleshooting.md).
+- [skill/reference/testing.md](skill/reference/testing.md): how to organise BDDFramework tests for a module, and how an agent builds the test screens with `oml test scaffold` (needs BDDFramework from Forge, installed by you).
 - [CONTRIBUTING.md](CONTRIBUTING.md): build, tests, project layout, releasing.
 
 `oml` is released under the [MIT License](LICENSE). It uses your locally installed Service Studio assemblies and does not ship them. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Not affiliated with OutSystems.

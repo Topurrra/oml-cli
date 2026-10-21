@@ -38,7 +38,8 @@ $out = Join-Path $Tmp "dash-$id.out"
 $tokenFolder = Join-Path ([IO.Path]::GetTempPath()) 'oml-cli'
 function Token-State { @(Get-ChildItem $tokenFolder -Filter 'studio-token-*' -ErrorAction SilentlyContinue | ForEach-Object { "$($_.Name)|$($_.LastWriteTimeUtc.Ticks)" }) -join ';' }
 $tokensBefore = Token-State
-$process = Start-Process -FilePath $Oml -ArgumentList 'dashboard', '--no-open' -RedirectStandardOutput $out -RedirectStandardError "$out.err" -PassThru -WindowStyle Hidden
+# --module (used by the Explorer entry "oml: Open in dashboard") adds #/explorer?module=<path> to the address.
+$process = Start-Process -FilePath $Oml -ArgumentList 'dashboard', '--no-open', '--module', "`"$module`"" -RedirectStandardOutput $out -RedirectStandardError "$out.err" -PassThru -WindowStyle Hidden
 $null = $process.Handle # without this, ExitCode stays empty after the process ends
 try {
     $first = $null
@@ -52,6 +53,7 @@ try {
     $port = $url.Port
     $key = [Web.HttpUtility]::ParseQueryString($url.Query)['key']
     Require ($url.Host -eq '127.0.0.1' -and $key.Length -ge 32) "Unexpected address $($first.url)"
+    Require ($first.url.EndsWith('#/explorer?module=' + [uri]::EscapeDataString($module), [StringComparison]::Ordinal)) "--module not in the address: $($first.url)"
     $base = "http://127.0.0.1:$port"
 
     # Listening on 127.0.0.1 only.
@@ -96,6 +98,8 @@ try {
     Require (@($recipes.recipes).Count -ge 10 -and $recipes.recipes[0].description) 'recipes endpoint'
     $rules = Api 'doc/rules'
     Require ($rules.markdown -match 'Rules for agents') 'rules endpoint'
+    $checklist = Api 'doc/checklist'
+    Require ($checklist.markdown -match '^# UI checklist') 'checklist endpoint'
     $lt = Api 'lt/environments'
     Require ($lt.configured -eq $false) 'LifeTime must report not configured'
 
