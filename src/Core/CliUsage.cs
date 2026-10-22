@@ -29,14 +29,23 @@ static class CliUsage
         oml test scaffold <module.oml> <ServerAction>... --bdd <BDDFramework.oml> [--out <spec.json>] [--module-name <TestModule>] [--producer <path>]   (spec for BDD test screens in a separate test module)
         oml tree <module.oml> <ElementName> [--depth N]   (object tree of one action, screen, entity, ...; at most 250 parts)
         oml validate <module.oml> [--warnings]
-        oml apply <source.oml> <spec.json>... <staged-out.oml> [--describe A,B,...] [--describe-created]
+        oml apply <source.oml> <spec.json>... <staged-out.oml> [--describe A,B,...] [--describe-created] [--report <report.json>]
         oml spec [<key>]                   (reference for one spec key; no key lists them. Runs without Service Studio)
         oml spec --search "<words>" [--top N]   (ranked search of the spec keys and sections)
-        oml spec check <spec.json>        (checks a spec's shape without Service Studio; exit 1 on problems)
+        oml spec check <spec.json> [--module <source.oml>]   (checks a spec's shape; with --module also its names, nothing saved; exit 1 on problems)
         oml spec schema [--out <file.json>] [--force]   (JSON Schema for spec files)
         oml doc [<topic>[#section]]       (OutSystems rules for agents by topic; no topic lists them. Runs without Service Studio)
         oml doc --search "<words>" [--top N] [--in <folder>]   (ranked search of doc sections, spec keys, recipes, warnings and commands; compact JSON)
         oml warn <id | title words>       (cause and fix of a validation message, such as NoErrorHandlingInFlow)
+        oml memory init [--module <file.oml> | --dir <folder>] [--force]   (create the project's memory store: .oml/memory/memory.log in the folder of the module files; the only command that creates one)
+        oml memory add "<one fact>" [--kind fact|decision|pref|trap|log|glossary|answer] [--module <Name>] [--elements A,B] [--why "<reason>"] [--tags a,b] [--supersedes <id>] [--conf 0-100] [--src <agent>] [--valid-from <date>] [--valid-until <date>]   (write one record of at most 300 bytes; secrets are refused)
+        oml memory recall "<question>" [--module <Name>] [--kind K] [--top N]   (the best records for a question, at most 20; read only)
+        oml memory list [--module <Name>] [--kind K] [--top N] [--all]   (records, newest first; --all adds replaced and retracted ones; read only)
+        oml memory show <id>   (one record in full, with its status; read only)
+        oml memory history <id>   (what replaced what; read only)
+        oml memory retract <id> --why "<reason>"   (mark a record as no longer true; it stays in the file)
+        oml memory doctor [--module <file.oml>]   (check the hash chain, the file end and the index; with a module, check that the elements still exist)
+        oml memory handoff [--module <Name>] [--top N]   (a short brief for the next agent from the newest records; read only)
         oml run <steps.json> [--continue]   (several commands in one process, so Service Studio loads once; "-" reads the steps from stdin)
         oml translations export <module.oml> <file> [--format Excel|xlsx|ResX]
         oml install <staged.oml> <target.oml>

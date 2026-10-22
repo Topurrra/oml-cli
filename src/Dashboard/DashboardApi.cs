@@ -195,7 +195,8 @@ static partial class Dashboard
         var module = ElementName(Str(body, "module"), "the name of the module open in Service Studio");
         var output = Path.Combine(NewWorkFolder("pulled"), module + ".oml");
         var r = await Oml("pull", module, "--out", output);
-        return Wrap(r, new JsonObject { ["path"] = r.Code == 0 ? output : null });
+        // Exit 1: the copy was saved but has errors the person must compare with Service Studio (see output.attention).
+        return Wrap(r, new JsonObject { ["path"] = (r.Code == 0 || (r.Code == 1 && (r.Output as JsonObject)?["attention"] is not null)) && File.Exists(output) ? output : null });
     }
 
     static async Task<Reply> InspectModule(JsonObject body)

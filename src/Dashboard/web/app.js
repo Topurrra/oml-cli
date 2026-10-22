@@ -183,6 +183,13 @@
   }
 
   // A command result with a non-zero exit code becomes an error with the CLI's own text attached.
+  // A pull copy with errors (exit 1) is kept, but the person must compare it with Service Studio first.
+  function pullWarning(r) {
+    const o = r && r.output;
+    if (!o || !o.attention) return null;
+    const ids = (o.errors || []).map(e => `${e.id} (${e.count})`).join(', ');
+    return h('div', { class: 'message warn', role: 'alert' }, h('strong', {}, 'Check this copy. '), o.attention, ids ? h('div', { class: 'small' }, 'Errors: ' + ids) : null);
+  }
   function need(data, okCodes) {
     if (typeof data.code === 'number' && !(okCodes || [0]).includes(data.code)) throw new ApiError(problem(data), data);
     return data;
@@ -374,8 +381,8 @@
     const open = ((data.output && data.output.apps) || []).filter(a => a.isOpen).map(a => a.name);
     if (open.length === 0) { out.replaceChildren(h('div', { class: 'message info' }, 'No module is open in Service Studio. Open the module there first.'), cli(data.cli)); return; }
     const pullOne = async (name, btn) => {
-      const r = await task(btn, out, `Saving ${name} from Service Studio… Approve the request in Service Studio if it asks.`, async () => need(await api('pull', { module: name })));
-      if (r) { workset.add(r.path, { kind: 'studio', module: name }); toast('Saved ' + fileName(r.path)); out.replaceChildren(h('div', { class: 'message' }, 'Saved to ', h('code', { text: r.path })), cli(r.cli)); done(r.path); }
+      const r = await task(btn, out, `Saving ${name} from Service Studio… Approve the request in Service Studio if it asks.`, async () => need(await api('pull', { module: name }), [0, 1]));
+      if (r) { workset.add(r.path, { kind: 'studio', module: name }); toast('Saved ' + fileName(r.path)); out.replaceChildren(h('div', { class: 'message' }, 'Saved to ', h('code', { text: r.path })), pullWarning(r), cli(r.cli)); done(r.path); }
     };
     if (open.length === 1) { await pullOne(open[0], button); return; }
     out.replaceChildren(h('div', { class: 'message' }, h('p', {}, 'Several modules are open. Which one?'),
@@ -714,8 +721,8 @@
           h('tbody', {}, open.map(a => {
             const b = h('button', { class: 'button small', type: 'button', 'aria-label': `Copy ${a.name} from Service Studio to a file` }, 'Copy to a file');
             b.addEventListener('click', async () => {
-              const r = await task(b, out, `Saving ${a.name}… Approve the request in Service Studio if it asks.`, async () => need(await api('pull', { module: a.name })));
-              if (r) { setModule(r.path); workset.add(r.path, { kind: 'studio', module: a.name }); add(out, h('div', { class: 'message' }, 'Saved to ', h('code', { text: r.path }), ' ', h('a', { href: '#/explorer' }, 'Open it in the Module explorer')), cli(r.cli)); }
+              const r = await task(b, out, `Saving ${a.name}… Approve the request in Service Studio if it asks.`, async () => need(await api('pull', { module: a.name }), [0, 1]));
+              if (r) { setModule(r.path); workset.add(r.path, { kind: 'studio', module: a.name }); add(out, h('div', { class: 'message' }, 'Saved to ', h('code', { text: r.path }), ' ', h('a', { href: '#/explorer' }, 'Open it in the Module explorer')), pullWarning(r), cli(r.cli)); }
             });
             return h('tr', {}, h('td', {}, a.name), h('td', { class: 'num' }, b));
           })))), out, cli(data.cli));
@@ -832,10 +839,10 @@
             for (const name of chosen) {
               const line = h('div');
               add(result, line);
-              const r = await task(copyButton, line, `Copying ${name}… Approve the request in Service Studio if it asks.`, async () => need(await api('pull', { module: name })));
+              const r = await task(copyButton, line, `Copying ${name}… Approve the request in Service Studio if it asks.`, async () => need(await api('pull', { module: name }), [0, 1]));
               if (!r) continue;
               workset.add(r.path, { kind: 'studio', module: name });
-              add(line, h('div', { class: 'message' }, 'Copied ', h('strong', {}, name), ' to ', h('code', { text: r.path })), cli(r.cli));
+              add(line, h('div', { class: 'message' }, 'Copied ', h('strong', {}, name), ' to ', h('code', { text: r.path })), pullWarning(r), cli(r.cli));
             }
           });
           add(out, h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['', 'Module', 'In Service Studio'].map(t => h('th', {}, t)))),

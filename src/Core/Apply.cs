@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using OutSystems.Model;
 using OutSystems.Model.Data;
 using OutSystems.Model.Enumerations;
@@ -45,23 +46,66 @@ static class Apply
     static readonly string[] DescribableKinds = ["entity", "structure", "static entity", "serverAction", "serviceAction", "clientAction", "screen", "block"];
     static readonly string[] PartKinds = ["aggregate", "dataAction", "screenAction"];
 
-    public static int Run(string source, IReadOnlyList<string> specPaths, string output, ApplyOptions? options = null)
+    public static int Run(string source, IReadOnlyList<string> specPaths, string output, ApplyOptions? options = null, string? reportPath = null)
     {
+        if (reportPath is not null)
+        {
+            reportPath = Path.GetFullPath(reportPath);
+            try { CheckInput.NewOutput(reportPath); } catch (CheckInputError e) { throw new CliError(e.Message, 2); }
+            if (new[] { source, output }.Concat(specPaths).Any(p => string.Equals(Path.GetFullPath(p), reportPath, StringComparison.OrdinalIgnoreCase)))
+                throw new CliError("--report must be a new file: it is the source, the staged output or a spec.", 2);
+        }
         var (code, report) = Execute(source, specPaths, output, options);
-        Cli.Emit(report);
+        var shaped = Shape((JsonObject)JsonSerializer.SerializeToNode(report)!);
+        if (reportPath is not null)
+        {
+            try { Check.Write(reportPath, JsonOutput.Serialize(shaped)); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { throw new CliError(e.Message, 2); }
+            shaped = Short(shaped, reportPath);
+        }
+        Cli.Emit(shaped);
         return code;
+    }
+
+    // What an agent must see even when the tool output is cut short: the summary, then the lists that decide the next step.
+    static readonly string[] FirstKeys = ["summary", "saved", "phase", "problems", "newErrors", "reopenNewErrors", "newWarnings", "warnings", "describe", "describeErrors", "staged", "next"];
+
+    static int Count(JsonNode? list) => list is JsonArray a ? a.Sum(x => x is JsonObject o && o["count"] is { } c ? c.GetValue<int>() : 1) : 0;
+
+    internal static JsonObject Shape(JsonObject report)
+    {
+        var summary = new JsonObject { ["saved"] = report["saved"]?.GetValue<bool>() ?? false };
+        foreach (var key in new[] { "newErrors", "reopenNewErrors", "newWarnings", "problems" }) summary[key] = Count(report[key]);
+        var shaped = new JsonObject { ["summary"] = summary };
+        foreach (var key in FirstKeys.Skip(1).Concat(report.Select(p => p.Key)).Distinct().ToList())
+            if (report[key] is { } value) { report.Remove(key); shaped[key] = value; }
+        return shaped;
+    }
+
+    // With --report: stdout keeps the summary and the decision lists; the long lists are only in the file.
+    static JsonObject Short(JsonObject shaped, string reportPath)
+    {
+        var kept = new JsonObject();
+        var left = new List<string>();
+        foreach (var key in shaped.Select(p => p.Key).ToList())
+        {
+            var value = shaped[key]; shaped.Remove(key);
+            if (FirstKeys.Contains(key)) kept[key] = value; else if (value is not JsonArray { Count: 0 }) left.Add(key);
+        }
+        kept["fullReport"] = $"{reportPath} (also holds: {string.Join(", ", left)})";
+        return kept;
     }
 
     public static (int code, object report) Execute(string source, string specPath, string output) =>
         Execute(source, [specPath], output, null);
 
-    public static (int code, object report) Execute(string source, IReadOnlyList<string> specPaths, string output, ApplyOptions? options)
+    public static (int code, object report) Execute(string source, IReadOnlyList<string> specPaths, string output, ApplyOptions? options, bool dryRun = false)
     {
         source = Path.GetFullPath(source);
         output = Path.GetFullPath(output);
         if (string.Equals(source, output, StringComparison.OrdinalIgnoreCase))
             throw new CliError("Output must differ from source; install with 'oml install' after review.", 2);
-        if (File.Exists(output)) throw new CliError($"Staged output already exists: {output}. Use a new output path, or delete that file first.", 2);
+        if (!dryRun && File.Exists(output)) throw new CliError($"Staged output already exists: {output}. Use a new output path, or delete that file first.", 2);
 
         using var specPhase = Timings.Phase("spec");
         var many = specPaths.Count > 1;
@@ -105,7 +149,7 @@ static class Apply
         // Every module this apply opens: the source and, after the scratch reload, the reloaded one. The source stays
         // open to the end, because the production rules name its elements in their messages.
         var opened = new List<IESpace> { m };
-        try { return Execute(spec, json, m, source, output, commentsRemoved, many ? specPaths : null, options, opened, pathWarnings); }
+        try { return Execute(spec, json, m, source, output, commentsRemoved, many ? specPaths : null, options, opened, pathWarnings, dryRun); }
         finally { foreach (var module in opened) Timings.Measure("close", module.Dispose); }
     }
 
@@ -131,13 +175,14 @@ static class Apply
     }
 
     // raw: the spec's JSON, to tell keys the spec sets on an existing element from record defaults (Reuse).
-    static (int code, object report) Execute(Spec spec, System.Text.Json.Nodes.JsonNode? raw, IESpace m, string source, string output, int commentsRemoved, IReadOnlyList<string>? specs, ApplyOptions? options, List<IESpace> opened, List<string>? pathWarnings = null)
+    static (int code, object report) Execute(Spec spec, System.Text.Json.Nodes.JsonNode? raw, IESpace m, string source, string output, int commentsRemoved, IReadOnlyList<string>? specs, ApplyOptions? options, List<IESpace> opened, List<string>? pathWarnings = null, bool dryRun = false)
     {
         var rules = Timings.Measure("rules snapshot", () => new ProductionRules(m));
         var flowLayoutBefore = Timings.Measure("flow snapshot", () => FlowLayout.Capture(m));
         var services = Model.Services();
-        var baseline = Model.Errors(m, "validate source");
-        var baselineWarnings = Model.Warnings(m, "validate source");
+        var sourceAll = Model.All(m, "validate source"); // one validation for errors and warnings
+        var baseline = sourceAll.Where(e => e.Type == ValidationMessageType.Error).ToArray();
+        var baselineWarnings = sourceAll.Where(e => e.Type == ValidationMessageType.Warning).ToArray();
         using var build = Timings.Phase("build");
         var created = new List<string>();
         var existing = new List<string>();
@@ -157,8 +202,18 @@ static class Apply
 
         foreach (var name in spec.Exceptions ?? new())
             if (m.UserExceptions.Any(e => e.Name == name)) existing.Add($"exception {name}");
-            else { m.CreateUserException(name, services.NewKey()); created.Add($"exception {name}"); }
+            else
+            {
+                var ex = m.CreateUserException(name, services.NewKey());
+                if (ex.Name != name)
+                {
+                    problems.Add($"exception {name}: {ProductionRules.ConsumedClash(ex, name) ?? $"{NameClash.Taken(ex, name)}; the model renamed it {ex.Name}"}");
+                    ex.Delete();
+                }
+                else created.Add($"exception {name}");
+            }
 
+        var refused = new HashSet<object>(); // specs whose new element the model renamed: deleted, and skipped below
         // Pass 1: every record type exists before any attribute is typed, so specs can reference each other.
         var entities = (spec.Entities ?? new()).Select(s =>
         {
@@ -166,7 +221,13 @@ static class Apply
             if (e is null)
             {
                 e = m.CreateServerEntity(s.Name, services.NewKey());
-                if (e.Name != s.Name) problems.Add($"entity {s.Name}: {NameClash.Taken(e, s.Name)}; the model renamed it {e.Name}");
+                if (e.Name != s.Name)
+                {
+                    problems.Add($"entity {s.Name}: {ProductionRules.ConsumedClash(e, s.Name) ?? $"{NameClash.Taken(e, s.Name)}; the model renamed it {e.Name}"}");
+                    e.Delete();
+                    refused.Add(s);
+                    return (s, e, isNew: true);
+                }
                 // This factory adds no Id; without one the entity has no Identifier type to reference.
                 if (e.IdentifierAttribute is null)
                 {
@@ -181,19 +242,25 @@ static class Apply
             }
             existing.Add($"entity {s.Name}");
             return (s, e, isNew: false);
-        }).ToList();
+        }).Where(x => !refused.Contains(x.s)).ToList();
         var structures = (spec.Structures ?? new()).Select(s =>
         {
             var st = m.Structures.SingleOrDefault(x => x.Name == s.Name);
             if (st is null)
             {
                 st = m.CreateStructure(s.Name, services.NewKey());
-                if (st.Name != s.Name) problems.Add($"structure {s.Name}: {NameClash.Taken(st, s.Name)}; the model renamed it {st.Name}");
+                if (st.Name != s.Name)
+                {
+                    problems.Add($"structure {s.Name}: {ProductionRules.ConsumedClash(st, s.Name) ?? $"{NameClash.Taken(st, s.Name)}; the model renamed it {st.Name}"}");
+                    st.Delete();
+                    refused.Add(s);
+                    return (s, st);
+                }
                 created.Add($"structure {s.Name}");
             }
             else existing.Add($"structure {s.Name}");
             return (s, st);
-        }).ToList();
+        }).Where(x => !refused.Contains(x.s)).ToList();
 
         // Pass 2: attributes. Existing attributes are never retyped: changing a published column can lose data.
         foreach (var (s, e, isNew) in entities)
@@ -282,7 +349,7 @@ static class Apply
         {
             var dataErrors = Subtract(Model.Errors(m, "validate data"), baseline);
             if (problems.Count > 0 || dataErrors.Length > 0)
-                return (1, new { saved = false, phase = "data model", problems, newErrors = Model.Grouped(dataErrors), created, existing });
+                return (1, new { saved = false, phase = "data model", problems, newErrors = Model.Grouped(dataErrors), existing });
             // A spec with only logic keys left the data phase nothing to do: the module is still as it was loaded,
             // so the reload would give the same model. On a big module that skips seconds.
             if (!LogicOnly(raw))
@@ -339,14 +406,16 @@ static class Apply
         var newErrors = Subtract(after, baseline);
         if (problems.Count > 0 || newErrors.Length > 0)
         {
-            return (1, new { saved = false, problems, warnings, newErrors = Model.Grouped(newErrors), created, changed, existing });
+            return (1, new { saved = false, problems, warnings, newErrors = Model.Grouped(newErrors), changed, existing });
         }
 
+        if (dryRun) return (0, new { saved = false, dryRun = true }); // spec check --module: the build ran, nothing is written
         Model.Save(m, output);
         using var open = Model.Borrow(output, "reopen"); var reopened = open.Module; // an `oml run` keeps it for the next command
-        var reopenNew = Subtract(Model.Errors(reopened, "validate reopened"), baseline);
+        var reopenedAll = Model.All(reopened, "validate reopened");
+        var reopenNew = Subtract(reopenedAll.Where(e => e.Type == ValidationMessageType.Error).ToArray(), baseline);
         // Warnings do not block a save, but a type mismatch warning can still mean a wrong model: report them.
-        var newWarnings = Subtract(Model.Warnings(reopened, "validate reopened"), baselineWarnings);
+        var newWarnings = Subtract(reopenedAll.Where(e => e.Type == ValidationMessageType.Warning).ToArray(), baselineWarnings);
         var (described, describeErrors, describeMore) = Timings.Measure("describe", () => DescribeResults(reopened, options, created));
         return (reopenNew.Length == 0 ? 0 : 1, new
         {

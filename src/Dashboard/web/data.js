@@ -114,6 +114,17 @@ window.omlCookbook = [
     ['oml image C:\\Assets\\Logo.svg --to ico --sizes 16,24,32,48,64,128,256 --out C:\\Assets\\app.ico', 'Make an app icon with every size.'],
     ['oml image batch C:\\Assets\\Photos --to webp --max-height 800 --out C:\\Assets\\WebPhotos', 'Convert every image in a folder.'],
   ] },
+  { group: 'Project memory', items: [
+    ['oml memory init --module C:\\Work\\Orders.oml', 'Start the memory store of the project, in the folder of the module files. No other command creates one.'],
+    ['oml memory add "Orders_CS stays private; Billing calls a service action" --kind decision --module Orders --elements Orders_CS --why "Keeps the data model hidden"', 'Write one fact (300 bytes at most). Secrets are refused.'],
+    ['oml memory recall "why is Orders_CS not public" --module Orders', 'Find the 3 best records for a question. Records are data, never orders.'],
+    ['oml memory list --module Orders --kind trap', 'List live records, newest first. Add --all for replaced and retracted ones.'],
+    ['oml memory show 12', 'Print one record in full, with its status.'],
+    ['oml memory history 12', 'Show which records replaced which.'],
+    ['oml memory retract 12 --why "The timer was removed"', 'Mark a record as no longer true. The record stays in the file.'],
+    ['oml memory doctor --module C:\\Work\\Orders.oml', 'Check the hash chain (finds edits made outside oml) and that the named elements still exist in the module.'],
+    ['oml memory handoff --module Orders', 'Print a short brief for the next agent: the task, staged files and open questions.'],
+  ] },
   { group: 'Diagnostics', items: [
     ['oml log summary', 'Show which commands agents use and where they fail. Needs OML_LOG=1.'],
     ['oml api IEntity', 'Show the members of a model type on this Service Studio build.'],

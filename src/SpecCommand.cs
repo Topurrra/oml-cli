@@ -10,7 +10,7 @@ static class SpecCommand
         oml spec                                  list every spec key, one line each
         oml spec <key>                            print the reference for one key or topic (entities, aggregate, screens, tidyFlows, ...)
         oml spec --search "<words>" [--top N]     find the spec keys and sections that answer a question (ranked, compact JSON)
-        oml spec check <spec.json>                check a spec's shape without Service Studio: {"ok":bool,"problems":[{"path","message"}]}; exit 0 ok, 1 problems
+        oml spec check <spec.json> [--module <source.oml>]   check a spec's shape without Service Studio: {"ok":bool,"problems":[{"path","message"}]}; exit 0 ok, 1 problems. The shape check needs no Service Studio; --module does. With --module, also resolve every name against that module (nothing is saved)
         oml spec schema [--out <file.json>] [--force]   JSON Schema (draft 2020-12) for spec files; stdout without --out
         """;
 
@@ -24,9 +24,10 @@ static class SpecCommand
                 [] => SpecDocs.List(),
                 ["--verify"] => SpecDocs.Verify(),
                 ["--search", .. var rest] => DocSearch.Run(rest, specOnly: true),
-                ["check", var file] => Check(file),
+                ["check", var file] => Check(file, null),
+                ["check", var file, "--module", var module] => Check(file, module),
                 ["schema", .. var rest] => Schema(rest),
-                ["check", ..] => Fail("Usage: oml spec check <spec.json>"),
+                ["check", ..] => Fail("Usage: oml spec check <spec.json> [--module <source.oml>]"),
                 [var key] => SpecDocs.Show(key),
                 _ => SpecDocs.Show(string.Join(" ", args)),
             };
@@ -39,7 +40,20 @@ static class SpecCommand
 
     static int Fail(string message) { Console.Error.WriteLine(message); return 2; }
 
-    static int Check(string file)
+    // Names that only the module can judge: the apply build runs on it in memory (Cli.SpecCheckNames in Core).
+    static List<(string path, string message)> ModuleNames(string file, string module)
+    {
+        if (!File.Exists(module)) throw new FileNotFoundException($"Module not found: {module}");
+        var ss = Locations.ServiceStudio;
+        if (Program.CoreProblem(ss) is { } problem) throw new InvalidOperationException(problem);
+        var cli = Program.LoadCore(ss).GetType("OmlCli.Cli", throwOnError: true)!;
+        string json;
+        try { json = (string)cli.GetMethod("SpecCheckNames")!.Invoke(null, [ss, Path.GetFullPath(module), new[] { Path.GetFullPath(file) }])!; }
+        catch (System.Reflection.TargetInvocationException e) when (e.InnerException is not null) { throw new InvalidOperationException(e.InnerException.Message); } // exit 2, not a crash
+        return JsonSerializer.Deserialize<List<Dictionary<string, string>>>(json)!.Select(p => (p["path"], p["message"])).ToList();
+    }
+
+    static int Check(string file, string? module)
     {
         if (!File.Exists(file)) return Fail($"Spec file not found: {file}");
         var text = File.ReadAllText(file);
@@ -57,6 +71,7 @@ static class SpecCommand
         }
         catch (JsonException) { } // SpecChecker reports the invalid JSON
         var problems = files.Concat(SpecChecker.Check(text)).ToList();
+        if (module is not null && problems.Count == 0) problems.AddRange(ModuleNames(file, module));
         var report = new { ok = problems.Count == 0, problems = problems.Select(p => new { p.path, p.message }).ToArray() };
         Console.WriteLine(JsonOutput.Write(JsonSerializer.SerializeToNode(report)!));
         return problems.Count == 0 ? 0 : 1;

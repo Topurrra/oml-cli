@@ -15,7 +15,9 @@ static class NameClash
     public static string Taken(object created, string name) =>
         "name taken by " + (Holder(created, name) ?? "another element (not found by oml: it may be generated, or in a referenced module)");
 
-    public static string? Holder(object created, string name)
+    public static string? Holder(object created, string name) => HolderElement(created, name) is { } hit ? Describe(hit) : null;
+
+    public static IObjectSignature? HolderElement(object created, string name)
     {
         if (created is not IObjectSignature o) return null;
         var local = Is(o, Locals);
@@ -30,7 +32,7 @@ static class NameClash
                 // A screen or block's widgets share its names too, at any depth.
                 ?? (scope is OutSystems.Model.UI.IScreenSignature || Inspect.IsBlock(scope)
                     ? ProductionRules.Walk(scope).OfType<OutSystems.Model.UI.IWidgetSignature>().Cast<IObjectSignature>().FirstOrDefault(Holds) : null);
-            if (hit is not null) return Describe(hit);
+            if (hit is not null) return hit;
         }
         return null;
     }

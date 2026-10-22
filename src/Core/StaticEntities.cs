@@ -31,7 +31,12 @@ static class StaticEntities
             // Concrete entities implement several contracts; EntityKind distinguishes storage kinds.
             if (found is not null && Reflect.Get(found, "EntityKind")?.ToString() != "Static") throw new ModelError("existing entity is not static; retyping refused");
             var e = (IStaticEntity?)found ?? (IStaticEntity)Reflect.Call(m, "CreateStaticEntity", s.Name, Model.Services().NewKey())!;
-            if (e.Name != s.Name) throw new ModelError($"{NameClash.Taken(e, s.Name)}; model renamed it {e.Name}");
+            if (e.Name != s.Name)
+            {
+                var clash = ProductionRules.ConsumedClash(e, s.Name) ?? $"{NameClash.Taken(e, s.Name)}; model renamed it {e.Name}";
+                if (found is null) e.Delete();
+                throw new ModelError(clash);
+            }
             (found is null ? created : existing).Add($"static entity {s.Name}");
             if (found is null)
             {

@@ -185,7 +185,7 @@ partial class Builder
                     throw new ModelError($"name '{wanted}' already exists in this parent: {NameClash.Describe(sibling)}");
                 name.SetValue(target, wanted);
                 if (aggregateNames.ContainsKey(target)) aggregateNames[target] = wanted;
-                if (Model.NameOf(target) != wanted) throw new ModelError($"{NameClash.Taken(target, wanted)}; model renamed to '{Model.NameOf(target)}' instead of '{wanted}'");
+                if (Model.NameOf(target) != wanted) throw new ModelError(ProductionRules.ConsumedClash(target, wanted) ?? $"{NameClash.Taken(target, wanted)}; model renamed to '{Model.NameOf(target)}' instead of '{wanted}'");
                 break;
             }
             case "delete":

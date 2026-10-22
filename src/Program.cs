@@ -26,7 +26,7 @@ public static class Program
         return UsageLog.Enabled ? UsageLog.Measure(filtered, () => Dispatch(args, filtered)) : Dispatch(args, filtered);
     }
 
-    internal static readonly string[] TimingsRefused = ["lt", "font", "doctor", "spec", "doc", "warn", "dashboard", "setup", "log", "image"];
+    internal static readonly string[] TimingsRefused = ["lt", "font", "doctor", "spec", "doc", "warn", "dashboard", "setup", "log", "image", "memory"];
     internal static string TimingsRefusal(string command) => $"--timings is not available for {command}.";
     // Output encoding (commands.md, "Output encoding"). A console window gets UTF-16 through WriteConsoleW: every
     // character shows, and the console code page is not changed (.NET never sets code page 1200 on the console).
@@ -56,6 +56,7 @@ public static class Program
         if (filtered.FirstOrDefault() == "spec") return SpecCommand.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "doc") return DocCommand.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "warn") return DocCommand.Warn(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "memory") return MemoryCommand.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "dashboard") return Dashboard.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "setup" && OperatingSystem.IsWindows()) return Setup.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() is "architecture" or "check" && filtered.Contains("--team"))
@@ -77,6 +78,17 @@ public static class Program
         if (team + 1 >= args.Length || args[team + 1].StartsWith("--")) return null; // LifeTime.Architecture reports the missing name
         try { CheckInput.Parse(args.Where((_, i) => i != team && i != team + 1).ToList(), teamPreflight: true); return null; }
         catch (CheckInputError e) { return e.Message; }
+    }
+
+    // RunCore with stdout and stderr collected (a command of the launcher that needs a model answer, such as `memory doctor`).
+    internal static (int Code, string Output) RunCoreCaptured(string[] args)
+    {
+        var (previousOut, previousError) = (Console.Out, Console.Error);
+        var (output, error) = (new StringWriter(), new StringWriter());
+        Console.SetOut(output);
+        Console.SetError(error);
+        try { var code = RunCore(args); return (code, output.ToString() + error); }
+        finally { Console.SetOut(previousOut); Console.SetError(previousError); }
     }
 
     static int RunCore(string[] args)
@@ -102,6 +114,7 @@ public static class Program
         {
             "spec" => SpecCommand.Run(step[1..]),
             "doc" => DocCommand.Run(step[1..]),
+            "memory" => MemoryCommand.Run(step[1..]),
             _ => DocCommand.Warn(step[1..]),
         }));
         var run = cli.GetMethod("Run")!;

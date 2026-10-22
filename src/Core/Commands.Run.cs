@@ -13,10 +13,12 @@ public static partial class Cli
     // Set by the launcher: the commands that live there and need no Service Studio (`spec`, `doc`, `warn`). It takes
     // the whole step, command name first.
     public static Func<string[], int>? LauncherRun;
-    static readonly string[] LauncherCommands = ["spec", "doc", "warn"];
+    static readonly string[] LauncherCommands = ["spec", "doc", "warn", "memory"];
+    // `oml memory` in a run reads only: the other subcommands write the project's memory file and need the agent to decide, outside a batch.
+    static readonly string[] MemoryReads = ["recall", "list", "show", "history", "handoff"];
 
     static readonly string[] RunAllowed =
-        ["apply", "architecture", "census", "check", "describe", "doc", "find", "inspect", "openapi", "preview", "review", "spec", "test", "tree", "validate", "warn"];
+        ["apply", "architecture", "census", "check", "describe", "doc", "find", "inspect", "memory", "openapi", "preview", "review", "spec", "test", "tree", "validate", "warn"];
 
     static readonly Dictionary<string, string> RunRefused = new()
     {
@@ -164,6 +166,8 @@ public static partial class Cli
             return Refuse("'preview --serve' is not allowed inside 'oml run': it keeps running until Ctrl+C. Run it as its own command.");
         if (command is "architecture" or "check" && step.Contains("--team"))
             return Refuse($"'{command} --team' is not allowed inside 'oml run': it reads LifeTime and needs a person's confirmation. Run it as its own command.");
+        if (command == "memory" && (step.Length < 2 || !MemoryReads.Contains(step[1])))
+            return Refuse($"'memory {(step.Length > 1 ? step[1] : "")}' is not allowed inside 'oml run': a run may only read memory ({string.Join(", ", MemoryReads)}). Run it as its own command.");
         if (LauncherCommands.Contains(command))
         {
             if (step.Contains("--timings")) return Refuse($"--timings is not available for {command}.");

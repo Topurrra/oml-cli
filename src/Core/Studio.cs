@@ -16,6 +16,7 @@ static class Studio
     static readonly string TokenFile = Path.Combine(Path.GetTempPath(), "oml-cli", $"studio-token-{Port}");
     static readonly HttpClient Http = new() { Timeout = TimeSpan.FromMinutes(15) }; // a publish can take minutes
     static int nextId;
+    static TimeSpan? callTimeout; // set around one best-effort call; null means the 15 minute client timeout
 
     const string ManualPublish = "Publish it manually instead: open the module in Service Studio and use 1-Click Publish.";
     const string ManualRefresh = "Refresh them manually instead: in Service Studio open Manage Dependencies and use Refresh All.";
@@ -95,15 +96,48 @@ static class Studio
         finally { Call("endOmlEditSession", new JsonObject { ["eSpaceName"] = name }); }
 
         string pulled;
-        using (var m = Model.Load(path)) pulled = ((OutSystems.Model.Applications.IModule)m).Name;
+        OutSystems.Model.IValidationMessage[] errors;
+        object[] grouped = []; // read while the module is open: owner names need it
+        int? studioCount = null; int found = 0; string? failure = null;
+        using (var m = Model.Load(path))
+        {
+            pulled = ((OutSystems.Model.Applications.IModule)m).Name;
+            errors = Model.Errors(m);
+            if (errors.Length > 0)
+            {
+                // Ask Service Studio what it shows for the open module. A failed call keeps the 1.5.1 behavior.
+                bool[]? flags = null;
+                try
+                {
+                    // Best effort: this one call gets 30 s, so a hung Service Studio cannot hold the pull.
+                    callTimeout = TimeSpan.FromSeconds(30);
+                    var studio = StudioCompare.ParseErrors(Call("getValidationMessages", new JsonObject { ["eSpaceName"] = name, ["filter"] = new JsonArray("error") }));
+                    studioCount = studio.Count;
+                    flags = StudioCompare.InStudio(errors.Select(e => new StudioCompare.Message(e.Id, e.Message)).ToList(), studio);
+                    found = flags.Count(f => f);
+                }
+                catch (Exception e) { failure = Shorten(e.Message); }
+                finally { callTimeout = null; }
+                var byMessage = flags is null ? null : errors.Zip(flags).ToDictionary(p => (object)p.First, p => p.Second, ReferenceEqualityComparer.Instance);
+                grouped = Model.Grouped(errors, byMessage is null ? null : e => byMessage[e], pulled);
+            }
+        }
+        const string note = "Taken from the module as it is open in Service Studio now. The open module was not changed.";
+        if (errors.Length == 0)
+        {
+            Cli.Emit(new { module = pulled, file = path, bytes = new FileInfo(path).Length, note });
+            return 0;
+        }
+        // Service Studio's MCP has no plain save (Ctrl+S): pull saves an edit-session copy with an empty change, and that
+        // copy can show errors the open module does not have. The comparison above tells which ones.
         Cli.Emit(new
         {
-            module = pulled, file = path, bytes = new FileInfo(path).Length,
-            note = "Taken from the module as it is open in Service Studio now. The open module was not changed.",
+            module = pulled, file = path, bytes = new FileInfo(path).Length, note,
+            errors = grouped,
+            attention = StudioCompare.Attention(pulled, errors.Length, studioCount, found, failure),
         });
-        return 0;
+        return 1;
     }
-
     // publish/references use Service Studio's Beta MCP write tools, which may change in a later release. Whatever
     // breaks (tool renamed, result reshaped, non-JSON reply), fail with one clear message and the manual step.
     static T Guard<T>(string what, string manualStep, Func<T> run)
@@ -246,7 +280,8 @@ static class Studio
         };
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
-        using var response = Http.Send(request);
+        using var cts = new CancellationTokenSource(callTimeout ?? Timeout.InfiniteTimeSpan);
+        using var response = Http.Send(request, cts.Token);
         var text = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
         var json = text.TrimStart().StartsWith('{') ? text
             : string.Join("", text.Split('\n').Where(l => l.StartsWith("data:")).Select(l => l[5..].Trim()));

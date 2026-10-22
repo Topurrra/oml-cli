@@ -65,6 +65,10 @@ oml selftest
 
 `tests/bench/` holds the reproducible benchmark behind the README's benchmark section: the OutSystems MCP side against `oml`, run through Claude Code. A run uses real API usage and needs Service Studio for the MCP side, so it is not part of the regression suite. Read [tests/bench/README.md](tests/bench/README.md) before you run it, and use `-DryRun` first to check the plan.
 
+### Memory speed
+
+`oml memory bench <new folder> --records 100000` writes a synthetic store and prints recall times without the index cache, with a rebuild of it, and with it. `tests/memory-check.ps1` runs it at 1k, 10k and 100k records and prints the numbers; the table in `skill/reference/commands.md` ("Memory", "Speed") comes from such a run. When you change the record layout, the hash or the search fields, update the format table there and the layout constants at the top of `memory-check.ps1`, which recomputes the hash chain outside the C# code.
+
 ## Releasing
 
 Build releases locally on Windows with PowerShell 7, Service Studio 11, and the .NET SDK.
@@ -182,6 +186,7 @@ GitHub Pages serves `docs/` from `main`. Configure Settings → Pages → Deploy
 |---|---|
 | `src/` | C# launcher, LifeTime client, project files, and shared version settings. |
 | `src/Dashboard/` | `oml dashboard`: the local web server, its API and the embedded page (`web/`). |
+| `src/Memory/` | `oml memory` (launcher only): `MemoryFormat.cs` (the 850-byte record and the hash chain), `MemoryStore.cs` (log, lock, repair, the `memory.idx` cache), `MemorySecrets.cs`, `MemoryContradiction.cs` (ports of voli's firewall and classifier), `MemoryCommand.cs`, `MemoryBench.cs`. |
 | `src/Core/` | Typed model host, spec builders, inspection, validation, preview, architecture, self-test, and CLI commands. |
 | `tests/` | JSON fixtures, PowerShell regression checks, and the LifeTime mock. |
 | `skill/` | The agent skill: `SKILL.md`, `rules.md`, the Copilot file, `recipes/`, and `reference/`. |

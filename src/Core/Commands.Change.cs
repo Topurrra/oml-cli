@@ -27,18 +27,48 @@ public static partial class Cli
         var positional = new List<string>();
         var describe = new List<string>();
         var describeCreated = false;
+        string? report = null;
         for (var i = 1; i < args.Count; i++)
         {
             if (args[i] == "--describe" && i + 1 < args.Count) describe.AddRange(args[++i].Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
             else if (args[i] == "--describe-created") describeCreated = true;
-            else if (args[i].StartsWith("--")) throw new CliError($"apply accepts --describe <A,B,...> and --describe-created, not '{args[i]}'.", 2);
+            else if (args[i] == "--report" && i + 1 < args.Count && !args[i + 1].StartsWith("--")) report = args[++i];
+            else if (args[i].StartsWith("--")) throw new CliError($"apply accepts --describe <A,B,...>, --describe-created and --report <report.json>, not '{args[i]}'.", 2);
             else positional.Add(args[i]);
         }
         if (positional.Count < 3) throw new CliError("apply needs <source.oml> <spec.json>... <staged-out.oml>.", 2);
-        return Apply.Run(positional[0], positional.Skip(1).SkipLast(1).ToList(), positional[^1], new ApplyOptions(describe, describeCreated));
+        return Apply.Run(positional[0], positional.Skip(1).SkipLast(1).ToList(), positional[^1], new ApplyOptions(describe, describeCreated), report);
     }
 
     static int? CmdInstall(List<string> args) => args.Count == 3 ? Install(args[1], args[2]) : null;
+
+    // `oml spec check <spec.json> --module <source.oml>`: the launcher calls this. It runs the whole apply build on
+    // the loaded module, in memory and without a save, so every name resolves exactly as in apply. Returns the
+    // problems as a JSON array of {path, message}.
+    public static string SpecCheckNames(string serviceStudioDir, string source, string[] specs)
+    {
+        Model.ServiceStudioDir = serviceStudioDir;
+        var problems = new System.Text.Json.Nodes.JsonArray();
+        void Add(string path, string message) => problems.Add(new System.Text.Json.Nodes.JsonObject { ["path"] = path, ["message"] = message });
+        try
+        {
+            Timings.Measure("selfTestCheck", SelfTest.EnsurePassed);
+            var (_, report) = Apply.Execute(source, specs, Path.Combine(Path.GetTempPath(), $"oml-check-{Guid.NewGuid():N}.oml"), null, dryRun: true);
+            var node = System.Text.Json.JsonSerializer.SerializeToNode(report)!;
+            foreach (var p in node["problems"]?.AsArray() ?? [])
+            {
+                // "edit[0]: no element ..." or "entity Order: ...": the text before the first ": " is the path.
+                var text = p?.GetValue<string>() ?? "";
+                var colon = text.IndexOf(": ", StringComparison.Ordinal);
+                if (colon > 0) Add(text[..colon], text[(colon + 2)..]); else Add("", text);
+            }
+            foreach (var group in node["newErrors"]?.AsArray() ?? [])
+                foreach (var sample in group!["samples"]!.AsArray())
+                    Add(sample!["owner"]?.GetValue<string>() ?? "", sample["message"]!.GetValue<string>() + (sample["detail"]?.GetValue<string>() is { Length: > 0 } detail ? " " + detail : ""));
+        }
+        catch (Exception e) when (e is CliError { ExitCode: not 2 } or ModelError) { Add("", e.Message); } // exit 2 (bad module, failed self-test) is not a spec problem
+        return problems.ToJsonString();
+    }
 
     static int New(string outPath, string? name, string? kind)
     {

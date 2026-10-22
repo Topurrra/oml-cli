@@ -129,9 +129,9 @@ static class Check
     internal static string Text(JsonObject o, string key) => o[key]?.GetValue<string>() ?? "";
     static JsonArray Array(IEnumerable<string> values) => new(values.Select(v => (JsonNode?)v).ToArray());
 
-    internal static void Write(string path, string text)
+    internal static void Write(string path, string text, bool overwrite = false)
     {
-        using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
+        using var stream = new FileStream(path, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write);
         using var writer = new StreamWriter(stream, new System.Text.UTF8Encoding(false));
         writer.Write(text);
     }

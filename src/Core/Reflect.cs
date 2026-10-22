@@ -177,7 +177,7 @@ static class Refs
         var owners = hits.Select(c => c.owner).Distinct().ToList();
         if (owners.Count == 1) return hits[0].element;
         if (owners.Count > 1)
-            throw new ModelError($"'{element}' is ambiguous: {string.Join(", ", owners.Select(o => $"{o}.{element}"))}. Write the qualified name.");
+            throw new ModelError($"'{element}' is ambiguous: {string.Join(", ", hits.OrderBy(c => c.owner, StringComparer.Ordinal).Select(c => $"{c.owner}.{element}" + (c.element is IObjectSignature o ? $" ({Describe.Kind(o)})" : "")))}. Write the qualified name.");
         return fallback?.Invoke() ?? (missingIsNull ? null : throw new ModelError($"no {kind} named '{name}' in this module or its references. {ReferenceHint}"));
     }
 

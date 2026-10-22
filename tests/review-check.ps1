@@ -284,8 +284,19 @@ $other = Join-Path $dir 'Other.oml'
 Invoke-Oml @('new', $other, '--name', 'Other', '--kind', 'CrossDevice') | Out-Null
 $e = Invoke-Oml @('review', $before, $other) 2 | ConvertFrom-Json
 Assert ($e.error -like '*different modules (ReviewApp and Other)*') "Different modules: $($e.error)"
-$e = Invoke-Oml @('review', $before, $after, '--md', $md) 2 | ConvertFrom-Json
-Assert ($e.error -like 'Output already exists*') "Existing output: $($e.error)"
+# --md may replace an earlier .md file and says so; a staged .oml and the other outputs are still refused.
+Set-Content $md '# Review: old review'
+$o = Invoke-Oml @('review', $before, $after, '--md', $md) | ConvertFrom-Json
+Assert ($o.overwritten -like "*$(Split-Path $md -Leaf)" -and (Get-Content $md -Raw) -notmatch 'old review') "Existing .md was not overwritten: $($o | ConvertTo-Json -Compress)"
+$o = Invoke-Oml @('review', $before, $after, '--md', (Join-Path $dir 'fresh-overwrite.md')) | ConvertFrom-Json
+Assert ($null -eq $o.overwritten) 'overwritten reported for a new file'
+Set-Content (Join-Path $dir 'notes.md') '# My notes'
+$e = Invoke-Oml @('review', $before, $after, '--md', (Join-Path $dir 'notes.md')) 2 | ConvertFrom-Json
+Assert ($e.error -like 'Output already exists*' -and (Get-Content (Join-Path $dir 'notes.md') -Raw) -match 'My notes') "A non-review .md was overwritten: $($e.error)"
+$e = Invoke-Oml @('review', $before, $after, '--md', $after) 2 | ConvertFrom-Json
+Assert ($e.error -like 'Output already exists*' -and (Get-FileHash $after).Hash -eq $afterHash) "Staged .oml as --md: $($e.error)"
+$e = Invoke-Oml @('review', $before, $after, '--notes', $md) 2 | ConvertFrom-Json
+Assert ($e.error -like 'Output already exists*') "Existing --notes: $($e.error)"
 $e = Invoke-Oml @('review', $before, $after, '--md', (Join-Path $dir 'same.md'), '--notes', (Join-Path $dir 'same.md')) 2 | ConvertFrom-Json
 Assert ($e.error -like '*different paths*' -and -not (Test-Path (Join-Path $dir 'same.md'))) "Same output paths: $($e.error)"
 $e = Invoke-Oml @('review', $before) 2 | ConvertFrom-Json

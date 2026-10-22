@@ -32,19 +32,20 @@ Plain technical English (ISO 24495-1; ASD-STE100 style):
 - Paragraphs: 6 sentences or fewer. Lists: 5 items or fewer; group longer ones.
 - Exact names: files, commands, numbers. No filler.
 
-## Standard loop (follow it exactly; every tool call costs a full turn)
+## Standard loop (every tool call costs a full turn)
 
-Put several commands in ONE tool call: chain them with `;`, or list them in an `oml run` file.
+Several commands = ONE tool call: chain with `;` or use an `oml run` file.
 
-0. No `.oml` file? Ask the user to open the module in Service Studio, then `oml pull --out <Module>.oml`.
+0. No `.oml` file? Ask the user to open the module in Service Studio, then `oml pull --out <Module>.oml`. If pull reports `attention`, follow it.
 1. **Read (1 call).** Write `read.json` and run `oml run read.json`:
    `{ "steps": [ ["inspect","<module.oml>","--own","--only","entities,actions,screens,blocks"], ["describe","<module.oml>","<ElementToChange>","<OtherElement>"] ] }`
    Describe only elements you change or call. Producer files: add `--in <folder|file.oml>`. Another module's element: add a `find` step. New entities, screens or flows without a recipe: add `; oml doc best-practices` to this call.
+   `.oml/memory/` exists? Add step `["memory","recall","<task words>","--module","<Module>"]`; at the end, follow its `write` field.
 2. **Write the spec (no doc reads if a recipe fits).** Copy the closest recipe. For a key no recipe shows, run `oml spec <key>` (never read `reference/spec.md` whole). Put ALL requested elements in one spec; generate many similar elements with a small script.
 3. **Check, apply and see the result (1 call):**
    `oml spec check <spec.json>; oml apply <source.oml> <spec.json> <new-staged.oml> --describe-created`
-   The report has `problems`, `newErrors`, `reopenNewErrors`, `warnings`, `newWarnings` and the described elements. Do not run `validate`, `inspect` or `describe` again after a good apply.
-   **A good apply means `saved: true`, no `newErrors`, and no `newWarnings`.** Every new warning is a defect until you prove otherwise (an input unused in JavaScript means the block ignores it). Entries have a `hint` when the fix is known; otherwise `oml warn <id>`. Fix each one or explain it to the user.
+   Read `summary` first, then its lists. After a good apply, do not run `validate`, `inspect` or `describe` again.
+   **A good apply means `saved: true`, no `newErrors`, and no `newWarnings`.** Every new warning is a defect until you prove otherwise. Entries have a `hint` when the fix is known; otherwise `oml warn <id>`. Fix each one or explain it to the user.
 4. **Fix (only if needed, 1 call per attempt).** Change only what the report names, then repeat step 3 with a NEW staged path. Never retry an unchanged spec.
 5. **UI work: preview once per screen or block group (1 call).** In `preview.json`, two steps per screen: `["preview","<staged.oml>","<Screen>","--theme","light","--out","<Screen>.light.html","--screenshot","<Screen>.light.png"]` and the same with `"dark"`, `"--width","390"` and its own `--out`. Run `oml run preview.json`, look at both PNGs and the `checklist`, and follow `oml doc ui-checklist`. Preview again only if you changed the UI.
 6. **Report.** Add `["review","<source.oml>","<staged.oml>","--md","<new path>.md"]` to `preview.json` (or run it alone), then show the staged path, what was built and the .md. 0 findings does not mean the code is correct. Ask before `install` or `publish`; run `oml validate <staged.oml> --warnings` right before `install`.
@@ -79,6 +80,6 @@ Copy one from `recipes/` and read its header ([README](recipes/README.md)):
 | `oml new`, `preview`, `openapi`, `architecture`, `test scaffold` | New module, render a screen/block, export OpenAPI, layer report, BDD tests. |
 | `oml studio`, `pull`, `publish`, `references`, `lt` | Service Studio and LifeTime. Confirm every change. |
 | `oml check` | AI Mentor-like findings (module, folder, `--team`). |
-| Others | `doctor`, `census`, `translations`, `app`, `extension`, `templates`, `font`, `image`, `api`, `widgets`, `selftest`, `log` |
+| More | doctor, census, translations, app, extension, templates, font, image, api, widgets. Lead workers: [architect.md](architect.md) |
 
 Output is compact JSON (`--pretty` for humans). Exit 0 ok, 1 model or validation failure, 2 usage or setup. Full usage: [reference/commands.md](reference/commands.md).

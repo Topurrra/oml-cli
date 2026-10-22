@@ -78,8 +78,37 @@ static class Inspect
     {
         using var _ = Unreadable.In(section);
         return Unreadable.Try(section, () => ByName(items, element).ToArray(), [])
-            .Select((x, i) => Unreadable.Try(() => $"{section}[{i}] {Model.NameOf((element ?? (y => y!))(x)) ?? "?"}", () => JsonSerializer.SerializeToNode(row(x)), null))
+            .Select((x, i) => Unreadable.Try(() => $"{section}[{i}] {Model.NameOf((element ?? (y => y!))(x)) ?? "?"}", () => Labelled(section, JsonSerializer.SerializeToNode(row(x)), (element ?? (y => y!))(x)), null))
             .Where(n => n is not null).ToArray();
+    }
+
+    // A kind is printed only where the section name does not already say it (a static entity listed under entities).
+    static bool Implied(string section, string kind)
+    {
+        var one = section.EndsWith("ies") ? section[..^3] + "y" : section.TrimEnd('s');
+        return section == "entities" ? kind == "ServerEntity" : kind.EndsWith(one, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // The kind and the description (when there is one) of each row, so two elements that share a name can be told
+    // apart before a spec names one. Long descriptions are cut: inspect stays an overview.
+    const int DescriptionChars = 120;
+    static JsonNode? Labelled(string section, JsonNode? row, object element)
+    {
+        if (row is not JsonObject o || element is not IObjectSignature) return row;
+        var result = new JsonObject();
+        foreach (var (key, value) in o)
+        {
+            if (key == "name") { result["name"] = value?.DeepClone(); if (Describe.Kind(element) is var kind && !Implied(section, kind)) result["kind"] = kind; }
+            else if (key != "description" && key != "kind") result[key] = value?.DeepClone();
+        }
+        var description = System.Text.RegularExpressions.Regex.Replace((o["description"]?.GetValue<string>() ?? Reflect.Get(element, "Description") as string) ?? "", @"\s*[\r\n]+\s*", " ").Trim();
+        if (description.Length > 0)
+        {
+            var cut = DescriptionChars - 3;
+            if (description.Length > DescriptionChars && char.IsHighSurrogate(description[cut - 1])) cut--; // keep a surrogate pair whole
+            result["description"] = description.Length > DescriptionChars ? description[..cut] + "..." : description;
+        }
+        return result;
     }
 
     static JsonNode? One(string section, Func<object?> read)

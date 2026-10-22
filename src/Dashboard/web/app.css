@@ -148,6 +148,8 @@ main > * + * { margin-top: 16px; }
 .message { border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; border: 1px solid var(--line); background: var(--panel); margin: 12px 0 0; }
 .message.error { border-color: transparent; background: var(--fail-bg); color: var(--text); }
 .message.error strong { color: var(--fail); }
+.message.warn { border-color: transparent; background: var(--warn-bg); color: var(--text); }
+.message.warn strong { color: var(--warn); }
 .message.info { border-left: 3px solid var(--accent); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
 .message details { margin-top: 8px; }
 .message summary { cursor: pointer; color: var(--muted); font-size: 13px; }

@@ -34,7 +34,7 @@ static class Review
     // JSON on stdout stays small for agents: the full lists go to --md, --out and --notes.
     const int MaxChanges = 30, MaxDetails = 5, MaxRisks = 25, MaxFindings = 15;
 
-    sealed record Request(string Before, string After, string? Md, string? Html, string? Notes, string? Rules);
+    sealed record Request(string Before, string After, string? Md, string? Html, string? Notes, string? Rules, bool MdOverwritten = false);
 
     public static int Run(List<string> args)
     {
@@ -42,7 +42,7 @@ static class Review
         var document = Build(request.Before, request.After, request.Rules);
         try
         {
-            if (request.Md is { } md) Check.Write(md, ReviewReport.Markdown(document));
+            if (request.Md is { } md) Check.Write(md, ReviewReport.Markdown(document), request.MdOverwritten);
             if (request.Html is { } html) Check.Write(html, ReviewReport.Html(document));
             if (request.Notes is { } notes) Check.Write(notes, ReviewReport.Notes(document));
         }
@@ -50,9 +50,18 @@ static class Review
         var output = Compact(document);
         foreach (var (key, path) in new[] { ("md", request.Md), ("html", request.Html), ("notes", request.Notes) })
             if (path is not null) output[key] = path;
+        if (request.MdOverwritten) output["overwritten"] = request.Md;
         if (Timings.Enabled) output["timings"] = Timings.Report();
         Console.WriteLine(JsonOutput.Write(output));
         return 0;
+    }
+
+    // An earlier review report: an existing .md file whose first line is the report header ("# Review: <module>").
+    static bool IsReviewFile(string path)
+    {
+        if (!File.Exists(path) || !Path.GetExtension(path).Equals(".md", StringComparison.OrdinalIgnoreCase)) return false;
+        try { using var reader = new StreamReader(path); return reader.ReadLine()?.StartsWith("# Review: ", StringComparison.Ordinal) == true; }
+        catch (IOException) { return false; }
     }
 
     static Request Parse(List<string> args)
@@ -74,10 +83,13 @@ static class Review
             if (!Path.GetExtension(f).Equals(".oml", StringComparison.OrdinalIgnoreCase)) throw new CliError($"Not an .oml module file: {f}", 2);
             if (!File.Exists(f)) throw new CliError($"File not found: {Path.GetFullPath(f)}", 2);
         }
+        var overwritten = false;
         string? Output(string key)
         {
             if (!options.TryGetValue(key, out var value)) return null;
             var full = Path.GetFullPath(value);
+            // --md may replace an earlier review file: an existing .md file only, never a staged .oml or another output.
+            if (key == "--md" && IsReviewFile(full)) { overwritten = true; return full; }
             try { CheckInput.NewOutput(full); } catch (CheckInputError e) { throw new CliError(e.Message, 2); }
             return full;
         }
@@ -86,7 +98,7 @@ static class Review
             throw new CliError("--md, --out and --notes need different paths.", 2);
         var rules = options.TryGetValue("--rules", out var r) ? Path.GetFullPath(r) : null;
         if (rules is not null && !File.Exists(rules)) throw new CliError($"Rules file not found: {rules}", 2);
-        return new(Path.GetFullPath(files[0]), Path.GetFullPath(files[1]), outputs[0], outputs[1], outputs[2], rules);
+        return new(Path.GetFullPath(files[0]), Path.GetFullPath(files[1]), outputs[0], outputs[1], outputs[2], rules, overwritten);
     }
 
     // The whole report. The self-test and the CLI both use it.

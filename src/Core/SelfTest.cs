@@ -197,6 +197,7 @@ static partial class SelfTest
             ArchitectureTest(Path.Combine(dir, "built.oml"), failures);
             CheckSelfTest.Run(blank, dir, failures);
             ReviewSelfTest.Run(blank, dir, failures);
+            StudioCompareSelfTest.Run(blank, failures);
             HistoryTest(Path.Combine(dir, "built.oml"), dir, failures);
             ReadersTest(blank, failures);
             TestScaffoldTest(dir, failures);

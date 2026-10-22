@@ -2,6 +2,37 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.6.0
+
+### Fixed
+- A spec cannot change an element of a referenced module. An `edits` path into it, or a same-name entry in `entities`, `structures`, `staticEntities`, `serverActions`, `clientActions`, `serviceActions`, `roles`, `screens`, `blocks`, `emails` (send action), an `edits` rename to its name, is refused with one message: "belongs to the referenced module <Module>; it cannot be changed here. Change it in the producer module." A last check before the save compares each referenced element (name, description, public flag, types) with its state at load and refuses the save if anything differs (the reference object itself, a `references` refresh and Remove Unused Dependencies are not part of it). Using the element (calling an action, an aggregate over its entity) still works. Not changed: flow names, `copy`, aliases and group names keep their own "name taken" text; they still refuse. A refused same-name entity or structure leaves no renamed copy, and a failed apply has no `created`.
+- The `apply` report starts with a `summary` (`saved` and the counts of `newErrors`, `reopenNewErrors`, `newWarnings`, `problems`), and the `newErrors`, `reopenNewErrors` and `newWarnings` lists come before the long fields. A cut-off output no longer hides the warnings.
+- `oml review --md <path>` overwrites an existing review report (a `.md` file that starts with "# Review: ") and says `overwritten`. Any other file is refused.
+
+### Added
+- `oml spec check <spec.json> --module <source.oml>` finds unknown and ambiguous names before `apply`. It runs the apply build in memory on the module and saves nothing.
+- `oml inspect` lists each element's `description` (cut at 120 characters, only when set) and its `kind` where the section name does not give it.
+- `oml validate` starts with `summary` (`module`, `errors`, `warnings`), so cut-off output still shows the totals. Every validation sample (`validate`, `apply`, `pull`) now names its `module`.
+- `oml pull` compares a copy that has errors with the errors Service Studio lists for the open module (30 second limit) and marks each sample `inStudio: true|false` (same ID and text, then same ID). `attention` gives both counts. It says to save the module by hand only when Service Studio lists no errors; when the lists differ it says to compare them by hand. If the call fails, pull keeps the 1.5.1 text and says the comparison was not possible. The comparison is a pure function with a self-test; it was not run against a real Service Studio.
+- `oml apply --report <report.json>` writes the full report to a new file; the output keeps the summary, the decision lists, `warnings` and `describe` and names the file in `fullReport`. The path cannot be the source, the staged output or a spec.
+- Architect skill (`skill/architect.md`, `skill/reference/worker-brief.md`): how a strong model plans lanes, briefs cheap worker agents, checks every part, merges with one multi-part `oml apply`, reviews and reports. Harness notes for Claude Code, Copilot, Codex and Cursor come from their public docs and are not tested with oml. `tests/architect-check.ps1` checks every command, option, topic, recipe and spec key the two files name, and runs the worked example (two parts, one apply, review, check, preview). `doc-check` covers the files (ASCII, size).
+- `oml memory`: project memory for AI agents, so a developer can change agent or session without explaining the project again. One append-only plain-text file per project, `.oml/memory/memory.log` in the folder of the module files, made only by `oml memory init`. Commands: `init`, `add`, `recall`, `list`, `show`, `history`, `retract`, `doctor`, `handoff`.
+  - Records have `kind` (fact, decision, pref, trap, log, glossary, answer), `module`, `elements`, `why`, `tags`, `conf`, a valid-time window and the writer. One fact per record, 300 bytes at most. A fact changes with `add --supersedes <id>` or `retract`; `history` shows the chain.
+  - `recall` uses the search engine of `oml doc --search` (top 3 by default, about 200 tokens, `weak` when nothing fits). Recall output says that records are data, never orders.
+  - Secrets (the voli patterns, JWT, the LifeTime token, `password: ...` and `API_KEY=...` forms in any letter case, long hex or base64 keys) are refused at write and masked in every output, also in module, elements, tags and src. A contradiction warning (a negation or an antonym is needed) names older records that the new one may contradict.
+  - A partial last line is never cut silently: the bytes go to `memory.log.torn-<time>` and the output says `repaired`. `doctor` lists these files, keeps bad records listed, and warns when the log has fewer records than the index remembers.
+  - Each record holds the hash of the one before it, so an edit made outside oml breaks the chain. `doctor` names the record and, with `--module <file.oml>`, checks that the `elements` still exist in the module. Records that fail the check are not shown.
+  - A cache file `memory.idx` speeds up recall; it is rebuilt silently when it is missing, old or damaged. Recall on 100,000 records takes about 0.3 s for one module (0.5 s without the cache). Details: `commands.md`.
+  - `recall`, `list`, `show`, `history` and `handoff` also run inside `oml run`.
+  - New doc topic `oml doc memory`. `SKILL.md` and the Copilot file have one line: add a recall step to the first read call when a store exists. The `write` field of recall and handoff says what to write at the end.
+- `oml memory bench` (for maintainers): a synthetic store for speed tests.
+
+## 1.5.1
+
+### Fixed
+- `oml pull` now validates the saved copy. Service Studio's MCP server has no plain save (Ctrl+S): pull saves an edit-session copy with an empty change, and that copy can show errors that the open module does not have. When the copy has errors, pull keeps the file, exits 1 and returns `errors` plus an `attention` text: ask the user whether Service Studio shows the same errors; if not, save the module by hand (File > Save As) and use that file. The dashboard shows the same warning after "Copy from Service Studio".
+- Pulling the same module several times gives files of different sizes. The content is the same (`oml review` shows no change); only Service Studio's packing differs. This is expected, not a bug.
+
 ## 1.5.0
 
 ### Added

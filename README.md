@@ -44,6 +44,7 @@ On Windows 11, choose "Show more options" first. Results are written next to the
 | Architecture | `architecture` makes one zoomable HTML page from a folder of `.oap`/`.oml` files or a LifeTime team: applications, modules, End-user/Core/Foundation layers, dependencies and findings. |
 | Check | `check` finds AI Mentor-like patterns (performance, security, maintainability, architecture) in a module, an application or a team in seconds, with a team rules file, a baseline and an HTML report. A subset of AI Mentor, not a replacement. |
 | Review | `review` compares two versions of a module (before and after a change) by the model's own keys, so a rename stays a rename. It lists what changed in plain words (data, logic steps, UI, integrations, roles, settings), the production-rule risks and the new `check` findings, as JSON, Markdown for a pull request, an HTML page or release notes for testers. |
+| Memory | `memory` is a project memory for AI agents, so you can change agent or session without explaining the project again. One plain-text file per project (`.oml/memory/memory.log`): decisions, user answers, traps and preferences, one fact per record, with a hash chain that shows edits. Agents recall the best 3 records in their first read call (the same local search as `oml doc --search`, no model, no network). Secrets are refused. Only `oml memory` writes the file. See `oml doc memory`. |
 | REST | `openapi` exports exposed REST APIs as OpenAPI 3.0.3, with `<FILL:` placeholders for contact, servers and examples. |
 | Tests | `test scaffold` writes a spec for BDDFramework test screens of public server actions (Given/When/Then scenarios with TODO test values), to apply to a separate test module. Checked only against a stand-in of BDDFramework. |
 | Service Studio and deploy | `pull` saves the module open in Service Studio to a file (no manual export); 1-Click Publish and Refresh All through Service Studio's MCP server; LifeTime API v2 tags and deployments. |
@@ -177,12 +178,13 @@ The skill is the `skill/` folder: instructions, rules, recipes and references.
 - **GitHub Copilot:** copy `skill/copilot-instructions.md` to `.github/copilot-instructions.md` and keep `skill/` at the repository root. It is short on purpose, so it costs few tokens per request.
 - **Claude Code:** copy the `skill/` folder to `%USERPROFILE%\.claude\skills\outsystems-oml\`.
 - **Other agents:** give them `skill/SKILL.md` and keep `skill/reference/` readable.
+- **Leading cheap worker agents (optional):** the lead model also reads [skill/architect.md](skill/architect.md). It plans lanes, gives each worker a brief ([worker-brief.md](skill/reference/worker-brief.md)), checks the results and merges them with one multi-part `oml apply`. It is not part of the default load.
 
 Tell the agent where `oml` and the module file are. No file yet? Open the module in Service Studio and let the agent run `oml pull`. The agent then works in a loop: read the module (`inspect`, `describe`, `find`) → copy a recipe into a spec → `apply` to a new staged file → `validate` and `describe` → for UI, `preview` in light and dark → fix and repeat. It asks you before anything that changes a real module or an environment.
 
 To keep agents from reading the whole spec reference, `oml spec <key>` prints only the section for one key (15-60 lines) and `oml spec check <spec.json>` finds typos, wrong types and bad flow targets in milliseconds, before `apply`. `oml spec schema` writes a JSON Schema for autocomplete in VS Code.
 
-**Knowledge for agents.** Short OutSystems rules, written for cheap models, live in `skill/reference/` and are built into `oml.exe`: `oml doc` lists the topics (Reactive UI, OutSystems UI patterns, data, logic, security, REST, processes and timers, architecture, validation messages, ...), `oml doc <topic>` prints one (0.7k to 2.3k tokens), and `oml doc <topic>#<section>` prints one section. `oml warn <id>` prints the cause and fix of a validation message; `apply` already adds that fix as `hint` to each new error or warning it knows. Not sure which topic, key or recipe? `oml doc --search "<words>"` lists the 3 most likely sections, spec keys, recipes, warnings or commands, each with the command that opens it (about 200 tokens). It is a local ranked search (BM25F with OutSystems synonyms, typo fixes and exact-key matching), with no model and no network. `oml find <module.oml> --text "<words>"` ranks a module's own elements by name, description and the text inside them. The default skill load (`SKILL.md` and `rules.md`) is about 2.7k tokens; everything else is read only when a task needs it.
+**Knowledge for agents.** Short OutSystems rules, written for cheap models, live in `skill/reference/` and are built into `oml.exe`: `oml doc` lists the topics (Reactive UI, OutSystems UI patterns, data, logic, security, REST, processes and timers, architecture, validation messages, ...), `oml doc <topic>` prints one (0.7k to 2.3k tokens), and `oml doc <topic>#<section>` prints one section. `oml warn <id>` prints the cause and fix of a validation message; `apply` already adds that fix as `hint` to each new error or warning it knows. Not sure which topic, key or recipe? `oml doc --search "<words>"` lists the 3 most likely sections, spec keys, recipes, warnings or commands, each with the command that opens it (about 200 tokens). It is a local ranked search (BM25F with OutSystems synonyms, typo fixes and exact-key matching), with no model and no network. `oml find <module.oml> --text "<words>"` ranks a module's own elements by name, description and the text inside them. The default skill load (`SKILL.md` and `rules.md`) is about 2.8k tokens; everything else is read only when a task needs it.
 
 ### How to give tasks to an agent
 
@@ -255,6 +257,7 @@ Agents do the work; people make the decisions that touch production.
 | Step | Who |
 |---|---|
 | Read modules, write specs, `apply`, `validate`, `preview`, `architecture`, `check`, `review`, `openapi`, `test scaffold` | Agent |
+| `memory recall`, `memory add` (only after you ran `memory init`) | Agent |
 | `install` a staged file over a module | Agent, after you confirm |
 | Publish and refresh references | Agent, after you confirm; you approve Service Studio's connection dialog once per session |
 | LifeTime tags and deployments | Agent, after you confirm; the token stays in environment variables |
@@ -266,10 +269,12 @@ Not supported: debugging, SOAP, downloading OutSystems UI, Traditional Web scree
 ## More
 
 - [skill/reference/commands.md](skill/reference/commands.md): every command with options and examples.
+- [skill/architect.md](skill/architect.md): how a strong model leads cheap worker agents (optional; the default load does not include it).
 - [skill/reference/spec.md](skill/reference/spec.md): every spec key.
 - [skill/reference/ui-checklist.md](skill/reference/ui-checklist.md): what agents check before UI work is done.
 - Knowledge for agents (also `oml doc <topic>`): [best-practices](skill/reference/best-practices.md), [ui-reactive](skill/reference/ui-reactive.md), [osui-patterns](skill/reference/osui-patterns.md), [data-rules](skill/reference/data-rules.md), [logic-rules](skill/reference/logic-rules.md), [security](skill/reference/security.md), [rest](skill/reference/rest.md), [processes-timers-email](skill/reference/processes-timers-email.md), [architecture-rules](skill/reference/architecture-rules.md), [warnings](skill/reference/warnings.md), [traditional-to-reactive](skill/reference/traditional-to-reactive.md), [troubleshooting](skill/reference/troubleshooting.md).
+- [skill/reference/memory.md](skill/reference/memory.md): rules for agents on project memory (`oml doc memory`); the file format and speed are in [commands.md](skill/reference/commands.md#memory).
 - [skill/reference/testing.md](skill/reference/testing.md): how to organise BDDFramework tests for a module, and how an agent builds the test screens with `oml test scaffold` (needs BDDFramework from Forge, installed by you).
 - [CONTRIBUTING.md](CONTRIBUTING.md): build, tests, project layout, releasing.
 
-`oml` is released under the [MIT License](LICENSE). It uses your locally installed Service Studio assemblies and does not ship them. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Not affiliated with OutSystems.
+`oml` is released under the [MIT License](LICENSE). It uses your locally installed Service Studio assemblies and does not ship them. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Not affiliated with OutSystems. The memory design takes ideas from OptMem by Victor Taelin; the memory engine is a port of the author's own voli project.

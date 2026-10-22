@@ -73,8 +73,8 @@ $edits = @(
   @('{"op":"set","element":"Dashboard/Title","properties":{"value":"\"changed\""}}', "no element 'Title' under 'Dashboard' \(Screen\)"),
   @('{"op":"delete","element":"Dashboard/Title"}', "no element 'Title' under 'Dashboard' \(Screen\)"),
   @('{"op":"set","element":"Region/Label","properties":{"description":"changed"}}', "no element 'Label' under 'Region' \(Screen\)"),
-  @('{"op":"set","element":"PathsProd.Region/Label","properties":{"description":"changed"}}', 'referenced module; it cannot be edited here'),
-  @('{"op":"set","element":"Thing","properties":{"description":"changed"}}', 'referenced module; it cannot be edited here'))
+  @('{"op":"set","element":"PathsProd.Region/Label","properties":{"description":"changed"}}', 'belongs to the referenced module \w+; it cannot be changed here'),
+  @('{"op":"set","element":"Thing","properties":{"description":"changed"}}', 'belongs to the referenced module \w+; it cannot be changed here'))
 foreach ($case in $edits) {
   $out = Join-Path $Tmp 'paths-refused.oml'
   $r = Apply $m "{`"edits`":[$($case[0])]}" $out
@@ -99,7 +99,7 @@ Require ((Kind 'Screen:Home' $edited).text -match 'Expression Title value="chang
 Require ((Kind 'Screen:Dashboard' $edited).text -match 'value="dashboard caption"' -and (Kind 'Screen:Dashboard' $edited).text -notmatch 'changed') 'the edit changed the screen Dashboard'
 # replaceWidgets reads its "at" path by the same write rules: no fall-through, no referenced element, each part exact.
 $widgets = '"widgets":[{"type":"Expression","name":"Fresh","value":"\"fresh\""}]'
-foreach ($case in @(@('Dashboard/Title', "no element 'Title' under 'Dashboard' \(Screen\)"), @('Thing', 'referenced module; it cannot be edited here'),
+foreach ($case in @(@('Dashboard/Title', "no element 'Title' under 'Dashboard' \(Screen\)"), @('Thing', 'belongs to the referenced module \w+; it cannot be changed here'),
     @('Save/Note', "'Save' matches 2 elements.*Alpha/Save \(ScreenAction\), Beta/Save \(ScreenAction\)"), @('Admin/Users', "'Admin' matches 2 elements.*MobileFlow:Admin, Screen:Admin"))) {
   $out = Join-Path $Tmp 'paths-refused.oml'
   $r = Apply $m "{`"edits`":[{`"op`":`"replaceWidgets`",`"at`":`"$($case[0])`",$widgets}]}" $out

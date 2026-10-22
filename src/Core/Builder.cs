@@ -74,9 +74,9 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
     {
         var actual = Model.NameOf(created);
         if (actual == requested) return true;
-        var taken = NameClash.Taken(created, requested);
+        var taken = ProductionRules.ConsumedClash(created, requested) is { } consumed ? consumed : $"{NameClash.Taken(created, requested)}; the model would rename it {actual}";
         ((IObjectSignature)created).Delete();
-        problems.Add($"{label}: {taken}; the model would rename it {actual}");
+        problems.Add($"{label}: {taken}");
         return false;
     }
 
@@ -85,9 +85,9 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
     {
         var actual = Model.NameOf(created);
         if (actual == requested) return;
-        var taken = NameClash.Taken(created, requested);
+        var taken = ProductionRules.ConsumedClash(created, requested) is { } consumed ? consumed : $"{NameClash.Taken(created, requested)}; the model would rename it {actual}";
         ((IObjectSignature)created).Delete();
-        throw new ModelError($"{what} {requested}: {taken}; the model would rename it {actual}");
+        throw new ModelError($"{what} {requested}: {taken}");
     }
 
     // ---- actions ----
@@ -358,6 +358,11 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
 
     void CreateScreen(ScreenSpec s, bool block)
     {
+        // A screen or block with a referenced one's name would shadow it, not change it: refuse with the same message.
+        foreach (var reference in m.References)
+            if (ModuleReferences.Elements(reference).FirstOrDefault(e => (e is OutSystems.Model.UI.IScreenSignature || Inspect.IsBlock(e))
+                    && string.Equals(Model.NameOf(e), s.Name, StringComparison.OrdinalIgnoreCase)) is { } held)
+                throw ProductionRules.Consumed(held);
         if (WebUi.IsTraditional(m)) { CreateWebScreen(s, block); return; }
         if (s.Preparation is not null) throw new ModelError("preparation requires a Traditional Web module; use aggregates or lifecycle actions for Reactive/Mobile");
         var label = $"{(block ? "block" : "screen")} {s.Name}";

@@ -42,6 +42,23 @@ static partial class SelfTest
         var output = Path.Combine(dir, "references-consumer.oml");
         var (code, report) = Apply.Execute(blank, spec, output);
         if (code != 0) { failures.Add("references apply: " + JsonSerializer.Serialize(report)); return; }
+        // The catch-all: a change to a referenced element that no guarded path made is still found before the save.
+        using (var direct = Model.Load(output))
+        {
+            var rules = new ProductionRules(direct);
+            var proxy = direct.References.Single(r => r.Name == "Producer").Entities.Single(e => e.Name == "Customer");
+            var clean = new List<string>(); rules.ValidateConsumed(direct, clean);
+            if (clean.Count > 0) failures.Add("references catch-all: unchanged module reported " + string.Join("; ", clean));
+            try
+            {
+                Reflect.Property(proxy, "Description", true)!.SetValue(proxy, "changed behind the guards");
+                var found = new List<string>(); rules.Validate(direct, found);
+                if (!found.Any(p => p.Contains("'Producer.Customer' belongs to the referenced module Producer") && p.Contains("Description")))
+                    failures.Add("references catch-all: a changed description of a referenced entity was not found: " + string.Join("; ", found));
+            }
+            catch (Exception e) when (e is ModelError or InvalidOperationException or NotSupportedException or System.Reflection.TargetInvocationException)
+            { failures.Add("references catch-all: the proxy cannot be changed on this build, so the guard is unproven: " + e.Message); }
+        }
         using (var built = Model.Load(output))
         {
             using (var target = Model.Load(blank))

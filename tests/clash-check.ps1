@@ -43,7 +43,7 @@ $null = & $Oml apply $prodBlank $spec $prod
 Set-Content $spec -Encoding utf8 ('{ "references": [{ "producer": ' + (ConvertTo-Json $prod) + ', "elements": ["PA"] }], "serverActions": [{ "name": "Local", "flow": [{ "kind": "execute", "action": "ClashProd.PA" }] }] }')
 $r = & $Oml apply $m $spec $cons | ConvertFrom-Json
 Require ($LASTEXITCODE -eq 0) "consumer: $($r | ConvertTo-Json -Depth 6 -Compress)"
-Clash $cons '{ "serverActions": [{ "name": "PA" }] }' 'serverAction PA: name taken by server action PA of reference ClashProd (path ClashProd/PA)' 'server action like a referenced action'
+Clash $cons '{ "serverActions": [{ "name": "PA" }] }' "serverAction PA: 'ClashProd.PA' belongs to the referenced module ClashProd; it cannot be changed here. Change it in the producer module." 'server action like a referenced action'
 Clash $cons '{ "serverActions": [{ "name": "Local", "locals": [{ "name": "PA", "type": "Text" }] }] }' 'serverAction Local: local PA: name taken by execute server action node PA of server action Local (path Local/PA)' 'local like a flow node'
 # Every path in a message works with describe.
 foreach ($p in 'MainFlow/LatticeLoader/Status', 'Order/CreateOrder', 'Mgr/CheckMgrRole', 'Order', 'Calc', 'MainFlow/WHome/Box/NameInput') {

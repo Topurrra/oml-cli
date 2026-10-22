@@ -95,7 +95,7 @@ static class ElementPaths
         if (hits.Count == 0) throw new ModelError(failure.Message(path));
         if (hits.Count > 1) throw Ambiguous(root, path, hits);
         if (write && Referenced(hits[0]))
-            throw new ModelError($"'{path}' is an element of a referenced module; it cannot be edited here. Change it in the producer module.");
+            throw ProductionRules.Consumed(hits[0]);
         return hits[0];
     }
 

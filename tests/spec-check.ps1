@@ -54,7 +54,7 @@ if ($r.Exit -ne 0) { Fail "key index out of date: $($r.Text)" }
 
 # 6. no false alarms: every recipe and every fixture spec passes
 $good = @(Get-ChildItem (Join-Path $repo 'skill/recipes') -Filter *.jsonc) +
-  @(Get-ChildItem (Join-Path $repo 'tests') -Filter *.json | Where-Object Name -notin 'architecture-sample.json', 'architecture-baseline.json', 'search-bench.json')
+  @(Get-ChildItem (Join-Path $repo 'tests') -Filter *.json | Where-Object Name -notin 'architecture-sample.json', 'architecture-baseline.json', 'search-bench.json', 'memory-bench.json')
 foreach ($f in $good) {
   $r = Run 'spec', 'check', $f.FullName
   if ($r.Exit -ne 0 -or ($r.Text | ConvertFrom-Json).ok -ne $true) { Fail "false alarm on $($f.Name): $($r.Text)" }

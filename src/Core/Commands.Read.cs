@@ -127,10 +127,15 @@ public static partial class Cli
     {
         if (args.Count is not (2 or 3)) return null;
         using var open = Open(args[1]); var module = open.Module;
-        var errors = Model.Errors(module);
-        var warnings = args.Contains("--warnings") ? Model.Warnings(module) : null;
-        Emit(new { errorCount = errors.Length, errors = Model.Grouped(errors),
-                   warningCount = warnings?.Length, warnings = warnings is null ? null : Model.Grouped(warnings) });
+        var all = Model.All(module);
+        var errors = all.Where(m => m.Type == OutSystems.Model.ValidationMessageType.Error).ToArray();
+        var allWarnings = all.Where(m => m.Type == OutSystems.Model.ValidationMessageType.Warning).ToArray();
+        var warnings = args.Contains("--warnings") ? allWarnings : null;
+        var name = ((OutSystems.Model.Applications.IModule)module).Name;
+        // `summary` comes first, so output cut short still shows the totals.
+        Emit(new { summary = new { module = name, errors = errors.Length, warnings = allWarnings.Length },
+                   errorCount = errors.Length, errors = Model.Grouped(errors, module: name),
+                   warningCount = warnings?.Length, warnings = warnings is null ? null : Model.Grouped(warnings, module: name) });
         return errors.Length == 0 ? 0 : 1;
     }
 

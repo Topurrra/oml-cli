@@ -19,7 +19,7 @@ $budget = [ordered]@{
   'ui-reactive' = 1500; 'osui-patterns' = 2000; 'data-rules' = 1200; 'logic-rules' = 1200; 'security' = 800
   'rest' = 900; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2000
   'traditional-to-reactive' = 900; 'troubleshooting' = 1900; 'ui-checklist' = 700; 'testing' = 2000
-  'best-practices' = 1300; 'rules' = 900
+  'best-practices' = 1300; 'rules' = 900; 'memory' = 1100
 }
 # Where a topic's file is: skill/reference/<topic>.md, except rules (skill/rules.md, which SKILL.md loads first).
 function TopicFile($t) { if ($t -eq 'rules') { Join-Path $repo 'skill/rules.md' } else { Join-Path $ref "$t.md" } }
@@ -31,8 +31,8 @@ $listed = @($r.Text -split "`n" | Where-Object { $_ -match '^(\S+)  -  \S' } | F
 if ((($listed | Sort-Object) -join ',') -ne ((@($budget.Keys) | Sort-Object) -join ',')) { Fail "topics listed: $($listed -join ', ')" }
 # SKILL.md's "Topics:" line names every topic, so agents know each one exists
 $skillTopics = [regex]::Match((Get-Content -Raw (Join-Path $repo 'skill/SKILL.md')), '(?m)^Topics: (.*)$').Groups[1].Value
-# rules is not on that line: SKILL.md tells agents to read rules.md first.
-foreach ($t in $budget.Keys) { if ($t -ne 'rules' -and -not $skillTopics.Contains("``$t``")) { Fail "SKILL.md Topics line does not name $t" } }
+# rules is not on that line: SKILL.md tells agents to read rules.md first. memory is not either: the `write` field of a memory recall points to it, which saves tokens in the default load.
+foreach ($t in $budget.Keys) { if ($t -notin 'rules', 'memory' -and -not $skillTopics.Contains("``$t``")) { Fail "SKILL.md Topics line does not name $t" } }
 
 # 2. one topic prints the whole file; topic names are case-insensitive and may end in .md.
 #    Topics are plain ASCII, so every console code page shows them unchanged.
@@ -91,7 +91,7 @@ foreach ($line in (Get-Content (Join-Path $ref 'warnings.md'))) {
 }
 if ($ids.Count -lt 40) { Fail "warnings.md has only $($ids.Count) ids" }
 
-# 7. size budgets, and the default skill load (SKILL.md + rules.md): budget 2.7k tokens (+15%), about 2.7k today
+# 7. size budgets, and the default skill load (SKILL.md + rules.md): budget 2.7k tokens (+15%), about 2.8k today
 foreach ($t in $budget.Keys) {
   $n = Tokens (TopicFile $t)
   if ($n -gt $budget[$t] * 1.15) { Fail "$t.md is $n tokens; budget $($budget[$t]) (+15%)" }
@@ -117,6 +117,16 @@ if ($site.Count -ne $ruleLines.Count) { Fail "docs/index.html lists $($site.Coun
 for ($i = 1; $i -le $site.Count; $i++) {
   if ((Plain $site[$i - 1].Groups[1].Value) -ne (Plain ($ruleLines[$i] -replace '^\d+\. ', ''))) { Fail "docs/index.html rule $i differs from rules.md" }
 }
+
+# 7d. the architect skill files (loaded only by an architect, never by default): ASCII, size, and SKILL.md points to them
+foreach ($x in @(@('skill/architect.md', 2500), @('skill/reference/worker-brief.md', 700))) {
+  $p = Join-Path $repo $x[0]
+  if (-not (Test-Path $p)) { Fail "$($x[0]) is missing" }
+  if ((Get-Content -Raw $p) -match '[^\x00-\x7F]') { Fail "$($x[0]) has a non-ASCII character" }
+  $n = Tokens $p
+  if ($n -gt $x[1] * 1.15) { Fail "$($x[0]) is $n tokens; budget $($x[1]) (+15%)" }
+}
+if (-not $skill.Contains('(architect.md)')) { Fail 'SKILL.md does not point to architect.md' }
 
 # 8. every relative link in skill/ resolves
 foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Filter *.md) {

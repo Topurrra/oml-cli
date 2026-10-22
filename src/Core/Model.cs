@@ -170,25 +170,43 @@ static class Model
     public static void Save(IESpace module, string path, string phase = "save") =>
         Timings.Measure(phase, () => ((IModule)module).Save(path, false));
 
+    // The only overload in OutSystems.Model.V1 is GetValidationMessages(bool includeMessagesFromDescendants):
+    // true is the whole module tree, which is what Service Studio's own getValidationMessages tool lists.
+    public static IValidationMessage[] All(IESpace module, string phase = "validate") =>
+        Timings.Measure(phase, () => ((IObjectSignature)module).GetValidationMessages(true).ToArray());
+
     public static IValidationMessage[] Errors(IESpace module, string phase = "validate") =>
-        Timings.Measure(phase, () => ((IObjectSignature)module).GetValidationMessages(true)
-            .Where(m => m.Type == ValidationMessageType.Error).ToArray());
+        All(module, phase).Where(m => m.Type == ValidationMessageType.Error).ToArray();
 
     public static IValidationMessage[] Warnings(IESpace module, string phase = "validate") =>
-        Timings.Measure(phase, () => ((IObjectSignature)module).GetValidationMessages(true)
-            .Where(m => m.Type == ValidationMessageType.Warning).ToArray());
+        All(module, phase).Where(m => m.Type == ValidationMessageType.Warning).ToArray();
 
-    public static object[] Grouped(IEnumerable<IValidationMessage> errors) =>
+    // inStudio (optional): whether Service Studio shows the same message; null entries are left out of the output.
+    public static object[] Grouped(IEnumerable<IValidationMessage> errors, Func<IValidationMessage, bool?>? inStudio = null, string? module = null) =>
         errors.GroupBy(e => e.Id)
             // `hint` (the fix from warnings.md) only when known, so --pretty shows no "hint": null.
             .Select(g => WarningTable.Hint(g.Key) is { } hint
-                ? (object)new { id = g.Key, count = g.Count(), hint, samples = Samples(g) }
-                : new { id = g.Key, count = g.Count(), samples = Samples(g) })
+                ? (object)new { id = g.Key, count = g.Count(), hint, samples = Samples(g, inStudio, module) }
+                : new { id = g.Key, count = g.Count(), samples = Samples(g, inStudio, module) })
             .ToArray();
 
     // Read now: apply closes the reopened module before its report is written, and a closed module has no owner names.
-    static object[] Samples(IEnumerable<IValidationMessage> group) =>
-        group.Take(12).Select(e => (object)new { message = e.Message, detail = e.Detail, owner = OwnerName(e.Owner) }).ToArray();
+    static object[] Samples(IEnumerable<IValidationMessage> group, Func<IValidationMessage, bool?>? inStudio, string? module) =>
+        group.Take(12).Select(e =>
+        {
+            // module and inStudio are left out when unknown, also with --pretty (an anonymous type would print null).
+            var sample = new Dictionary<string, object?>();
+            if ((ModuleName(e.Owner) ?? module) is { } name) sample["module"] = name;
+            sample["owner"] = OwnerName(e.Owner); sample["message"] = e.Message; sample["detail"] = e.Detail;
+            if (inStudio?.Invoke(e) is { } flag) sample["inStudio"] = flag;
+            return (object)sample;
+        }).ToArray();
+
+    internal static string? ModuleName(IObjectSignature? o)
+    {
+        for (; o is not null && o is not IESpace; o = o.Parent) { }
+        return (o as IModule)?.Name;
+    }
 
     internal static string? OwnerName(IObjectSignature? o)
     {

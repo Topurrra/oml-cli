@@ -117,9 +117,9 @@ partial class Builder
         if (action.Name != name)
         {
             var given = action.Name;
-            var taken = NameClash.Taken(action, name);
+            var taken = ProductionRules.ConsumedClash(action, name) ?? $"{NameClash.Taken(action, name)}; the model would rename it {given}";
             action.Delete();
-            throw new ModelError($"server action name '{name}': {taken}; the model would rename it {given}");
+            throw new ModelError($"server action name '{name}': {taken}");
         }
         action.Public = false; // module-internal helper; public only when the user asks (rule 7)
         created.Add($"serverAction {name}");

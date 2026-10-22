@@ -22,6 +22,7 @@ sealed class ProductionRules
         var self = ((OutSystems.Model.Applications.IModule)module).Name;
         referenced = Refs.All(module).Where(x => x.owner != self).Select(x => x.element).OfType<IObjectSignature>()
             .SelectMany(Walk).Select(Key).ToHashSet();
+        consumed = ConsumedState(module);
         sourceSql = elements.OfType<OutSystems.Model.Logic.Nodes.ISQLNode>().GroupBy(Key).ToDictionary(g => g.Key, g => g.First().Statement ?? "");
         definitions = elements.Where(Protected).ToDictionary(Key, o => (o, Name(o), Shape(o), Public(o)));
         // Every own element that is public, of any kind (images, scripts, resources, themes and process
@@ -31,6 +32,37 @@ sealed class ProductionRules
         var traditional = WebUi.IsTraditional(module);
         signatures = definitions.Values.Where(d => d.isPublic == true && SignatureKind(d.element, traditional) is not null)
             .ToDictionary(d => Key(d.element), d => Signature(module, d.element, SignatureKind(d.element, traditional)!));
+    }
+
+    // The catch-all for referenced modules: what each referenced element looked like when the module was loaded. Validate
+    // refuses the save when any of it differs. Not covered on purpose: the reference object itself (a `references` refresh or an
+    // alias rename is oml's own change) and referenced elements that appear or go (a refresh adds them; Remove Unused Dependencies drops them).
+    static readonly string[] ConsumedFields = { "Description", "Public", "DataType", "Length", "Decimals", "IsMandatory", "IsAutoNumber" };
+    readonly Dictionary<string, (IObjectSignature element, Dictionary<string, string?> fields)> consumed;
+    static Dictionary<string, (IObjectSignature element, Dictionary<string, string?> fields)> ConsumedState(IESpace module)
+    {
+        var self = ((OutSystems.Model.Applications.IModule)module).Name;
+        var state = new Dictionary<string, (IObjectSignature, Dictionary<string, string?>)>();
+        foreach (var o in Refs.All(module).Where(x => x.owner != self).Select(x => x.element).OfType<IObjectSignature>().SelectMany(Walk))
+        {
+            if (state.ContainsKey(Key(o))) continue;
+            var fields = new Dictionary<string, string?> { ["kind"] = ElementPaths.Kind(o), ["name"] = Model.NameOf(o) };
+            foreach (var f in ConsumedFields)
+            {
+                try { fields[f] = Reflect.Get(o, f) is { } v ? (v is IObjectSignature t ? Key(t) : v.ToString()) : null; }
+                catch (System.Reflection.TargetInvocationException) { fields[f] = null; } // a proxy that cannot answer
+            }
+            state[Key(o)] = (o, fields);
+        }
+        return state;
+    }
+    // Test hook: the referenced state is compared again, with the snapshot of a module that was loaded before.
+    internal void ValidateConsumed(IESpace module, List<string> problems)
+    {
+        var now = ConsumedState(module);
+        foreach (var (key, before) in consumed)
+            if (now.TryGetValue(key, out var after) && before.fields.Where(f => after.fields[f.Key] != f.Value).Select(f => f.Key).ToList() is { Count: > 0 } changed)
+                problems.Add($"{Consumed(before.element).Message} Changed: {string.Join(", ", changed)}.");
     }
 
     // Rule 4: the inputs and outputs of each existing public action, block and screen, by name.
@@ -132,6 +164,19 @@ sealed class ProductionRules
             || i.Namespace?.StartsWith("ServiceStudio.Plugin.") == true) && Contracts.Contains(i.Name))
         && (o is not IAttributeSignature || o.Parent is IEntitySignature or IStructureSignature)
         && (o is not IParameterSignature || o.Parent is not OutSystems.Model.Logic.Nodes.IActionNode);
+    // Any change to an element of a referenced module (a proxy) is refused with this one message.
+    internal static ModelError Consumed(IObjectSignature o)
+    {
+        var path = new List<string>();
+        var top = o;
+        for (; top.Parent is { } parent && parent is not IReference; top = parent) path.Insert(0, Name(top));
+        path.Insert(0, Name(top));
+        var module = top.Parent is IReference r ? Name(r) : "?";
+        return new($"'{module}.{string.Join("/", path)}' belongs to the referenced module {module}; it cannot be changed here. Change it in the producer module.");
+    }
+    // The same message when a referenced element holds the name (the model renamed the new element), else null.
+    internal static string? ConsumedClash(object created, string name) =>
+        NameClash.HolderElement(created, name) is { } held && ElementPaths.Referenced(held) ? Consumed(held).Message : null;
     static string Name(IObjectSignature o) => Model.NameOf(o) ?? Reflect.Get(o, "Identifier")?.ToString() ?? ElementPaths.Kind(o);
     static ModelError Refuse(IObjectSignature o, string operation) => new(
         $"refused: '{Name(o)}' is an existing {(o is IEntitySignature ? "entity" : "element")}. oml never {operation} existing {(o is IEntitySignature ? "entities" : "elements")}; {(operation == "deletes" ? "delete" : "rename")} it manually in Service Studio if you really want to.");
@@ -153,6 +198,7 @@ sealed class ProductionRules
     {
         // Catch indirect SDK mutations too: dependency cleanup, clipboard operations, and property side effects.
         // Static record value slots can share an attribute's key; compare definition objects only.
+        ValidateConsumed(module, problems);
         var all = Walk(module).Where(o => !o.WasDeleted).ToList();
         var current = all.Where(Protected).GroupBy(Key).ToDictionary(g => g.Key, g => g.First());
         foreach (var o in all.Where(o => wasPublic.Contains(Key(o)) && Public(o) == false).GroupBy(Key).Select(g => g.First()))

@@ -247,12 +247,19 @@ Unit 'log-check' -Alone {
 Unit 'pull-check' {
   try { & (Join-Path $tests "pull-check.ps1") -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL pull checks: $_" }
 }
+Unit 'validate-check' {
+  try { & (Join-Path $tests 'validate-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL validate checks: $_" }
+}
 Unit 'doctor-check' -Alone {
   try { & (Join-Path $tests 'doctor-check.ps1') -Oml $oml } catch { $global:fail++; Write-Host "FAIL doctor checks: $_" }
 }
 Unit 'recipes-check' {
   try { & (Join-Path $tests 'recipes-check.ps1') -Oml $oml }
   catch { $global:fail++; Write-Host "FAIL recipes checks: $_" }
+}
+Unit 'architect-check' {
+  try { & (Join-Path $tests 'architect-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL architect skill checks: $_" }
 }
 Unit 'spec-check' {
   try { & (Join-Path $tests 'spec-check.ps1') -Oml $oml -Tmp $tmp }
@@ -265,6 +272,10 @@ Unit 'doc-check' {
 Unit 'search-check' {
   try { & (Join-Path $tests 'search-check.ps1') -Oml $oml -Tmp $tmp -Module $reactive }
   catch { $global:fail++; Write-Host "FAIL search checks: $_" }
+}
+Unit 'memory-check' {
+  try { & (Join-Path $tests 'memory-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL memory checks: $_" }
 }
 Unit 'packages-check' {
   try { & (Join-Path $tests "packages-check.ps1") -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL packages checks: $_" }

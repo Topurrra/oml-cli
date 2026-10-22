@@ -27,7 +27,7 @@
     <!-- `oml spec` prints sections of spec.md; embedding it keeps it working from a release zip. -->
     <EmbeddedResource Include="..\skill\reference\spec.md" LogicalName="OmlCli.spec.md" />
     <!-- `oml doc <topic>` and `oml warn`: the knowledge files for agents, one topic each. -->
-    <EmbeddedResource Include="..\skill\reference\best-practices.md;..\skill\reference\ui-reactive.md;..\skill\reference\osui-patterns.md;..\skill\reference\data-rules.md;..\skill\reference\logic-rules.md;..\skill\reference\security.md;..\skill\reference\rest.md;..\skill\reference\processes-timers-email.md;..\skill\reference\architecture-rules.md;..\skill\reference\warnings.md;..\skill\reference\traditional-to-reactive.md;..\skill\reference\troubleshooting.md;..\skill\reference\ui-checklist.md;..\skill\reference\testing.md" LogicalName="OmlCli.doc.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\skill\reference\best-practices.md;..\skill\reference\ui-reactive.md;..\skill\reference\osui-patterns.md;..\skill\reference\data-rules.md;..\skill\reference\logic-rules.md;..\skill\reference\security.md;..\skill\reference\rest.md;..\skill\reference\processes-timers-email.md;..\skill\reference\architecture-rules.md;..\skill\reference\warnings.md;..\skill\reference\traditional-to-reactive.md;..\skill\reference\troubleshooting.md;..\skill\reference\ui-checklist.md;..\skill\reference\testing.md;..\skill\reference\memory.md" LogicalName="OmlCli.doc.%(Filename)%(Extension)" />
     <!-- `oml dashboard`: its page, and the skill pages it shows (the UI checklist is the doc topic above). -->
     <EmbeddedResource Include="Dashboard\web\*" LogicalName="OmlCli.web.%(Filename)%(Extension)" />
     <!-- Also the doc topic `oml doc rules` (DocCommand). -->

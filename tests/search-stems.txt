@@ -5,6 +5,7 @@ accept: accept, accepts
 action: action, actions
 activity: activities, activity
 add: add, adds
+agent: agent, agents
 aggregat: aggregate, aggregates
 allow: allow, allowed
 argument: argument, arguments
@@ -12,6 +13,7 @@ array: array, arrays
 ask: ask, asked, asks
 assign: assign, assigned
 attribut: attribute, attributes
+becom: become, becomes
 block: block, blocks
 boolean: boolean, booleans
 branch: branch, branches
@@ -93,7 +95,7 @@ load: load, loaded, loading, loads
 local: local, locals
 log: log, logging
 mak: make, makes
-map: map, maps
+map: map, mapped, maps
 match: match, matching
 mean: meaning, means
 messag: message, messages
@@ -130,7 +132,7 @@ refus: refused, refuses
 remov: remove, removed, removes
 renam: rename, renames, renaming
 reopen: reopen, reopening
-replac: replace, replaces
+replac: replace, replaced, replaces
 report: report, reports
 request: request, requested
 requir: required, requires
@@ -154,7 +156,7 @@ sign: sign, signed
 signatur: signature, signatures
 sort: sort, sorting, sorts
 sourc: source, sources
-start: start, starting, starts
+start: start, started, starting, starts
 stay: stay, stays
 step: step, steps
 stop: stop, stops
@@ -165,6 +167,7 @@ symptom: symptom, symptoms
 system: system, systems
 tab: tab, tabs
 tabl: table, tables
+tag: tag, tags
 tak: take, takes
 target: target, targets
 templat: template, templates
