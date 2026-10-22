@@ -1,4 +1,5 @@
-param([int]$Port, [string]$ReadyFile)
+# PackageFolder: optional real packages (<app>.oap, from oml app pack) served for downloads/<app>; else a small text stands in.
+param([int]$Port, [string]$ReadyFile, [string]$PackageFolder)
 $ErrorActionPreference = 'Stop'
 $listener = [System.Net.HttpListener]::new()
 $listener.Prefixes.Add("http://127.0.0.1:$Port/")
@@ -10,13 +11,15 @@ $apps = @('Shop','Orders') | ForEach-Object {
         @{EnvironmentKey='dev';BaseApplicationVersionKey='v1';IsModified=$true},
         @{EnvironmentKey='test';BaseApplicationVersionKey='v0';IsModified=$false})}
 }
+# Untagged in Development, so `lt apps` reads no version; its content endpoint offers a download on another host.
+$apps += @{Key='unsafe';Name='Unsafe';AppStatusInEnvs=@(@{EnvironmentKey='dev';BaseApplicationVersionKey='';IsModified=$true})}
 Set-Content -LiteralPath $ReadyFile -Value 'ready'
 try {
     while ($listener.IsListening) {
         $pending = $listener.GetContextAsync()
         while (!$pending.IsCompleted) { Start-Sleep -Milliseconds 50 }
         $context = $pending.GetAwaiter().GetResult(); $request = $context.Request; $response = $context.Response
-        $code = 200; $body = $null; $raw = $false
+        $code = 200; $body = $null; $raw = $false; $binary = $null
         try {
             if ($request.Headers['Authorization'] -cne "Bearer $env:OML_LIFETIME_TOKEN") {
                 $code = 401; $body = @{error="Rejected $($request.Headers['Authorization'])"}
@@ -59,7 +62,9 @@ try {
                     }
                     '^GET downloads/(shop|orders|redirect)$' {
                         if ($Matches[1] -eq 'redirect') { $code = 302; $response.RedirectLocation = '/lifetimeapi/rest/v2/downloads/shop'; break }
-                        # Launcher-only tests inspect downloaded bytes without asking Core to open a model.
+                        # A real package when the test made one; otherwise a short text that launcher-only tests can compare.
+                        $package = if ($PackageFolder) { Join-Path $PackageFolder "$($Matches[1]).oap" }
+                        if ($package -and (Test-Path -LiteralPath $package)) { $binary = [IO.File]::ReadAllBytes($package); break }
                         $body = 'mock-oap-' + $Matches[1]; $raw = $true; break
                     }
                     '^GET environments$' { $body = $environments; break }
@@ -122,7 +127,9 @@ try {
         $response.StatusCode = $code
         $response.ContentType = 'application/json'
         $text = if ($null -eq $body) { '' } elseif ($raw) { [string]$body } else { ConvertTo-Json -InputObject $body -Depth 20 -Compress }
-        $bytes = [Text.Encoding]::UTF8.GetBytes($text)
+        # Not `$bytes = if ...`: PowerShell would unroll the byte[] into an object[].
+        [byte[]]$bytes = $binary
+        if ($null -eq $binary) { $bytes = [Text.Encoding]::UTF8.GetBytes($text) }
         $response.ContentLength64 = $bytes.Length
         $response.OutputStream.Write($bytes, 0, $bytes.Length)
         $response.Close()

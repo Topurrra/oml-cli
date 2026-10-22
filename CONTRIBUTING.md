@@ -118,7 +118,7 @@ How a command runs: `Oml(...)` queues it on one worker thread. Launcher commands
 To add a page:
 
 1. If it needs the server, add a case to the `switch` in `DashboardApi.Api` and a handler that checks its input (`ModuleFile`, `UserPath`, `ElementName`) and calls `Oml(...)`. Only read commands; never add `install`, `publish`, `references`, `apply`, `run` or a LifeTime write. Outputs a person keeps go to `NewWorkFolder(...)`; intermediate files go to a temporary folder that the handler deletes.
-2. In `web/app.js`, add `page('<id>', '<group>', '<Title>', '<one-line description>', async main => { ... })` in the order it should appear in the sidebar, and an icon path under the same id in `ICONS`. Build elements with `h()`, run actions with `task(...)`, and show each command with `cli(data.cli)`.
+2. In `web/app.js`, add `page('<id>', '<group>', '<Title>', '<one-line description>', async main => { ... })` in the order it should appear in the sidebar, and an icon path under the same id in `ICONS`. Build elements with `h()`, run actions with `task(...)`, and show each command with `cli(data.cli)`. Show every image and `/view/` page with `viewer({...})` (its options are documented above it in `app.js`).
 3. Add a check to `tests/dashboard-check.ps1`, build, look at the screenshots in `tmp/dashboard-check/`, and run the suite.
 
 ## Rules

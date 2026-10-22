@@ -68,7 +68,10 @@ const AREAS={data:'Data model',logic:'Logic',ui:'Screens and UI',integrations:'I
 function el(tag,text,cls,parent) { const n=document.createElement(tag); if(text!==undefined&&text!==null)n.textContent=text; if(cls)n.className=cls; if(parent)parent.append(n); return n; }
 function theme(value) { document.documentElement.dataset.theme=value; $('theme').textContent=value==='dark'?'Light theme':'Dark theme'; $('theme').setAttribute('aria-pressed',String(value==='light')); }
 let saved; try { saved=localStorage.getItem('oml-review-theme'); } catch {}
-theme(saved==='light'||saved==='dark'?saved:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+// #theme=light|dark (set by the oml dashboard frame) wins over the saved choice and the system setting.
+const hashTheme=()=>(/[#&]theme=(light|dark)/.exec(location.hash)||[])[1];
+theme(hashTheme()||(saved==='light'||saved==='dark'?saved:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')));
+addEventListener('hashchange',()=>{ if(hashTheme()) theme(hashTheme()); });
 $('theme').onclick=()=>{ const t=document.documentElement.dataset.theme==='dark'?'light':'dark'; theme(t); try { localStorage.setItem('oml-review-theme',t); } catch {} };
 const file=p=>String(p||'').split(/[\\/]/).pop();
 $('title').textContent=(D.module||'Module')+' — Review'; document.title=$('title').textContent;

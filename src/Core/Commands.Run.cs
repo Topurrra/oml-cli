@@ -126,7 +126,13 @@ public static partial class Cli
     // `oml dashboard`: one read command with its own output, called from the launcher's single command thread.
     // Modules it only reads stay open for the next call, as in a run. Not logged: these are a person's clicks, not agent turns.
     // The launcher allows only read commands; this refusal is the second lock on the same door.
-    static readonly string[] DashboardAllowed = ["describe", "find", "image", "inspect", "openapi", "preview", "architecture", "studio", "pull", "version"];
+    // `check` and `architecture` with --team arrive here already rewritten by the launcher (no --team left).
+    static readonly string[] DashboardAllowed = ["describe", "find", "image", "inspect", "openapi", "preview", "architecture", "check", "studio", "pull", "version",
+        "review", "tree", "validate", "test scaffold", "app list", "app extract", "extension inspect", "templates", "translations export"];
+    // A command with subcommands is allowed per subcommand: `app list` yes, `app pack` no; `test scaffold` only.
+    static bool DashboardAllows(string[] s) => s[0] is "app" or "extension" or "translations" or "test"
+        ? s.Length > 1 && DashboardAllowed.Contains(s[0] + " " + s[1])
+        : DashboardAllowed.Contains(s[0]);
 
     public static string[] Capture(string serviceStudioDir, string[] step)
     {
@@ -137,7 +143,7 @@ public static partial class Cli
         Model.TrimShared();
         SelfTest.KeepProcess = true;
         var (code, stdout, stderr, _) = RunStep(step, s =>
-            !DashboardAllowed.Contains(s[0]) || (s[0] == "architecture" && s.Contains("--team")) || (s[0] == "preview" && s.Contains("--serve")) ? Refuse($"'{s[0]}' is not available in the dashboard.")
+            !DashboardAllows(s) || (s[0] is "architecture" or "check" && s.Contains("--team")) || (s[0] == "preview" && s.Contains("--serve")) ? Refuse($"'{s[0]}' is not available in the dashboard.")
             : s[0] == "image" ? ImageAssets.Run(s[1..])
             : Run(serviceStudioDir, s));
         return [code.ToString(), stdout, stderr];

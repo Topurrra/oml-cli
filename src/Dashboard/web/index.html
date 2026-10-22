@@ -35,10 +35,18 @@
         <h1 id="page-title" tabindex="-1">oml dashboard</h1>
         <p id="page-desc" class="muted"></p>
       </div>
+      <div class="topbar-actions">
+      <button id="search-open" class="icon-button" type="button" aria-label="Search the docs (Ctrl+K)" title="Search the docs (Ctrl+K)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>
+      </button>
+      <button id="timings-toggle" class="icon-button" type="button" aria-pressed="false" aria-label="Show timings (adds --timings)" title="Show timings (adds --timings)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M10 2h4"/></svg>
+      </button>
       <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch color theme">
         <svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>
         <svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14A8.5 8.5 0 0 1 10 4a8.5 8.5 0 1 0 10 10Z"/></svg>
       </button>
+      </div>
     </header>
     <main id="page" aria-labelledby="page-title"></main>
   </div>

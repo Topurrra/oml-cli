@@ -201,7 +201,43 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .drop p { margin: 6px 0; }
 .drop svg { width: 30px; height: 30px; stroke: var(--muted); }
 .thumb { width: 54px; height: 40px; object-fit: contain; background: repeating-conic-gradient(var(--sunken) 0 25%, var(--card) 0 50%) 0 0 / 12px 12px; border: 1px solid var(--line); border-radius: 6px; }
+.thumb-button { display: block; padding: 0; border: 0; background: none; border-radius: 6px; cursor: zoom-in; }
 .saved-good { color: var(--ok); font-weight: 600; }
+fieldset.options { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px 16px 2px; margin: 0 0 14px; }
+fieldset.options legend { font-weight: 600; font-size: 13px; padding: 0 6px; }
+.check.inline { display: inline-flex; margin: 0 10px 10px 0; align-items: center; }
+.check.inline input { margin-top: 0; }
+.hint.block { display: block; }
+
+/* ---- page-wide drop guard ---- */
+.drop-overlay { position: fixed; inset: 0; z-index: 60; pointer-events: none; border: 3px dashed var(--accent); display: flex; justify-content: center; align-items: flex-start; padding-top: 18px; }
+.drop-overlay p { background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 14px; max-width: calc(100% - 32px); text-align: center; }
+.dragging-files .drop { border-color: var(--accent); }
+
+/* ---- viewer (images and frames) ---- */
+.viewer { margin: 12px 0; min-width: 0; }
+.viewer-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 6px; }
+.viewer-bar .grow { flex: 1 1 160px; min-width: 0; }
+.viewer-bar .grow:empty { display: none; }
+.zoom-text { min-width: 44px; text-align: center; }
+.viewer-bar .button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.viewer-stage { display: flex; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--sunken); }
+.viewer-stage.image { background: repeating-conic-gradient(var(--sunken) 0 25%, var(--card) 0 50%) 0 0 / 16px 16px; cursor: grab; }
+.viewer-stage.dragging { cursor: grabbing; }
+.viewer-box { flex: none; margin: auto; position: relative; overflow: hidden; }
+.viewer-stage.frame .viewer-box { margin: 0; }
+.viewer-box iframe { border: 0; transform-origin: 0 0; display: block; background: #fff; }
+.viewer-box img { display: block; max-width: none; user-select: none; }
+.viewer-box img.pixels { image-rendering: pixelated; }
+.viewer-dialog { width: calc(100vw - 32px); height: calc(100vh - 32px); max-width: none; max-height: none; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); color: var(--text); }
+.viewer-dialog::backdrop { background: rgba(0, 0, 0, .6); }
+.viewer-dialog > .viewer { height: 100%; display: flex; flex-direction: column; margin: 0; }
+.viewer-dialog .viewer-stage { flex: 1; min-height: 0; }
+.doctor-details { margin-top: 10px; }
+.doctor-details > summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.working { flex-wrap: wrap; }
+.working .queue { flex-basis: 100%; color: var(--muted); }
+.working .queue:empty { display: none; }
 .saved-bad { color: var(--fail); font-weight: 600; }
 
 /* ---- documents (rules, checklist, recipes) ---- */
@@ -242,6 +278,34 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
 .warning-banner { border: 1px solid var(--warn); background: var(--warn-bg); color: var(--text); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 14px; margin: 0 0 14px; }
 .ratio { font-size: 34px; font-weight: 700; letter-spacing: -.03em; }
 
+/* ---- check, review, docs, timings ---- */
+.nowrap { white-space: nowrap; overflow-wrap: normal; }
+td > .button:last-child { margin-top: 8px; }
+.tab-pane { margin-top: 14px; }
+.topbar-actions { display: flex; gap: 8px; flex: none; }
+#timings-toggle[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.cli .done { align-self: center; white-space: nowrap; flex: none; }
+.phases { margin: 6px 0 0; font-size: 12.5px; }
+.phases summary { cursor: pointer; color: var(--muted); }
+.phases ul { list-style: none; margin: 6px 0 0; padding: 0; }
+.phases li { display: grid; grid-template-columns: minmax(90px, 160px) minmax(0, 1fr) 64px; gap: 10px; align-items: center; padding: 2px 0; }
+.phase-name { font-family: var(--mono); overflow-wrap: anywhere; }
+.phase-bar { height: 8px; background: var(--sunken); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.phase-bar span { display: block; height: 100%; background: var(--accent); }
+.hits { list-style: none; margin: 12px 0 0; padding: 0; }
+.hits li { padding: 12px 0; border-top: 1px solid var(--line); }
+.hits li:first-child { border-top: 0; }
+.hits p { margin: 4px 0 6px; }
+.ptree, .ptree ul { list-style: none; margin: 0; padding: 0 0 0 14px; }
+.ptree { padding: 0; margin-top: 10px; }
+.ptree li { padding: 3px 0; border-left: 1px solid var(--line); padding-left: 8px; }
+.ptree .row { gap: 6px; }
+.steps { padding-left: 20px; margin: 6px 0 10px; }
+.steps li { margin: 0 0 6px; }
+.steps select { width: auto; }
+.pv-options { margin: 0 0 10px; font-size: 13.5px; }
+.pv-options summary { cursor: pointer; color: var(--muted); margin-bottom: 8px; }
+
 /* ---- toast ---- */
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 999px; font-size: 14px; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 40; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -253,7 +317,7 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1
   .gallery { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
 }
 @media (max-width: 900px) {
-  .shell { grid-template-columns: minmax(0, 1fr); }
+  .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; align-content: start; } /* without rows the sidebar row stretches on short pages */
   .sidebar { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 12px 12px 8px; }
   .brand-row { padding-bottom: 6px; }
   .icon-button.menu-toggle { display: inline-grid; }

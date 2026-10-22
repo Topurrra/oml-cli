@@ -11,9 +11,10 @@ namespace OmlCli;
 // Ported from OutSystems/outsystems-pipeline outsystems/lifetime/lifetime_applications.py (Apache-2.0).
 static class LifeTime
 {
-    internal const string Usage = "oml lt environments | teams | team-apps Team | apps [--env Name] | tag App --version x.y.z [--description Text] [--env Development] | deploy App[,App2] --from Env --to Env [--version x.y.z|latest] [--notes Text] [--wait] | status Key | abort Key | continue Key";
+    internal const string Usage = "oml lt environments | teams | team-apps Team | apps [--env Name] | download App --env Name --out Folder [--extract] | tag App --version x.y.z [--description Text] [--env Development] | deploy App[,App2] --from Env --to Env [--version x.y.z|latest] [--notes Text] [--wait] | status Key | abort Key | continue Key";
 
-    public static int Run(string[] args)
+    // runCore runs one Core command (for `download --extract`: `app extract`); null when Core is not available here.
+    public static int Run(string[] args, Func<string[], int>? runCore = null)
     {
         string? token = Environment.GetEnvironmentVariable("OML_LIFETIME_TOKEN");
         string? deploymentKey = null;
@@ -46,6 +47,7 @@ static class LifeTime
             if (verb == "team-apps") { Emit(client.TeamApplications(positional!)); return 0; }
             string Opt(string name, string fallback = "") => options.GetValueOrDefault(name) ?? fallback;
             if (verb == "environments") { Emit(client.List("environments")); return 0; }
+            if (verb == "download") return Download(client, root, positional!, Opt("--env"), Opt("--out"), options.ContainsKey("--extract"), runCore, Emit);
             if (verb is "status" or "abort" or "continue")
             {
                 deploymentKey = positional!;
@@ -149,6 +151,52 @@ static class LifeTime
         { Emit(new { error = "Invalid LifeTime response or configuration; check LifeTime before retrying a mutation.", deploymentKey }); return 2; }
     }
 
+    // `lt download`: GET only. The package of the version running in one environment, from the same content endpoint
+    // that `architecture --team` uses. The LifeTime API v2 docs we have do not describe a download of another tagged
+    // version, so there is no --version.
+    static int Download(Client client, Uri root, string appName, string envName, string outFolder, bool extract,
+        Func<string[], int>? runCore, Action<object, bool> emit)
+    {
+        var app = Find(client.List("applications?IncludeModules=false&IncludeEnvStatus=true"), appName, "application");
+        var env = Find(client.List("environments"), envName, "environment");
+        if (!Array(app["AppStatusInEnvs"]).Any(s => Text(s, "EnvironmentKey") == Text(env, "Key")))
+            throw new LtError($"Application '{Text(app, "Name")}' is not running in environment '{Text(env, "Name")}'.", 2);
+        var name = Text(app, "Name");
+        if (name.Length == 0 || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name is "." or "..")
+            name = "application-" + Text(app, "Key");
+        var folder = Path.GetFullPath(outFolder);
+        var file = Path.Combine(folder, name + ".oap");
+        if (File.Exists(file)) throw new LtError($"Output already exists: {file}. Use another --out folder, or delete that file first.", 2);
+        var extractTo = Path.Combine(folder, name);
+        if (extract && (File.Exists(extractTo) || Directory.Exists(extractTo)))
+            throw new LtError($"Output already exists: {extractTo}. Use another --out folder, or delete that folder first.", 2);
+        var url = SafePackageUrl(client.Send("GET", $"environments/{Escape(Text(env, "Key"))}/applications/{Escape(Text(app, "Key"))}/content"), root);
+        Directory.CreateDirectory(folder);
+        client.Download(url, file);
+        var result = new JsonObject
+        {
+            ["application"] = Text(app, "Name"), ["environment"] = Text(env, "Name"), ["file"] = file, ["bytes"] = new FileInfo(file).Length,
+        };
+        if (!extract) { emit(result, false); return 0; }
+        // `app extract` runs in Core (Service Studio's model). Its JSON is captured and nested here.
+        if (runCore is null) throw new LtError("--extract needs Service Studio's model, which is not loaded here. Run: oml app extract " + file + " <folder>", 2);
+        var (previous, captured) = (Console.Out, new StringWriter());
+        int code;
+        Console.SetOut(captured);
+        try { code = runCore(["app", "extract", file, extractTo]); }
+        finally { Console.SetOut(previous); }
+        JsonNode? extracted;
+        try { extracted = JsonNode.Parse(captured.ToString().Trim() is { Length: > 0 } t ? t : "null"); }
+        catch (JsonException) { extracted = JsonValue.Create(captured.ToString().Trim()); }
+        result["folder"] = extractTo;
+        result["extracted"] = extracted is JsonObject o && o["extracted"] is JsonArray files ? files.DeepClone() : null;
+        if (code != 0)
+            result["error"] = "The package was downloaded but not extracted: " + (extracted is JsonObject e && (e["error"] ?? (e["problems"] as JsonArray)?.FirstOrDefault()) is { } m
+                ? m.ToString() : "oml app extract failed") + ". The .oap file is kept.";
+        emit(result, false);
+        return code == 0 ? 0 : 2;
+    }
+
     // Runs before loading Core. Only this invocation owns the temporary package folder.
     public static int Architecture(string[] args, Func<string[], int> runCore)
     {
@@ -199,10 +247,7 @@ static class LifeTime
                             || Text(e, "Name").Equals("Development", StringComparison.OrdinalIgnoreCase))
                         .ThenBy(e => Property(e, "Order")?.GetValue<int>() ?? int.MaxValue).FirstOrDefault()
                         ?? throw new LtError("no running application environment is available", 2);
-                    var link = client.Send("GET", $"environments/{Escape(Text(env, "Key"))}/applications/{Escape(key)}/content");
-                    if (!Uri.TryCreate(Text(link, "url"), UriKind.Absolute, out var url)
-                        || url.Scheme != root.Scheme || url.Authority != root.Authority || url.UserInfo.Length != 0 || url.Fragment.Length != 0)
-                        throw new LtError("no safe package download URL was offered", 2);
+                    var url = SafePackageUrl(client.Send("GET", $"environments/{Escape(Text(env, "Key"))}/applications/{Escape(key)}/content"), root);
                     client.Download(url, Path.Combine(folder, $"application-{++number}.oap"));
                 }
                 rewritten = args.Take(index).Concat(new[] { "--in", folder, "--team-label", team }).Concat(args.Skip(index + 2)).ToArray();
@@ -237,6 +282,16 @@ static class LifeTime
         }
     }
 
+    // The content endpoint answers with a download address. Follow it only on the LifeTime host itself (same scheme and
+    // port), without a user name or a fragment: the bearer token goes with the request.
+    static Uri SafePackageUrl(JsonNode? link, Uri root)
+    {
+        if (!Uri.TryCreate(Text(link, "url"), UriKind.Absolute, out var url)
+            || url.Scheme != root.Scheme || url.Authority != root.Authority || url.UserInfo.Length != 0 || url.Fragment.Length != 0)
+            throw new LtError("LifeTime offered no safe package download URL (another host, credentials or a fragment).", 2);
+        return url;
+    }
+
     static Uri Endpoint(string host)
     {
         if (host.Any(char.IsWhiteSpace) || host.IndexOfAny(new[] { '/', '\\', '@', '?', '#' }) >= 0
@@ -256,12 +311,12 @@ static class LifeTime
         var verb = args[0];
         var allowed = verb switch {
             "environments" or "teams" or "team-apps" or "status" or "abort" or "continue" => System.Array.Empty<string>(),
-            "apps" => new[] { "--env" }, "tag" => new[] { "--version", "--description", "--env" },
+            "apps" => new[] { "--env" }, "download" => new[] { "--env", "--out", "--extract" }, "tag" => new[] { "--version", "--description", "--env" },
             "deploy" => new[] { "--from", "--to", "--version", "--notes", "--wait" },
             _ => throw new LtError(Usage, 2) };
         int i = 1;
         string? positional = null;
-        if (verb is "tag" or "deploy" or "team-apps" or "status" or "abort" or "continue")
+        if (verb is "tag" or "deploy" or "download" or "team-apps" or "status" or "abort" or "continue")
         {
             if (i == args.Length || string.IsNullOrWhiteSpace(args[i]) || args[i].StartsWith("--")) throw new LtError(Usage, 2);
             positional = args[i++];
@@ -272,14 +327,14 @@ static class LifeTime
             var option = args[i++];
             if (!allowed.Contains(option) || options.ContainsKey(option)) throw new LtError("Unknown or duplicate option. " + Usage, 2);
             string? value = null;
-            if (option != "--wait")
+            if (option is not ("--wait" or "--extract"))
             {
                 if (i == args.Length || string.IsNullOrWhiteSpace(args[i]) || args[i].StartsWith("--")) throw new LtError("Option requires a value. " + Usage, 2);
                 value = args[i++];
             }
             options.Add(option, value);
         }
-        if (verb == "tag" && !options.ContainsKey("--version") || verb == "deploy" && (!options.ContainsKey("--from") || !options.ContainsKey("--to")))
+        if (verb == "tag" && !options.ContainsKey("--version") || verb == "download" && (!options.ContainsKey("--env") || !options.ContainsKey("--out")) || verb == "deploy" && (!options.ContainsKey("--from") || !options.ContainsKey("--to")))
             throw new LtError(Usage, 2);
         return (verb, positional, options);
     }
@@ -332,9 +387,20 @@ static class LifeTime
             if (response.StatusCode != System.Net.HttpStatusCode.OK)
                 throw new LtError($"package download refused (HTTP {(int)response.StatusCode})", 2);
             using var input = response.Content.ReadAsStream();
-            using var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
-            input.CopyToAsync(output, timeout.Token).GetAwaiter().GetResult();
-            if (output.Length == 0) throw new LtError("package download was empty", 2);
+            // CreateNew: an existing file is never touched. Only the file made here is deleted when the copy fails.
+            var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
+            try
+            {
+                input.CopyToAsync(output, timeout.Token).GetAwaiter().GetResult();
+                if (output.Length == 0) throw new LtError("package download was empty", 2);
+                output.Dispose();
+            }
+            catch
+            {
+                output.Dispose();
+                File.Delete(path);
+                throw;
+            }
         }
         public JsonNode? Send(string method, string path, object? payload = null, int expected = 200)
         {

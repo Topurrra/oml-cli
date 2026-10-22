@@ -78,7 +78,10 @@ function wrap(text,max) { const out=[]; let line=''; for(const w of text.split('
 function say(text) { $('status').textContent=text; }
 function theme(value) { document.documentElement.dataset.theme=value; $('theme').textContent=value==='dark'?'Light theme':'Dark theme'; $('theme').setAttribute('aria-pressed',String(value==='light')); }
 let saved; try { saved=localStorage.getItem('oml-architecture-theme'); } catch {}
-theme(saved==='light'||saved==='dark'?saved:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'));
+// #theme=light|dark (set by the oml dashboard frame) wins over the saved choice and the system setting.
+const hashTheme=()=>(/[#&]theme=(light|dark)/.exec(location.hash)||[])[1];
+theme(hashTheme()||(saved==='light'||saved==='dark'?saved:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')));
+addEventListener('hashchange',()=>{ if(hashTheme()) theme(hashTheme()); });
 $('theme').onclick=()=>{ const t=document.documentElement.dataset.theme==='dark'?'light':'dark'; theme(t); try { localStorage.setItem('oml-architecture-theme',t); } catch {} };
 
 // Applications, platform modules and the starting view.

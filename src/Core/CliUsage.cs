@@ -45,7 +45,7 @@ static class CliUsage
         oml pull [Module] [--out file.oml]  (save the module open in Service Studio to a file; needs 11.55.93+)
         oml publish <Module | file.oml>     (1-Click Publish through Service Studio)
         oml references <Module | file.oml>  (Refresh All references through Service Studio)
-        oml lt environments|apps|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lt' for usage)
+        oml lt environments|teams|team-apps|apps|download|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lt' for usage)
         oml font woff2 <input> [output.woff2] [--force]
         oml font batch <folder> [--out folder] [--force]
         oml image <input> [--to png|jpeg|webp|svg|ico] [--max-width N] [--max-height N] [--quality 1-100] [--out file] [--force] [--precision 0-10] [--strip-title] [--remove-ids] [--aggressive]   (convert, resize or optimize a raster image or SVG)

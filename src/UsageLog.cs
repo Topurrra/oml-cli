@@ -20,7 +20,7 @@ static class UsageLog
     // Commands whose second word is a verb worth telling apart in the summary (`lt status` vs `lt deploy`).
     static readonly Dictionary<string, string[]> Verbs = new()
     {
-        ["lt"] = ["environments", "apps", "teams", "team-apps", "tag", "deploy", "status", "abort", "continue"],
+        ["lt"] = ["environments", "apps", "teams", "team-apps", "download", "tag", "deploy", "status", "abort", "continue"],
         ["app"] = ["list", "extract", "pack"], ["extension"] = ["inspect", "new"], ["font"] = ["woff2", "batch"],
         ["image"] = ["batch"], ["spec"] = ["check", "schema"], ["translations"] = ["export"], ["test"] = ["scaffold"],
     };

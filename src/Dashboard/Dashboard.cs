@@ -138,6 +138,13 @@ static partial class Dashboard
                 return;
             }
             if (path.StartsWith("/view/") && request.HttpMethod == "GET") { await View(response, path[6..]); return; }
+            if (path.StartsWith("/download/") && request.HttpMethod == "GET")
+            {
+                // A plain link cannot send a header, so the key comes in the query, as for the page itself.
+                if (!KeyMatches(request.QueryString["key"])) { await Text(response, 403, "Missing or wrong dashboard key."); return; }
+                await SendDownload(response, path[10..]);
+                return;
+            }
             if (path == "/" && request.HttpMethod == "GET")
             {
                 if (!KeyMatches(request.QueryString["key"]))
@@ -233,6 +240,41 @@ static partial class Dashboard
         await response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(view.html));
     }
 
+    // Large results (zips, .oap files, reports) are fetched from /download/<id>?key=<key> instead of travelling as base64
+    // in the JSON answer. An id is random, works for 10 minutes, and needs the dashboard key.
+    // OML_DASHBOARD_DOWNLOAD_SECONDS (1-600) is for tests only: a short life to check that an id expires.
+    internal static readonly TimeSpan DownloadLife =
+        int.TryParse(Environment.GetEnvironmentVariable("OML_DASHBOARD_DOWNLOAD_SECONDS"), out var s) && s is >= 1 and <= 600 ? TimeSpan.FromSeconds(s) : TimeSpan.FromMinutes(10);
+    // Only a file path is kept, never the bytes: a result is written to the work folder first.
+    static readonly ConcurrentDictionary<string, (string name, string type, string file, DateTime until)> Downloads = new();
+
+    internal static string AddDownload(string name, string type, string file)
+    {
+        SweepDownloads();
+        var id = Convert.ToHexString(RandomNumberGenerator.GetBytes(16)).ToLowerInvariant();
+        Downloads[id] = (name, type, file, DateTime.UtcNow + DownloadLife);
+        return id;
+    }
+
+    static void SweepDownloads()
+    {
+        foreach (var old in Downloads.Where(d => d.Value.until < DateTime.UtcNow).Select(d => d.Key).ToArray()) Downloads.TryRemove(old, out _);
+    }
+
+    static async Task SendDownload(HttpListenerResponse response, string id)
+    {
+        SweepDownloads();
+        if (!Downloads.TryGetValue(id, out var d) || d.until < DateTime.UtcNow) { await Text(response, 404, "This download has expired. Run the action again."); return; }
+        if (!File.Exists(d.file)) { await Text(response, 404, "The file is gone: " + d.file); return; }
+        // A downloaded HTML report opened from here must not run as this origin.
+        response.Headers["Content-Security-Policy"] = "sandbox";
+        response.ContentType = d.type;
+        var safe = new string(d.name.Select(c => c < 32 || c > 126 || c is '"' or '\\' or ';' ? '_' : c).ToArray());
+        response.Headers["Content-Disposition"] = $"attachment; filename=\"{safe}\"; filename*=UTF-8''{Uri.EscapeDataString(d.name)}";
+        await using var stream = new FileStream(d.file, FileMode.Open, FileAccess.Read, FileShare.Read);
+        await stream.CopyToAsync(response.OutputStream);
+    }
+
     // ---- commands ----
 
     // Every command runs on this one thread, one at a time: they share Console.Out, and Service Studio's model is not
@@ -247,7 +289,7 @@ static partial class Dashboard
 
     internal sealed record Result(int Code, JsonNode? Output, string Stderr, string Cli);
 
-    static readonly string[] LauncherCommands = ["doctor", "spec", "font", "lt", "log"];
+    static readonly string[] LauncherCommands = ["doctor", "spec", "doc", "warn", "font", "lt", "log"];
 
     // The only way the dashboard runs oml. The arguments are built by DashboardApi.cs, never taken from the page as they are.
     internal static Task<Result> Oml(params string[] args)
@@ -255,10 +297,28 @@ static partial class Dashboard
         var done = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
         Queue.Add(() =>
         {
+            // Temporary upload and output folders mean nothing to a person: only their last part is shown.
+            var temp = Path.GetTempPath();
+            running = Tuple.Create(CliText(args.Select(a => a.StartsWith(temp, StringComparison.OrdinalIgnoreCase) ? Path.GetFileName(a) : a)), DateTime.UtcNow);
             try { done.SetResult(Execute(args)); }
             catch (Exception e) { done.SetResult(new Result(2, new JsonObject { ["error"] = (e.InnerException ?? e).Message }, "", CliText(args))); }
+            finally { running = null; }
         });
         return done.Task;
+    }
+
+    // What the worker runs now, so a page that waits can say what it waits for.
+    static volatile Tuple<string, DateTime>? running;
+
+    static Reply QueueState()
+    {
+        var r = running;
+        return new(200, new JsonObject
+        {
+            ["running"] = r?.Item1,
+            ["seconds"] = r is null ? 0 : (int)(DateTime.UtcNow - r.Item2).TotalSeconds,
+            ["waiting"] = Queue.Count,
+        });
     }
 
     // Also `oml setup run`, which runs one command the same way outside the dashboard.
@@ -269,7 +329,9 @@ static partial class Dashboard
         // After a self-test past its limit (Core), every command is refused with its message; see Cli.SelfTestAbandoned.
         if (capture is not null && (abandoned ??= capture.DeclaringType!.GetMethod("SelfTestAbandoned")!).Invoke(null, null) is string stopped)
             return new Result(2, new JsonObject { ["error"] = stopped }, "", CliText(args));
-        if (LauncherCommands.Contains(args[0]))
+        // `architecture --team` and `check --team` download through LifeTime in the launcher first, as on the command line.
+        var team = args[0] is "architecture" or "check" && args.Contains("--team");
+        if (LauncherCommands.Contains(args[0]) || team)
         {
             var (previousOut, previousError) = (Console.Out, Console.Error);
             var (output, error) = (new StringWriter(), new StringWriter());
@@ -283,8 +345,12 @@ static partial class Dashboard
                 {
                     "doctor" => Doctor.Run(rest),
                     "spec" => SpecCommand.Run(rest),
+                    "doc" => DocCommand.Run(rest),
+                    "warn" => DocCommand.Warn(rest),
                     "font" => FontAssets.Run(rest),
-                    "lt" => LifeTime.Run(rest),
+                    "lt" => LifeTime.Run(rest, CoreRun),
+                    "architecture" or "check" when args[0] == "check" && Program.CheckPreflight(args) is { } refused => Refuse(refused),
+                    "architecture" or "check" => LifeTime.Architecture(args, CoreRun),
                     _ => UsageLog.Summary(rest),
                 };
             }
@@ -308,6 +374,25 @@ static partial class Dashboard
         try { parsed = text.Length == 0 ? null : JsonNode.Parse(text); }
         catch (JsonException) { parsed = JsonValue.Create(text); }
         return new Result(code, parsed, stderr.Trim(), CliText(args));
+    }
+
+    static int Refuse(string error)
+    {
+        Console.WriteLine(JsonOutput.Serialize(new { error }));
+        return 2;
+    }
+
+    // One Core command from a launcher command (lt download --extract, architecture --team): its output goes to the
+    // launcher's captured Console.
+    static int CoreRun(string[] args)
+    {
+        var ss = Locations.ServiceStudio;
+        if (Program.CoreProblem(ss) is { } problem) { Console.Error.WriteLine(problem); return 2; }
+        capture ??= Program.LoadCore(ss).GetType("OmlCli.Cli", throwOnError: true)!.GetMethod("Capture")!;
+        var parts = (string[])capture.Invoke(null, [ss, args])!;
+        Console.Out.Write(parts[1]);
+        Console.Error.Write(parts[2]);
+        return int.Parse(parts[0]);
     }
 
     // The same command as a person would type it, so the page can teach the CLI.

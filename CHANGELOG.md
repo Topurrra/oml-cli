@@ -2,6 +2,59 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.5.0
+
+### Added
+- `oml lt download <App> --env <Env> --out <folder> [--extract]`: downloads the `.oap` of the application as it runs in one environment (GET only, the same host checks as the other `lt` commands, never over an existing file). `--extract` also runs `app extract`. No version picker: the LifeTime API v2 docs we have do not describe a download of another tagged version.
+- Dashboard: a **Get modules** page and a working set used by every page. Sources: Service Studio (check several open modules, then copy them with `pull`), a folder (`.oml` and `.oap`, with `app list` and `app extract`), dropped files, recent modules, and LifeTime (per application). A folder listing stops at 500 files or 10 seconds and says so. Each module is Change or Read only. Other pages read it through `window.omlWorkset` (documented in `web/app.js`).
+- Dashboard Prompt builder: the working set with roles, Read only modules as `--in` producers, one source line per module (a Service Studio copy says not to install over the open module without asking), an `oml review ... --md` step on by default, and "Copy as oml run steps" (one `<Name>.spec.json` per module; off without a module to change).
+- Dashboard LifeTime page: team and team-application filters, "Download .oap" per application and environment, and team reports (`architecture --team`, `check --team`). It stays read only.
+- Dashboard forms: `openapi --server`, `architecture --app/--layers/--json`, `extension inspect`, `templates` and `translations export`.
+
+### Dashboard
+- Images: the form shows only the options of the chosen format, with short help. ICO has size checkboxes and two presets (favicon 16, 32, 48; app icon with every size). SVG has the tracing options for PNG and JPEG files (mode, colours, smoothness, specks, alpha threshold, transparent background) and the optimizer options for SVG files (decimals, remove unused ids, smallest result, remove title and description). Max height is new. Quality shows only for JPEG and WebP. ICO, GIF and BMP files with "Same as input" are stopped before the upload with a message that a format is needed (the server also answers 400 for them).
+- Images: the server checks every option with the CLI's ranges and combinations and answers 400 with the reason (before, a wrong max width or quality was silently ignored). Results show the details (sizes, colours and paths, removed background, kept original, notes). The Saved column says n/a for ICO. A batch shows the honest `oml image batch` command. The page no longer says images never get larger: it says that a converted file can be larger.
+- One viewer for every image and frame: Fit or 100%, zoom (buttons, keys, Ctrl + wheel), drag to pan, full screen (Esc closes it), open in a new tab, "Full height" for previews (the preview reports its height), Before/After for converted images. Thumbnails open it; image results have alt text.
+- Architecture, check and review pages read `#theme=light|dark` before the saved choice and the system setting; the dashboard frame passes its theme and updates it when you switch.
+- A file dropped outside a drop zone no longer makes the browser open it and leave the dashboard. While you drag files, an overlay says where to drop them.
+- Home runs `doctor` once per dashboard run (it contacts Service Studio's MCP server) and shows one summary line; the details open by themselves when a check needs attention. "Check again" runs it again.
+- Render all shows "Rendering n of N" and has a Stop button. After 2 seconds every spinner names the command that runs now (commands run one at a time).
+- Rules and checklist has a Best practices tab (`oml doc best-practices`).
+- Cookbook: every command of `oml --help`, with the 1.4.0 commands and options (check, review, test scaffold, doc, warn, `find --text`, `--history`, `--css`, `tree --depth`, preview steps, `--serve`, `--timings`, ICO, tracing, SVG options, `lt teams`, `team-apps`, `abort`, `continue`).
+- Text: "Pull" is now "Copy from Service Studio" (it saves a copy; the open module does not change). The architecture upload shows `--in <folder with these files>` instead of a made-up folder. The LifeTime help names Stop dashboard.
+- Accessibility: repeated buttons (Render, Screenshot, Generate, Add, Copy, viewer controls) have a unique accessible name.
+- Narrow windows: no blank band above short pages under 900 px.
+- `oml --help` and `commands.md` list `lt teams` and `lt team-apps`.
+- New **Check** page: `oml check` on a module or on folders, with a rules file (`--rules`, and "Make a rules file" for `--init-rules`) and a baseline (`--baseline`; "Use as the baseline next time" takes the report of this run). A findings table with filters by severity, category and module, the HTML report in a frame, and "Copy a fix prompt" per finding: a ready task that tells an agent to fix that finding with oml, then check and review the staged file.
+- New **Review** page: `oml review` of a module and its changed copy (the `.staged.oml` next to it by default). Risks first, then the changes and the new check findings, the HTML report in a frame, "Copy Markdown" (`--md`) and "Copy release notes" (`--notes`). `#/review?before=<path>&after=<path>` runs it at once.
+- New **Docs and search** page, also opened with Ctrl+K or the search button in the top bar: `oml doc --search`, `oml spec --search` and `oml warn`. Each result shows its kind and an Open button; the page renders the opened topic section, spec section, warning, recipe or command usage as text. A weak match shows the hint. The dashboard now runs `doc` and `warn` in its own process, like `spec`.
+- **Module explorer:** "Search inside the module" (`find <module> --text`, ranked hits with path and why), tabs per element: Describe, Paths (`tree --depth`, a copy button on every path, "Show more" for a cut part), Style sheet (`describe --css`) and, for a public server action, Test screens (`test scaffold` with a BDDFramework module; the spec goes to the work folder, and the next commands have a copy button). "Show change history" adds `--history` to `inspect` and `describe`. "Validate" runs `validate --warnings`; each message links to its `oml warn` text. `#/explorer?module=<path>&element=<Name>&tab=paths` opens an element.
+- **Preview gallery:** per card, "Inputs and interaction steps": a field per block or screen input (`--arg`), the screenshot height (`--height`), and steps (`--click`, `--type`, `--wait`, `--eval`). The card shows each step's result (`steps[].ok`), the console output, blocked requests and script errors.
+- **Timings:** the clock button in the top bar adds `--timings` to the commands that load a module and shows one bar per phase under the CLI line. Every result says "Done in n s".
+- The dashboard's Core lock (`Commands.Run.cs`) now also allows `check` (not `--team`), `review`, `tree`, `validate` and `test scaffold`. Every new endpoint builds its arguments from checked input; an option-like value (a leading `-`) is refused, except in a `--arg` value (`Count=-1`), and a number field that is not a whole number is refused, not replaced by its default.
+
+### Changed
+- Dashboard: zips, `.oap` files and reports (architecture, check and review HTML, check JSON, review Markdown) are downloaded from a short-lived `/download/<id>` address (10 minutes, needs the dashboard key) instead of base64 inside the JSON answer. The files stay in the work folder; the dashboard keeps only their paths.
+- Dashboard: the Review page offers the working set too: a module fills Before, and its staged copy fills After. Check, Review and Architecture reports use the shared viewer.
+
+### Tests
+- `dashboard-check`: every new image option and 13 refused values (errors name the field and the CLI option); one file gets only the options of its type, and the shown command runs with exit 0; ICO sizes; trace, embed and optimizer details; the doctor result kept for the run (a run counter) and `fresh=1`; the queue endpoint; the best-practices endpoint; the architecture upload CLI line and `#theme=` in the three report templates; preview frames report their height to the viewer; the drop guard (code check); every `oml --help` command is in the cookbook; every page loads in headless Edge without a script error. Doctor in this check uses a closed port, so it never reaches a real Service Studio.
+- `dashboard-check`: the new endpoints (check with a baseline and a rules file, review, search in all three scopes, opening every hit of several searches plus `oml doc|spec|warn --help` and the refused forms, find --text, tree, inspect and describe `--history`, describe `--css`, validate, test scaffold, timings, preview inputs and steps) and their refusals; the Check, Review, Docs and Preview pages load in headless Edge with no script error and show their results.
+- `lifetime-check`: the mock now serves real packages made with `oml app pack`. `lt download` against it: file, no overwrite, bad options, another download host refused with nothing written, `--extract` success and failure (the `.oap` stays). Dashboard: download and extract, and real `architecture --team` and `check --team` pages with their JSON through `/download`, teams and team apps, and no token in any answer.
+- `dashboard-check`: folder and `.oap` listing, extraction, upload, `/download` key, Host and expiry checks, architecture `--json`, extension inspect, and a page self-test of the working set API and the prompt text; the new pages load without script errors in headless Edge.
+
+## 1.4.1
+
+### Fixed
+- Dashboard: every Download button and the copy fallback failed with a script error (`document.add` does not exist). They now work. This bug was present since 1.3.0.
+- Dashboard: choosing ICO on the Images page returned a PNG, because the server silently ignored the format. ICO is now offered (favicon sizes 16, 32 and 48 px), and an unknown format is refused with a clear message instead of being ignored.
+- Dashboard: ICO results show a thumbnail. Max width is disabled for ICO (its frame sizes are fixed). An ICO file with "Same as input" now asks for a target format, instead of an error that named a CLI option.
+- Dashboard: the image card no longer claims that every result is smaller; a different format or ICO can be larger.
+- Dashboard: the SVG option said "from SVG only". It now says it traces PNG/JPEG logos and icons, or optimizes an SVG, as the CLI does since 1.4.0.
+
+### Tests
+- `dashboard-check`: ICO conversion returns a 3-size `.ico`; an unknown format gets HTTP 400; `app.js` has no `document.add` call.
+
 ## 1.4.0
 
 ### Images: ICO, PNG to SVG, SVG optimization

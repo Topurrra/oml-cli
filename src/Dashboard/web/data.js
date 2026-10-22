@@ -1,4 +1,5 @@
-// Command cookbook: every oml command with a realistic example. Keep it in step with the usage text in src/Core/Cli.cs.
+// Command cookbook: every oml command with a realistic example. Keep it in step with the usage text in src/Core/CliUsage.cs:
+// tests/dashboard-check.ps1 fails when a command of `oml --help` is missing here.
 window.omlCookbook = [
   { group: 'Start and check', items: [
     ['oml version', 'Show the oml version, the Service Studio build and whether the self-test passed.'],
@@ -20,9 +21,31 @@ window.omlCookbook = [
     ['oml describe C:\\Work\\Orders.oml Order_Save --depth 1 --in C:\\Work\\Producers', 'Also show the bodies of called actions from producer modules.'],
     ['oml find Customer_Validate C:\\Work\\Orders.oml --in C:\\Work\\Producers', 'Find which module owns an element.'],
     ['oml find "Order*" C:\\Work\\Orders.oml', 'Find every element whose name starts with Order.'],
+    ['oml find C:\\Work\\Orders.oml --text "invoice total"', 'Search inside the module: names, descriptions, expressions, SQL and labels.'],
+    ['oml inspect C:\\Work\\Orders.oml --own --history', 'Also show who changed each element last, and when.'],
+    ['oml inspect C:\\Work\\Orders.oml --own --changed-since 2026-10-01', 'List only the elements changed on or after a day.'],
+    ['oml describe C:\\Work\\Orders.oml OrderDetail --css', 'Print the whole style sheet of a screen, block, email or theme, to edit before a restyle.'],
     ['oml census C:\\Work\\Orders.oml', 'Count the elements in the module.'],
     ['oml tree C:\\Work\\Orders.oml Order_Save', 'Show the object tree of one element with exact paths.'],
+    ['oml tree C:\\Work\\Orders.oml OrderDetail --depth 2', 'Show only the top levels of a big screen; then open one part with its path.'],
     ['oml validate C:\\Work\\Orders.oml --warnings', 'Show validation errors and warnings.'],
+  ] },
+  { group: 'Check and review', items: [
+    ['oml check C:\\Work\\Orders.oml --out C:\\Work\\orders-check.html', 'Check a module against the production rules and write an HTML report.'],
+    ['oml check --in C:\\Exports\\Payments --json C:\\Exports\\check.json --fail-on high', 'Check a folder of modules. Exit code 1 when a high finding is reported.'],
+    ['oml check --init-rules --out C:\\Work\\oml-rules.json', 'Write the team rules file: every rule, on or off, with its severity.'],
+    ['oml check C:\\Work\\Orders.oml --rules C:\\Work\\oml-rules.json --baseline C:\\Work\\old-check.json', 'Use the team rules and mark which findings are new.'],
+    ['oml review C:\\Work\\Orders.oml C:\\Work\\Orders.staged.oml --md C:\\Work\\Orders.review.md', 'What changed, the production-rule risks and new findings. Run it before you install.'],
+    ['oml review C:\\Work\\Orders.oml C:\\Work\\Orders.staged.oml --out C:\\Work\\review.html --notes C:\\Work\\release-notes.md', 'Write the review as a web page, and short release notes for testers.'],
+    ['oml test scaffold C:\\Work\\Orders.oml Order_Save --bdd C:\\Work\\BDDFramework.oml --out C:\\Work\\orders-tests.json', 'Write a spec for BDD test screens in a separate test module.'],
+  ] },
+  { group: 'Rules and help', items: [
+    ['oml doc', 'List the topics of the OutSystems rules for agents.'],
+    ['oml doc best-practices', 'Read the best practices to follow for new elements.'],
+    ['oml doc ui-reactive#forms', 'Read one section of a topic.'],
+    ['oml doc --search "confirm popup before delete"', 'Find the most likely sections, spec keys, recipes, warnings or commands.'],
+    ['oml spec --search "block event"', 'Search the spec keys and sections.'],
+    ['oml warn NoErrorHandlingInFlow', 'Read the cause and fix of a validation message.'],
   ] },
   { group: 'Change a module', items: [
     ['oml new C:\\Work\\Sandbox.oml --name Sandbox --kind CrossDevice', 'Create a new blank Reactive module.'],
@@ -31,6 +54,8 @@ window.omlCookbook = [
     ['oml spec schema --out C:\\Work\\spec.schema.json', 'Write a JSON Schema for autocomplete in VS Code.'],
     ['oml apply C:\\Work\\Orders.oml C:\\Work\\change.json C:\\Work\\Orders.staged.oml', 'Apply a spec to a new staged file. The source does not change.'],
     ['oml apply C:\\Work\\Orders.oml C:\\Work\\change.json C:\\Work\\Orders.staged.oml --describe-created', 'Apply and describe the new elements in the same call.'],
+    ['oml apply C:\\Work\\Orders.oml C:\\Work\\change.json C:\\Work\\Orders.staged.oml --timings', 'Also show how many milliseconds each phase took.'],
+    ['oml new C:\\Work\\OrdersApi.oml --template TemplateService --name OrdersApi', 'Create a module from a local template. oml templates lists them.'],
     ['oml run C:\\Work\\steps.json', 'Run several commands in one process, so Service Studio loads once.'],
     ['oml install C:\\Work\\Orders.staged.oml C:\\Work\\Orders.oml', 'Replace the module with the staged file. Only after you check it.'],
     ['oml translations export C:\\Work\\Orders.oml C:\\Work\\Orders-translations.xlsx', 'Export the translations to Excel.'],
@@ -39,6 +64,9 @@ window.omlCookbook = [
     ['oml preview C:\\Work\\Orders.staged.oml StatusBadge --theme light --screenshot C:\\Work\\badge-light.png', 'Render a block and take a screenshot.'],
     ['oml preview C:\\Work\\Orders.staged.oml StatusBadge --theme dark --width 390 --screenshot C:\\Work\\badge-dark-390.png', 'Check the dark theme at phone width.'],
     ['oml preview C:\\Work\\Orders.staged.oml OrderCard --arg Title="\\"Order 1042\\""', 'Render a block with an input value.'],
+    ['oml preview C:\\Work\\Orders.staged.oml OrderList --height 2000 --screenshot C:\\Work\\list.png', 'Take a taller screenshot of a long screen.'],
+    ['oml preview C:\\Work\\Orders.staged.oml LoginForm --type "#Username=ana" --click "#Login" --wait 500 --screenshot C:\\Work\\login.png', 'Type, click and wait before the screenshot.'],
+    ['oml preview C:\\Work\\Orders.staged.oml StatusBadge --serve', 'A live preview in your browser that reloads when the file changes. Ctrl+C stops it.'],
   ] },
   { group: 'Service Studio', items: [
     ['oml studio', 'Check that Service Studio\'s MCP server answers and list the open modules.'],
@@ -56,9 +84,14 @@ window.omlCookbook = [
   { group: 'LifeTime', items: [
     ['oml lt environments', 'List the environments.'],
     ['oml lt apps --env Development', 'List the applications in Development with their tags.'],
+    ['oml lt teams', 'List the teams.'],
+    ['oml lt team-apps Payments', 'List the applications of one team.'],
+    ['oml lt download Orders --env Development --out C:\\Exports --extract', 'Download the package of Orders as it runs in Development, and extract its modules. Read only.'],
     ['oml lt status 6f1c2a9e-3b7d-4c55-9e0a-1d2b3c4d5e6f', 'Read the status of a deployment.'],
     ['oml lt tag Orders --version 1.4.0 --description "Invoice export"', 'Tag the application. Ask before you tag.'],
     ['oml lt deploy Orders --from Development --to Test --wait', 'Deploy the latest tag to Test and wait. Ask before you deploy.'],
+    ['oml lt continue 6f1c2a9e-3b7d-4c55-9e0a-1d2b3c4d5e6f', 'Continue a paused deployment. Ask before you continue.'],
+    ['oml lt abort 6f1c2a9e-3b7d-4c55-9e0a-1d2b3c4d5e6f', 'Stop a running deployment. Ask before you abort.'],
   ] },
   { group: 'Packages and extensions', items: [
     ['oml app list C:\\Exports\\Orders.oap', 'List the modules in an application package.'],
@@ -73,6 +106,12 @@ window.omlCookbook = [
     ['oml font batch C:\\Assets\\Fonts --out C:\\Assets\\WebFonts', 'Convert every font in a folder.'],
     ['oml image C:\\Assets\\Hero.png --to webp --max-width 1280 --quality 85', 'Convert and shrink an image.'],
     ['oml image C:\\Assets\\Logo.svg --to svg --precision 3 --out C:\\Assets\\Logo.min.svg', 'Make an SVG smaller.'],
+    ['oml image C:\\Assets\\Icon.svg --to svg --aggressive', 'Make an SVG used only as an image or a CSS background as small as possible.'],
+    ['oml image C:\\Assets\\Logo.png --to svg --transparent-bg', 'Trace a PNG logo to vector paths and leave out its background.'],
+    ['oml image C:\\Assets\\Icon.png --to svg --colors 3 --tolerance 0.5', 'Trace with at most 3 colours and smoother curves.'],
+    ['oml image C:\\Assets\\Photo.jpg --to svg --mode embed --max-width 1200', 'Put a photo inside an SVG file as it is (not a vector).'],
+    ['oml image C:\\Assets\\Logo.png --to ico --out C:\\Assets\\favicon.ico', 'Make a favicon with the sizes 16, 32 and 48 px.'],
+    ['oml image C:\\Assets\\Logo.svg --to ico --sizes 16,24,32,48,64,128,256 --out C:\\Assets\\app.ico', 'Make an app icon with every size.'],
     ['oml image batch C:\\Assets\\Photos --to webp --max-height 800 --out C:\\Assets\\WebPhotos', 'Convert every image in a folder.'],
   ] },
   { group: 'Diagnostics', items: [

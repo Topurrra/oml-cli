@@ -50,7 +50,7 @@ public static class Program
             Console.WriteLine(filtered[0] == "lt" ? LifeTime.Usage.Replace(" | ", Environment.NewLine + "oml lt ") : CliUsage.For(filtered[0]));
             return 0;
         }
-        if (filtered.FirstOrDefault() == "lt") return LifeTime.Run(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "lt") return LifeTime.Run(filtered.Skip(1).ToArray(), RunCore);
         if (filtered.FirstOrDefault() == "font") return FontAssets.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "doctor") return Doctor.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "spec") return SpecCommand.Run(filtered.Skip(1).ToArray());
@@ -71,7 +71,7 @@ public static class Program
     }
 
     // `check --team`: refuse bad outputs, rules file or baseline before the team's applications are downloaded.
-    static string? CheckPreflight(string[] args)
+    internal static string? CheckPreflight(string[] args)
     {
         var team = System.Array.IndexOf(args, "--team");
         if (team + 1 >= args.Length || args[team + 1].StartsWith("--")) return null; // LifeTime.Architecture reports the missing name
