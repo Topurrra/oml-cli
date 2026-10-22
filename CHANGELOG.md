@@ -2,6 +2,11 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.6.1
+
+### Changed
+- Skill: the UI preview step renders two light screenshots per screen by default, laptop (1366 px) and desktop (1920 px). A dark step is added only for theme or colour work, and a 390 px step only for mobile work, or when the user asks. This saves preview time and image tokens on tasks that do not need them. Same change in `copilot-instructions.md`, `architect.md` and `ui-checklist.md`.
+
 ## 1.6.0
 
 ### Fixed
