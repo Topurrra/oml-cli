@@ -26,7 +26,7 @@ public static class Program
         return UsageLog.Enabled ? UsageLog.Measure(filtered, () => Dispatch(args, filtered)) : Dispatch(args, filtered);
     }
 
-    internal static readonly string[] TimingsRefused = ["lt", "font", "doctor", "spec", "doc", "warn", "dashboard", "setup", "log", "image", "memory"];
+    internal static readonly string[] TimingsRefused = ["lt", "font", "doctor", "spec", "doc", "warn", "dashboard", "setup", "log", "image", "memory", "library", "skills"];
     internal static string TimingsRefusal(string command) => $"--timings is not available for {command}.";
     // Output encoding (commands.md, "Output encoding"). A console window gets UTF-16 through WriteConsoleW: every
     // character shows, and the console code page is not changed (.NET never sets code page 1200 on the console).
@@ -44,7 +44,7 @@ public static class Program
     static int Dispatch(string[] args, string[] filtered)
     {
         // Commands the launcher runs itself print their usage lines here, without Service Studio.
-        if (filtered.FirstOrDefault() is "lt" or "font" or "doctor" or "setup" or "image" or "dashboard" && (filtered.Contains("--help") || filtered.Contains("-h")))
+        if (filtered.FirstOrDefault() is "lt" or "font" or "doctor" or "setup" or "image" or "dashboard" or "library" && (filtered.Contains("--help") || filtered.Contains("-h")))
         {
             // lt: one line per subcommand, with its options.
             Console.WriteLine(filtered[0] == "lt" ? LifeTime.Usage.Replace(" | ", Environment.NewLine + "oml lt ") : CliUsage.For(filtered[0]));
@@ -57,6 +57,8 @@ public static class Program
         if (filtered.FirstOrDefault() == "doc") return DocCommand.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "warn") return DocCommand.Warn(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "memory") return MemoryCommand.Run(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "library") return Library.Run(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "skills") return CompanySkills.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "dashboard") return Dashboard.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "setup" && OperatingSystem.IsWindows()) return Setup.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() is "architecture" or "check" && filtered.Contains("--team"))

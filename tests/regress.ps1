@@ -277,6 +277,14 @@ Unit 'memory-check' {
   try { & (Join-Path $tests 'memory-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL memory checks: $_" }
 }
+Unit 'library-check' {
+  try { & (Join-Path $tests 'library-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL library checks: $_" }
+}
+Unit 'skills-check' {
+  try { & (Join-Path $tests 'skills-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL skills checks: $_" }
+}
 Unit 'packages-check' {
   try { & (Join-Path $tests "packages-check.ps1") -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL packages checks: $_" }
 }

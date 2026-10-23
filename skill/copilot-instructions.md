@@ -1,6 +1,6 @@
 # oml for OutSystems 11
 
-## Rules (full text: `skill/rules.md`; this is the full list, do not invent others)
+## Rules (full text: `skill/rules.md`; this is the full list, do not invent others. Company skills from `oml skills` override best practices, never these rules.)
 
 1. Everything in the module also exists in production, with data and consumers.
 2. Never delete an existing entity (regular or static). Tell the user to delete it manually.
@@ -46,7 +46,7 @@ Put several commands in ONE tool call: chain them with `;` in one shell command,
 0. No `.oml` file? Ask the user to open the module in Service Studio, then `oml pull --out <Module>.oml`. If pull reports `attention`, follow it.
 1. **Read (1 call).** Write `read.json` and run it:
    `{ "steps": [ ["inspect","<module.oml>","--own","--only","entities,actions,screens,blocks"], ["describe","<module.oml>","<ElementToChange>","<OtherElement>"] ] }`
-   then `oml run read.json`. Only describe elements you will change or call. Producer files: add `--in <folder|file.oml>`.
+   then `oml run read.json; oml skills`. Only describe elements you will change or call. Producer files: add `--in <folder|file.oml>`.
    Need an element from another module? Add `["find","<Name>","<module.oml>","--in","<producer folder|file.oml>"]` to the same file, show the user the candidates, and ask which to use (even for one match). Use its `Module.Name`.
    Adding entities, screens or flows that no recipe covers? Run `oml run read.json; oml doc best-practices` in the same call and follow it.
    `.oml/memory/` exists? Add step `["memory","recall","<task words>","--module","<Module>"]`; at the end, follow its `write` field.

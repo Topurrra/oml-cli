@@ -368,22 +368,52 @@ sealed class SearchIndex
                 }
                 tf[d][f] = counts;
                 length[d][f] = tokens.Count;
-                average[f] += tokens.Count;
-                foreach (var t in counts.Keys)
-                {
-                    if (!postings.TryGetValue(t, out var list)) postings[t] = list = new List<int>();
-                    if (list.Count == 0 || list[^1] != d) list.Add(d);
-                }
             }
-            foreach (var name in (doc.TitleIsName ? doc.Names.Append(doc.Title) : doc.Names).Select(SearchText.Norm).Where(n => n.Length > 0)
-                         .SelectMany(n => new[] { n, SearchText.Stem(n) }).Distinct())
-            {
-                if (!exact.TryGetValue(name, out var list)) exact[name] = list = new List<int>();
-                list.Add(d);
-            }
+            Link(d);
             if (this.options.Substring) lowered[d] = (doc.Title + "\n" + doc.Keys + "\n" + doc.Body + "\n" + string.Join(" ", doc.Names)).ToLowerInvariant();
         }
         for (var f = 0; f < 3; f++) average[f] = docs.Count == 0 ? 1 : Math.Max(1, average[f] / docs.Count);
+    }
+
+    // A saved index (LibraryIndex): the counts the constructor above makes, read back without tokenizing the text again.
+    internal SearchIndex(IReadOnlyList<SearchDoc> docs, Dictionary<string, int>[][] tf, int[][] length, Dictionary<string, string> words, Dictionary<string, int> wordCounts)
+    {
+        this.docs = docs;
+        options = new SearchOptions();
+        this.tf = tf;
+        this.length = length;
+        lowered = new string[docs.Count];
+        foreach (var (k, v) in words) this.words[k] = v;
+        foreach (var (k, v) in wordCounts) this.wordCounts[k] = v;
+        for (var d = 0; d < docs.Count; d++) Link(d);
+        for (var f = 0; f < 3; f++) average[f] = docs.Count == 0 ? 1 : Math.Max(1, average[f] / docs.Count);
+    }
+
+    internal IReadOnlyList<SearchDoc> Docs => docs;
+    internal Dictionary<string, int>[][] Tf => tf;
+    internal int[][] Lengths => length;
+    internal Dictionary<string, string> Words => words;
+    internal Dictionary<string, int> WordCounts => wordCounts;
+
+    // A document's postings, field lengths and exact names, from its counts.
+    void Link(int d)
+    {
+        for (var f = 0; f < 3; f++)
+        {
+            average[f] += length[d][f];
+            foreach (var t in tf[d][f].Keys)
+            {
+                if (!postings.TryGetValue(t, out var list)) postings[t] = list = new List<int>();
+                if (list.Count == 0 || list[^1] != d) list.Add(d);
+            }
+        }
+        var doc = docs[d];
+        foreach (var name in (doc.TitleIsName ? doc.Names.Append(doc.Title) : doc.Names).Select(SearchText.Norm).Where(n => n.Length > 0)
+                     .SelectMany(n => new[] { n, SearchText.Stem(n) }).Distinct())
+        {
+            if (!exact.TryGetValue(name, out var list)) exact[name] = list = new List<int>();
+            list.Add(d);
+        }
     }
 
     public int Count => docs.Count;

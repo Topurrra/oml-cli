@@ -125,6 +125,17 @@ window.omlCookbook = [
     ['oml memory doctor --module C:\\Work\\Orders.oml', 'Check the hash chain (finds edits made outside oml) and that the named elements still exist in the module.'],
     ['oml memory handoff --module Orders', 'Print a short brief for the next agent: the task, staged files and open questions.'],
   ] },
+  { group: 'OutSystems docs library', items: [
+    ['oml library fetch', 'Download the OutSystems 11 docs (docs-product, docs-support, docs-howtos) from GitHub: Markdown only, about 15 MB. Run it again to update.'],
+    ['oml library fetch --source product --from C:\\Downloads\\docs-product-master', 'No GitHub access: use a repository ZIP that was downloaded on another machine and unzipped.'],
+    ['oml library', 'Show the fetched sources: commit, date, files and folder.'],
+    ['oml doc --search "service action unable to connect" --library', 'Search the OutSystems 11 docs for platform questions: servers, Service Center, LifeTime, errors.'],
+  ] },
+  { group: 'Company skills', items: [
+    ['oml skills add C:\\Team\\acme-naming.md', 'Install your team rules (Markdown with name and description frontmatter). They override OutSystems best practices, never the production rules.'],
+    ['oml skills', 'List the installed company skills.'],
+    ['oml skills remove acme-naming', 'Uninstall one company skill. Your source file stays.'],
+  ] },
   { group: 'Diagnostics', items: [
     ['oml log summary', 'Show which commands agents use and where they fail. Needs OML_LOG=1.'],
     ['oml api IEntity', 'Show the members of a model type on this Service Studio build.'],

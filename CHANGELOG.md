@@ -2,6 +2,15 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.7.0
+
+### Added
+- `oml library fetch` downloads the OutSystems 11 documentation from GitHub (`OutSystems/docs-product`, `docs-support`, `docs-howtos`): only the Markdown under `src/` and the licence, unchanged, about 12.5 MB in 2,600 files, into `%LOCALAPPDATA%\oml-cli\library`. `--source` picks sources; `--from <unzipped repository>` imports a ZIP for machines without GitHub access. A failed fetch keeps the last copy. `oml library` shows the sources, commit and date. The docs are CC BY-NC-ND 4.0 (c) OutSystems: oml does not ship them.
+- `oml doc --search "<words>" --library` searches that copy; a hit opens the file and section. A saved index (`library\index.bin`, about 55 MB, built by `fetch`) brings a search from about 1.8 s to about 0.75 s. A weak match without `--library` suggests it.
+- `oml library fetch` shows a progress bar per source in a console (on stderr; JSON output stays clean for agents).
+- `oml skills add|remove` and `oml skills`: company skills, Markdown files with `name` and `description` frontmatter, installed per user. They override oml's OutSystems best practices, never `rules.md`. `add` checks the name, size and secrets, and warns about long sentences. `oml doc` lists and prints them; `oml doc --search` ranks them first. The read step of the skill now ends with `; oml skills`.
+- `oml doc troubleshooting` has a Platform problems section, starting with `Unable to connect to the remote server` from a service action. The SKILL.md row now says `Any failure, also platform`.
+
 ## 1.6.1
 
 ### Changed

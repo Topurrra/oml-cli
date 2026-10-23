@@ -10,7 +10,7 @@ namespace OmlCli;
 // Each hit says how to open the whole answer: an `oml doc`, `oml spec` or `oml warn` command, or a recipe path.
 static class DocSearch
 {
-    const string Usage = "Usage: oml doc --search \"<words>\" [--top N] [--in <folder of .md files>]";
+    const string Usage = "Usage: oml doc --search \"<words>\" [--top N] [--in <folder of .md files> | --library]";
     const int DefaultTop = 3, MaxTop = 20;
 
     static List<SearchDoc>? corpus;
@@ -26,12 +26,14 @@ static class DocSearch
         var words = new List<string>();
         var top = DefaultTop;
         string? folder = null;
+        var library = false;
         for (var i = 0; i < args.Length; i++)
         {
             if (args[i] == "--top")
             {
                 if (i + 1 >= args.Length || !int.TryParse(args[++i], out top) || top < 1 || top > MaxTop) return Fail($"--top takes a number from 1 to {MaxTop}. {Usage}");
             }
+            else if (args[i] == "--library" && !specOnly) library = true;
             else if (args[i] == "--in" && !specOnly)
             {
                 if (i + 1 >= args.Length) return Fail(Usage);
@@ -44,15 +46,27 @@ static class DocSearch
         if (query.Length == 0) return Fail(specOnly ? "Usage: oml spec --search \"<words>\" [--top N]" : Usage);
         SearchIndex searched;
         var notes = new List<string>();
-        if (folder is null) searched = Index;
+        if (library && folder is not null) return Fail($"--in and --library do not go together. {Usage}");
+        if (library)
+        {
+            var folders = Library.Folders();
+            if (folders.Count == 0) return Fail("No library yet. Run 'oml library fetch' first (it downloads the OutSystems 11 docs).");
+            try { searched = LibraryIndex(folders, notes); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            { return Fail($"Cannot read the library at {Clip(Library.Root, 300)}: {Clip(e.Message, 300)}"); }
+        }
+        else if (folder is null) searched = Index;
         else
         {
             if (!Directory.Exists(folder)) return Fail($"Folder not found: {Clip(Path.GetFullPath(folder), 300)}");
-            try { searched = new SearchIndex(Folder(folder, notes)); }
+            try { searched = new SearchIndex(Folder(folder, notes, MaxFiles, MaxBytes, "file")); }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException)
             { return Fail($"Cannot read {Clip(folder, 300)}: {Clip(e.Message, 300)}"); }
         }
         var hits = searched.Search(query, top, specOnly ? d => d.Kind is "spec" or "key" : null);
+        // Weak is judged on this index's own hits; a strong company match makes the answer not weak.
+        var weak = hits.Count > 0 && searched.Weak(hits, query);
+        if (!specOnly && !library && folder is null && WithCompany(query, top, hits) is { } merged) (hits, weak) = (merged.Hits, weak && !merged.Strong);
         var result = new JsonObject
         {
             ["query"] = query,
@@ -63,14 +77,29 @@ static class DocSearch
         };
         if (notes.Count > 0) result["notes"] = new JsonArray(notes.Select(n => (JsonNode)JsonValue.Create(n)!).ToArray());
         if (hits.Count == 0) result["hint"] = specOnly ? "No match. 'oml spec' lists every key." : "No match. 'oml doc' lists the topics; 'oml spec' lists the spec keys.";
-        else if (searched.Weak(hits, query))
+        else if (weak)
         {
             result["weak"] = true;
-            result["hint"] = "Weak match: rephrase with OutSystems terms (entity, screen, aggregate, ...) or open the top hits; the docs may not cover this.";
+            result["hint"] = "Weak match: rephrase with OutSystems terms (entity, screen, aggregate, ...) or open the top hits; the docs may not cover this."
+                + (library || folder is not null ? "" : " A platform question (Service Center, LifeTime, servers, errors)? Add --library.");
         }
 
         Console.WriteLine(JsonOutput.Write(result));
         return 0;
+    }
+
+    // Company skills (oml skills) override OutSystems best practices, so their hits come first: all of them when the
+    // company match is not weak, else only a company hit that scores at least as high as the best oml hit.
+    static (List<SearchHit> Hits, bool Strong)? WithCompany(string query, int top, List<SearchHit> hits)
+    {
+        var skills = CompanySkills.Installed();
+        if (skills.Count == 0) return null;
+        var docs = skills.SelectMany(s => Markdown(CompanySkills.Text(s.Value), s.Key, CompanySkills.Kind, slug => slug is null ? $"oml doc {s.Key}" : $"oml doc {s.Key}#{slug}", rows: true)).ToList();
+        var company = new SearchIndex(docs);
+        var found = company.Search(query, top);
+        var strong = found.Count > 0 && !company.Weak(found, query);
+        if (!strong) found = found.Take(1).Where(h => hits.Count == 0 || h.Score >= hits[0].Score).ToList();
+        return (found.Concat(hits).Take(top).ToList(), strong);
     }
 
     static List<SearchDoc> Build()
@@ -140,7 +169,7 @@ static class DocSearch
             if (heading.Success)
             {
                 Close();
-                var title = heading.Groups[2].Value;
+                var title = Regex.Replace(heading.Groups[2].Value, @"\s*\{\s*#[^}]*\}\s*$", ""); // "Title { #anchor }" in the OutSystems docs
                 if (heading.Groups[1].Length == 1 && current is null)
                 {
                     topTitle = title;
@@ -257,13 +286,19 @@ static class DocSearch
     internal static string RecipeHeader(string text) =>
         string.Join("\n", text.Replace("\r\n", "\n").Split('\n').TakeWhile(l => l.TrimStart().StartsWith("//")).Select(l => l.TrimStart()[2..].Trim()));
 
-    const int MaxFiles = 2000;
-    const long MaxBytes = 20 * 1024 * 1024;
+    // The library's saved index (LibraryIndex.cs), built from the fetched files when it is missing or stale.
+    internal static SearchIndex LibraryIndex(List<string> folders, List<string> notes) =>
+        OmlCli.LibraryIndex.Get(folders, notes, (fs, ns) => fs.SelectMany(f => Folder(f, ns, LibraryFiles, LibraryBytes, "library")).ToList());
+
+    const int MaxFiles = 2000, LibraryFiles = 10000;
+    const long MaxBytes = 20 * 1024 * 1024, LibraryBytes = 64 * 1024 * 1024;
 
     // --in: the .md files of a folder (and its subfolders), read now and never stored. A hit opens the file's path.
     // Links and junctions (a loop), hidden and system entries and folders it may not read are skipped; at most 2,000
     // files and 20 MB are read, and a file with a NUL byte is not text. Each limit hit or file skipped adds a note.
-    static List<SearchDoc> Folder(string folder, List<string> notes)
+    // --library: the same reader over each fetched source; a hit opens the file's full path (the library is outside the
+    // project), and the kind is "library".
+    static List<SearchDoc> Folder(string folder, List<string> notes, int maxFiles, long maxBytes, string kind)
     {
         var root = Path.GetFullPath(folder);
         var docs = new List<SearchDoc>();
@@ -277,18 +312,18 @@ static class DocSearch
         var binary = new List<string>();
         foreach (var file in Directory.EnumerateFiles(root, "*.md", options).Order(StringComparer.Ordinal))
         {
-            var relative = Path.GetRelativePath(Directory.GetCurrentDirectory(), file).Replace('\\', '/');
+            var relative = kind == "library" ? file.Replace('\\', '/') : Path.GetRelativePath(Directory.GetCurrentDirectory(), file).Replace('\\', '/');
             var size = new FileInfo(file).Length;
-            if (count == MaxFiles || bytes + size > MaxBytes)
+            if (count == maxFiles || bytes + size > maxBytes)
             {
-                notes.Add($"Stopped at {count} files and {bytes / 1024} KB: --in reads at most {MaxFiles} files and {MaxBytes / 1024 / 1024} MB. Search a smaller folder.");
+                notes.Add($"Stopped at {count} files and {bytes / 1024} KB: at most {maxFiles} files and {maxBytes / 1024 / 1024} MB are read. Search a smaller folder.");
                 break;
             }
             var text = File.ReadAllText(file);
             count++;
             bytes += size;
             if (text.Contains('\0')) { binary.Add(relative); continue; }
-            docs.AddRange(Markdown(text, relative, "file", slug => slug is null ? relative : $"{relative}#{slug}", rows: true));
+            docs.AddRange(Markdown(text, relative, kind, slug => slug is null ? relative : $"{relative}#{slug}", rows: true));
         }
         if (binary.Count > 0)
             notes.Add($"Skipped {binary.Count} binary .md file(s): {Clip(string.Join(", ", binary.Take(5)), 300)}{(binary.Count > 5 ? ", ..." : "")}");

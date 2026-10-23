@@ -14,6 +14,7 @@ ask: ask, asked, asks
 assign: assign, assigned
 attribut: attribute, attributes
 becom: become, becomes
+bind: bind, binding
 block: block, blocks
 boolean: boolean, booleans
 branch: branch, branches
@@ -40,6 +41,7 @@ default: default, defaults
 delet: delete, deleted, deleting
 dependency: dependencies, dependency
 detail: detail, details
+doc: doc, docs
 edit: edit, editable, edits
 element: element, elements
 email: email, emails
@@ -154,6 +156,7 @@ setting: setting, settings
 show: show, shows
 sign: sign, signed
 signatur: signature, signatures
+skill: skill, skills
 sort: sort, sorting, sorts
 sourc: source, sources
 start: start, started, starting, starts

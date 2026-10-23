@@ -75,3 +75,10 @@ Failures of the published app. First find where the code runs: browser or server
 | A query or integration is slow | LifeTime Analytics, Slow Calls (a call over 200 ms by default; repeats in one action add up, so a query in a For Each is one slow call); `SLOWSQL` and `SLOWEXTENSION` lines in Monitoring, General | Fetch once with a join; suggest an index to the user. |
 | Screen data stays empty | Aggregate or data action | On-demand fetch never refreshed, or read too early in OnInitialize or OnReady: `oml doc ui-reactive#lifecycle`. |
 | The screen flickers or freezes | OnRender, OnAfterFetch | OnRender changes screen data, or OnAfterFetch refreshes its own source (`oml check` rules `render-assign`, `self-refreshing-aggregate`). |
+## Platform problems
+
+Servers, Service Center, LifeTime, network: run `oml library fetch` once, then `oml doc --search "<words>" --library` (OutSystems 11 docs).
+
+| Symptom | Likely cause | Check |
+|---|---|---|
+| Server action works; as a service action: "Unable to connect to the remote server" | A service action is an HTTP call to the host name, which the server cannot reach: NAT loopback, SSL offload without a 443 binding, or a proxy. | The URL in the Service Center error. On the server: `Test-NetConnection <host> -Port 443`, `netsh winhttp show proxy`. |

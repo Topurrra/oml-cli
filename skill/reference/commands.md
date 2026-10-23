@@ -37,7 +37,12 @@ oml spec --search "<words>" [--top N]   (ranked search of the spec keys and sect
 oml spec check <spec.json> [--module <source.oml>]   (checks a spec's shape without Service Studio; with --module also its names; exit 1 on problems)
 oml spec schema [--out <file.json>] [--force]   (JSON Schema for spec files)
 oml doc [<topic>[#section]]       (OutSystems rules for agents by topic; no topic lists them. Runs without Service Studio)
-oml doc --search "<words>" [--top N] [--in <folder>]   (ranked search of doc sections, spec keys, recipes, warnings and commands; compact JSON)
+oml doc --search "<words>" [--top N] [--in <folder> | --library]   (ranked search of doc sections, spec keys, recipes, warnings and commands; --library searches the OutSystems 11 docs instead; compact JSON)
+oml library [status]   (the local copy of the OutSystems 11 docs for doc --search --library: sources, commit, files)
+oml library fetch [--source product|support|howtos]... [--from <unzipped repository>]   (download or update the OutSystems 11 docs from GitHub: Markdown only, about 15 MB)
+oml skills [list]   (your company skills: Markdown rules that override OutSystems best practices; oml doc <name> prints one)
+oml skills add <file.md> [--force]   (check a skill file (name and description frontmatter, size, secrets) and install it for this user)
+oml skills remove <name>   (uninstall one company skill; the source file stays)
 oml warn <id | title words>       (cause and fix of a validation message, such as NoErrorHandlingInFlow)
 oml memory init [--module <file.oml> | --dir <folder>] [--force]   (create the project's memory store: .oml/memory/memory.log in the folder of the module files; the only command that creates one)
 oml memory add "<one fact>" [--kind fact|decision|pref|trap|log|glossary|answer] [--module <Name>] [--elements A,B] [--why "<reason>"] [--tags a,b] [--supersedes <id>] [--conf 0-100] [--src <agent>] [--valid-from <date>] [--valid-until <date>]   (write one record of at most 300 bytes; secrets are refused)
@@ -988,3 +993,41 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 **Recall quality.** `tests/memory-bench.json` has 24 invented records and 28 questions (4 have no answer). The engine ranks the right record first for 22 of 24 questions (top 3: 24 of 24; MRR 0.95), and flags all 4 unanswerable questions as weak. It also flags 5 of the 24 answerable ones as weak: the engine's weak score was set for the doc corpus (hundreds of sections), and a small memory gives lower scores.
 
 **oml memory bench** `<new folder> --records N [--runs R]` is for maintainers (`tests/memory-check.ps1` runs it at 1k and 10k records, and at 100k with `-Speed`): it writes a synthetic store of N records into a new folder and prints the timings above as JSON. It is not listed in `oml --help`.
+
+## Library
+
+`oml library fetch` downloads the OutSystems 11 documentation, so `oml doc --search "<words>" --library` can answer platform questions: Service Center, LifeTime, Platform Server, deployment zones, network, errors. `oml doc --search` without `--library` searches only oml's own docs; a weak match there suggests `--library`.
+
+**Sources.** Three public GitHub repositories of OutSystems: `docs-product` (product documentation, about 1,700 files), `docs-support` (troubleshooting and support, about 770) and `docs-howtos` (how-to guides, about 120). `--source product|support|howtos` fetches only the named ones; without it, all three.
+
+**What is copied.** Only the Markdown files under `src/` (no images) and the `LICENSE`, unchanged, at the newest commit of the default branch: about 12.5 MB, 2,600 files. A fetch makes 2 GitHub API calls per source and reads the files from `raw.githubusercontent.com`; the system proxy settings apply. A fetch of all three took 91 s on one machine. A new fetch replaces a source only when it completed, so a failed fetch keeps the last copy.
+
+**Where.** `%LOCALAPPDATA%\oml-cli\library\<repo>\`, with `source.json` (repository, commit, date, files, size). `oml library` prints them. Delete the folder to remove the library.
+
+**Licence.** The docs are CC BY-NC-ND 4.0, (c) OutSystems. oml does not ship them: each user downloads them for their own use. Do not share or change the copy.
+
+**No access to GitHub.** On a machine with access, download the repository as a ZIP (github.com/OutSystems/docs-product: Code > Download ZIP). Unzip it on the target machine, then run `oml library fetch --source product --from <unzipped folder>`. `source.json` then says `"commit": "local copy"`.
+
+**Search.** `--library` searches all fetched sources (at most 10,000 files, 64 MB). A saved index, `library\index.bin` (about 55 MB), holds the sections and their term counts, so a search takes about 0.75 s instead of 1.8 s. `fetch` builds it; a search rebuilds it (about 2.5 s) when it is missing, damaged or older than a source. Delete it at any time. Each hit has `kind: "library"` and `open`: the full path of the file plus `#<section>`. Read that file section to answer. `--library` and `--in` do not go together.
+
+## Company skills
+
+A company skill is your team's own way of working, written as Markdown: naming rules, layers, review steps, a Confluence page saved as Markdown. Company skills override oml's OutSystems best practices. They never override `rules.md` (production safety).
+
+**Format.** Frontmatter with `name` (1-40 lower-case letters, digits and hyphens) and `description` (when to use it), then the text. Headings help: `oml doc <name>#<section>` prints one section.
+
+```markdown
+---
+name: acme-naming
+description: Use when you name modules, entities, actions or screens in Acme projects.
+---
+# Acme naming
+## Modules
+Core modules end with _CS. ...
+```
+
+**add.** `oml skills add <file.md>` checks the file and copies it to `%LOCALAPPDATA%\oml-cli\skills\<name>.md` (one set per user). It refuses: no frontmatter, a bad name, a name of an `oml doc` topic, a description under 10 characters, over 8,000 tokens, or a secret (the `oml memory` secret check). It warns, and still adds: over 2,000 tokens, sentences over 25 words, no headings. A skill with the same name needs `--force`. Edit the source file, then add it again with `--force`.
+
+**Use.** `oml skills` lists name, description and size. `oml doc` lists them after the topics, and `oml doc <name>` prints one. `oml doc --search` puts company hits first (`kind: "company"`): all of them when they match well, else only one that scores at least as high as the best oml hit. The Standard loop's read call ends with `; oml skills`, so the agent sees them at the start of every task.
+
+**remove.** `oml skills remove <name>` deletes the installed copy; your source file stays.

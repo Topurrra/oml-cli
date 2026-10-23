@@ -18,7 +18,7 @@ function Tokens($path) { [math]::Ceiling((Get-Content -Raw $path).Replace("`r`n"
 $budget = [ordered]@{
   'ui-reactive' = 1500; 'osui-patterns' = 2000; 'data-rules' = 1200; 'logic-rules' = 1200; 'security' = 800
   'rest' = 900; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2000
-  'traditional-to-reactive' = 900; 'troubleshooting' = 1900; 'ui-checklist' = 700; 'testing' = 2000
+  'traditional-to-reactive' = 900; 'troubleshooting' = 2000; 'ui-checklist' = 700; 'testing' = 2000
   'best-practices' = 1300; 'rules' = 900; 'memory' = 1100
 }
 # Where a topic's file is: skill/reference/<topic>.md, except rules (skill/rules.md, which SKILL.md loads first).

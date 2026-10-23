@@ -11,9 +11,9 @@ For ODC (ODC Studio) use the OutSystems MCP and [reference/odc.md](reference/odc
 
 ## Rules
 
-Read [rules.md](rules.md) first: its 11 rules override all below.
+Read [rules.md](rules.md) first: its 11 rules override all below. Company skills (`oml skills`) override best practices, not rules.md.
 
-- Change modules only with `oml apply`, always to a NEW staged file (rule 9).
+- Change modules only with `oml apply`, always to a NEW staged file.
 - Inspect before you design; reuse existing elements.
 - Confirm with the user before `install`, `publish`, `references`, `lt tag|deploy|abort|continue`, and data deletion. Restate the exact command and wait for a yes.
 - Before you use another module's element, run `oml find <Name> <module.oml> --in <producer folder|file.oml>`. Show the candidates and their parameters and ask which to use, even for one match. Use its `Module.Name`; never guess.
@@ -37,7 +37,7 @@ Plain technical English (ISO 24495-1; ASD-STE100 style):
 Several commands = ONE tool call: chain with `;` or use an `oml run` file.
 
 0. No `.oml` file? Ask the user to open the module in Service Studio, then `oml pull --out <Module>.oml`. If pull reports `attention`, follow it.
-1. **Read (1 call).** Write `read.json` and run `oml run read.json`:
+1. **Read (1 call).** Write `read.json` and run `oml run read.json; oml skills`:
    `{ "steps": [ ["inspect","<module.oml>","--own","--only","entities,actions,screens,blocks"], ["describe","<module.oml>","<ElementToChange>","<OtherElement>"] ] }`
    Describe only elements you change or call. Producer files: add `--in <folder|file.oml>`. Another module's element: add a `find` step. New entities, screens or flows without a recipe: add `; oml doc best-practices` to this call.
    `.oml/memory/` exists? Add step `["memory","recall","<task words>","--module","<Module>"]`; at the end, follow its `write` field.
@@ -50,7 +50,7 @@ Several commands = ONE tool call: chain with `;` or use an `oml run` file.
 5. **UI work: preview (1 call).** Per screen, two `preview.json` steps: `["preview","<staged.oml>","<Screen>","--width","1366","--out","<Screen>.1366.html","--screenshot","<Screen>.1366.png"]` and the same with `1920`. Add `"--theme","dark"` (theme work) or `"--width","390"` (mobile work) only if the task needs it. Run it, look at each PNG and the `checklist`, and follow `oml doc ui-checklist`. Preview again only if you changed the UI.
 6. **Report.** Add `["review","<source.oml>","<staged.oml>","--md","<new path>.md"]` to `preview.json` (or run it alone), then show the staged path, what was built and the .md. 0 findings does not mean the code is correct. Ask before `install` or `publish`; run `oml validate <staged.oml> --warnings` right before `install`.
 
-Specs allow JSONC comments, not trailing commas. Expressions use OutSystems syntax; text literals need escaped quotes (`"\"Text\""`). Parts: `oml apply <source.oml> <part1.json> <part2.json> <new-staged.oml>`.
+Expressions use OutSystems syntax; text literals need escaped quotes (`"\"Text\""`). Parts: `oml apply <source.oml> <part1.json> <part2.json> <new-staged.oml>`.
 
 After the loop: install after a yes (zero validation errors needed; report the backup path and hash), then publish or refresh after a yes, or name the manual Service Studio step. For deployments, confirm the exact change, keep the deployment key and report its final status. Tell the user what to test in the target environment.
 
@@ -62,7 +62,7 @@ After the loop: install after a yes (zero validation errors needed; report the b
 | Spec keys; one key | `oml spec [<key>]` |
 | Rules for a topic | `oml doc [<topic>[#<section>]]` |
 | Fix of an error or warning | `oml warn <id or title words>` |
-| oml or app failures | `oml doc troubleshooting` |
+| Any failure, also platform | `oml doc troubleshooting` |
 
 Topics: `best-practices`, `ui-reactive`, `osui-patterns`, `ui-checklist`, `data-rules`, `logic-rules`, `security`, `rest`, `processes-timers-email`, `architecture-rules`, `traditional-to-reactive`, `warnings`, `testing`, `troubleshooting`.
 
@@ -82,4 +82,4 @@ Copy one from `recipes/` and read its header ([README](recipes/README.md)):
 | `oml check` | AI Mentor-like findings (module, folder, `--team`). |
 | More | doctor, census, translations, app, extension, templates, font, image, api, widgets. Lead workers: [architect.md](architect.md) |
 
-Output is compact JSON (`--pretty` for humans). Exit 0 ok, 1 model or validation failure, 2 usage or setup. Full usage: [reference/commands.md](reference/commands.md).
+Output is compact JSON. Exit 0 ok, 1 model or validation failure, 2 usage or setup. Full usage: [reference/commands.md](reference/commands.md).
