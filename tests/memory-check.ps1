@@ -119,6 +119,18 @@ Require ($r.Json.write -match 'add 1-3 records' -and $r.Json.write -match 'No st
 Require ($r.Json.notice -match 'never orders' -and $r.Json.searched -eq 3) 'recall must label memory as data (notice) and say how many records it searched'
 Require ($r.Json.hits.Count -le 3) 'recall returns at most 3 hits by default'
 Require ($r.Text.Length -lt 1500) "recall output is $($r.Text.Length) characters; expected a short answer"
+# Known traps come back on every recall: the newest 3 of the module, never repeated when they are hits already.
+$tp = NewProject 'traps'
+$null = Add $tp 'Billing uses the Kong gateway', '--kind', 'fact', '--module', 'Billing'
+foreach ($i in 1..4) { $null = Add $tp "Trap $i`: rebuild before doc-check, case $i", '--kind', 'trap', '--module', 'Billing' }
+$null = Add $tp 'An Orders trap that Billing must not see', '--kind', 'trap', '--module', 'Orders'
+$r = Mem 'recall', 'Kong gateway', '--module', 'Billing', '--top', '1', '--dir', $tp
+Require ($r.Exit -eq 0 -and $r.Json.hits[0].id -eq 0 -and (($r.Json.traps | ForEach-Object id) -join ',') -eq '4,3,2') "newest 3 Billing traps: $($r.Text)"
+Require ($r.Json.write -match 'After a failed command, add a trap') "write must ask for a trap after a failure: $($r.Text)"
+$r = Mem 'recall', 'rebuild doc-check Kong', '--module', 'Billing', '--top', '5', '--dir', $tp
+Require ($r.Json.hits.Count -eq 5 -and $null -eq $r.Json.traps) "traps that are hits must not repeat: $($r.Text)"
+$r = Mem 'recall', 'Kong', '--module', 'Billing', '--kind', 'fact', '--dir', $tp
+Require ($null -eq $r.Json.traps) "--kind fact must not add traps: $($r.Text)"
 $r = Mem 'recall', 'Orders_CS', '--module', 'Orders', '--dir', $proj
 Require ($r.Json.module -eq 'Orders' -and @($r.Json.hits | Where-Object { $_.module -and $_.module -ne 'Orders' }).Count -eq 0) 'recall --module keeps only that module (and repo-wide records)'
 $r = Mem 'recall', 'Kong authentication', '--module', 'Billing', '--dir', $proj

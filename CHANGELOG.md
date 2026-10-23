@@ -2,6 +2,11 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.7.1
+
+### Changed
+- `oml memory recall` always shows the newest 3 `trap` records of the module (`traps`), even when the question does not match them, so the next agent does not repeat a known mistake. The `write` field of `recall` and `handoff` now asks for a trap after a failed command: what failed, why, the fix.
+
 ## 1.7.0
 
 ### Added

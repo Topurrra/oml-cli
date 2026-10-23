@@ -12,6 +12,7 @@ Run `init` only when the user asks for memory.
 - Recall again when you must decide something.
 - Recall again when the user answers a question.
 - End of a task: write 1 to 3 records, as the `write` field of recall says.
+- After a failed command: add a `trap` record with what failed, why, and the fix. Recall always shows the newest 3 traps of the module (`traps`).
 - Run `oml memory handoff` if another agent continues.
 
 ## What to write
