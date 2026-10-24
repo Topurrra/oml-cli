@@ -14,10 +14,12 @@ public static class Program
         SetUpConsole();
         JsonOutput.Pretty = args.Contains("--pretty");
         var filtered = args.Where(a => a != "--pretty").ToArray();
+        // `--json` (force JSON) and OML_OUTPUT=json|human decide the human view; see TerminalOutput.
+        if (TerminalOutput.ForceJsonFlag(filtered)) { TerminalOutput.ForceJson = true; filtered = TerminalOutput.StripJson(filtered); }
         // These commands run in the launcher (or print their own output) and have no phases to time.
         if (filtered.Contains("--timings") && filtered.FirstOrDefault() is { } command && TimingsRefused.Contains(command))
         {
-            Console.WriteLine(JsonOutput.Serialize(new { error = TimingsRefusal(command) }));
+            TerminalOutput.PrintObject(new { error = TimingsRefusal(command) });
             return 2;
         }
         if (filtered.FirstOrDefault() == "log" && !filtered.Contains("--help") && !filtered.Contains("-h"))
@@ -43,11 +45,19 @@ public static class Program
 
     static int Dispatch(string[] args, string[] filtered)
     {
+        TerminalOutput.Command = filtered.FirstOrDefault();
+        // Hidden maintainer command: the renderer's unit-style self-tests (no console, no Service Studio).
+        if (TerminalOutput.Command == "terminal-test")
+        {
+            var result = TerminalRender.SelfTest();
+            Console.WriteLine(result);
+            return result == "ok" ? 0 : 1;
+        }
         // Commands the launcher runs itself print their usage lines here, without Service Studio.
         if (filtered.FirstOrDefault() is "lt" or "font" or "doctor" or "setup" or "image" or "dashboard" or "library" && (filtered.Contains("--help") || filtered.Contains("-h")))
         {
             // lt: one line per subcommand, with its options.
-            Console.WriteLine(filtered[0] == "lt" ? LifeTime.Usage.Replace(" | ", Environment.NewLine + "oml lt ") : CliUsage.For(filtered[0]));
+            TerminalOutput.PrintHelp(filtered[0] == "lt" ? LifeTime.Usage.Replace(" | ", Environment.NewLine + "oml lt ") : CliUsage.For(filtered[0]), filtered[0]);
             return 0;
         }
         if (filtered.FirstOrDefault() == "lt") return LifeTime.Run(filtered.Skip(1).ToArray(), RunCore);
@@ -65,7 +75,7 @@ public static class Program
         {
             if (filtered[0] == "check" && CheckPreflight(filtered) is { } error)
             {
-                Console.WriteLine(JsonOutput.Serialize(new { error }));
+                TerminalOutput.PrintObject(new { error });
                 return 2;
             }
             return LifeTime.Architecture(args, RunCore);
@@ -89,8 +99,10 @@ public static class Program
         var (output, error) = (new StringWriter(), new StringWriter());
         Console.SetOut(output);
         Console.SetError(error);
+        var previousRun = TerminalOutput.InRun;
+        TerminalOutput.InRun = true; // captured output is machine JSON, never the human view
         try { var code = RunCore(args); return (code, output.ToString() + error); }
-        finally { Console.SetOut(previousOut); Console.SetError(previousError); }
+        finally { TerminalOutput.InRun = previousRun; Console.SetOut(previousOut); Console.SetError(previousError); }
     }
 
     static int RunCore(string[] args)

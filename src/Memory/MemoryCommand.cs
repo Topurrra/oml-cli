@@ -43,17 +43,17 @@ static class MemoryCommand
         }
         catch (MemoryException e)
         {
-            Console.WriteLine(JsonOutput.Serialize(new { error = e.Message, hint = e.Hint }));
+            TerminalOutput.PrintObject(new { error = e.Message, hint = e.Hint });
             return e.ExitCode;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            Console.WriteLine(JsonOutput.Serialize(new { error = "Cannot read or write the memory files: " + e.Message, hint = "Close what holds the files, then run the command again." }));
+            TerminalOutput.PrintObject(new { error = "Cannot read or write the memory files: " + e.Message, hint = "Close what holds the files, then run the command again." });
             return 1;
         }
     }
 
-    static void Print(object value) => Console.WriteLine(JsonOutput.Serialize(value));
+    static void Print(object value) => TerminalOutput.PrintObject(value);
 
     // ---- options -------------------------------------------------------------------------------------------------
 

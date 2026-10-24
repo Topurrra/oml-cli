@@ -69,7 +69,7 @@ public static partial class Cli
 
         var envelope = new JsonObject { ["results"] = results, ["ms"] = total.ElapsedMilliseconds };
         if (stoppedAfter is { } stopped) envelope["stoppedAfterStep"] = stopped;
-        Console.WriteLine(JsonOutput.Write(envelope));
+        TerminalOutput.PrintNodeRaw(envelope);
         return worst;
     }
 
@@ -106,6 +106,8 @@ public static partial class Cli
         var (previousOut, previousError) = (Console.Out, Console.Error);
         Console.SetOut(output);
         Console.SetError(error);
+        var previousRun = TerminalOutput.InRun;
+        TerminalOutput.InRun = true; // a step's output is part of the run's JSON envelope
         var watch = Stopwatch.StartNew();
         int code;
         try { code = (command ?? RunStepCommand)(step); }
@@ -117,6 +119,7 @@ public static partial class Cli
         finally
         {
             watch.Stop();
+            TerminalOutput.InRun = previousRun;
             Console.SetOut(previousOut);
             Console.SetError(previousError);
         }

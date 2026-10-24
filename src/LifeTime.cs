@@ -28,7 +28,8 @@ static class LifeTime
                 Redact(node, token);
                 text = JsonOutput.Serialize(node!, progress);
             }
-            (progress ? Console.Error : Console.Out).WriteLine(text);
+            if (progress) Console.Error.WriteLine(text);
+            else Console.Out.WriteLine(TerminalOutput.Render(text));
         }
         try
         {
@@ -172,7 +173,9 @@ static class LifeTime
             throw new LtError($"Output already exists: {extractTo}. Use another --out folder, or delete that folder first.", 2);
         var url = SafePackageUrl(client.Send("GET", $"environments/{Escape(Text(env, "Key"))}/applications/{Escape(Text(app, "Key"))}/content"), root);
         Directory.CreateDirectory(folder);
+        TerminalProgress.Message($"Downloading {name} from {envName}...");
         client.Download(url, file);
+        TerminalProgress.Message("Downloaded.");
         var result = new JsonObject
         {
             ["application"] = Text(app, "Name"), ["environment"] = Text(env, "Name"), ["file"] = file, ["bytes"] = new FileInfo(file).Length,
@@ -183,8 +186,10 @@ static class LifeTime
         var (previous, captured) = (Console.Out, new StringWriter());
         int code;
         Console.SetOut(captured);
+        var previousRun = TerminalOutput.InRun;
+        TerminalOutput.InRun = true; // the extract step's captured output stays JSON
         try { code = runCore(["app", "extract", file, extractTo]); }
-        finally { Console.SetOut(previous); }
+        finally { TerminalOutput.InRun = previousRun; Console.SetOut(previous); }
         JsonNode? extracted;
         try { extracted = JsonNode.Parse(captured.ToString().Trim() is { Length: > 0 } t ? t : "null"); }
         catch (JsonException) { extracted = JsonValue.Create(captured.ToString().Trim()); }
@@ -232,6 +237,7 @@ static class LifeTime
                 if (apps.Length == 0) throw new LtError("the team has no applications available to this account", 2);
                 var environments = client.List("environments");
                 folder = Directory.CreateTempSubdirectory("oml-architecture-").FullName;
+                TerminalProgress.Message($"Downloading {apps.Length} team application(s)...");
                 int number = 0;
                 foreach (var app in apps)
                 {
@@ -248,6 +254,7 @@ static class LifeTime
                         .ThenBy(e => Property(e, "Order")?.GetValue<int>() ?? int.MaxValue).FirstOrDefault()
                         ?? throw new LtError("no running application environment is available", 2);
                     var url = SafePackageUrl(client.Send("GET", $"environments/{Escape(Text(env, "Key"))}/applications/{Escape(key)}/content"), root);
+                    TerminalProgress.Message($"  {number + 1}/{apps.Length}: {Text(app, "Name")}");
                     client.Download(url, Path.Combine(folder, $"application-{++number}.oap"));
                 }
                 rewritten = args.Take(index).Concat(new[] { "--in", folder, "--team-label", team }).Concat(args.Skip(index + 2)).ToArray();

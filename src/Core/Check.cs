@@ -98,7 +98,7 @@ static class Check
         document["html"] = request.Html;
         document["json"] = request.Json;
         if (Timings.Enabled) document["timings"] = Timings.Report();
-        Console.WriteLine(JsonOutput.Write(document));
+        TerminalOutput.PrintNode(document);
         if (request.FailOn is not { } failOn) return 0;
         // A gate must not pass on a partial check: anything skipped is an input error.
         if (skipped.Count > 0) return 2;

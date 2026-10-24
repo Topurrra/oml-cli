@@ -84,7 +84,7 @@ static class DocSearch
                 + (library || folder is not null ? "" : " A platform question (Service Center, LifeTime, servers, errors)? Add --library.");
         }
 
-        Console.WriteLine(JsonOutput.Write(result));
+        TerminalOutput.PrintNode(result);
         return 0;
     }
 
@@ -443,7 +443,7 @@ static class DocSearch
             ["query"] = new JsonObject(Index.QueryTerms(text).OrderBy(p => p.Key, StringComparer.Ordinal)
                 .Select(p => KeyValuePair.Create(p.Key, (JsonNode?)JsonValue.Create(Math.Round(p.Value, 2))))),
         };
-        Console.WriteLine(JsonOutput.Write(result));
+        TerminalOutput.PrintNode(result);
         return 0;
     }
 
@@ -518,7 +518,7 @@ static class DocSearch
             results.Add(row);
         }
         var output = new JsonObject { ["buildMs"] = buildMs, ["ms"] = watch.ElapsedMilliseconds, ["queries"] = results.Count, ["results"] = results };
-        Console.WriteLine(JsonOutput.Write(output));
+        TerminalOutput.PrintNode(output);
         return 0;
     }
 }

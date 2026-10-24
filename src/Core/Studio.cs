@@ -143,6 +143,7 @@ static class Studio
     static T Guard<T>(string what, string manualStep, Func<T> run)
     {
         const string beta = "This uses Service Studio's built-in MCP server, whose write tools are a Beta feature and may change between Service Studio releases.";
+        TerminalProgress.Message(what + "...");
         try { return run(); }
         catch (CliError e) when (e.ExitCode == 2)
         {

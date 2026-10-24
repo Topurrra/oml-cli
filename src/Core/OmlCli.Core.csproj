@@ -16,6 +16,8 @@
     <Compile Include="..\AssetFiles.cs" Link="AssetFiles.cs" />
     <Compile Include="..\Locations.cs" Link="Locations.cs" />
     <Compile Include="..\UsageLog.cs" Link="UsageLog.cs" />
+    <!-- The human terminal view: compiled into Core too, so every command's output can use it. -->
+    <Compile Include="..\Terminal\*.cs" Link="Terminal\%(Filename)%(Extension)" />
     <!-- Validation message hints in apply and validate reports; the same file `oml warn` prints. -->
     <Compile Include="..\WarningTable.cs" Link="WarningTable.cs" />
     <!-- The search engine of oml doc search; oml find text ranks a module's elements with it. -->

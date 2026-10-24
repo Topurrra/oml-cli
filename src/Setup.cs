@@ -77,7 +77,7 @@ static class Setup
 
     static int Fail(string message, int code)
     {
-        Console.WriteLine(JsonOutput.Serialize(new { error = message }));
+        TerminalOutput.PrintObject(new { error = message });
         return code;
     }
 
@@ -105,12 +105,12 @@ static class Setup
             using var command = verb.CreateSubKey("command", writable: true);
             command.SetValue("", Command(exe, e));
         }
-        Console.WriteLine(JsonOutput.Serialize(new
+        TerminalOutput.PrintObject(new
         {
             installed = entries.Select(e => @"HKCU\" + KeyPath(root, e)).ToList(),
             exe,
             note = "Right-click a font, an image, an .oml file or a folder in Explorer. On Windows 11, choose 'Show more options' first. Remove them with: oml setup --remove",
-        }));
+        });
         return 0;
     }
 
@@ -148,12 +148,12 @@ static class Setup
             }
         }
         foreach (var parent in parents) PruneParents(hkcu, root, parent);
-        Console.WriteLine(JsonOutput.Serialize(new
+        TerminalOutput.PrintObject(new
         {
             removed,
             skipped,
             note = skipped.Count > 0 ? "Skipped keys have oml's names but oml did not make them; they were left as they are." : null,
-        }));
+        });
         return 0;
     }
 
@@ -187,7 +187,7 @@ static class Setup
             return new { key = @"HKCU\" + KeyPath(root, e), label = e.Label, state, command = text };
         }).ToList();
         var installed = entries.Count(e => e.state == "installed");
-        Console.WriteLine(JsonOutput.Serialize(new
+        TerminalOutput.PrintObject(new
         {
             installed,
             total = entries.Count,
@@ -195,7 +195,7 @@ static class Setup
             note = installed == entries.Count ? null
                 : entries.Any(e => e.state == "not made by oml") ? "Some keys have oml's names but oml did not make them; oml setup will not overwrite them."
                 : "Run oml setup to add or update the missing entries.",
-        }));
+        });
         return 0;
     }
 
@@ -233,12 +233,12 @@ static class Setup
             + (outcome.Output is null ? "" : $" -> {outcome.Output}") + (outcome.Message is null ? "" : " : " + outcome.Message.Replace("\n", " | ")));
         if (print)
         {
-            Console.WriteLine(JsonOutput.Serialize(new
+            TerminalOutput.PrintObject(new
             {
                 action, input, ok = outcome.Ok, output = outcome.Output,
                 open = outcome.OpenKind is null ? null : new { kind = outcome.OpenKind, path = outcome.OpenPath },
                 message = outcome.Message, log = LogFile,
-            }));
+            });
         }
         if (ui && outcome.Message is { } message)
             MessageBoxW(IntPtr.Zero, outcome.Ok ? message : $"{message}\n\nLog: {LogFile}", "oml", outcome.Ok ? 0x40u | 0x10000u : 0x10u | 0x10000u);

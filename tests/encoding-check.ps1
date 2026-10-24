@@ -151,7 +151,10 @@ $screen = $utf8.GetString((In-Console 'cmd.exe' @('/c', "chcp 437 >nul & `"%ENC_
 $screen = $screen.Replace("`n", '') # a long line wraps onto the next row of the buffer
 $shown = $want.description.Replace('\', '\\').Replace([char]::ConvertFromUtf32(0x1F600), '\uD83D\uDE00')
 Require ($screen.Contains('"description": "' + $shown + '"')) 'encoding: --pretty in a console window did not show the real characters'
-Require ($screen.Contains('"description":"M\u00F3dulo \u201CLicenses\u201D')) 'encoding: compact JSON in a console window is not ASCII'
+# Without --pretty the console now shows oml's human view: the real characters, no JSON escapes.
+$humanText = 'M' + [char]0x00F3 + 'dulo ' + [char]0x201C + 'Licenses' + [char]0x201D
+Require ($screen.Contains($humanText)) 'encoding: the human view in a console window did not show the real characters'
+Require (-not $screen.Contains('\\u00F3')) 'encoding: the human view in a console window kept a JSON escape'
 Require ($screen.Contains('Active code page: 437')) 'encoding: oml changed the console code page'
-Write-Host 'ok   encoding: console window shows real characters with --pretty, keeps code page 437'
+Write-Host 'ok   encoding: console window shows real characters (--pretty and the human view), keeps code page 437'
 Remove-Item Env:ENC_OML, Env:ENC_MOD, Env:ENC_DIR, Env:ENC_STEPS, Env:ENC_MISSING -ErrorAction SilentlyContinue

@@ -29,7 +29,7 @@ static class FontAssets
             {
                 var input = Path.GetFullPath(opt.Paths[0]);
                 var output = Path.GetFullPath(opt.Paths.Count == 2 ? opt.Paths[1] : Path.ChangeExtension(input, ".woff2"));
-                Console.WriteLine(JsonOutput.Serialize(Convert(input, output, opt.Has("--force"), [input])));
+                TerminalOutput.PrintObject(Convert(input, output, opt.Has("--force"), [input]));
                 return 0;
             }
             var files = Directory.GetFiles(opt.Paths[0]).Where(Supported).Order(StringComparer.OrdinalIgnoreCase).ToArray();
@@ -45,9 +45,9 @@ static class FontAssets
                 }
                 catch (Exception e) { failed++; results.Add(new { input, error = e.Message }); }
             }
-            Console.WriteLine(JsonOutput.Serialize(new { results, failed })); return failed == 0 ? 0 : 1;
+            TerminalOutput.PrintObject(new { results, failed }); return failed == 0 ? 0 : 1;
         }
-        catch (Exception e) { Console.WriteLine(JsonOutput.Serialize(new { error = e.Message })); return 2; }
+        catch (Exception e) { TerminalOutput.PrintObject(new { error = e.Message }); return 2; }
     }
 
     static bool Supported(string path) => new[] { ".ttf", ".otf", ".woff", ".woff2", ".ttc" }.Contains(Path.GetExtension(path).ToLowerInvariant());

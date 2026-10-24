@@ -36,10 +36,12 @@ public static partial class Cli
         JsonOutput.Pretty = argv.Contains("--pretty");
         Timings.Start(argv.Contains("--timings"));
         var args = argv.Where(a => a is not ("--pretty" or "--timings")).ToList();
+        if (TerminalOutput.ForceJsonFlag(args.ToArray())) { TerminalOutput.ForceJson = true; args = TerminalOutput.StripJson(args.ToArray()).ToList(); }
         try
         {
             var command = args.FirstOrDefault();
-            if (command is null or "help" || args.Contains("--help") || args.Contains("-h")) { Console.WriteLine(CliUsage.For(command)); return 0; }
+            TerminalOutput.Command = command;
+            if (command is null or "help" || args.Contains("--help") || args.Contains("-h")) { TerminalOutput.PrintHelp(CliUsage.For(command), command); return 0; }
             if (command is "new" or "inspect" or "census" or "validate" or "apply" or "install" or "preview")
                 Timings.Measure("selfTestCheck", SelfTest.EnsurePassed);
             if (!Dispatch.TryGetValue(command, out var handler)) { Console.Error.WriteLine(Usage); return 2; }
@@ -76,7 +78,7 @@ public static partial class Cli
             }
             else Console.Error.WriteLine(JsonOutput.Write(new System.Text.Json.Nodes.JsonObject { ["timings"] = Timings.Report() }));
         }
-        Console.WriteLine(text);
+        Console.WriteLine(TerminalOutput.Render(text));
         return 0;
     }
 

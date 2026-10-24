@@ -25,7 +25,7 @@ static class PreviewServer
 
         var (listener, port) = Listen();
         var url = $"http://127.0.0.1:{port}/";
-        Console.WriteLine(JsonOutput.Serialize(new { url, module, element }));
+        TerminalOutput.PrintObject(new { url, module, element });
         Console.WriteLine($"oml preview is serving {element} at {url}. The page reloads when {Path.GetFileName(module)} changes. Press Ctrl+C to stop.");
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; try { listener.Stop(); } catch (ObjectDisposedException) { } };
         if (open)

@@ -27,7 +27,7 @@ static class Library
 
     static int Fail(string message, int code = 2)
     {
-        Console.WriteLine(JsonOutput.Serialize(new { error = message }));
+        TerminalOutput.PrintObject(new { error = message });
         return code;
     }
 
@@ -89,7 +89,7 @@ static class Library
         if (Folders() is { Count: > 0 } fetched) output["indexed"] = DocSearch.LibraryIndex(fetched, []).Count;
         if (failed)
             output["hint"] = "No access to GitHub? On a machine with access, download the repository as a ZIP (github.com/OutSystems/<repo>: Code > Download ZIP), unzip it here, then run: oml library fetch --source <name> --from <unzipped folder>";
-        Console.WriteLine(JsonOutput.Write(output));
+        TerminalOutput.PrintNode(output);
         return failed ? 2 : 0;
     }
 
@@ -100,7 +100,7 @@ static class Library
             sources.Add(JsonNode.Parse(File.ReadAllText(Path.Combine(folder, "source.json"))));
         var output = new JsonObject { ["library"] = Root, ["sources"] = sources };
         if (sources.Count == 0) output["hint"] = "No library yet. Run: oml library fetch";
-        Console.WriteLine(JsonOutput.Write(output));
+        TerminalOutput.PrintNode(output);
         return 0;
     }
 

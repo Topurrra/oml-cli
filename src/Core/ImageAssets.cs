@@ -75,10 +75,10 @@ public static class ImageAssets
                     failed++; results.Add(new { input, error = Error(e) });
                 }
             }
-            Console.WriteLine(JsonOutput.Serialize(batch ? new { results, failed } : results[0]));
+            TerminalOutput.PrintObject(batch ? new { results, failed } : results[0]);
             return failed == 0 ? 0 : 1;
         }
-        catch (Exception e) { Console.WriteLine(JsonOutput.Serialize(new { error = Error(e) })); return 2; }
+        catch (Exception e) { TerminalOutput.PrintObject(new { error = Error(e) }); return 2; }
     }
 
     static double Decimal(string? text, string key, double fallback, double min, double max)

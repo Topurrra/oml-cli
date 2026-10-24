@@ -59,7 +59,7 @@ static partial class Dashboard
         var url = $"http://127.0.0.1:{port}/?key={key}";
         // The page opens a module from #/explorer?module=<path> (see route() in web/app.js).
         if (module is not null) url += "#/explorer?module=" + Uri.EscapeDataString(module);
-        Console.WriteLine(JsonOutput.Serialize(new { url, workFolder = WorkRoot }));
+        TerminalOutput.PrintObject(new { url, workFolder = WorkRoot });
         Console.WriteLine($"oml dashboard is running at {url}");
         Console.WriteLine("Keep this window open while you use it. Press Ctrl+C to stop.");
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; Stopping.Set(); };
@@ -337,6 +337,8 @@ static partial class Dashboard
             var (output, error) = (new StringWriter(), new StringWriter());
             Console.SetOut(output);
             Console.SetError(error);
+            var previousRun = TerminalOutput.InRun;
+            TerminalOutput.InRun = true; // captured launcher output is machine JSON, never the human view
             try
             {
                 JsonOutput.Pretty = false;
@@ -356,6 +358,7 @@ static partial class Dashboard
             }
             finally
             {
+                TerminalOutput.InRun = previousRun;
                 Console.SetOut(previousOut);
                 Console.SetError(previousError);
             }
@@ -378,7 +381,7 @@ static partial class Dashboard
 
     static int Refuse(string error)
     {
-        Console.WriteLine(JsonOutput.Serialize(new { error }));
+        TerminalOutput.PrintObject(new { error });
         return 2;
     }
 

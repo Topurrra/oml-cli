@@ -52,7 +52,7 @@ static class Review
             if (path is not null) output[key] = path;
         if (request.MdOverwritten) output["overwritten"] = request.Md;
         if (Timings.Enabled) output["timings"] = Timings.Report();
-        Console.WriteLine(JsonOutput.Write(output));
+        TerminalOutput.PrintNode(output);
         return 0;
     }
 

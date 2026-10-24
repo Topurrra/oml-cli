@@ -119,11 +119,11 @@ static class Doctor
         }
         else
         {
-            Console.WriteLine(JsonOutput.Serialize(new
+            TerminalOutput.PrintObject(new
             {
                 checks = checks.Select(c => new { name = c.Name, status = c.Status, detail = c.Detail, fix = c.Fix }),
                 ok,
-            }));
+            });
         }
         return ok ? 0 : 1;
     }

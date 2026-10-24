@@ -1,0 +1,1475 @@
+{
+  "type": "object",
+  "properties": {
+    "entities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/EntitySpec"
+      },
+      "description": "Data model. New entities get an `Id`. Entity `indexes`, identifier and options. (oml spec entities)"
+    },
+    "structures": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RecordSpec"
+      },
+      "description": "Data model. New entities get an `Id`. Entity `indexes`, identifier and options. (oml spec structures)"
+    },
+    "exceptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Data model. New entities get an `Id`. Entity `indexes`, identifier and options. (oml spec exceptions)"
+    },
+    "serverActions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ActionSpec"
+      },
+      "description": "Actions with inputs, outputs, locals and a `flow`. (oml spec serverActions)"
+    },
+    "serviceActions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ActionSpec"
+      },
+      "description": "Actions with inputs, outputs, locals and a `flow`. (oml spec serviceActions)"
+    },
+    "clientActions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ActionSpec"
+      },
+      "description": "Actions with inputs, outputs, locals and a `flow`. (oml spec clientActions)"
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ScreenSpec"
+      },
+      "description": "Screens, blocks, aggregates, actions, events, widgets. (oml spec blocks)"
+    },
+    "screens": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ScreenSpec"
+      },
+      "description": "Screens, blocks, aggregates, actions, events, widgets. (oml spec screens)"
+    },
+    "edits": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Edit"
+      },
+      "description": "Changes to existing elements. (oml spec edits)"
+    },
+    "restClients": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RestSpec"
+      },
+      "description": "Consumed and exposed REST APIs. (oml spec restClients)"
+    },
+    "restServices": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RestSpec"
+      },
+      "description": "Consumed and exposed REST APIs. (oml spec restServices)"
+    },
+    "timers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Named"
+      },
+      "description": "Platform elements, screen `access`. (oml spec timers)"
+    },
+    "roles": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Named"
+      },
+      "description": "Platform elements, screen `access`. (oml spec roles)"
+    },
+    "processes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Process"
+      },
+      "description": "Platform elements, screen `access`. (oml spec processes)"
+    },
+    "siteProperties": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Named"
+      },
+      "description": "Platform elements, screen `access`. (oml spec siteProperties)"
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ReferenceSpec"
+      },
+      "description": "Elements from producer modules, local names for them, and removal of unused ones. (oml spec references)"
+    },
+    "staticEntities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/StaticEntitySpec"
+      },
+      "description": "Static entities with records. (oml spec staticEntities)"
+    },
+    "referenceAliases": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Elements from producer modules, local names for them, and removal of unused ones. (oml spec referenceAliases)"
+    },
+    "removeUnusedDependencies": {
+      "type": "boolean",
+      "description": "Elements from producer modules, local names for them, and removal of unused ones. (oml spec removeUnusedDependencies)"
+    },
+    "keepComments": {
+      "type": "boolean",
+      "description": "Keep comments in `styleSheet` and `javaScript` (removed by default). (oml spec keepComments)"
+    },
+    "module": {
+      "type": "object",
+      "description": "Description, JavaScript, PNG icon, user provider and tenancy flags, existing default theme. (oml spec module)"
+    },
+    "clientVariables": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ModuleVariableSpec"
+      },
+      "description": "Module state and calls from platform lifecycle events. Module kind limits apply. (oml spec clientVariables)"
+    },
+    "sessionVariables": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ModuleVariableSpec"
+      },
+      "description": "Module state and calls from platform lifecycle events. Module kind limits apply. (oml spec sessionVariables)"
+    },
+    "systemEvents": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Module state and calls from platform lifecycle events. Module kind limits apply. (oml spec systemEvents)"
+    },
+    "onException": {
+      "$ref": "#/$defs/OnExceptionSpec",
+      "description": "Separate exception paths and a Reactive global handler. (oml spec onException)"
+    },
+    "globalExceptionHandler": {
+      "type": "string",
+      "description": "Separate exception paths and a Reactive global handler. (oml spec globalExceptionHandler)"
+    },
+    "copy": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CopySpec"
+      },
+      "description": "Clipboard copy from read-only modules; explicit dependencies; IPP checks. (oml spec copy)"
+    },
+    "locales": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Locales and module resource translations; file import where the host supports it. (oml spec locales)"
+    },
+    "translations": {
+      "$ref": "#/$defs/TranslationImportSpec",
+      "description": "Locales and module resource translations; file import where the host supports it. (oml spec translations)"
+    },
+    "translate": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/TranslationSpec"
+      },
+      "description": "Locales and module resource translations; file import where the host supports it. (oml spec translate)"
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ContentFileSpec"
+      },
+      "description": "Content files, styles, folders, and screen/block script requirements. (oml spec images)"
+    },
+    "scripts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ContentFileSpec"
+      },
+      "description": "Content files, styles, folders, and screen/block script requirements. (oml spec scripts)"
+    },
+    "themes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ThemeSpec"
+      },
+      "description": "Content files, styles, folders, and screen/block script requirements. (oml spec themes)"
+    },
+    "resources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ContentFileSpec"
+      },
+      "description": "Content files, styles, folders, and screen/block script requirements. (oml spec resources)"
+    },
+    "folders": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FolderSpec"
+      },
+      "description": "Content files, styles, folders, and screen/block script requirements. (oml spec folders)"
+    },
+    "tidyFlows": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Move nodes in existing flows selected by element paths or name patterns. (oml spec tidyFlows)"
+    },
+    "emails": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/EmailSpec"
+      },
+      "description": "Reactive emails and sending them from a server action. (oml spec emails)"
+    },
+    "$schema": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "oml apply spec",
+  "description": "Spec file for 'oml apply'. Every key is optional. Run 'oml spec <key>' for the reference of one key.",
+  "$defs": {
+    "EntitySpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttrSpec"
+          }
+        },
+        "public": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "identifier": {
+          "type": "string"
+        },
+        "autoNumber": {
+          "type": "boolean"
+        },
+        "labelAttribute": {
+          "type": "string"
+        },
+        "orderByAttribute": {
+          "type": "string"
+        },
+        "isActiveAttribute": {
+          "type": "string"
+        },
+        "exposeReadOnly": {
+          "type": "boolean"
+        },
+        "updateBehavior": {
+          "type": "string"
+        },
+        "indexes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IndexSpec"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "AttrSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "length": {
+          "type": "integer"
+        },
+        "decimals": {
+          "type": "integer"
+        },
+        "mandatory": {
+          "type": "boolean"
+        },
+        "default": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "deleteRule": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "IndexSpec": {
+      "type": "object",
+      "properties": {
+        "attributes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "unique": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "attributes"
+      ]
+    },
+    "RecordSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttrSpec"
+          }
+        },
+        "public": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "ActionSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VarSpec"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VarSpec"
+          }
+        },
+        "locals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VarSpec"
+          }
+        },
+        "flow": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FlowNode"
+          }
+        },
+        "public": {
+          "type": "boolean"
+        },
+        "function": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "VarSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "mandatory": {
+          "type": "boolean"
+        },
+        "default": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "ScreenSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "flow": {
+          "type": "string"
+        },
+        "title": {},
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VarSpec"
+          }
+        },
+        "locals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VarSpec"
+          }
+        },
+        "aggregates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Named"
+          }
+        },
+        "dataActions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DataActionSpec"
+          }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ActionSpec"
+          }
+        },
+        "widgets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Widget"
+          }
+        },
+        "onInitialize": {
+          "type": "string"
+        },
+        "onReady": {
+          "type": "string"
+        },
+        "onRender": {
+          "type": "string"
+        },
+        "onDestroy": {
+          "type": "string"
+        },
+        "layout": {
+          "type": "string"
+        },
+        "placeholders": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Widget"
+            }
+          }
+        },
+        "template": {
+          "type": "string"
+        },
+        "entity": {
+          "type": "string"
+        },
+        "access": {
+          "$ref": "#/$defs/AccessSpec"
+        },
+        "preparation": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FlowNode"
+          }
+        },
+        "styleSheet": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "required": [
+                "file"
+              ],
+              "properties": {
+                "file": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "isDefault": {
+          "type": "boolean"
+        },
+        "requiredScripts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EventSpec"
+          }
+        },
+        "onParametersChanged": {
+          "type": "string"
+        },
+        "public": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "DataActionSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VarSpec"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VarSpec"
+          }
+        },
+        "locals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VarSpec"
+          }
+        },
+        "flow": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FlowNode"
+          }
+        },
+        "description": {
+          "type": "string"
+        },
+        "fetch": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "integer"
+        },
+        "onAfterFetch": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "AccessSpec": {
+      "type": "object",
+      "properties": {
+        "anonymous": {
+          "type": "boolean"
+        },
+        "registered": {
+          "type": "boolean"
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "EventSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "mandatory": {
+          "type": "boolean"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VarSpec"
+          }
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "RestSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "baseUrl": {
+          "type": "string"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RestActionSpec"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "RestActionSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RestParamSpec"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RestParamSpec"
+          }
+        },
+        "flow": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FlowNode"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "RestParamSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "location": {
+          "type": "string"
+        },
+        "headerName": {
+          "type": "string"
+        },
+        "mandatory": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "ReferenceSpec": {
+      "type": "object",
+      "properties": {
+        "producer": {
+          "type": "string"
+        },
+        "elements": {
+          "oneOf": [
+            {
+              "const": "*"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "producer",
+        "elements"
+      ]
+    },
+    "StaticEntitySpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AttrSpec"
+          }
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StaticRecordSpec"
+          }
+        },
+        "public": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "StaticRecordSpec": {
+      "type": "object",
+      "properties": {
+        "identifier": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer"
+        },
+        "isActive": {
+          "type": "boolean"
+        },
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "identifier"
+      ]
+    },
+    "ModuleVariableSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "default": {
+          "type": "string"
+        },
+        "isSecure": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "OnExceptionSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "flow": {
+          "type": "string"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FlowNode"
+          }
+        },
+        "locals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VarSpec"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "CopySpec": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "elements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "into": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "elements"
+      ]
+    },
+    "TranslationImportSpec": {
+      "type": "object",
+      "properties": {
+        "import": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "import"
+      ]
+    },
+    "TranslationSpec": {
+      "type": "object",
+      "properties": {
+        "locale": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "translation": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "locale",
+        "text",
+        "translation"
+      ]
+    },
+    "ContentFileSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "public": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "file"
+      ]
+    },
+    "ThemeSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "styleSheet": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "required": [
+                "file"
+              ],
+              "properties": {
+                "file": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "baseTheme": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "FolderSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "area": {
+          "type": "string"
+        },
+        "elements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "area",
+        "elements"
+      ]
+    },
+    "EmailSpec": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "flow": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VarSpec"
+          }
+        },
+        "locals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VarSpec"
+          }
+        },
+        "widgets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Widget"
+          }
+        },
+        "styleSheet": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "required": [
+                "file"
+              ],
+              "properties": {
+                "file": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "subject"
+      ]
+    },
+    "FlowNode": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "examples": [
+            "assign",
+            "if",
+            "forEach",
+            "switch",
+            "aggregate",
+            "sql",
+            "execute",
+            "refreshData",
+            "destination",
+            "raiseException",
+            "end",
+            "jsonDeserialize",
+            "jsonSerialize",
+            "javaScript",
+            "exceptionHandler",
+            "comment",
+            "message",
+            "download",
+            "excelToRecordList",
+            "recordListToExcel",
+            "sendEmail",
+            "triggerEvent"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "examples": []
+        },
+        "next": {
+          "type": "string",
+          "examples": []
+        }
+      }
+    },
+    "Named": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "examples": []
+        }
+      }
+    },
+    "Process": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "examples": []
+        },
+        "flow": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "examples": [
+                  "humanActivity",
+                  "automaticActivity",
+                  "decision",
+                  "end",
+                  "start",
+                  "assign",
+                  "if",
+                  "forEach",
+                  "switch",
+                  "aggregate",
+                  "sql",
+                  "execute",
+                  "refreshData",
+                  "destination",
+                  "raiseException",
+                  "end",
+                  "jsonDeserialize",
+                  "jsonSerialize",
+                  "javaScript",
+                  "exceptionHandler",
+                  "comment",
+                  "message",
+                  "download",
+                  "excelToRecordList",
+                  "recordListToExcel",
+                  "sendEmail",
+                  "triggerEvent"
+                ]
+              },
+              "name": {
+                "type": "string",
+                "examples": []
+              },
+              "next": {
+                "type": "string",
+                "examples": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "Widget": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "examples": [
+            "Container",
+            "Expression",
+            "Input",
+            "Button",
+            "Link",
+            "Text",
+            "If",
+            "Form",
+            "TableRecords",
+            "BlockInstance"
+          ]
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Widget"
+          }
+        }
+      }
+    },
+    "Edit": {
+      "type": "object",
+      "required": [
+        "op"
+      ],
+      "oneOf": [
+        {
+          "properties": {
+            "op": {
+              "const": "addExceptionHandler"
+            },
+            "action": {
+              "type": "string"
+            },
+            "flow": {
+              "type": "array"
+            }
+          },
+          "required": [
+            "op",
+            "action",
+            "flow"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "setAccess"
+            },
+            "screen": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "screen"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "insertNodes"
+            },
+            "action": {
+              "type": "string"
+            },
+            "after": {
+              "type": "string"
+            },
+            "flow": {
+              "type": "array"
+            },
+            "connector": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "action",
+            "after",
+            "flow"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "addWidgets"
+            },
+            "screen": {
+              "type": "string"
+            },
+            "widgets": {
+              "type": "array"
+            },
+            "parent": {
+              "type": "string"
+            },
+            "area": {
+              "type": "string"
+            },
+            "index": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "op",
+            "screen",
+            "widgets"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "replaceWidgets"
+            },
+            "at": {
+              "type": "string"
+            },
+            "widgets": {
+              "type": "array"
+            },
+            "area": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "at",
+            "widgets"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "addVariables"
+            },
+            "action": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "action"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "addParts"
+            },
+            "screen": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "screen"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "set"
+            },
+            "element": {
+              "type": "string"
+            },
+            "properties": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "op",
+            "element",
+            "properties"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "rename"
+            },
+            "element": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "element",
+            "to"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "delete"
+            },
+            "element": {
+              "type": "string"
+            },
+            "allowDataLoss": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "op",
+            "element"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "addToAggregate"
+            },
+            "aggregate": {
+              "type": "string"
+            },
+            "sources": {
+              "type": "array"
+            },
+            "joins": {
+              "type": "array"
+            },
+            "filters": {
+              "type": "array"
+            },
+            "sorts": {
+              "type": "array"
+            },
+            "groupBy": {
+              "type": "array"
+            },
+            "aggregates": {
+              "type": "array"
+            },
+            "calculated": {
+              "type": "array"
+            },
+            "groupFilters": {
+              "type": "array"
+            },
+            "groupSorts": {
+              "type": "array"
+            },
+            "groupCalculated": {
+              "type": "array"
+            }
+          },
+          "required": [
+            "op",
+            "aggregate"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "setArgs"
+            },
+            "element": {
+              "type": "string"
+            },
+            "args": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "op",
+            "element",
+            "args"
+          ]
+        }
+      ]
+    }
+  }
+}

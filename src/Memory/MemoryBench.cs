@@ -58,11 +58,11 @@ static class MemoryBench
                 modes[scope + "." + mode] = new { loadMs = Median(0), indexMs = Median(1), searchMs = Median(2), totalMs = Median(3) };
             }
         var state = store.Load(useIndex: true);
-        Console.WriteLine(JsonOutput.Serialize(new
+        TerminalOutput.PrintObject(new
         {
             records, live = state.LiveNow().Count, logBytes = store.Length, indexBytes = File.Exists(store.IndexPath) ? new FileInfo(store.IndexPath).Length : 0L,
             runs, queries = Queries.Length, modes,
-        }));
+        });
         return 0;
     }
 

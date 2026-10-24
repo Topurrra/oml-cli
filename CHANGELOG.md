@@ -2,6 +2,14 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## Unreleased
+
+### Added
+- A human terminal view. When stdout is a console (not redirected) and the command is not inside `oml run`, every command prints a readable view instead of JSON: titled sections, aligned key/value lines, tables for arrays of objects, indented lists, and the `error`, `hint`, `warning` and `attention` fields first and highlighted. The JSON contract does not change: a pipe, a file, `--json`, `OML_OUTPUT=json` or `oml run` still get today's exact JSON, byte for byte. `--json` forces JSON; `OML_OUTPUT=json|human` overrides the default either way. Colors are ANSI virtual-terminal sequences, only on a console that supports them, and respect `NO_COLOR` and `TERM=dumb`; no meaning relies on color, and box and bar characters fall back to ASCII when the output encoding cannot show them. Long values wrap to the console width.
+- `oml --help` and `oml <command> --help` group commands by area (Read, Change, Preview, Service Studio, LifeTime, Knowledge, Assets, Maintenance) with the command names highlighted, when shown in a console.
+- Progress on stderr for slow commands in a console only, like `oml library fetch`: `pull`, `publish`, `lt download`, `app extract`, `architecture --team` and `check --team`.
+- `tests/terminal-check.ps1`: the renderer's unit-style self-tests (`oml terminal-test`), byte-identical JSON vs 1.8.0 goldens for 11 redirected commands, and the `--json` / `OML_OUTPUT` / `NO_COLOR` rules.
+
 ## 1.8.0
 
 ### Added

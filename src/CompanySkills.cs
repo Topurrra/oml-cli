@@ -31,7 +31,7 @@ static class CompanySkills
 
     static int Fail(string message, int code = 2)
     {
-        Console.WriteLine(JsonOutput.Serialize(new { error = message }));
+        TerminalOutput.PrintObject(new { error = message });
         return code;
     }
 
@@ -58,7 +58,7 @@ static class CompanySkills
         }
         var output = new JsonObject { ["folder"] = Root, ["skills"] = skills };
         if (skills.Count == 0) output["hint"] = "No company skills yet. Write a .md file with name and description frontmatter, then: oml skills add <file.md>";
-        Console.WriteLine(JsonOutput.Write(output));
+        TerminalOutput.PrintNode(output);
         return 0;
     }
 
@@ -88,7 +88,7 @@ static class CompanySkills
         var output = new JsonObject { ["added"] = header.Name, ["replaced"] = replaced, ["tokens"] = tokens, ["file"] = target, ["open"] = $"oml doc {header.Name}" };
         var warnings = Warnings(text, tokens);
         if (warnings.Count > 0) output["warnings"] = new JsonArray(warnings.Select(w => (JsonNode)JsonValue.Create(w)!).ToArray());
-        Console.WriteLine(JsonOutput.Write(output));
+        TerminalOutput.PrintNode(output);
         return 0;
     }
 
@@ -96,7 +96,7 @@ static class CompanySkills
     {
         if (!Installed().TryGetValue(name, out var file)) return Fail($"No company skill named '{name}'. Run 'oml skills' for the list.", 1);
         File.Delete(file);
-        Console.WriteLine(JsonOutput.Serialize(new { removed = name }));
+        TerminalOutput.PrintObject(new { removed = name });
         return 0;
     }
 

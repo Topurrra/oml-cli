@@ -311,8 +311,10 @@ static class Packages
             if (files.Select(f => f.file).Distinct(StringComparer.OrdinalIgnoreCase).Count() != files.Length) throw new ModelError("Duplicate module filenames in package");
             foreach (var f in files) Fresh(f.file);
             Directory.CreateDirectory(output);
+            using var progress = new TerminalProgress.Step($"Extracting {files.Length} module(s)", files.Length);
             return files.Select(f =>
             {
+                progress.Advance();
                 var bytes = f.m.Content;
                 using (var stream = new FileStream(f.file, FileMode.CreateNew)) stream.Write(bytes);
                 return (object)new { name = f.m.Name, path = f.file, size = bytes.Length, sha256 = Hash(bytes) };

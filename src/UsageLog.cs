@@ -183,13 +183,13 @@ static class UsageLog
                     .Take(5).Select(f => new { message = f.Key, count = f.Count() }).ToArray(),
             };
         }).ToArray();
-        Console.WriteLine(JsonOutput.Serialize(new { file, lines = rows.Count, commands }));
+        TerminalOutput.PrintObject(new { file, lines = rows.Count, commands });
         return 0;
     }
 
     static int Fail(string message)
     {
-        Console.WriteLine(JsonOutput.Serialize(new { error = message }));
+        TerminalOutput.PrintObject(new { error = message });
         return 2;
     }
 

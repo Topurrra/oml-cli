@@ -73,7 +73,7 @@ static class SpecCommand
         var problems = files.Concat(SpecChecker.Check(text)).ToList();
         if (module is not null && problems.Count == 0) problems.AddRange(ModuleNames(file, module));
         var report = new { ok = problems.Count == 0, problems = problems.Select(p => new { p.path, p.message }).ToArray() };
-        Console.WriteLine(JsonOutput.Write(JsonSerializer.SerializeToNode(report)!));
+        TerminalOutput.PrintNode(JsonSerializer.SerializeToNode(report)!);
         return problems.Count == 0 ? 0 : 1;
     }
 
@@ -95,7 +95,7 @@ static class SpecCommand
         var path = Path.GetFullPath(output);
         if (File.Exists(path) && !force) return Fail($"Output already exists: {path}. Use --force to replace it.");
         File.WriteAllText(path, json + "\n");
-        Console.WriteLine(JsonSerializer.Serialize(new { written = path }));
+        TerminalOutput.PrintText(JsonSerializer.Serialize(new { written = path }));
         return 0;
     }
 }
