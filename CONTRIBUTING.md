@@ -113,18 +113,34 @@ See [the Model API reference](skill/reference/model-api.md) before changing mode
 
 | File | Contents |
 |---|---|
-| `Dashboard.cs` | The `HttpListener` server on 127.0.0.1, the key, `Host` and `Origin` checks, static files, sandboxed views, and `Oml(...)`: the one way the dashboard runs a command. |
+| `Dashboard.cs` | The `HttpListener` server on 127.0.0.1, the key, `Host` and `Origin` checks, static files (the web root and one folder level; `..`, backslashes and deeper paths give 404), sandboxed views, and `Oml(...)`: the one way the dashboard runs a command. |
 | `DashboardApi.cs` | One handler per action of the page. Each checks its input and builds the arguments of a normal `oml` command. |
-| `web/` | The page: `index.html`, `theme.js` (theme before first paint, script error count), `app.css`, `app.js` (shell, API client, pages), `tools.js` (browser-only tools), `data.js` (cookbook). Embedded into `oml.exe` at build time, so rebuild after a change. |
+| `web/` | The page, in plain JavaScript ES modules (no build step, no framework). `web/readme.md` describes it. Embedded into `oml.exe` at build time, so rebuild after a change. |
 
-How a command runs: `Oml(...)` queues it on one worker thread. Launcher commands (`doctor`, `spec`, `font`, `lt`, `log`) run with `Console.Out` captured; model commands go through `Cli.Capture` in Core (`src/Core/Commands.Run.cs`), which is `oml run`'s step runner with modules kept open between calls. Core refuses any command that is not on its dashboard list, as a second lock behind the API.
+The `web/` folder:
+
+| File or folder | Contents |
+|---|---|
+| `index.html`, `theme.js`, `app.css` | The page, the theme before first paint (and the script error count), the styles. |
+| `main.js` | The shell: router, sidebar and global controls. |
+| `nav.js` | The sidebar: groups and page ids in order. The only place to change it. |
+| `pages/<id>.js` | One page each: `{ id, group, title, description, icon, render(main, ctx) }`. Registered in `pages/index.js`. |
+| `core/` | Shared code, no page logic: `dom.js` (`h`, `add`, `icon`, the `ICONS` list), `api.js` (`api`, `need`), `ui.js` (`task`, `copyButton`, `cli`, downloads), `viewer.js` (`viewer`), `router.js`, `store.js`, `workset.js`. |
+| `data/` | Fixed lists: `cookbook.js` (every `oml --help` command needs an entry) and `prompts.js` (the Small task and Architect templates). |
+| `tools.js`, `tools-more.js`, `tools-ui.js` | The browser-only Developer tools. |
+
+Keep every file under 400 lines. Embedded files must be plain ASCII (`encoding-check`). A new subfolder needs its own `EmbeddedResource` line in `src/OmlCli.csproj`.
+
+How a command runs: `Oml(...)` queues it on one worker thread. Launcher commands (`doctor`, `spec`, `font`, `lt`, `log`) run with `Console.Out` captured; model commands go through `Cli.Capture` in Core (`src/Core/Commands.Run.cs`), which is `oml run`'s step runner with modules kept open between calls. Core refuses any command that is not on its `DashboardAllowed` list, as a second lock behind the API.
 
 To add a page:
 
 1. If it needs the server, add a case to the `switch` in `DashboardApi.Api` and a handler that checks its input (`ModuleFile`, `UserPath`, `ElementName`) and calls `Oml(...)`. Only read commands; never add `install`, `publish`, `references`, `apply`, `run` or a LifeTime write. Outputs a person keeps go to `NewWorkFolder(...)`; intermediate files go to a temporary folder that the handler deletes.
-2. In `web/app.js`, add `page('<id>', '<group>', '<Title>', '<one-line description>', async main => { ... })` in the order it should appear in the sidebar, and an icon path under the same id in `ICONS`. Build elements with `h()`, run actions with `task(...)`, and show each command with `cli(data.cli)`. Show every image and `/view/` page with `viewer({...})` (its options are documented above it in `app.js`).
-3. Add a check to `tests/dashboard-check.ps1`, build, look at the screenshots in `tmp/dashboard-check/`, and run the suite.
+2. Add `web/pages/<id>.js` that exports the page object, and register it in `web/pages/index.js`. Build elements with `h()`, run actions with `task(...)`, and show each command with `cli(data.cli)`. Show every image and `/view/` page with `viewer({...})`.
+3. Add the id to a group in `web/nav.js`, and an icon path under the same id in `ICONS` (`web/core/dom.js`).
+4. Add a check to `tests/dashboard-check.ps1`, build, look at the screenshots in `tmp/dashboard-check/`, and run the suite.
 
+To change the sidebar, edit `web/nav.js` only: rename a group, move or reorder ids, or remove an id to hide a page (it stays reachable by its URL). `dashboard-check` compares the sidebar on screen with `nav.js`.
 ## Rules
 
 - Add no new dependencies.
