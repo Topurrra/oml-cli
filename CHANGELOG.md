@@ -2,6 +2,15 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.9.1
+
+### Changed
+- The dashboard front end is split into small ES modules under `src/Dashboard/web/`: one file per page
+  (`pages/<id>.js`), shared core (`core/`), fixed data (`data/`), and the sidebar in `nav.js`. Routes,
+  localStorage keys and the JSON API are unchanged. The page that listed the built-in recipes becomes
+  **Prompts for agents**: only the two copyable prompt templates, and no recipe list (the `recipes` API
+  endpoint stays, and the skill still uses the recipe files).
+
 ## 1.9.0
 
 ### Added

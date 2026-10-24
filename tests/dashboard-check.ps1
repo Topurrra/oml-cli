@@ -213,15 +213,27 @@ try {
         Require ((Get-Content (Join-Path $PSScriptRoot "..\src\Core\$template\template.html") -Raw) -match "theme\(hashTheme\(\)\|\|") "$template template must read #theme= first"
     }
 
-    $appJs = Get-Content (Join-Path $PSScriptRoot '..\src\Dashboard\web\app.js') -Raw
-    Require ($appJs -notmatch "'C:\\[A-Za-z]") 'app.js: a path in a JavaScript string needs \\ (one backslash disappears)'
-    Require ($appJs -notmatch 'document\.add\(' -and ([regex]::Matches($appJs, 'document\.body\.append\(').Count -ge 2)) 'app.js: download() and the copy fallback must use document.body.append'
-    # Drop guard: a file dropped outside a drop zone must not make the browser open it and leave the dashboard.
-    Require ($appJs -match "window\.addEventListener\('dragover', e => \{ if \(hasFiles\(e\)\) e\.preventDefault\(\); \}\)" -and
-        $appJs -match "window\.addEventListener\('drop', e => \{" -and $appJs -match 'dropGuard\(\);') 'app.js: the page-wide drop guard is missing'
+    # The front end is split into modules under web/ (core, pages, data). Every file is served; the safety patterns
+    # are checked across all of them.
+    $web = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\src\Dashboard\web'))
+    $allJs = @(Get-ChildItem $web -Recurse -Filter *.js | ForEach-Object { Get-Content $_ -Raw }) -join "`n"
+    Require ($allJs -notmatch "'C:\\[A-Za-z]") 'web: a path in a JavaScript string needs \\ (one backslash disappears)'
+    Require ($allJs -notmatch 'document\.add\(' -and ([regex]::Matches($allJs, 'document\.body\.append\(').Count -ge 2)) 'web: download() and the copy fallback must use document.body.append'
+    Require ($allJs -match "window\.addEventListener\('dragover', e => \{ if \(hasFiles\(e\)\) e\.preventDefault\(\); \}\)" -and
+        $allJs -match "window\.addEventListener\('drop', e => \{" -and $allJs -match '\.dropGuard\(\)') 'web: the page-wide drop guard is missing'
+    # Every file under web/ is served (root files and one folder level).
+    foreach ($webFile in @(Get-ChildItem $web -Recurse -File)) {
+        $rel = $webFile.FullName.Substring($web.Length + 1).Replace('\', '/')
+        $r = Invoke-WebRequest "$base/$rel" -UseBasicParsing
+        Require ($r.StatusCode -eq 200 -and $r.Headers['Content-Type']) "web file not served: $rel"
+    }
+    # Traversal attempts are refused before any normalization: .., deeper paths, backslashes.
+    Require ((Raw $port '/x/../app.css' @{ Host = $hostHeader }) -eq 404) 'web: /x/../app.css must be 404'
+    Require ((Raw $port '/a/b/c.js' @{ Host = $hostHeader }) -eq 404) 'web: /a/b/c.js must be 404'
+    Require ((Raw $port '/core\dom.js' @{ Host = $hostHeader }) -eq 404) 'web: a backslash path must be 404'
 
     # The cookbook lists every command of oml --help (a sub-command such as "spec check" counts on its own).
-    $dataJs = Get-Content (Join-Path $PSScriptRoot '..\src\Dashboard\web\data.js') -Raw
+    $dataJs = Get-Content (Join-Path $web 'data\cookbook.js') -Raw
     $commands = foreach ($line in (& $Oml --help) -match '^oml ') {
         $words = $line -split '\s+'
         if ($words[2] -match '^[a-z][a-z0-9-]*(\|[a-z][a-z0-9-]*)+$') { $words[2] -split '\|' | ForEach-Object { "$($words[1]) $_" } }
@@ -229,7 +241,7 @@ try {
         else { $words[1] }
     }
     $missing = @($commands | Sort-Object -Unique | Where-Object { $dataJs -notmatch ("'oml " + [regex]::Escape($_) + "[ ']") })
-    Require (@($commands).Count -ge 40 -and $missing.Count -eq 0) "Cookbook (web/data.js) misses: $($missing -join '; ')"
+    Require (@($commands).Count -ge 40 -and $missing.Count -eq 0) "Cookbook (web/data/cookbook.js) misses: $($missing -join '; ')"
     try { Api 'convert/images' @{ files = @(@{ name = '..\evil.png'; data = 'AAAA' }) } | Out-Null; throw 'path in upload name accepted' }
     catch { Require ($_.Exception.Response.StatusCode.value__ -eq 400) "path in upload name: $_" }
 
@@ -423,6 +435,12 @@ try {
             }
         }
         Require ((Get-Content (Join-Path $Tmp 'dashboard-explorer-light.html') -Raw) -match 'PvCard') 'Explorer screenshot did not load the module'
+        # The sidebar order on screen equals nav.js (the single place that defines it).
+        $navJs = Get-Content (Join-Path $web 'nav.js') -Raw
+        $expectedNav = @([regex]::Matches($navJs, "ids: \[([^\]]*)\]") | ForEach-Object {
+            $_.Groups[1].Value -split ',' | ForEach-Object { $_.Trim().Trim("'") } } | Where-Object { $_ })
+        $actualNav = @([regex]::Matches((Get-Content (Join-Path $Tmp 'dashboard-home-light.html') -Raw), '<a class="nav-link"[^>]*data-id="([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
+        Require (($expectedNav -join ',') -eq ($actualNav -join ',')) "nav.js order differs from the sidebar on screen: expected [$($expectedNav -join ', ')] got [$($actualNav -join ', ')]"
         # The viewer got the page height from a sandboxed preview frame ("Full height").
         Require ((Get-Content (Join-Path $Tmp 'dashboard-previews-light.html') -Raw) -match '<iframe [^>]*data-height="\d+"') 'Preview frames did not report their height to the viewer'
         # Recipe gallery: the two agent prompt templates replace the per-recipe "Copy prompt".

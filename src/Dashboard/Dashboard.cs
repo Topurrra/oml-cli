@@ -155,7 +155,19 @@ static partial class Dashboard
                 await Asset(response, "index.html");
                 return;
             }
-            if (request.HttpMethod == "GET" && path.Length > 1 && !path[1..].Contains('/')) { await Asset(response, path[1..]); return; }
+            if (request.HttpMethod == "GET" && path.Length > 1)
+            {
+                // Web assets live at the root or one folder level (core/, pages/, data/): see web/README.md.
+                // The raw URL is used so that "..", backslashes and deeper paths are refused before any normalization.
+                var raw = request.RawUrl ?? path;
+                var q = raw.IndexOf('?');
+                if (q >= 0) raw = raw[..q];
+                if (raw.Length > 1 && AssetPath(raw[1..]) is { } rel)
+                {
+                    await Asset(response, rel);
+                    return;
+                }
+            }
             await Text(response, 404, "Not found.");
         }
         catch (Exception e) when (e is HttpListenerException or IOException or ObjectDisposedException)
@@ -205,7 +217,22 @@ static partial class Dashboard
     static readonly Dictionary<string, string> Types = new(StringComparer.OrdinalIgnoreCase)
     {
         [".html"] = "text/html; charset=utf-8", [".css"] = "text/css; charset=utf-8", [".js"] = "text/javascript; charset=utf-8", [".svg"] = "image/svg+xml",
+        [".md"] = "text/markdown; charset=utf-8",
     };
+
+    // A web asset path: one optional folder level, then a file. Folder names are [a-z0-9-], file names
+    // [a-z0-9-.]; "..", backslashes, empty parts and deeper paths are refused (404). Returns the resource part
+    // after "OmlCli.web." (folder separators become dots, matching the embedded resource names).
+    static string? AssetPath(string rel)
+    {
+        if (rel.Length == 0 || rel.Contains('\\') || rel.Contains("..")) return null;
+        var parts = rel.Split('/');
+        if (parts.Length is < 1 or > 2) return null;
+        foreach (var p in parts) if (p.Length == 0) return null;
+        if (parts.Length == 2 && !System.Text.RegularExpressions.Regex.IsMatch(parts[0], "^[a-z0-9-]+$")) return null;
+        if (!System.Text.RegularExpressions.Regex.IsMatch(parts[^1], "^[a-z0-9-.]+$")) return null;
+        return string.Join('.', parts);
+    }
 
     // The page and its files. A strict policy: scripts and styles from this server only, no inline script, nothing remote.
     static async Task Asset(HttpListenerResponse response, string name)

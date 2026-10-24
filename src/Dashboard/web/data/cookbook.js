@@ -1,6 +1,6 @@
 // Command cookbook: every oml command with a realistic example. Keep it in step with the usage text in src/Core/CliUsage.cs:
 // tests/dashboard-check.ps1 fails when a command of `oml --help` is missing here.
-window.omlCookbook = [
+export const cookbook = [
   { group: 'Start and check', items: [
     ['oml version', 'Show the oml version, the Service Studio build and whether the self-test passed.'],
     ['oml doctor --text', 'Check your setup and get a fix for each problem.'],
@@ -149,7 +149,7 @@ window.omlCookbook = [
 ];
 
 // Short help for the setup checks of `oml doctor`.
-window.omlCheckNames = {
+export const checkNames = {
   serviceStudio: 'Service Studio', dotnet: '.NET runtime', model: 'Model API', selfTest: 'Self-test',
   studioMcp: 'MCP server', lifeTime: 'LifeTime', browser: 'Browser', path: 'PATH',
 };
