@@ -285,6 +285,10 @@ Unit 'skills-check' {
   try { & (Join-Path $tests 'skills-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL skills checks: $_" }
 }
+Unit 'parsers-check' {
+  try { & (Join-Path $tests 'parsers-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL parsers checks: $_" }
+}
 Unit 'packages-check' {
   try { & (Join-Path $tests "packages-check.ps1") -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL packages checks: $_" }
 }

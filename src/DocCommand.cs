@@ -120,6 +120,17 @@ static class DocCommand
     public static int Warn(string[] args)
     {
         if (args is ["--help" or "-h"]) return Help(WarnUsage);
+        // --catalog [<prefix>] lists the verification ids oml knows (its own catalog, not the docs).
+        if (args is ["--catalog", ..])
+        {
+            var prefix = args.Length > 1 ? args[1] : null;
+            var real = VerifyCatalog.Matching(prefix);
+            if (real.Length == 0) { Console.Error.WriteLine("No verification ids match."); return 2; }
+            Console.WriteLine($"Verification ids ({real.Length}); a prefix narrows the list (oml warn --catalog Entity_):");
+            foreach (var id in real) Console.WriteLine(id);
+            return 0;
+        }
+        if (args is [var option, ..] && option.StartsWith("--")) return Fail(WarnUsage);
         var query = string.Join(" ", args).Trim().Trim('`');
         if (query.Length == 0) return Fail(WarnUsage);
         var rows = WarningTable.Rows;
@@ -131,6 +142,15 @@ static class DocCommand
         }
         if (found.Count == 0)
         {
+            if (VerifyCatalog.IsKnown(query))
+            {
+                Console.WriteLine($"## {query}");
+                Console.WriteLine();
+                Console.WriteLine("This is a verification message id the IDE can emit. oml ships no fix text for it: the message text lives in the platform's resources. " +
+                                  "It is in oml's catalog of real ids, so you can rely on it being one the IDE can emit. See `oml warn --catalog` for the list.");
+                return 0;
+            }
+
             // Rank the rows with the search engine (ids, titles, causes and fixes; typos and synonyms). A row is close
             // only when it holds at least half of the query's own words (or their typo fixes); otherwise say so.
             var index = DocSearch.Index;

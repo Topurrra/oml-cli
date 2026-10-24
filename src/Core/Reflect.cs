@@ -91,6 +91,9 @@ static class Reflect
         return matches.Count == 1 ? matches[0].First() : null;
     }
 
+    // OML_EXPR_STRICT=1: parse expression strings before writing them to IExpression properties (see Plan).
+    internal static bool StrictExpressions => Environment.GetEnvironmentVariable("OML_EXPR_STRICT") == "1";
+
     public enum Stage { Reference, Expression }
 
     /// Plans one property write. References (types, actions, exceptions, enums) are applied in the reference
@@ -124,6 +127,14 @@ static class Reflect
                 JsonValueKind.String => Refs.Find(m, value.GetString()!, target),
                 _ => throw new ModelError($"cannot convert {value.ValueKind} for '{key}'"),
             };
+            // OML_EXPR_STRICT=1 checks expression strings before they are written to an expression property. It is off
+            // by default because some legacy syntax (older literals, plugin expressions) may not parse; when on, a bad
+            // expression fails the apply instead of reaching the module.
+            if (StrictExpressions && converted is string exprText && typeof(OutSystems.Model.IExpression).IsAssignableFrom(t))
+            {
+                var parsed = Expressions.TryParse(exprText);
+                if (!parsed.Ok) throw new ModelError($"invalid expression for '{key}': {parsed.Error?.Message}");
+            }
             try { prop.SetValue(o, converted); }
             catch (TargetInvocationException e) { throw new ModelError($"{key}: {e.InnerException?.Message}"); }
         });

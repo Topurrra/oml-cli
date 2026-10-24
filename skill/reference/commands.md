@@ -13,6 +13,7 @@ oml new <out.oml> --template <name-or-exported.oml> [--name N]
 oml new <out.oml> --from-template <template.oml> [--name N] [--kind K]
 oml app list <file.oap|file.osp>
 oml app extract <file.oap|file.osp> <outdir>
+oml app check <file.oap|file.osp> --producers <folder|package> [--deep]
 oml app pack <out.oap> --name <AppName> <module.oml|extension.xif>...
 oml extension inspect <file.xif>
 oml extension new <out.xif> --name <Name> [--spec <spec.json>]
@@ -22,6 +23,9 @@ oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [
 oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
 oml find <module.oml> --text "<words>" [--top N]  (this module's elements ranked by name, description, expressions, SQL, labels)
 oml census <module.oml>
+oml meta <file.oml>...   (the module header without loading the model: name, version, upgrade level, key, hashes, signature, type)
+oml meta --diff <a.oml> <b.oml>   (which header fields differ)
+oml expr "<text>"   (parse an expression: ok and its canonical form, or the parse error; exit 1 on invalid)
 oml architecture [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--out <file.html>] [--json <file.json>]
 oml check [<module.oml>] [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--rules <oml-rules.json>] [--baseline <old-check.json>] [--out <report.html>] [--json <report.json>] [--fail-on high|medium|low]
 oml check --init-rules [--out <oml-rules.json>]   (writes the team rules file: every rule, on/off, severity, options)
@@ -44,6 +48,7 @@ oml skills [list]   (your company skills: Markdown rules that override OutSystem
 oml skills add <file.md> [--force]   (check a skill file (name and description frontmatter, size, secrets) and install it for this user)
 oml skills remove <name>   (uninstall one company skill; the source file stays)
 oml warn <id | title words>       (cause and fix of a validation message, such as NoErrorHandlingInFlow)
+oml warn --catalog [<prefix>]      (list the verification ids oml knows; a prefix narrows, such as Entity_)
 oml memory init [--module <file.oml> | --dir <folder>] [--force]   (create the project's memory store: .oml/memory/memory.log in the folder of the module files; the only command that creates one)
 oml memory add "<one fact>" [--kind fact|decision|pref|trap|log|glossary|answer] [--module <Name>] [--elements A,B] [--why "<reason>"] [--tags a,b] [--supersedes <id>] [--conf 0-100] [--src <agent>] [--valid-from <date>] [--valid-until <date>]   (write one record of at most 300 bytes; secrets are refused)
 oml memory recall "<question>" [--module <Name>] [--kind K] [--top N]   (the best records for a question, at most 20; read only)
@@ -159,6 +164,21 @@ A line has `ts` (UTC), `cmd` (the command, with the verb for `lt`, `app`, `spec 
 
 `oml log summary [--file <usage.jsonl>]` prints, per command: `count`, `failures`, `medianMs` and the five most common failure messages (`topFailures`). It shows where turns are lost, such as a command that fails again and again with the same message. Without `--file` it reads `OML_LOG` (when that is a file) or the default file.
 
+#### Module header and expressions: oml meta, oml expr
+
+Two lightweight, model-free readers for agents. Both run in the launcher, need no Service Studio and answer in milliseconds.
+
+```text
+oml meta app.oml               the module header: format, name, version, last upgrade version, key, hashes, signature, eSpace type
+oml meta --diff a.oml b.oml   which header fields differ between two files
+oml expr "Amount > 100"         parse an expression; ok + canonical form, or the parse error
+```
+
+- `oml meta <file.oml>...` reads the module header **without loading the model**: the `OML` magic, then the header fields (name, description, version, last upgrade version, module key, content/general hashes, signature, element-order version, eSpace type, product, last-changed-by, last modified UTC, features). It never touches the compressed module fragments, so it is fast on folders with many modules (the same header read `app check` uses for producer keys). An older XML module is read through its root attributes; an old ZIP module (pre-OML11) reports its format and nothing else. Each file prints `path` and `info` (the fields above, plus `summary`); a file that is not a readable module prints `error` and gives exit 1. `hasLuvUpgrade` is true when the module's last upgrade version is older than its own version (it will be upgraded on the next open in Service Studio).
+- `oml meta --diff <a.oml> <b.oml>` compares the two headers field by field and prints `same` plus the `differing` fields (`left` and `right`). This is the quick way to see what a save, a pull, or a round trip changed: a bumped `lastUpgradeVersion`, a new `elementsOrderVersion`, a regenerated `signature`, or a changed `contentHash`. Compare the open module's manual Save As against a pulled copy to see why the copy opens differently.
+- `oml expr "<text>"` parses an expression with the same parser `oml spec check` uses. Ok: `{"ok":true,"canonical":"<normalized text>"}` — keyword casing and spacing are normalized (`NOT A AND B` → `not A and B`, `A+B` → `A + B`), which is also how review reads expressions so whitespace changes are not edits. Invalid: `{"ok":false,"error":{...}}` with the parser's error id and position, and exit 1. It accepts the operators (`+ - * /`, comparisons, `and or not like`), literals (string, number, `#yyyy-M-d#`/`#H:m:s#` dates and times), identifiers, indexers, calls with named arguments, and record/list literals. It is a syntax check: it does not know whether a name or function exists (that needs a module).
+- The same parser powers the expression checks in `oml spec check` (below) and the optional strict write guard `OML_EXPR_STRICT=1` (refuses an apply that writes an unparsable expression to a module property).
+
 #### Spec reference, check and schema
 
 These three commands run in the launcher and need no Service Studio. They answer in milliseconds.
@@ -177,7 +197,8 @@ oml spec schema --out spec.schema.json
 - `oml spec check <spec.json> --module <source.oml>` also finds unknown and ambiguous names before `apply`. It runs the same build as `apply` on the loaded module, in memory: nothing is saved and the module file does not change. It needs Service Studio and runs as long as `apply` does. It skips the "validate reopened" step, so rare errors that show only after a save and reopen are caught by `apply` only. In `oml run`, it takes the module out of the run cache like `apply`, so later steps load it again. A candidate in an ambiguous name shows its kind, such as `NamesCore.Badge (Block)`. Problems use the same `path` and `message` format; an ambiguous name lists its candidates (`Module.Name`). A name that the spec creates earlier is not unknown. Limit: the build stops at its first failing phase, so a bad type in `entities` hides name problems in `edits` until you fix it and run the check again.
 - `oml spec check <spec.json>` prints `{"ok":true,"problems":[]}` and exits 0, or lists problems and exits 1. Each problem has a `path` such as `entities[0].attributes[2].lenght` and a `message` such as `unknown key 'lenght'; did you mean 'length'?`.
   It parses JSONC like `apply` (comments allowed, trailing commas refused) and checks that every key exists at its level, value types match, required fields are present (`name` for entities, attributes, actions, screens, ...), flow node `kind` values and edit `op` values are known, and `next`, `true`, `false`, `cycle`, `otherwise` and switch `cases[].next` name a node in the same flow.
-  It does not need a module, so it cannot tell whether an entity, action or screen named in an expression exists. `apply` checks that.
+  It also parses the expressions a spec carries: `if` and switch-case `condition`s, assignment values, `args` values, Expression widget `value`s, If-widget `condition`s, BlockInstance `args` values, aggregate `filters` and `groupFilters` strings, `joins[].condition`, `calculated[].expression` and `groupCalculated[].expression`, and `setArgs` values. An unparsable expression is a problem (with the parser's error message), the same check `oml expr` runs.
+  It does not need a module, so it cannot tell whether an entity, action or screen named in an expression exists; `apply` checks that.
   A `{ "file": "relative/path" }` value (see `oml spec file`) must name a file that exists inside the spec's folder; the shape check then reads its text.
 - The key and type knowledge is read by reflection from the `Spec` record types in `src/Core`, so it follows `apply`. `oml spec --verify` checks that every key in the key index (the "Spec keys" section of `spec.md`) still leads to a heading in `spec.md`.
 - `oml spec schema` prints a JSON Schema (draft 2020-12) for spec files, or writes it with `--out` (an existing file needs `--force`). It is built from the same record types.
@@ -215,6 +236,7 @@ oml spec --search "load detail on click"   the same, spec only
 - `oml doc <topic>` prints the Markdown file. The name is case-insensitive, may end in `.md`, and a unique start (`ui-react`) is enough. `#<section>` prints one section: from its heading to the next heading of the same level. The section is a heading anchor (`forms-and-validation`) or part of its title (`forms`). `oml doc rules` prints `skill/rules.md`, the rules every change follows.
 - An unknown topic or section exits 2 and lists the closest topics or all sections of the topic. A section name that matches several headings exits 2 and lists them.
 - `oml warn <id>` prints the rows of `warnings.md` whose id matches (case-insensitive), under their group heading. When no id matches, it prints the rows whose title or ids contain every word. Nothing found exits 2 with up to five close ids, ranked by the search engine below. An id is close only when its row holds at least half of the query's words (or their typo fixes); when none is, the message says there is no close match.
+- `oml warn --catalog [<prefix>]` lists the verification ids oml knows (the ids the IDE can emit: `Entity_*`, `InvalidFlow_*`, `Expression*`, `Parser*`, `Operator*`, `SQL_*`, ...). A prefix narrows the list (`oml warn --catalog SQL`). An id in the catalog but without a `warnings.md` page prints a short note instead of "no match": it is a real verification id, just one oml ships no fix text for. The catalog is built into `oml.exe`; it has no model or network.
 - `apply` and `validate` add `hint` (the Fix cell of `warnings.md`) to each entry of `newErrors`, `reopenNewErrors`, `newWarnings`, `errors` and `warnings` whose `id` the file lists (other entries have no `hint` field, also with `--pretty`), so an agent seldom needs `oml warn`. The generic plugin ids `CustomObjectWarning` and `CustomObjectError` get no hint; look up their `message`.
 
 **Search.** `oml doc --search "<words>"` lists the 3 most likely sections, each with the command that opens it. It searches every topic (split into its `##` and `###` sections; table rows and the rules of `rules.md` are entries of their own), every row of `warnings.md`, the spec sections and the spec key index, every recipe (its header comment and the keys it uses), and every usage line of `oml --help` (so "convert png to svg" finds `oml image`). The words may be one quoted argument or several. Output is compact JSON, about 200 tokens for 3 hits (here with `--top 1`):
@@ -415,9 +437,12 @@ The shorthand `oml validate --warnings` omits the required module path. Use the 
 `app list` reads application metadata, modules (name, key, kind, byte size), and application dependencies.
 For `.osp`, it includes every application and loose module. `app extract` writes `.oml` and `.xif` files with SHA-256 hashes.
 It checks all filenames before writing and refuses existing files and duplicate names. Input packages are read only.
+When a package has a readable Schema 3 manifest, `app list` and `app extract` read it straight from the package ZIP without loading the model (manifest applications, modules and dependencies; module bytes from the ZIP). A package without a readable manifest falls back to the model path (`LoadApplication`/`LoadSolution`). Either way the output shape is the same.
 `app pack` creates `.oap` through `CreateApplication`, `Add`, and `Save`. Supply `.oml` and optional `.xif` files.
 It refuses duplicate names or keys. It does not fetch missing modules or create application dependency metadata.
 Model load, activation, and IPP refusals are returned in `problems`; they are never bypassed.
+
+`app check <package> --producers <folder|package> [--deep]` checks a package against its producers. For every referenced module it reports a status: `missing producer` (no module with that key was found), `module type changed` (the producer is a different eSpace type than the reference expects), `incompatible element` (with `--deep`: a consumed public element is missing from the producer) or `ok`. Producers come from `--producers`: a folder of `.oml`/`.xif` files (keys are read from the module headers; nothing is loaded) or another `.oap`/`.osp` package (its manifest). `--deep` loads the producer modules to compare the consumed public-element keys; without it, the check stays header/manifest only. The output has `checks` (one per referenced module, with `application`, `dependency`, `module`, `producer`, `status` and a `detail` when not ok) and a `summary` counting each status. Without `--producers` it stops with a usage error. A package that references no other application gets a `note` and no checks. `--deep` is not yet verified on a real exported application with references: treat an `incompatible element` as a hint and check it in Service Studio. A producer that cannot be loaded is `not checked`.
 
 `new --from-template` uses `IApplication.CreateESpaceFromTemplate` with OML bytes.
 It creates a new module key and keeps template content, theme, layout blocks, and references.

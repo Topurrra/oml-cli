@@ -6,7 +6,12 @@ $work = Join-Path $Tmp 'spec-check'; New-Item -ItemType Directory -Force $work |
 
 function Fail($m) { throw "spec: $m" }
 function Run([string[]]$a) {
-  $out = & $Oml @a 2>&1
+  # A deliberate failure (unknown key) writes to stderr. On Windows PowerShell 5.1 a native stderr line is an error
+  # record, so under Stop the script would abort; lower the preference to Continue for the call, merge stderr into
+  # Text (as before), then restore.
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try { $out = & $Oml @a 2>&1 } finally { $ErrorActionPreference = $prev }
   [pscustomobject]@{ Exit = $LASTEXITCODE; Text = ($out | ForEach-Object { "$_" }) -join "`n"; Lines = @($out).Count }
 }
 function SpecFile($name, $json) { $p = Join-Path $work $name; Set-Content -Path $p -Value $json -Encoding utf8; $p }

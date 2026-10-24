@@ -2,6 +2,22 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.8.0
+
+### Added
+- `oml meta <file.oml>...` reads a module header without loading the model (name, version, upgrade level, key, hashes, signature, type). `oml meta --diff <a> <b>` lists the header fields that differ, for example after a pull or a save.
+- `oml expr "<text>"` parses one OutSystems expression: `ok` and its canonical form, or the error with its position (exit 1). Checked on 2,077 real expressions from two modules with no failure.
+- `oml spec check` now parses every expression in a spec (conditions, assignments, arguments, widget values, aggregate filters, joins, calculated fields, `setArgs`) and reports a bad one with its path.
+- `oml warn --catalog [<prefix>]` lists the validation message ids the IDE can emit. `oml warn <id>` explains a known id that has no page yet.
+- `oml app check <package> --producers <folder|package> [--deep]`: missing producers, changed module types and, with `--deep`, consumed elements the producer lacks (`--deep` is not yet verified on a real application with references).
+- `oml app list` and `app extract` read the package manifest directly when there is one (faster; no model load). `extract` falls back to the model when a module of the manifest has no file in the package.
+- `insertNodes` places one inserted node on its link and keeps the rest of the flow layout. Several inserted nodes still get a full lay-out.
+- `oml review` ignores expression changes in spacing and keyword case only.
+- `OML_EXPR_STRICT=1` makes `apply` refuse an expression that does not parse.
+
+### Fixed
+- Flow layout marks reset at the start of every apply, so a long `oml run` or the dashboard never skips a needed lay-out.
+
 ## 1.7.1
 
 ### Changed

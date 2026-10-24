@@ -33,6 +33,8 @@
     <!-- Also the doc topic `oml doc rules` (DocCommand). -->
     <EmbeddedResource Include="..\skill\rules.md" LogicalName="OmlCli.rules.md" />
     <EmbeddedResource Include="..\skill\recipes\*.jsonc" LogicalName="OmlCli.recipes.%(Filename)%(Extension)" />
+    <!-- Verification message-id catalog (see VerifyCatalog.cs). -->
+    <EmbeddedResource Include="Core\Data\verify-message-ids.txt" LogicalName="OmlCli.verifymessageids.txt" />
     <!-- Double-click shortcut that starts `oml dashboard`. -->
     <None Include="oml-dashboard.cmd" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

@@ -1,6 +1,5 @@
 <Project>
   <PropertyGroup>
-    <!-- One version for the launcher and Core; raise it for every release you share. -->
-    <Version>1.7.1</Version>
+    <Version>1.8.0</Version>
   </PropertyGroup>
 </Project>

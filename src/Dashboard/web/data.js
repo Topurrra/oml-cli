@@ -96,6 +96,11 @@ window.omlCookbook = [
   { group: 'Packages and extensions', items: [
     ['oml app list C:\\Exports\\Orders.oap', 'List the modules in an application package.'],
     ['oml app extract C:\\Exports\\Orders.oap C:\\Work\\Orders-modules', 'Extract the modules of a package.'],
+    ['oml app check C:\\Exports\\Orders.oap --producers C:\\Work\\Producers', 'Check a package against its producer modules: missing producers and changed module types.'],
+    ['oml meta C:\\Work\\Orders.oml', 'Read a module header (name, version, key, hashes) without loading the model.'],
+    ['oml meta --diff C:\\Work\\Orders.oml C:\\Work\\Orders.staged.oml', 'See which header fields a save or pull changed.'],
+    ['oml expr "Amount > 100 and not IsCancelled"', 'Parse one OutSystems expression: ok and its canonical form, or the parse error.'],
+    ['oml warn --catalog Entity_', 'List the validation message ids the IDE can emit; a prefix narrows the list.'],
     ['oml app pack C:\\Work\\Orders.oap --name Orders C:\\Work\\Orders.oml C:\\Work\\Orders_CS.oml', 'Pack modules into a new application package.'],
     ['oml extension inspect C:\\Work\\PdfTools.xif', 'Show the actions and structures of an extension.'],
     ['oml extension new C:\\Work\\PdfTools.xif --name PdfTools --spec C:\\Work\\pdf-actions.json', 'Create extension metadata from a spec.'],

@@ -17,6 +17,7 @@ public static partial class Cli
         ["version"] = CmdVersion, ["selftest"] = CmdSelfTest, ["api"] = CmdApi, ["widgets"] = CmdWidgets,
         ["find"] = CmdFind, ["inspect"] = CmdInspect, ["describe"] = CmdDescribe, ["tree"] = CmdTree,
         ["census"] = CmdCensus, ["validate"] = CmdValidate, ["openapi"] = CmdOpenApi, ["preview"] = CmdPreview,
+        ["meta"] = CmdMeta, ["expr"] = CmdExpr,
         ["architecture"] = CmdArchitecture, ["architecture-render"] = CmdArchitectureRender, ["check"] = CmdCheck, ["review"] = CmdReview,
         ["test"] = CmdTest,
         // Commands.Change.cs

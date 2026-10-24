@@ -11,6 +11,7 @@ static class CliUsage
         oml new <out.oml> --from-template <template.oml> [--name N] [--kind K]
         oml app list <file.oap|file.osp>
         oml app extract <file.oap|file.osp> <outdir>
+        oml app check <file.oap|file.osp> --producers <folder|package> [--deep]
         oml app pack <out.oap> --name <AppName> <module.oml|extension.xif>...
         oml extension inspect <file.xif>
         oml extension new <out.xif> --name <Name> [--spec <spec.json>]
@@ -20,6 +21,9 @@ static class CliUsage
         oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
         oml find <module.oml> --text "<words>" [--top N]  (this module's elements ranked by name, description, expressions, SQL, labels)
         oml census <module.oml>
+        oml meta <file.oml>...   (the module header without loading the model: name, version, upgrade level, key, hashes, signature, type)
+        oml meta --diff <a.oml> <b.oml>   (which header fields differ)
+        oml expr "<text>"   (parse an expression: ok and its canonical form, or the parse error; exit 1 on invalid)
         oml architecture [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--out <file.html>] [--json <file.json>]
         oml check [<module.oml>] [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--rules <oml-rules.json>] [--baseline <old-check.json>] [--out <report.html>] [--json <report.json>] [--fail-on high|medium|low]
         oml check --init-rules [--out <oml-rules.json>]   (writes the team rules file: every rule, on/off, severity, options)
@@ -42,6 +46,7 @@ static class CliUsage
         oml skills add <file.md> [--force]   (check a skill file (name and description frontmatter, size, secrets) and install it for this user)
         oml skills remove <name>   (uninstall one company skill; the source file stays)
         oml warn <id | title words>       (cause and fix of a validation message, such as NoErrorHandlingInFlow)
+        oml warn --catalog [<prefix>]      (list the verification ids oml knows; a prefix narrows, such as Entity_)
         oml memory init [--module <file.oml> | --dir <folder>] [--force]   (create the project's memory store: .oml/memory/memory.log in the folder of the module files; the only command that creates one)
         oml memory add "<one fact>" [--kind fact|decision|pref|trap|log|glossary|answer] [--module <Name>] [--elements A,B] [--why "<reason>"] [--tags a,b] [--supersedes <id>] [--conf 0-100] [--src <agent>] [--valid-from <date>] [--valid-until <date>]   (write one record of at most 300 bytes; secrets are refused)
         oml memory recall "<question>" [--module <Name>] [--kind K] [--top N]   (the best records for a question, at most 20; read only)

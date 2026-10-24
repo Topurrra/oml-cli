@@ -9,7 +9,12 @@ $work = Join-Path $Tmp 'doc-check'; New-Item -ItemType Directory -Force $work | 
 
 function Fail($m) { throw "doc: $m" }
 function Run([string[]]$a) {
-  $out = & $Oml @a 2>&1
+  # A deliberate failure (unknown topic) writes to stderr. On Windows PowerShell 5.1 a native stderr line is an error
+  # record, so under Stop the script would abort; lower the preference to Continue for the call, merge stderr into
+  # Text (as before), then restore.
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try { $out = & $Oml @a 2>&1 } finally { $ErrorActionPreference = $prev }
   [pscustomobject]@{ Exit = $LASTEXITCODE; Text = ($out | ForEach-Object { "$_" }) -join "`n" }
 }
 function Tokens($path) { [math]::Ceiling((Get-Content -Raw $path).Replace("`r`n", "`n").Length / 4) } # same count on LF and CRLF checkouts

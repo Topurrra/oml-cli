@@ -112,6 +112,19 @@ sealed class SpecChecker
 
     void Expect(string path, string what, JsonElement v) => Add(path, $"expected {what}, got {Describe(v)}");
 
+    // A field that holds an expression string (a condition, an assignment value, an argument value, a widget value...):
+    // check it parses. A non-string value is left to the shape check above.
+    void Expression(string path, JsonElement v)
+    {
+        if (v.ValueKind != JsonValueKind.String) return;
+        var parsed = Expressions.TryParse(v.GetString()!);
+        if (!parsed.Ok) Add(path, $"invalid expression: {parsed.Error?.Message}");
+    }
+
+    static IEnumerable<(int i, JsonElement v)> ArrayItems(JsonElement spec, string key) =>
+        spec.TryGetProperty(key, out var list) && list.ValueKind == JsonValueKind.Array
+            ? list.EnumerateArray().Select((v, i) => (i, v)) : Enumerable.Empty<(int, JsonElement)>();
+
     static string Suggest(string wrong, IEnumerable<string> candidates, string noun = "key")
     {
         var best = candidates.Select(c => (c, d: SpecDocs.Distance(c.ToLowerInvariant(), wrong.ToLowerInvariant())))
@@ -244,6 +257,17 @@ sealed class SpecChecker
         var found = (List<string>)SpecModel.Type("QueryShapes").GetMethod("Problems", BindingFlags.NonPublic | BindingFlags.Static)!
             .Invoke(null, new object[] { aggregate })!;
         foreach (var problem in found) Add(path, problem);
+        // Expressions inside an aggregate: filters and group filters are flat expression strings; joins carry a
+        // condition; calculated aggregates carry an expression.
+        foreach (var (i, f) in ArrayItems(aggregate, "filters")) Expression($"{path}.filters[{i}]", f);
+        foreach (var (i, g) in ArrayItems(aggregate, "groupFilters")) Expression($"{path}.groupFilters[{i}]", g);
+        foreach (var (i, j) in ArrayItems(aggregate, "joins"))
+            if (j.ValueKind == JsonValueKind.Object && j.TryGetProperty("condition", out var cond))
+                Expression($"{path}.joins[{i}].condition", cond);
+        foreach (var key in new[] { "calculated", "groupCalculated" })
+            foreach (var (i, c) in ArrayItems(aggregate, key))
+                if (c.ValueKind == JsonValueKind.Object && c.TryGetProperty("expression", out var expr))
+                    Expression($"{path}.{key}[{i}].expression", expr);
     }
 
     void Widgets(JsonElement list, string path)
@@ -255,6 +279,15 @@ sealed class SpecChecker
             if (w.ValueKind != JsonValueKind.Object) { Expect(at, "an object", w); continue; }
             if (!w.TryGetProperty("type", out var type)) Add(at, "missing required key 'type'");
             else if (type.ValueKind != JsonValueKind.String) Expect(Key(at, "type"), "a string", type);
+            // Expressions a widget carries: an Expression's value, an If's condition, a BlockInstance's argument values.
+            var wType = type.ValueKind == JsonValueKind.String ? type.GetString()! : "";
+            if (wType.Equals("Expression", StringComparison.OrdinalIgnoreCase) && w.TryGetProperty("value", out var value))
+                Expression(Key(at, "value"), value);
+            else if (wType.Equals("If", StringComparison.OrdinalIgnoreCase) && w.TryGetProperty("condition", out var cond))
+                Expression(Key(at, "condition"), cond);
+            else if (wType.Equals("BlockInstance", StringComparison.OrdinalIgnoreCase) && w.TryGetProperty("args", out var args) && args.ValueKind == JsonValueKind.Object)
+                foreach (var a in args.EnumerateObject())
+                    if (a.Value.ValueKind == JsonValueKind.String) Expression(Key(Key(at, "args"), a.Name), a.Value);
             if (w.TryGetProperty("children", out var children))
             {
                 if (children.ValueKind != JsonValueKind.Array) Expect(Key(at, "children"), "an array", children);
@@ -290,6 +323,16 @@ sealed class SpecChecker
             if (n.TryGetProperty("assign", out var assign) && assign.ValueKind != JsonValueKind.Object) Expect(Key(at, "assign"), "an object", assign);
             if (kind?.Equals("aggregate", StringComparison.OrdinalIgnoreCase) == true) Query(n, at);
 
+            // Expressions a node carries: an if's condition, assignment values and argument values of any node.
+            if (kind?.Equals("if", StringComparison.OrdinalIgnoreCase) == true && n.TryGetProperty("condition", out var cond))
+                Expression(Key(at, "condition"), cond);
+            if (n.TryGetProperty("assign", out var assignValues) && assignValues.ValueKind == JsonValueKind.Object)
+                foreach (var a in assignValues.EnumerateObject())
+                    if (a.Value.ValueKind == JsonValueKind.String) Expression(Key(Key(at, "assign"), a.Name), a.Value);
+            if (n.TryGetProperty("args", out var args) && args.ValueKind == JsonValueKind.Object)
+                foreach (var a in args.EnumerateObject())
+                    if (a.Value.ValueKind == JsonValueKind.String) Expression(Key(Key(at, "args"), a.Name), a.Value);
+
             // A node's name defaults to its kind; an execute node's to the called action.
             var name = nm.ValueKind == JsonValueKind.String ? nm.GetString()!
                 : kind is null ? "" : kind.Equals("execute", StringComparison.OrdinalIgnoreCase) && n.TryGetProperty("action", out var act) && act.ValueKind == JsonValueKind.String
@@ -311,8 +354,12 @@ sealed class SpecChecker
             {
                 var cat = Item(Key(at, "cases"), c++);
                 if (one.ValueKind != JsonValueKind.Object) Expect(cat, "an object", one);
-                else if (one.TryGetProperty("next", out var t)) Target(t, Key(cat, "next"), names);
-                else Add(cat, "missing required key 'next'");
+                else
+                {
+                    if (one.TryGetProperty("next", out var t)) Target(t, Key(cat, "next"), names);
+                    else Add(cat, "missing required key 'next'");
+                    if (one.TryGetProperty("condition", out var cond)) Expression(Key(cat, "condition"), cond);
+                }
             }
         }
     }
@@ -361,8 +408,12 @@ sealed class SpecChecker
             if (e.TryGetProperty("widgets", out var widgets) && widgets.ValueKind == JsonValueKind.Array) Widgets(widgets, Key(at, "widgets"));
             if (op.GetString() == "addToAggregate") Query(e, at);
             if (op.GetString() == "setArgs" && e.TryGetProperty("args", out var args) && args.ValueKind == JsonValueKind.Object)
+            {
                 foreach (var a in args.EnumerateObject().Where(a => a.Value.ValueKind is not (JsonValueKind.String or JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)))
                     Expect(Key(Key(at, "args"), a.Name), "an expression string, a number or true/false", a.Value);
+                foreach (var a in args.EnumerateObject().Where(a => a.Value.ValueKind == JsonValueKind.String))
+                    Expression(Key(Key(at, "args"), a.Name), a.Value);
+            }
         }
     }
 }

@@ -177,6 +177,7 @@ static class Apply
     // raw: the spec's JSON, to tell keys the spec sets on an existing element from record defaults (Reuse).
     static (int code, object report) Execute(Spec spec, System.Text.Json.Nodes.JsonNode? raw, IESpace m, string source, string output, int commentsRemoved, IReadOnlyList<string>? specs, ApplyOptions? options, List<IESpace> opened, List<string>? pathWarnings = null, bool dryRun = false)
     {
+        FlowLayout.BeginApply(); // marks are per apply: this run's placed/deleted flows
         var rules = Timings.Measure("rules snapshot", () => new ProductionRules(m));
         var flowLayoutBefore = Timings.Measure("flow snapshot", () => FlowLayout.Capture(m));
         var services = Model.Services();

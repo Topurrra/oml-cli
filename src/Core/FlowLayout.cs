@@ -13,6 +13,7 @@ static class FlowLayout
 {
     internal const int StartX = 3196, StartY = 800, Spacing = 2660;
     internal const int NodeWidth = 914, NodeHeight = 928;
+    internal const int GridStep = 228; // the grid positions snap to, also used by PositionOnLink and MoveAhead
     static string Key(IObjectSignature o) => o.GlobalKey.ToString()!;
     internal static bool IsComment(IFlowNode n) => n is OutSystems.Model.Logic.Nodes.ICommentNode
         or OutSystems.Model.Processes.Nodes.ICommentNode;
@@ -57,8 +58,93 @@ static class FlowLayout
             selected.UnionWith(matches);
         }
         foreach (var flow in flows)
-            if (selected.Contains(flow) || !before.TryGetValue(Key(flow), out var old)
-                || !old.SetEquals(Nodes(flow).Select(Key))) Layout(flow);
+        {
+            // A flow whose node set changed gets laid out again, unless this session placed its new nodes on their links
+            // (PositionOnLink) without also deleting a node, and the user did not ask for a tidy: then the surrounding
+            // layout is preserved, as it is when a step is inserted into an existing link.
+            if (selected.Contains(flow)) { Layout(flow); continue; }
+            if (!before.TryGetValue(Key(flow), out var old) || !old.SetEquals(Nodes(flow).Select(Key)))
+                if (!positioned.Contains(Key(flow)) || deleted.Contains(Key(flow))) Layout(flow);
+        }
+    }
+
+    // Flows whose new nodes were placed in place by PositionOnLink within this run (so Apply leaves them alone).
+    static readonly HashSet<string> positioned = new();
+    // Flows a node was deleted from in this run: a deletion always gets a full lay-out.
+    static readonly HashSet<string> deleted = new();
+
+    // The marks are per apply: a long-lived process (oml run, dashboard) runs many applies. Reset them when an apply
+    // starts, so a flow marked in an earlier apply never skips a later re-layout.
+    internal static void BeginApply()
+    {
+        positioned.Clear();
+        deleted.Clear();
+    }
+
+    internal static void MarkPositioned(IObjectSignature owner) => positioned.Add(Key(owner));
+
+    internal static void MarkChanged(IObjectSignature owner) => deleted.Add(Key(owner));
+
+    // Places a node on the link between source and target: midpoint by default, snapped to the 228 grid, and successor
+    // nodes nudged ahead when the link is short relative to the node size. Only positions change; connectors are the
+    // caller's.
+    internal static void PositionOnLink(IObjectSignature owner, IFlowNode node, IFlowNode source, IFlowNode target, bool keepCurrent = false)
+    {
+        if (!keepCurrent)
+        {
+            node.HorizontalPosition = target.HorizontalPosition - (target.HorizontalPosition - source.HorizontalPosition) / 2;
+            node.VerticalPosition = target.VerticalPosition - (target.VerticalPosition - source.VerticalPosition) / 2;
+        }
+        var dx = (double)target.HorizontalPosition - source.HorizontalPosition;
+        var dy = (double)target.VerticalPosition - source.VerticalPosition;
+        var relX = Relative(node, source, dx, keepCurrent, GridStep, NodeWidth, NodeWidth * 2, isHorizontal: true,
+            basePos: () => source.HorizontalPosition, nodePos: () => node.HorizontalPosition,
+            nudge: v => MoveAhead(owner, v, horizontal: true, from: node.HorizontalPosition));
+        var relY = Relative(node, source, dy, keepCurrent, GridStep, NodeHeight, NodeHeight * 2, isHorizontal: false,
+            basePos: () => source.VerticalPosition, nodePos: () => node.VerticalPosition,
+            nudge: v => MoveAhead(owner, v, horizontal: false, from: node.VerticalPosition));
+        node.HorizontalPosition = Snap(source.HorizontalPosition + relX * dx, GridStep);
+        node.VerticalPosition = Snap(source.VerticalPosition + relY * dy, GridStep);
+        MarkPositioned(owner);
+    }
+
+    internal static int Snap(double coordinate, int gridInterval) => (int)Math.Round(coordinate / gridInterval) * gridInterval;
+
+    // How far along the source->target axis the node goes: a fraction when the link is long enough, otherwise 1 with a
+    // nudge of the nodes ahead, or 0 on a too-short link.
+    static double Relative(IFlowNode node, IFlowNode source, double delta, bool keepCurrent, int gridInterval, int size, int maxDelta,
+        bool isHorizontal, Func<int> basePos, Func<int> nodePos, Action<double> nudge)
+    {
+        var abs = Math.Abs(delta);
+        if (abs >= size * 3)
+            return keepCurrent ? (nodePos() - basePos()) / delta : 0.5;
+        if (abs >= gridInterval)
+        {
+            var coordinate = abs;
+            var rel = 1.0;
+            if (abs > maxDelta)
+            {
+                coordinate = maxDelta * 2 - abs;
+                rel = maxDelta / abs;
+            }
+            nudge(coordinate);
+            return rel;
+        }
+        return 0;
+    }
+
+    // Moves nodes that lie at or after the placed node along the axis ahead by the snapped offset, so the new node has
+    // room. Connectors are untouched; only positions move.
+    static void MoveAhead(IObjectSignature owner, double by, bool horizontal, int from)
+    {
+        foreach (var n in Nodes(owner))
+        {
+            if (IsComment(n)) continue;
+            var coord = horizontal ? n.HorizontalPosition : n.VerticalPosition;
+            if (coord < from) continue;
+            if (horizontal) n.HorizontalPosition = Snap(coord + by, GridStep);
+            else n.VerticalPosition = Snap(coord + by, GridStep);
+        }
     }
 
     internal static IEnumerable<(IFlowNode target, string kind)> Edges(IFlowNode n)

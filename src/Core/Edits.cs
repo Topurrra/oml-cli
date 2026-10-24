@@ -67,6 +67,18 @@ partial class Builder
                 if (!edit.TryGetProperty("flow", out var flow) || flow.ValueKind != JsonValueKind.Array || flow.GetArrayLength() == 0)
                     throw new ModelError("insertNodes requires a nonempty flow");
                 Flow(action, flow.EnumerateArray().ToList(), label, after, property, outgoing[0].to);
+                // Place the first new node on the link it was inserted into, and nudge the nodes after it; the
+                // surrounding layout is preserved (FlowLayout.Apply skips arranged flows).
+                try
+                {
+                    // Only one new node fits on the link; several new nodes get the normal lay-out, which places all of them.
+                    if (flow.GetArrayLength() == 1 && flow[0].TryGetProperty("name", out var first) && after is IFlowNode src && outgoing[0].to is IFlowNode tgt)
+                    {
+                        var placed = ElementPaths.Resolve(action, first.GetString()!, write: true);
+                        if (placed is IFlowNode node) FlowLayout.PositionOnLink(action, node, src, tgt);
+                    }
+                }
+                catch (ModelError) { } // placement is best effort; a full lay-out still covers it
                 break;
             }
             case "addWidgets":
@@ -204,6 +216,7 @@ partial class Builder
                     var outgoing = edges.Where(e => ReferenceEquals(e.from, target)).ToList();
                     if (incoming.Count != 1 || outgoing.Count != 1 || ReferenceEquals(outgoing[0].to, target))
                         throw new ModelError("flow node deletion requires exactly one incoming and one outgoing connector");
+                    if (target.Parent is IObjectSignature flowOwner) FlowLayout.MarkChanged(flowOwner);
                     Connect(incoming[0].from, incoming[0].property, outgoing[0].to);
                 }
                 // Deleting a filter, sort or group of a grouped aggregate can drop its source, with no validation error.

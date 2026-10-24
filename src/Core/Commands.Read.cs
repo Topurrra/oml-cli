@@ -139,6 +139,97 @@ public static partial class Cli
         return errors.Length == 0 ? 0 : 1;
     }
 
+    // `oml meta <file.oml>...` and `oml meta --diff <a> <b>`: the module header, read without loading the model
+    // (name, version, upgrade level, key, hashes, signature, type). Fast and never touches the module content.
+    static int? CmdMeta(List<string> args)
+    {
+        if (args.Count < 2) return null;
+        if (args[1] == "--diff")
+        {
+            if (args.Count != 4) return null;
+            var diff = MetaDiff(args[2], args[3]);
+            Emit(diff);
+            return diff.GetType().GetProperty("error") is null ? 0 : 1;
+        }
+        var results = new List<object>();
+        var failed = false;
+        foreach (var file in args.Skip(1))
+        {
+            var info = ModuleHeader.Read(file);
+            if (info is null)
+            {
+                failed = true;
+                results.Add(new { path = Path.GetFullPath(file), error = "not a readable module (old ZIP modules are not decoded)" });
+            }
+            else results.Add(new { path = Path.GetFullPath(file), info });
+        }
+        Emit(results.Count == 1 ? results[0] : results);
+        return failed ? 1 : 0;
+    }
+
+    static object MetaDiff(string a, string b)
+    {
+        var left = ModuleHeader.Read(a);
+        var right = ModuleHeader.Read(b);
+        if (left is null || right is null)
+            return new { error = left is null ? $"cannot read {a}" : $"cannot read {b}" };
+        var differing = new List<object>();
+        void Compare(string field, object? l, object? r)
+        {
+            if (!Equals(l, r)) differing.Add(new { field, left = l, right = r });
+        }
+        Compare("name", left.Name, right.Name);
+        Compare("version", left.Version, right.Version);
+        Compare("lastUpgradeVersion", left.LastUpgradeVersion, right.LastUpgradeVersion);
+        Compare("key", left.Key, right.Key);
+        Compare("contentHash", left.ContentHash, right.ContentHash);
+        Compare("generalHash", left.GeneralHash, right.GeneralHash);
+        Compare("signature", left.Signature, right.Signature);
+        Compare("elementsOrderVersion", left.ElementsOrderVersion, right.ElementsOrderVersion);
+        Compare("compilationUnitsListVersion", left.CompilationUnitsListVersion, right.CompilationUnitsListVersion);
+        Compare("eSpaceType", left.ESpaceType, right.ESpaceType);
+        Compare("valid", left.Valid, right.Valid);
+        Compare("needsRecover", left.NeedsRecover, right.NeedsRecover);
+        Compare("productId", left.ProductId, right.ProductId);
+        Compare("lastChangedBy", left.LastChangedBy, right.LastChangedBy);
+        Compare("lastModifiedUtc", left.LastModifiedUtc, right.LastModifiedUtc);
+        Compare("isTemplatesBundle", left.IsTemplatesBundle, right.IsTemplatesBundle);
+        Compare("hasLuvUpgrade", left.HasLuvUpgrade, right.HasLuvUpgrade);
+        return new { a = Path.GetFullPath(a), b = Path.GetFullPath(b), same = differing.Count == 0, differing };
+    }
+
+    // `oml expr "<text>"`: parse an expression; ok when it parses, error otherwise (exit 1).
+    static int? CmdExpr(List<string> args)
+    {
+        if (args is [_, "--corpus", var corpus]) return ExprCorpus(corpus);
+        if (args.Count != 2) return null;
+        var result = Expressions.TryParse(args[1]);
+        if (result.Ok) return Emit(new { ok = true, canonical = result.Text });
+        Emit(new { ok = false, error = result.Error });
+        return 1;
+    }
+
+    // Maintainer check (`oml expr --corpus <module.oml>`, not in --help): parse every expression a valid module holds.
+    // The module was saved by Service Studio, so each failure is a gap in the parser, not a bad expression.
+    static int ExprCorpus(string path)
+    {
+        using var m = Model.Load(path);
+        var failures = new List<object>();
+        var count = 0;
+        foreach (var o in ModuleReferences.Descendants((OutSystems.Model.IObjectSignature)m))
+            foreach (var prop in o.GetType().GetProperties().Where(p => typeof(OutSystems.Model.IExpression).IsAssignableFrom(p.PropertyType) && p.GetIndexParameters().Length == 0))
+            {
+                string? text; // an expression without Root is a literal (style classes, attribute text), not an expression
+                try { text = prop.GetValue(o) is OutSystems.Model.IExpression { Root: not null } e ? e.Text : null; } catch (Exception e) when (e is System.Reflection.TargetInvocationException or InvalidOperationException or NotSupportedException) { continue; }
+                if (string.IsNullOrWhiteSpace(text)) continue;
+                count++;
+                var parsed = Expressions.TryParse(text);
+                if (!parsed.Ok && failures.Count < 50) failures.Add(new { owner = Model.OwnerName(o), property = prop.Name, text, error = parsed.Error?.Message });
+                else if (!parsed.Ok) failures.Add(null!);
+            }
+        var shown = failures.Where(f => f is not null).ToArray();
+        return Emit(new { module = Path.GetFullPath(path), expressions = count, failed = failures.Count, failures = shown });
+    }
     static int? CmdOpenApi(List<string> args) => args.Count >= 2 ? OpenApi.Run(args) : null;
 
     // Writes a spec file; reads the two modules and never saves them.

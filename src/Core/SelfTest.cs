@@ -200,6 +200,7 @@ static partial class SelfTest
             StudioCompareSelfTest.Run(blank, failures);
             HistoryTest(Path.Combine(dir, "built.oml"), dir, failures);
             ReadersTest(blank, failures);
+            NewParsersTest(failures);
             TestScaffoldTest(dir, failures);
 
             // A clash with a generated CRUD action must be refused, not renamed.

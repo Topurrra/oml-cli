@@ -173,7 +173,7 @@ static class ReviewModel
     }
 
     static string Target(object connector, Snapshot snap) => Get(connector, "TargetNode", snap) is IObjectSignature t ? t.GlobalKey.ToString()! : "";
-    static string Text(object? o) => o is IExpression e ? e.Text : o as string ?? (o is not null ? Model.NameOf(o) ?? "" : "");
+    static string Text(object? o) => o is IExpression e ? Expressions.Canonical(e.Text) ?? e.Text : o as string ?? (o is not null ? Model.NameOf(o) ?? "" : "");
 
     static object? Get(object o, string name, Snapshot snap)
     {
@@ -197,7 +197,7 @@ static class ReviewModel
         {
             case null: return null;
             case string s: return s;
-            case IExpression e: return e.Text;
+            case IExpression e: return Expressions.Canonical(e.Text) ?? e.Text;
             case ITypeSignature t: return Model.Describe(m, t);
             // Platform elements have no name but a display name ("All Exceptions").
             case IObjectSignature r: return Owns(o, r) ? null : Model.NameOf(r) ?? Get(r, "DisplayName", snap) as string ?? Kind(r);
