@@ -33,6 +33,12 @@ foreach ($c in $cases) {
   if ($LASTEXITCODE -gt 2) { throw "command failed badly ($($c.Name)): exit $LASTEXITCODE" }
   # Line endings depend on the checkout (text=auto); PowerShell already split the output into lines.
   $expected = [IO.File]::ReadAllText((Join-Path $golden ($c.Name + '.json'))).Replace("`r`n", "`n").TrimEnd("`n")
+  if ($c.Name -eq 'version') {
+    # The values depend on the release and the machine (oml, Service Studio and .NET versions): compare the fields only.
+    $pat = '"(oml|serviceStudio|runtime)":"[^"]*"'
+    $actual = [regex]::Replace($actual, $pat, '"$1":"<V>"')
+    $expected = [regex]::Replace($expected, $pat, '"$1":"<V>"')
+  }
   if ($c.Name -eq 'init-rules') {
     # The written path is a full path in a temp folder: compare it by its file name.
     $pat = '"([^"]*\\terminal-rules\.json)"'
