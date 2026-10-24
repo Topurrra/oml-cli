@@ -176,13 +176,17 @@ probe(({check,$,box,data,stat,cards,apps,click,card,pairs,noOverlap})=>{
  check(noOverlap(),'cards do not overlap');
  const intro=$('details').textContent;check(intro.includes('Explore the architecture')&&document.querySelectorAll('.fmark').length>0&&![...document.querySelectorAll('.node text')].some(t=>/^\d+ !$/.test(t.textContent)),'finding marker is a labelled dot');
  check(document.title.startsWith('Customer Experience')&&document.title.endsWith('Architecture'),'title lists the applications');
- const initial=box();$('zoom-in').click();check(box()!==initial,'zoom in');$('fit').click();check(box()===initial,'fit');
+ const wOf=()=>Number(box().split(' ')[2]);
+ const inside=(n,pad=60)=>{const v=box().split(' ').map(Number);const t=n.transform.baseVal.getItem(0).matrix;const x0=t.e-pad,y0=t.f-pad,x1=t.e+260+pad,y1=t.f+80+pad;return x0<v[0]+v[2]&&x1>v[0]&&y0<v[1]+v[3]&&y1>v[1];};
+ const initial=box();const w0=wOf();$('zoom-in').click();check(box()!==initial,'zoom in');$('fit').click();check(box()===initial,'fit');
  const order=card('Orders_CS');click(order);
+ check(wOf()===w0,'module click keeps the zoom level');
+ check(inside(card('Orders_CS')),'selected module stays inside the view');
  check($('details').textContent.includes('RepriceLegacyOrder')&&$('details').textContent.includes('Uses')&&$('details').textContent.includes('Used by'),'module details and references');
  check(document.querySelectorAll('.node.selected').length===1&&document.querySelectorAll('.node.faded').length>0,'selection highlights neighbors');
  $('reset').click();$('search').value='WarehouseERP';$('search').dispatchEvent(new Event('input'));
  check($('search-results').textContent.includes('ERP_IS'),'search element names');
- $('reset').click();document.querySelector('.finding button').click();check(document.querySelectorAll('.node.selected').length===2,'finding locates modules');
+ $('reset').click();document.querySelector('.finding button').click();check(wOf()===w0,'finding click keeps the zoom level');check([...document.querySelectorAll('.node.selected')].every(n=>inside(n)),'selected modules stay inside the view');check(document.querySelectorAll('.node.selected').length===2,'finding locates modules');
  $('graph').dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));check(document.querySelectorAll('.node.faded,.node.selected').length===0,'Escape reset');
  $('graph').focus();$('graph').dispatchEvent(new KeyboardEvent('keydown',{key:'+',bubbles:true}));check(box()!==initial,'keyboard zoom');
  const zoomed=box();$('graph').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));check(box()!==zoomed,'keyboard pan');
@@ -195,13 +199,13 @@ probe(({check,$,box,data,stat,cards,apps,click,card,pairs,noOverlap})=>{
  const allEdges=document.querySelectorAll('.edge').length;$('weak').click();check(document.querySelectorAll('.edge').length<allEdges&&document.querySelectorAll('.edge.violation').length>0,'weak links can be hidden; lines of findings stay');$('weak').click();check(document.querySelectorAll('.edge').length===allEdges,'weak links can be shown');
  // Platform group.
  check(document.querySelectorAll('.box').length===1&&document.querySelectorAll('.node.external').length===3&&$('platform').getAttribute('aria-pressed')==='true','Platform box holds the external modules');
- $('platform').click();check(document.querySelectorAll('.node.platform').length===1&&document.querySelectorAll('.node.external').length===0&&document.querySelectorAll('.box').length===0,'Platform box collapses to one card');
- click(document.querySelector('.node.platform'));check(document.querySelectorAll('.node.external').length===3,'clicking the Platform card opens it');
+ const platW=wOf();$('platform').click();check(wOf()===platW,'Platform toggle keeps the zoom level');check(document.querySelectorAll('.node.platform').length===1&&document.querySelectorAll('.node.external').length===0&&document.querySelectorAll('.box').length===0,'Platform box collapses to one card');
+ click(document.querySelector('.node.platform'));check(wOf()===platW,'opening the Platform group keeps the zoom level');check([...document.querySelectorAll('.node.selected')].every(n=>inside(n)),'Platform modules stay inside the view');check(document.querySelectorAll('.node.external').length===3,'clicking the Platform card opens it');
  // Application view: apps are boxes, parallel edges merge with a count badge, clicking an application opens it.
  $('view-apps').click();check(apps()===3&&$('view-apps').getAttribute('aria-pressed')==='true'&&document.querySelectorAll('.badge').length>0,'application view with merged edges');
  check(document.querySelectorAll('.node.app.external').length===0&&stat().moduleView==='false'&&noOverlap(),'application view cards do not overlap');
- click([...document.querySelectorAll('.node.app')].find(n=>n.getAttribute('aria-label').startsWith('Application Operations,')));
- check(apps()===2&&card('Inventory_CS')!==null&&$('details').textContent.includes('Operations')&&$('view-apps').getAttribute('aria-pressed')==='false'&&$('view-modules').getAttribute('aria-pressed')==='false','clicking an application opens its modules');
+ const navW=wOf();click([...document.querySelectorAll('.node.app')].find(n=>n.getAttribute('aria-label').startsWith('Application Operations,')));
+ check(wOf()===navW,'application open keeps the zoom level');check([...document.querySelectorAll('.node.selected')].every(n=>inside(n)),'application modules stay inside the view');check(apps()===2&&card('Inventory_CS')!==null&&$('details').textContent.includes('Operations')&&$('view-apps').getAttribute('aria-pressed')==='false'&&$('view-modules').getAttribute('aria-pressed')==='false','clicking an application opens its modules');
  $('search').value='ManageUsers';$('search').dispatchEvent(new Event('input'));click(document.querySelector('#search-results button'));check(card('Identity_CS')!==null&&apps()===1,'selecting a hidden module opens its application');
  $('reset').click();check($('details').textContent===intro,'one text for the empty details panel');$('view-modules').click();
  check(apps()===0&&cards().length===data.modules.length&&Number(stat().crossings)===data.layout.crossings,'module view again equals the JSON layout.crossings');

@@ -84,8 +84,9 @@ static class MemoryCommand
         return o;
     }
 
-    // The project folder and the module name filter. --module takes a module file (the name is its file name, and its
-    // folder is the project folder) or a module name; --dir names the folder; else the current folder.
+    // The project folder and the module name filter. The folder is --dir, else the
+    // current folder (the root folder where the agent works). --module takes a module name or a module file; a file
+    // gives only its name.
     static (string Folder, string? Module) Where(Opts o)
     {
         var folder = Path.GetFullPath(o.Get("--dir") ?? ".");
@@ -96,7 +97,6 @@ static class MemoryCommand
             {
                 var file = Path.GetFullPath(m);
                 name = Path.GetFileNameWithoutExtension(file);
-                if (o.Get("--dir") is null) folder = Path.GetDirectoryName(file)!;
             }
             else name = m;
         }
@@ -104,7 +104,7 @@ static class MemoryCommand
     }
 
     static MemStore OpenStore(string folder) =>
-        MemStore.Open(folder) ?? throw new MemoryException($"No memory store in {folder}.", 1, "Ask the user first. To start one, run 'oml memory init' in the folder of the module files.");
+        MemStore.Open(folder) ?? throw new MemoryException($"No memory store in {folder}.", 1, "Ask the user first. To start one, run 'oml memory init' in the project root folder.");
 
     static int ParseId(string? text)
     {
@@ -131,9 +131,9 @@ static class MemoryCommand
     static int Init(string[] args)
     {
         var o = Parse(args, ["--module", "--dir"], ["--force"]);
-        if (o.Words.Count > 0) throw new MemoryException($"Unexpected '{o.Words[0]}'. Run 'oml memory init' in the folder of the module files, or give --module <file.oml> or --dir <folder>.", 2);
+        if (o.Words.Count > 0) throw new MemoryException($"Unexpected '{o.Words[0]}'. Run 'oml memory init' in the project root folder, or give --dir <folder>.", 2);
         var module = o.Get("--module");
-        if (module is not null && !module.EndsWith(".oml", StringComparison.OrdinalIgnoreCase)) throw new MemoryException("--module for init takes a module file (Orders.oml); its folder is the project folder.", 2);
+        if (module is not null && !module.EndsWith(".oml", StringComparison.OrdinalIgnoreCase)) throw new MemoryException("--module for init takes a module file (Orders.oml); it never changes the folder.", 2);
         var (folder, _) = Where(o);
         if (module is not null && !File.Exists(Path.GetFullPath(module))) throw new MemoryException($"Module file not found: {Path.GetFullPath(module)}", 2);
         if (!Directory.Exists(folder)) throw new MemoryException($"Folder not found: {folder}", 2);
@@ -142,8 +142,18 @@ static class MemoryCommand
             Print(new { created = false, store = existing.LogPath, records = existing.Count, hint = "The store exists already. Nothing changed." });
             return 0;
         }
-        if (module is null && !o.Flags.Contains("--force") && !Directory.EnumerateFiles(folder, "*.oml").Any() && !Directory.EnumerateFiles(folder, "*.oap").Any())
-            throw new MemoryException($"No .oml or .oap file in {folder}, so this may be the wrong folder.", 2, "Run the command in the folder of the module files, give --module <file.oml>, or add --force.");
+        // The wrong-folder check also runs with --module: --module names the module, not the folder. It is skipped
+        // only when the module file lies inside the folder tree (or with --force), so init in the right folder works.
+        var scan = new EnumerationOptions { RecurseSubdirectories = true, MaxRecursionDepth = 3, IgnoreInaccessible = true };
+        var insideTree = false;
+        if (module is not null)
+        {
+            var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(module));
+            var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
+            insideTree = full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        }
+        if (!insideTree && !o.Flags.Contains("--force") && !Directory.EnumerateFiles(folder, "*.oml", scan).Any() && !Directory.EnumerateFiles(folder, "*.oap", scan).Any())
+            throw new MemoryException($"No .oml or .oap file in {folder} or its subfolders, so this may be the wrong folder.", 2, "Run the command in the project root folder, give --dir <folder>, or add --force.");
         var store = MemStore.Create(folder);
         Print(new { created = true, store = store.LogPath, hint = "Add records with: oml memory add \"<one fact>\" --kind decision --module <Name>" });
         return 0;

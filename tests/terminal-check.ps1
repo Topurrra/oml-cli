@@ -31,7 +31,8 @@ foreach ($c in $cases) {
   if ($c.Name -eq 'spec-check-bad') { '{"badKey":1}' | Set-Content (Join-Path $Tmp 'terminal-bad.json') -NoNewline }
   $actual = (& $Oml @($c.Args) 2>$null) -join "`n"
   if ($LASTEXITCODE -gt 2) { throw "command failed badly ($($c.Name)): exit $LASTEXITCODE" }
-  $expected = [IO.File]::ReadAllText((Join-Path $golden ($c.Name + '.json')))
+  # Line endings depend on the checkout (text=auto); PowerShell already split the output into lines.
+  $expected = [IO.File]::ReadAllText((Join-Path $golden ($c.Name + '.json'))).Replace("`r`n", "`n").TrimEnd("`n")
   if ($c.Name -eq 'init-rules') {
     # The written path is a full path in a temp folder: compare it by its file name.
     $pat = '"([^"]*\\terminal-rules\.json)"'

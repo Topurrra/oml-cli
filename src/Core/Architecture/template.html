@@ -343,7 +343,7 @@ function draw(g) {
   svg('title',{},gEl).textContent=title;
   const open=() => nd.type==='app'?openApp(nd.name):nd.type==='platform'?setPlatform(true,true):select(nd.name);
   gEl.addEventListener('click',open); gEl.addEventListener('keydown',e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); open(); } });
-  gEl.addEventListener('focus',() => { if(!printing&&gEl.matches(':focus-visible'))zoomTo(nd.mods.map(x => x.name),false); });
+  gEl.addEventListener('focus',() => { if(!printing&&gEl.matches(':focus-visible'))panToVisible(nd.mods.map(x => x.name)); });
   nodeViews.set(i,gEl);
  });
 }
@@ -366,10 +366,10 @@ function sizeGraph() {
  graph.style.setProperty('--graph-h',Math.round(Math.min(cap,Math.max(narrow?220:420,cw*world.h/world.w)))+'px');
  graph.style.setProperty('--graph-ratio',String(world.w/world.h));
 }
-function render() {
+function render(fit = true) {
  const keyboard=graph.contains(document.activeElement)&&document.activeElement!==graph;
  buildView(); const g=place(); draw(g); syncToolbar(); highlight(); search(true);
- sizeGraph(); fitAll();
+ sizeGraph(); if (fit) fitAll();
  // Rebuilding the cards drops keyboard focus; put it back on the selection.
  if(keyboard) { const i=sel.names.length?nodeIndex.get(sel.names[0]):undefined; if(i!==undefined)nodeViews.get(i).focus({preventScroll:true}); }
 }
@@ -385,7 +385,15 @@ function bounds(names) {
 function fitBox(b,min=0) { const ratio=(graph.clientWidth || 1000)/(graph.clientHeight || 650), w=Math.max(b.w,b.h*ratio,min),h=w/ratio; view={x:b.x+(b.w-w)/2,y:b.y+(b.h-h)/2,w,h}; update(); }
 // Never magnify the whole diagram: a small diagram is shown at natural size.
 function fitAll() { fitBox(world,graph.clientWidth || 1000); }
-function zoomTo(names,close=true) { const b=bounds(names); if(b) { if(!close){b.x-=120;b.y-=100;b.w+=240;b.h+=200;} fitBox(b); } }
+// Keyboard focus never zooms: pan only when the focused node is outside the visible area.
+function panToVisible(names) {
+  const b=bounds(names); if(!b)return;
+  const m=40*view.w/(graph.clientWidth || 1000);
+  let x=view.x,y=view.y;
+  if(b.x<view.x+m)x-=view.x+m-b.x; else if(b.x+b.w>view.x+view.w-m)x+=b.x+b.w-(view.x+view.w-m);
+  if(b.y<view.y+m)y-=view.y+m-b.y; else if(b.y+b.h>view.y+view.h-m)y+=b.y+b.h-(view.y+view.h-m);
+  if(x!==view.x||y!==view.y){ view={x,y,w:view.w,h:view.h}; update(); }
+}
 function zoom(factor,cx=graph.clientWidth/2,cy=graph.clientHeight/2) { const r=graph.getBoundingClientRect(),nx=cx/r.width,ny=cy/r.height,f=Math.max(240/view.w,Math.min(world.w*5/view.w,factor)); view={x:view.x+view.w*nx*(1-f),y:view.y+view.h*ny*(1-f),w:view.w*f,h:view.h*f};update(); }
 
 // ---- Selection and details ----
@@ -397,7 +405,7 @@ function highlight() {
 }
 function section(title,parent=$('details')) {const s=el('section',undefined,'detail-section',parent);el('h3',title,undefined,s);return s;}
 function list(title,items,line=v=>typeof v==='string'?v:JSON.stringify(v)) { const s=section(title);if(!items.length){el('p','None recorded.','hint',s);return;}const ul=el('ul',undefined,undefined,s);items.forEach(v=>el('li',line(v),undefined,ul)); }
-function renderFinding(f,parent) { const box=el('article',undefined,'finding',parent); button(f.title || f.id,() => { sel={names:f.modules || [],active:null}; highlight(); zoomTo(f.modules || []); },box);el('p',f.detail || '',undefined,box);el('p','Suggested fix: '+(f.fix || ''),'fix',box); el('div',(f.modules || []).join(' · '),'hint',box); }
+function renderFinding(f,parent) { const box=el('article',undefined,'finding',parent); button(f.title || f.id,() => { sel={names:f.modules || [],active:null}; highlight(); panToVisible(f.modules || []); },box);el('p',f.detail || '',undefined,box);el('p','Suggested fix: '+(f.fix || ''),'fix',box); el('div',(f.modules || []).join(' · '),'hint',box); }
 function connections(title,names,es,out) { const s=section(title); if(!es.length)el('p','None recorded.','hint',s); es.forEach(e => { const n=out?e.to:e.from; button(n,() => select(n),s); el('div',(e.strong?'Strong':'Weak')+' · '+(e.elements || []).map(v => v.kind+': '+v.name).join(', '),'hint',s); }); }
 function findingsFor(names,d) { const fs=section('Findings'), matches=findings.filter(f => (f.modules || []).some(n => names.includes(n))); if(!matches.length)el('p','No findings.','hint',fs); matches.forEach(f => renderFinding(f,fs)); }
 function details() { const d=$('details'); d.replaceChildren(); return d; }
@@ -435,12 +443,13 @@ function select(name) {
  const app=appOf(m); let changed=false;
  if(m.external&&!state.platform) { state.platform=true; changed=true; }
  if(app&&!state.expanded.has(app)) { state.expanded.add(app); changed=true; }
- sel={names:[name],active:name}; if(changed)render(); else highlight();
- zoomTo([name],false); showModule(m);
+ sel={names:[name],active:name}; if(changed)render(false); else highlight();
+ panToVisible([name]);
+ showModule(m);
 }
-function openApp(app) { state.expanded.add(app); sel={names:appMods.get(app).map(m => m.name),active:null}; render(); zoomTo(sel.names,false); showApp(app); say(`${app} opened: ${sel.names.length} modules`); }
-function closeApp(app) { state.expanded.delete(app); sel={names:appMods.get(app).map(m => m.name),active:null}; render(); zoomTo(sel.names,false); showApp(app); say(`${app} collapsed`); }
-function setPlatform(open,show) { state.platform=open; sel=show||!open?{names:externals.map(m => m.name),active:null}:{names:[],active:null}; render(); if(sel.names.length) { zoomTo(sel.names,false); showPlatform(); } say(open?'Platform modules shown':'Platform modules collapsed'); }
+function openApp(app) { state.expanded.add(app); sel={names:appMods.get(app).map(m => m.name),active:null}; render(false); panToVisible(sel.names); showApp(app); say(`${app} opened: ${sel.names.length} modules`); }
+function closeApp(app) { state.expanded.delete(app); sel={names:appMods.get(app).map(m => m.name),active:null}; render(false); panToVisible(sel.names); showApp(app); say(`${app} collapsed`); }
+function setPlatform(open,show) { state.platform=open; sel=show||!open?{names:externals.map(m => m.name),active:null}:{names:[],active:null}; render(false); if(sel.names.length) { panToVisible(sel.names); showPlatform(); } say(open?'Platform modules shown':'Platform modules collapsed'); }
 function setMode(all) { state.expanded=new Set(all?appNames:[]); sel={names:[],active:null}; render(); say(all?'Showing modules':'Showing applications'); }
 for(const s of ['high','medium','low']) { const fs=findings.filter(f => f.severity===s),box=el('section',undefined,'severity',$('findings'));el('h3',`${s[0].toUpperCase()+s.slice(1)} priority · ${fs.length}`,s,box);if(!fs.length)el('p','No findings.','hint',box);fs.forEach(f => renderFinding(f,box)); }
 function reset() { sel={names:[],active:null};highlight();$('search').value='';search();intro();fitAll(); }

@@ -47,7 +47,7 @@ static class CliUsage
         oml skills remove <name>   (uninstall one company skill; the source file stays)
         oml warn <id | title words>       (cause and fix of a validation message, such as NoErrorHandlingInFlow)
         oml warn --catalog [<prefix>]      (list the verification ids oml knows; a prefix narrows, such as Entity_)
-        oml memory init [--module <file.oml> | --dir <folder>] [--force]   (create the project's memory store: .oml/memory/memory.log in the folder of the module files; the only command that creates one)
+        oml memory init [--module <file.oml> | --dir <folder>] [--force]   (create the project's memory store: .oml/memory/memory.log in the project root folder (the current folder); the only command that creates one)
         oml memory add "<one fact>" [--kind fact|decision|pref|trap|log|glossary|answer] [--module <Name>] [--elements A,B] [--why "<reason>"] [--tags a,b] [--supersedes <id>] [--conf 0-100] [--src <agent>] [--valid-from <date>] [--valid-until <date>]   (write one record of at most 300 bytes; secrets are refused)
         oml memory recall "<question>" [--module <Name>] [--kind K] [--top N]   (the best records for a question, at most 20; read only)
         oml memory list [--module <Name>] [--kind K] [--top N] [--all]   (records, newest first; --all adds replaced and retracted ones; read only)

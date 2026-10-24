@@ -2,3 +2,5 @@
 * text=auto
 *.ps1 text eol=crlf
 *.oml binary
+# Golden outputs of tests/terminal-check.ps1: the same bytes in every checkout.
+tests/terminal-golden/*.json text eol=lf

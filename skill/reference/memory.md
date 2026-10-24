@@ -1,9 +1,11 @@
 # Project memory (oml memory)
 
 Memory keeps what earlier agents learned, so the user does not explain the project again.
-There is one store per project: `.oml/memory/memory.log`, in the folder of the module files.
+There is one store per project: `.oml/memory/memory.log`, in the project root folder (the current folder, or `--dir <folder>`).
 A store exists only after `oml memory init`.
 Run `init` only when the user asks for memory.
+`--module <file.oml>` gives only the module name; it never changes the folder.
+`init` checks the root for `.oml`/`.oap` files even when `--module` is given, unless that module file lies inside the root; `--force` skips the check.
 
 ## Use it
 

@@ -97,16 +97,41 @@ $r = Mem 'init', '--module', (Join-Path $work 'nope/X.oml')
 Require ($r.Exit -eq 2 -and $r.Json.error -match 'not found') "init with a missing module file: $($r.Text)"
 $r = Mem 'init', '--dir', $empty, '--force'
 Require ($r.Exit -eq 0 -and $r.Json.created -and (Test-Path (LogOf $empty)) -and (Get-Item (LogOf $empty)).Length -eq 0) "init --force: $($r.Text)"
+# The wrong-folder check also runs with --module: only a module file inside the folder tree skips it.
+$otherDir = Join-Path $work 'other'; New-Item -ItemType Directory -Force $otherDir | Out-Null; Set-Content (Join-Path $otherDir 'X.oml') 'x'
+$empty2 = Join-Path $work 'empty2'; New-Item -ItemType Directory -Force $empty2 | Out-Null
+Push-Location $empty2
+try { $r = Mem 'init', '--module', (Join-Path $otherDir 'X.oml') } finally { Pop-Location }
+Require ($r.Exit -eq 2 -and $r.Json.error -match 'wrong folder' -and -not (Test-Path (Join-Path $empty2 '.oml'))) "init --module of a file outside the folder still refuses a folder without modules: exit $($r.Exit) $($r.Text)"
+$root2 = Join-Path $work 'root2'; New-Item -ItemType Directory -Force $root2 | Out-Null
+$sub2 = Join-Path $root2 'sub'; New-Item -ItemType Directory -Force $sub2 | Out-Null; Set-Content (Join-Path $sub2 'X.oml') 'x'
+Push-Location $root2
+try { $r = Mem 'init', '--module', (Join-Path $sub2 'X.oml') } finally { Pop-Location }
+Require ($r.Exit -eq 0 -and $r.Json.created -and (Test-Path (LogOf $root2)) -and -not (Test-Path (Join-Path $sub2 '.oml'))) "init --module of a file inside the folder works, store in the root: $($r.Text)"
+$empty3 = Join-Path $work 'empty3'; New-Item -ItemType Directory -Force $empty3 | Out-Null
+Push-Location $empty3
+try { $r = Mem 'init', '--module', (Join-Path $otherDir 'X.oml'), '--force' } finally { Pop-Location }
+Require ($r.Exit -eq 0 -and $r.Json.created -and (Test-Path (LogOf $empty3))) "init --module --force skips the wrong-folder check: $($r.Text)"
 $proj = NewProject 'main'
-$moduleFolder = Join-Path $work 'byfile'; New-Item -ItemType Directory -Force $moduleFolder | Out-Null; Set-Content (Join-Path $moduleFolder 'Billing.oml') 'x'
-$r = Mem 'init', '--module', (Join-Path $moduleFolder 'Billing.oml')
-Require ($r.Exit -eq 0 -and $r.Json.created -and (Test-Path (LogOf $moduleFolder))) "init --module <file.oml> uses the folder of the file: $($r.Text)"
-$r = Mem 'init', '--module', (Join-Path $moduleFolder 'Billing.oml')
+# init --module <file.oml>: the store stays in the current folder; the file gives only the module name
+$root = Join-Path $work 'root'; New-Item -ItemType Directory -Force $root | Out-Null
+$sub = Join-Path $root 'sub'; New-Item -ItemType Directory -Force $sub | Out-Null; Set-Content (Join-Path $sub 'Billing.oml') 'x'
+Push-Location $root
+try { $r = Mem 'init', '--module', (Join-Path $sub 'Billing.oml') } finally { Pop-Location }
+Require ($r.Exit -eq 0 -and $r.Json.created -and (Test-Path (LogOf $root)) -and -not (Test-Path (Join-Path $sub '.oml')) -and -not (Test-Path (Join-Path $sub '.oml/memory'))) "init --module <file.oml> keeps the store in the root folder: $($r.Text)"
+Push-Location $root
+try { $r = Mem 'init', '--module', (Join-Path $sub 'Billing.oml') } finally { Pop-Location }
 Require ($r.Exit -eq 0 -and $r.Json.created -eq $false) 'a second init must report created=false and change nothing'
+# init in a root whose .oml files sit only in a subfolder succeeds without --force
+$nested = Join-Path $work 'nested'; New-Item -ItemType Directory -Force $nested | Out-Null
+$deep = Join-Path $nested 'deep/sub'; New-Item -ItemType Directory -Force $deep | Out-Null; Set-Content (Join-Path $deep 'Orders.oml') 'x'
+Push-Location $nested
+try { $r = Mem 'init' } finally { Pop-Location }
+Require ($r.Exit -eq 0 -and $r.Json.created -and (Test-Path (LogOf $nested))) "init succeeds when .oml files are only in a subfolder: $($r.Text)"
 # the current folder is the default
-Push-Location $moduleFolder
+Push-Location $root
 try { $r = Mem 'add', 'cwd default works'; Require ($r.Exit -eq 0 -and $r.Json.id -eq 0) "add in the current folder: $($r.Text)" } finally { Pop-Location }
-Write-Host 'ok   memory: init (needs a module folder, never made by another command, --module, --force), current folder default'
+Write-Host 'ok   memory: init (needs a module folder, never made by another command, --module inside/outside the folder, --force, .oml in a subfolder), current folder default'
 
 # ---- 2. add, recall, list, show --------------------------------------------------------------------------------------
 $d0 = Add $proj 'Orders_CS stays private; Billing calls it through a service action', '--kind', 'decision', '--module', 'Orders', '--elements', 'Orders_CS,Billing_Service', '--why', 'Keeps the order data model hidden', '--tags', 'architecture'
@@ -528,17 +553,17 @@ $blank = Join-Path $dm 'blank.oml'; $mod = Join-Path $dm 'RunApp.oml'
 & $Oml new $blank --name RunApp --kind CrossDevice | Out-Null
 $built = & $Oml apply $blank (Join-Path $PSScriptRoot 'datamodel.json') $mod | ConvertFrom-Json
 Require ($LASTEXITCODE -eq 0 -and $built.saved) 'could not build the module for doctor --module'
-$r = Mem 'init', '--module', $mod; Require ($r.Exit -eq 0) 'init beside the module'
+$r = Mem 'init', '--dir', $dm, '--module', $mod; Require ($r.Exit -eq 0) 'init beside the module'
 $null = Add $dm 'Order totals are a Decimal with 2 decimals', '--module', 'RunApp', '--elements', 'Order,FetchOrder'
 $null = Add $dm 'The Ghost entity was removed in version 3', '--module', 'RunApp', '--elements', 'Ghost,RunApp.Customer'
 $null = Add $dm 'Another module owns Phantom', '--module', 'Other', '--elements', 'Phantom'
 $null = Add $dm 'A repo-wide note names a missing Vanished element', '--elements', 'Vanished'
-$r = Mem 'doctor', '--module', $mod
+$r = Mem 'doctor', '--module', $mod, '--dir', $dm
 Require ($r.Exit -eq 1 -and $r.Json.ok -eq $false -and $r.Json.chain -eq 'ok' -and $r.Json.elements.module -eq 'RunApp' -and $r.Json.elements.missing.Count -eq 2) "doctor --module: exit $($r.Exit) $($r.Text)"
 Require ((@($r.Json.elements.missing.element) -contains 'Ghost') -and (@($r.Json.elements.missing.element) -contains 'Vanished') -and $r.Json.elements.checked -eq 5) 'doctor must report the missing elements (and skip other modules)'
 $null = Mem 'retract', '1', '--why', 'Ghost is documented history', '--dir', $dm
 $null = Mem 'retract', '3', '--why', 'removed', '--dir', $dm
-$r = Mem 'doctor', '--module', $mod
+$r = Mem 'doctor', '--module', $mod, '--dir', $dm
 Require ($r.Exit -eq 0 -and $r.Json.ok -eq $true -and $r.Json.elements.missing.Count -eq 0) "retracted records are not checked: $($r.Text)"
 $r = Mem 'doctor', '--module', 'RunApp'; Require ($r.Exit -eq 2) 'doctor --module takes a file'
 Write-Host 'ok   memory: doctor --module finds elements that no longer exist (other modules and retracted records are skipped)'

@@ -27,8 +27,19 @@ internal static class TerminalOutput
         var env = Environment.GetEnvironmentVariable("OML_OUTPUT");
         if (env == "json") return false;
         if (env == "human") { ForceHuman = true; return true; }
-        return !Console.IsOutputRedirected;
+        return !Console.IsOutputRedirected && ForDevelopers(Command);
     }
+
+    // Commands developers type themselves. Every other command (the agent loop: inspect, describe, apply, spec, run,
+    // validate, review, memory, doc, ...) prints JSON in a console too, because some harnesses (Copilot in VS Code,
+    // Cursor) run agent commands in a real terminal. OML_OUTPUT=human gives the human view for those as well.
+    static readonly HashSet<string> DeveloperCommands = new(StringComparer.Ordinal)
+    {
+        "--help", "-h", "help", "version", "doctor", "check", "architecture", "image", "font", "setup", "log",
+        "library", "skills", "templates", "meta", "expr", "api", "widgets",
+    };
+
+    internal static bool ForDevelopers(string? command) => command is null || DeveloperCommands.Contains(command);
 
     // The text to write to stdout: the exact JSON, or its human rendering (JSON fallback on any render error).
     public static string Render(string json)

@@ -2,10 +2,23 @@
 
 Keep a Changelog style: one section per release, newest first.
 
-## Unreleased
+## 1.9.0
 
 ### Added
-- A human terminal view. When stdout is a console (not redirected) and the command is not inside `oml run`, every command prints a readable view instead of JSON: titled sections, aligned key/value lines, tables for arrays of objects, indented lists, and the `error`, `hint`, `warning` and `attention` fields first and highlighted. The JSON contract does not change: a pipe, a file, `--json`, `OML_OUTPUT=json` or `oml run` still get today's exact JSON, byte for byte. `--json` forces JSON; `OML_OUTPUT=json|human` overrides the default either way. Colors are ANSI virtual-terminal sequences, only on a console that supports them, and respect `NO_COLOR` and `TERM=dumb`; no meaning relies on color, and box and bar characters fall back to ASCII when the output encoding cannot show them. Long values wrap to the console width.
+- A human terminal view for the commands developers type themselves (`--help`, `version`, `doctor`, `check`, `architecture`, `image`, `font`, `setup`, `log`, `library`, `skills`, `templates`, `meta`, `expr`, `api`, `widgets`), when stdout is a console and the command is not inside `oml run`. The agent-loop commands (`inspect`, `describe`, `apply`, `spec`, `run`, `validate`, `review`, `memory`, `doc`, ...) keep JSON in a console too, because some harnesses run agent commands in a real terminal; `OML_OUTPUT=human` gives them the human view. The view has: titled sections, aligned key/value lines, tables for arrays of objects, indented lists, and the `error`, `hint`, `warning` and `attention` fields first and highlighted. The JSON contract does not change: a pipe, a file, `--json`, `OML_OUTPUT=json` or `oml run` still get today's exact JSON, byte for byte. `--json` forces JSON; `OML_OUTPUT=json|human` overrides the default either way. Colors are ANSI virtual-terminal sequences, only on a console that supports them, and respect `NO_COLOR` and `TERM=dumb`; no meaning relies on color, and box and bar characters fall back to ASCII when the output encoding cannot show them. Long values wrap to the console width; paths are never cut, a table that would cut a cell or hide nested samples prints each row as its own block, and a cut list points to `--json`.
+- Recipe gallery in the dashboard: the per-recipe "Copy prompt" button is gone; a "Prompts for agents" section at the top offers two ready templates — "Small task" and "Architect" — each with a when-to-use line and a Copy button.
+
+### Changed
+- oml memory: the store is in the project root folder (the current folder, or --dir). --module <file.oml>
+gives only the module name; it no longer moves the store to the module's folder.
+- The dashboard prompt builder is ordered as numbered steps (1 Modules, 2 Task, 3 Elements from other modules, 4 Limits) with a "Small task"/"Architect" choice at the top; the generated task starts with `[oml] Small task` or `[oml] Architect task`. The preview option now reads "Preview the UI at 1366 and 1920 px (add dark or 390 px only when needed)".
+- The architecture page never zooms automatically: selecting a module, opening or closing an application, showing the Platform group, and clicking a finding keep the current zoom level (the selection highlight and side panel stay). Keyboard focus pans only when the focused card is outside the visible area, and never zooms. Manual zoom, wheel and keys, and the Fit button are unchanged.
+- `oml memory init` keeps the wrong-folder check when `--module` is given: only a module file inside the folder tree (or `--force`) skips it. The cookbook and docs example for `init` now uses `--dir`.
+- The architecture page pans to keep the newly selected modules in view (a clicked module, an opened or closed application, shown platform modules, finding modules) without ever changing the zoom level.
+
+### Fixed
+- `inspect` lists a screen's roles in a fixed order, and `census` orders equal counts by name: both changed from run to run before.
+- `tests/terminal-check.ps1` compares golden outputs independent of line endings; `.gitattributes` keeps the golden files at LF.
 - `oml --help` and `oml <command> --help` group commands by area (Read, Change, Preview, Service Studio, LifeTime, Knowledge, Assets, Maintenance) with the command names highlighted, when shown in a console.
 - Progress on stderr for slow commands in a console only, like `oml library fetch`: `pull`, `publish`, `lt download`, `app extract`, `architecture --team` and `check --team`.
 - `tests/terminal-check.ps1`: the renderer's unit-style self-tests (`oml terminal-test`), byte-identical JSON vs 1.8.0 goldens for 11 redirected commands, and the `--json` / `OML_OUTPUT` / `NO_COLOR` rules.

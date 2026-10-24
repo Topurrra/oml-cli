@@ -1365,7 +1365,7 @@
   // producers. A module typed in the field and not in the working set counts as a Change module from a path.
   page('prompt', 'Agents', 'Prompt builder', 'Write a clear task for an AI agent: the modules, what to build, the exact elements to use and what it may not do.', async main => {
     const saved = store.get('prompt', {});
-    const defaults = { task: '', elements: [], noInstall: true, noPublish: true, preview: false, validate: true, review: true };
+    const defaults = { mode: 'small', task: '', elements: [], noInstall: true, noPublish: true, preview: false, validate: true, review: true };
     const opts = { ...defaults, ...saved };
     const moduleInput = h('input', { type: 'text', id: 'p-module', class: 'code', value: workset.list().length ? '' : state.module, placeholder: 'C:\\Work\\Orders.oml', spellcheck: 'false' });
     const taskInput = h('textarea', { id: 'p-task', placeholder: 'Add an entity Invoice (Number Text 20 mandatory, Amount Decimal, IssuedOn Date) with Invoice_CreateOrUpdate and Invoice_Delete server actions, and a Reactive list screen InvoiceList.' });
@@ -1382,7 +1382,7 @@
       review: ['Review the change: oml review … --md', opts.review],
       noInstall: ['Do not install', opts.noInstall],
       noPublish: ['Do not publish', opts.noPublish],
-      preview: ['Use preview for UI: light, dark and phone width', opts.preview],
+      preview: ['Preview the UI at 1366 and 1920 px (add dark or 390 px only when needed)', opts.preview],
     };
     const boxes = Object.fromEntries(Object.entries(checks).map(([k, [, v]]) => [k, h('input', { type: 'checkbox', id: 'p-' + k, checked: v })]));
     const output = h('textarea', { id: 'p-out', class: 'code', readonly: true, rows: 14 });
@@ -1401,6 +1401,15 @@
     function text() {
       const { change, read, all } = modules();
       const lines = [];
+      if (opts.mode === 'architect') {
+        lines.push('[oml] Architect task');
+        lines.push('Use oml (the OutSystems 11 CLI) as the architect: read the skill\'s architect.md and follow it, and rules.md.');
+        lines.push('Plan lanes, give each worker subagent its brief, check every result yourself, and merge the parts with one oml apply.');
+      } else {
+        lines.push('[oml] Small task');
+        lines.push('Use oml (the OutSystems 11 CLI) and its skill. Follow the skill\'s Standard loop and rules.md.');
+      }
+      lines.push('');
       lines.push(change.length === 0 ? 'Module: (choose a module to change).' : change.length === 1 ? `Module: ${change[0].path}.` : `Modules to change: ${change.map(m => m.path).join(', ')}.`);
       const taskText = taskInput.value.trim();
       if (taskText) lines.push(/[.!?]$/.test(taskText) ? taskText : taskText + '.');
@@ -1416,7 +1425,7 @@
         for (const m of all) lines.push(`- ${fileName(m.path)}: ${workset.sourceLine(m)}`);
         lines.push('');
       }
-      if (boxes.preview.checked) lines.push('Preview the UI in light and dark and at phone width, follow the UI checklist, and send me the screenshots.');
+      if (boxes.preview.checked) lines.push('Preview the UI at 1366 and 1920 px (add dark or 390 px only when needed).');
       if (boxes.validate.checked) lines.push('Stage the result and validate it.');
       if (boxes.review.checked && !change.length) lines.push('Then run oml review on the module and its staged file with --md, and show me the Markdown.');
       if (boxes.review.checked) for (const m of change)
@@ -1449,7 +1458,7 @@
       const changing = modules().change.length > 0;
       stepsButton.disabled = !changing;
       stepsHint.textContent = changing ? '' : 'Run steps need a module to change: choose one in Get modules, or type one.';
-      store.set('prompt', { task: taskInput.value, elements, ...Object.fromEntries(Object.entries(boxes).map(([k, b]) => [k, b.checked])) });
+      store.set('prompt', { mode: opts.mode, task: taskInput.value, elements, ...Object.fromEntries(Object.entries(boxes).map(([k, b]) => [k, b.checked])) });
       chips.replaceChildren(...elements.map((e, i) => h('span', { class: 'chip' }, e.name,
         h('button', { type: 'button', 'aria-label': 'Remove ' + e.name, onclick: () => { elements.splice(i, 1); build(); } }, '×'))));
       if (!elements.length) add(chips, h('span', { class: 'muted small' }, 'No elements yet. Find them below and add them, so the names are exact.'));
@@ -1487,19 +1496,22 @@
     findButton.addEventListener('click', runFind);
     findName.addEventListener('keydown', e => { if (e.key === 'Enter') runFind(); });
 
+    const kindControl = segmented('Task kind', [['small', 'Small task'], ['architect', 'Architect']], opts.mode, v => { opts.mode = v; build(); });
+
     add(main, h('div', { class: 'grid-2' },
       h('section', { class: 'card', 'aria-label': 'Task details' },
-        h('div', { class: 'field' }, h('span', { class: 'label' }, h('strong', { class: 'small' }, 'Modules (working set)')), setList),
+        h('div', { class: 'field' }, h('span', { class: 'label' }, h('strong', { class: 'small' }, 'Task kind')), kindControl),
+        h('div', { class: 'field' }, h('span', { class: 'label' }, h('strong', { class: 'small' }, '1. Modules (working set)')), setList),
         h('div', { class: 'field' }, h('label', { for: 'p-module' }, 'Another module to change (optional)'), moduleInput),
-        h('div', { class: 'field' }, h('label', { for: 'p-task' }, 'What should the agent build or change?'), taskInput,
-          h('p', { class: 'hint' }, 'One task per message works best. Split big features: data model first, then logic, then screens.')),
-        h('div', { class: 'field' }, h('span', { class: 'label', id: 'p-el-label' }, h('strong', { class: 'small' }, 'Elements from other modules')), chips),
+        h('div', { class: 'field' }, h('label', { for: 'p-task' }, '2. Task: what should the agent build or change?'), taskInput,
+          h('p', { class: 'hint' }, 'Describe one change with exact names, types, screens and behaviour. One task per message works best; split big features: data model first, then logic, then screens.')),
+        h('div', { class: 'field' }, h('span', { class: 'label' }, h('strong', { class: 'small' }, '3. Elements from other modules')), chips),
         h('div', { class: 'grid-2' },
           h('div', { class: 'field' }, h('label', { for: 'p-find' }, 'Find an element'), findName),
           h('div', { class: 'field' }, h('label', { for: 'p-in' }, 'Producer folders (optional)'), findIn, h('p', { class: 'hint' }, 'Read only modules are searched too.'))),
         h('div', { class: 'row' }, findButton), findOut,
-        h('fieldset', { class: 'field' }, h('legend', { class: 'sr-only' }, 'Steps and limits for the agent'),
-          h('p', {}, h('strong', { class: 'small' }, 'Steps and limits')),
+        h('fieldset', { class: 'field' }, h('legend', { class: 'sr-only' }, 'Limits for the agent'),
+          h('p', {}, h('strong', { class: 'small' }, '4. Limits')),
           Object.entries(checks).map(([k, [label]]) => h('label', { class: 'check', for: 'p-' + k }, boxes[k], label)))),
       h('section', { class: 'card', 'aria-label': 'Task for the agent' },
         h('div', { class: 'card-head' }, h('h2', {}, 'Task for the agent'),
@@ -1518,6 +1530,7 @@
       const has = (t, part) => { if (!t.includes(part)) fail('missing "' + part + '" in:\n' + t); };
       try {
         workset.clear();
+        opts.mode = 'small';
         let calls = 0;
         const stop = workset.onChange(() => calls++);
         workset.add('C:\\T\\Orders.oml', { kind: 'studio', module: 'Orders' });
@@ -1534,12 +1547,23 @@
         elements.splice(0, elements.length, { name: 'Shop.Customer_Get', file: null });
         boxes.review.checked = true; boxes.validate.checked = true;
         const t = text();
+        has(t, '[oml] Small task');
+        has(t, 'Use oml (the OutSystems 11 CLI) and its skill.');
         has(t, 'Module: C:\\T\\Orders.oml.');
         has(t, 'Read only (producers; read them with --in, never change them): C:\\T\\Shop.oml.');
         has(t, '- Orders.oml: copied from the module Orders open in Service Studio (oml pull). This is a copy; do not install over the open module without asking.');
         has(t, '- Shop.oml: downloaded from LifeTime: application Shop, as it runs in Development (oml lt download).');
         has(t, 'Then run oml review C:\\T\\Orders.oml C:\\T\\Orders.staged.oml --md C:\\T\\Orders.review.md and show me the Markdown.');
         has(t, 'Use these elements from other modules: Shop.Customer_Get.');
+        boxes.preview.checked = true;
+        has(text(), 'Preview the UI at 1366 and 1920 px (add dark or 390 px only when needed).');
+        boxes.preview.checked = false;
+        opts.mode = 'architect';
+        const ta = text();
+        has(ta, '[oml] Architect task');
+        has(ta, 'Use oml (the OutSystems 11 CLI) as the architect: read the skill\'s architect.md and follow it');
+        opts.mode = 'small';
+        has(text(), '[oml] Small task');
         const run = JSON.parse(steps().replace(/^\/\/[^\n]*\n/, '')).steps.map(s => s.join(' '));
         const expect = ['inspect C:\\T\\Orders.oml --own', 'describe C:\\T\\Orders.oml Shop.Customer_Get --in C:\\T\\Shop.oml', 'apply C:\\T\\Orders.oml Orders.spec.json C:\\T\\Orders.staged.oml',
           'validate C:\\T\\Orders.staged.oml --warnings', 'review C:\\T\\Orders.oml C:\\T\\Orders.staged.oml --md C:\\T\\Orders.review.md'];
@@ -1556,6 +1580,7 @@
         for (const [k, v] of saved) { if (v === null) { try { localStorage.removeItem('oml-dash-' + k); } catch { /* nothing kept */ } } else store.set(k, v); }
         elements.splice(0, elements.length);
         boxes.review.checked = true;
+        opts.mode = 'small';
         build();
       }
     }
@@ -1571,21 +1596,68 @@
     const list = h('div', { class: 'recipe-list' });
     const cards = data.recipes.map(r => {
       const title = r.file.replace(/\.jsonc$/, '').replace(/-/g, ' ').replace(/^./, c => c.toUpperCase());
-      const first = (r.description.split('\n')[0] || title).replace(/\.$/, '');
-      const prompt = `Module: ${state.module || 'C:\\Work\\Orders.oml'}. Use the recipe skill/recipes/${r.file} as the start of the spec: ${first.charAt(0).toLowerCase() + first.slice(1)}. ` +
-        'Rename the example names to fit this module. Stage the result and validate it. Do not install or publish.';
       const code = h('div', { hidden: true }, colorCode(r.text, 'json'));
       const toggle = h('button', { class: 'button small', type: 'button', 'aria-expanded': 'false', 'aria-label': 'Show the JSON of ' + title }, 'Show JSON');
       toggle.addEventListener('click', () => { code.hidden = !code.hidden; toggle.textContent = code.hidden ? 'Show JSON' : 'Hide JSON'; toggle.setAttribute('aria-label', toggle.textContent.replace('JSON', 'the JSON of ') + title); toggle.setAttribute('aria-expanded', String(!code.hidden)); });
       const card = h('section', { class: 'card', 'aria-label': title },
         h('h2', {}, title), h('p', { class: 'tiny mono muted' }, r.file), h('p', {}, r.description),
-        h('div', { class: 'row' }, copyButton(r.text, 'Copy spec', 'Spec', 'Copy the spec of ' + title), copyButton(prompt, 'Copy prompt', 'Prompt', 'Copy the prompt for ' + title), toggle), code,
+        h('div', { class: 'row' }, copyButton(r.text, 'Copy spec', 'Spec', 'Copy the spec of ' + title), toggle), code,
         cli(`oml apply ${state.module || 'C:\\Work\\Orders.oml'} skill\\recipes\\${r.file} ${(state.module || 'C:\\Work\\Orders.oml').replace(/\.oml$/i, '')}.staged.oml`));
       return [(r.file + ' ' + r.description).toLowerCase(), card];
     });
     cards.forEach(([, c]) => add(list, c));
     filter.addEventListener('input', () => { const q = filter.value.toLowerCase(); cards.forEach(([t, c]) => { c.hidden = q && !t.includes(q); }); });
-    add(out, h('div', { class: 'field' }, filter), list, templatesCard());
+    // Two ready prompts for agents, with placeholders the developer replaces. The texts are also the first lines of
+    // the prompt builder's output, so the two ways stay in step.
+    const prompts = [
+      {
+        title: 'Small task',
+        when: 'one module, one feature or fix, up to about 10 elements. A cheap model is fine.',
+        text: String.raw`[oml] Small task
+Use oml (the OutSystems 11 CLI) and its skill. Follow the skill's Standard loop and rules.md.
+
+Module to change: <path to the .oml file, for example C:\Work\Orders.oml>
+Read-only modules (producers): <paths, or "none">
+
+Task:
+<WRITE WHAT YOU WANT: one change, with exact names, types, screens and behaviour>
+
+Done means:
+- One staged file next to the module, saved with no new errors, and every new warning fixed or explained.
+- UI changes previewed at 1366 and 1920 px (dark or 390 px only if I ask).
+- oml review --md of the change, shown to me.
+Do not install or publish. Ask me before anything that changes a real module or an environment.`,
+      },
+      {
+        title: 'Architect',
+        when: 'several modules, a large feature, or many similar elements. Use a strong model; it leads cheaper worker subagents.',
+        text: String.raw`[oml] Architect task
+Use oml (the OutSystems 11 CLI) as the architect: read the skill's architect.md and follow it, and rules.md.
+Plan lanes, give each worker subagent its brief, check every result yourself, and merge the parts with one oml apply.
+
+Modules: <path - Change or Read only, one per line>
+Goal:
+<WRITE THE FEATURE: what users can do, the data, the screens, the integrations>
+Constraints: <naming, company skills to follow, what must not change, deadlines>
+Workers: use the default worker model and effort; ask me once if I want others.
+
+Done means:
+- One staged file per changed module that passes validate, oml review --md and oml check.
+- A short honest report: what was built, what was verified, what was not.
+Do not install or publish without my yes.`,
+      },
+    ];
+    function promptsCard() {
+      return h('section', { class: 'card', 'aria-labelledby': 'prompts-title' },
+        h('h2', { id: 'prompts-title' }, 'Prompts for agents'),
+        h('div', { class: 'stack' }, prompts.map(p => h('article', { class: 'card prompt-card', 'aria-label': p.title + ' prompt' },
+          h('h3', {}, p.title),
+          h('p', { class: 'muted small' }, 'When to use: ' + p.when),
+          h('div', { class: 'row' }, copyButton(p.text, 'Copy', 'Prompt', 'Copy the ' + p.title + ' prompt'),
+            h('details', {}, h('summary', {}, 'Show the template'), h('pre', { class: 'mono small', text: p.text })))))));
+    }
+
+    add(out, promptsCard(), h('div', { class: 'field' }, filter), list, templatesCard());
 
     // `oml templates`: the local template and sample modules, to start a module with `oml new --template`.
     function templatesCard() {

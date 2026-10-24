@@ -114,6 +114,12 @@ input[type="range"] { accent-color: var(--button); width: 100%; }
 .card > h2 { margin: 0 0 12px; }
 .card h3 { margin: 18px 0 10px; }
 .card-head h2, .card-head h3 { margin: 0; }
+/* The ready prompts for agents at the top of the recipe gallery. */
+.card.prompt-card { background: var(--sunken); border-style: dashed; box-shadow: none; padding: 18px; }
+.card.prompt-card h3 { margin-top: 0; }
+.card.prompt-card details { margin-top: 10px; }
+.card.prompt-card summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.card.prompt-card .mono { white-space: pre-wrap; }
 fieldset { border: 0; padding: 0; margin: 0 0 14px; min-width: 0; }
 main > * + * { margin-top: 16px; }
 .row select { width: auto; }

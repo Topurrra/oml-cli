@@ -264,8 +264,7 @@
           times.length ? h('ul', { class: 'small' }, times) : null,
           h('p', { class: 'hint' }, 'The signature is not checked. Do not trust these claims without checking it on the server.'));
       };
-      ui().add(el, h('div', { class: 'warning-banner', role: 'note' }, h('strong', {}, 'Never paste production tokens. '), 'Use test tokens only. This page does not send the token anywhere, but your clipboard and screen can be seen by others.'),
-        input.field, button('Decode', decode, true), h('div', { class: 'field' }), out);
+      ui().add(el, input.field, button('Decode', decode, true), h('div', { class: 'field' }), out);
     },
   };
 

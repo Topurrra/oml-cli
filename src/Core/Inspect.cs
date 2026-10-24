@@ -268,7 +268,7 @@ static class Inspect
 
     // Who may open a screen: Anonymous, Registered and/or custom roles.
     static string?[] Roles(object screen) => Reflect.Get(screen, "Roles") is System.Collections.IEnumerable roles
-        ? roles.Cast<object>().Select(Model.NameOf).ToArray() : Array.Empty<string?>();
+        ? roles.Cast<object>().Select(Model.NameOf).Order(StringComparer.Ordinal).ToArray() : Array.Empty<string?>(); // the model gives them in no fixed order
 
     // Object counts by concrete type: tells you whether a job is 20 objects or 1,000 before you start it.
     public static object Census(IESpace m)
@@ -283,7 +283,7 @@ static class Inspect
             counts[t] = counts.GetValueOrDefault(t) + 1;
             foreach (var c in Unreadable.Try(() => "children of " + Unreadable.Where(o), () => o.Children.ToArray(), [])) stack.Push(c);
         }
-        var census = JsonSerializer.SerializeToNode(new { total = counts.Values.Sum(), byType = counts.OrderByDescending(kv => kv.Value).ToDictionary() })!.AsObject();
+        var census = JsonSerializer.SerializeToNode(new { total = counts.Values.Sum(), byType = counts.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key, StringComparer.Ordinal).ToDictionary() })!.AsObject();
         if (unreadable.Items() is { } items) census["unreadable"] = JsonSerializer.SerializeToNode(items); // absent, not null, also with --pretty
         return census;
     }

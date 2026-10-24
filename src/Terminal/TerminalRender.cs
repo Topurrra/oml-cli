@@ -163,11 +163,18 @@ internal static class TerminalRender
         if (array.All(a => a is JsonObject))
         {
             var rows = array.OfType<JsonObject>().Take(MaxRows).ToArray();
+            if (rows.Length > 0 && !TableFits(rows, indent + Indent))
+            {
+                Title(sb, key, indent);
+                foreach (var row in rows) RenderObject(sb, row, indent + Indent, section: true);
+                if (array.Count > MaxRows) sb.Append(' ', indent + Indent).AppendLine(More(array.Count - MaxRows));
+                return;
+            }
             if (rows.Length > 0)
             {
                 Title(sb, key, indent);
                 RenderTable(sb, rows, indent + Indent);
-                if (array.Count > MaxRows) sb.Append(' ', indent + Indent).AppendLine($"... {array.Count - MaxRows} more");
+                if (array.Count > MaxRows) sb.Append(' ', indent + Indent).AppendLine(More(array.Count - MaxRows));
             }
             return;
         }
@@ -177,7 +184,22 @@ internal static class TerminalRender
             if (item is JsonObject o) RenderObject(sb, o, indent + Indent, section: true);
             else Line(sb, indent + Indent, Bullet + " " + Scalar(item), Width - indent - Indent, indent + Indent + 2);
         }
-        if (array.Count > MaxRows) sb.Append(' ', indent + Indent).AppendLine($"... {array.Count - MaxRows} more");
+        if (array.Count > MaxRows) sb.Append(' ', indent + Indent).AppendLine(More(array.Count - MaxRows));
+    }
+
+    static string More(int hidden) => $"... {hidden} more (add --json to see all)";
+
+    // A table only when every cell fits its column in full and no cell holds a nested list or object (warning samples).
+    static bool TableFits(JsonObject[] rows, int indent)
+    {
+        if (rows.Any(r => r.Any(p => p.Value is JsonArray { Count: > 0 } or JsonObject { Count: > 0 }))) return false;
+        var columns = new List<string>();
+        foreach (var row in rows) foreach (var (k, _) in row) if (!columns.Contains(k)) columns.Add(k);
+        columns.RemoveAll(c => rows.All(r => r[c] is null || IsEmpty(r[c]!)));
+        if (columns.Count == 0) return true;
+        var cells = rows.Select(r => columns.Select(c => Cell(r[c])).ToArray()).ToArray();
+        var widths = ColumnWidths(columns, cells, indent);
+        return cells.All(row => row.Select((cell, c) => cell.Length <= widths[c]).All(ok => ok));
     }
 
     // Columns come from the first row's keys, then any key later rows add. Columns whose value is null/empty in every
@@ -324,7 +346,7 @@ internal static class TerminalRender
             }
             if (w > width)
             {
-                sb.Append(word[..Math.Max(1, width - 1)]).Append(Ellipsis);
+                sb.Append(word); // a path or command stays whole, so it can be copied; the console wraps it
                 written = width;
             }
             else
@@ -730,7 +752,14 @@ internal static class TerminalRender
             var name = text.IndexOf("name:", StringComparison.Ordinal);
             return error >= 0 && hint > error && name > hint;
         });
-        Check("no color gives no escapes", () =>
+        Check("agent-loop commands stay JSON in a console", () =>
+            !TerminalOutput.ForDevelopers("inspect") && !TerminalOutput.ForDevelopers("apply") && !TerminalOutput.ForDevelopers("run")
+            && TerminalOutput.ForDevelopers("doctor") && TerminalOutput.ForDevelopers(null));
+        Check("a table that would cut a cell becomes stacked blocks", () =>
+            Human("""{"items":[{"name":"a","path":"C:\\a\\very\\long\\path\\that\\does\\not\\fit\\in\\any\\column\\of\\a\\console\\table\\at\\all\\because\\it\\is\\long\\really\\long.oml"}]}""")
+                .Contains("C:\\a\\very\\long\\path\\that\\does\\not\\fit\\in\\any\\column\\of\\a\\console\\table\\at\\all\\because\\it\\is\\long\\really\\long.oml"));
+        Check("nested samples are shown, not counted", () =>
+            Human("""{"warnings":[{"id":"X","count":1,"samples":[{"owner":"Order_Save","message":"Unused"}]}]}""").Contains("Order_Save"));        Check("no color gives no escapes", () =>
         {
             var previous = TerminalColors.Enabled;
             try

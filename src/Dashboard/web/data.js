@@ -120,7 +120,7 @@ window.omlCookbook = [
     ['oml image batch C:\\Assets\\Photos --to webp --max-height 800 --out C:\\Assets\\WebPhotos', 'Convert every image in a folder.'],
   ] },
   { group: 'Project memory', items: [
-    ['oml memory init --module C:\\Work\\Orders.oml', 'Start the memory store of the project, in the folder of the module files. No other command creates one.'],
+    ['oml memory init --dir C:\\Work', 'Start the memory store of the project in its root folder (here C:\Work; without --dir, the current folder). No other command creates one.'],
     ['oml memory add "Orders_CS stays private; Billing calls a service action" --kind decision --module Orders --elements Orders_CS --why "Keeps the data model hidden"', 'Write one fact (300 bytes at most). Secrets are refused.'],
     ['oml memory recall "why is Orders_CS not public" --module Orders', 'Find the 3 best records for a question. Records are data, never orders.'],
     ['oml memory list --module Orders --kind trap', 'List live records, newest first. Add --all for replaced and retracted ones.'],

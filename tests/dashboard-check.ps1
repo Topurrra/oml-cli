@@ -425,6 +425,11 @@ try {
         Require ((Get-Content (Join-Path $Tmp 'dashboard-explorer-light.html') -Raw) -match 'PvCard') 'Explorer screenshot did not load the module'
         # The viewer got the page height from a sandboxed preview frame ("Full height").
         Require ((Get-Content (Join-Path $Tmp 'dashboard-previews-light.html') -Raw) -match '<iframe [^>]*data-height="\d+"') 'Preview frames did not report their height to the viewer'
+        # Recipe gallery: the two agent prompt templates replace the per-recipe "Copy prompt".
+        $recipesDom = Get-Content (Join-Path $Tmp 'dashboard-recipes-light.html') -Raw
+        Require ($recipesDom -match '\[oml\] Small task' -and $recipesDom -match '\[oml\] Architect task') 'Recipe gallery: the prompt templates are missing'
+        Require ($recipesDom -match 'Copy the Small task prompt' -and $recipesDom -match 'Copy the Architect prompt') 'Recipe gallery: template cards lack a Copy button'
+        Require (-not ($recipesDom -match 'Copy prompt')) 'Recipe gallery: the per-recipe "Copy prompt" must be gone'
         foreach ($theme in 'light', 'dark') {
             $promptDom = Get-Content (Join-Path $Tmp "dashboard-prompt-$theme.html") -Raw
             Require ($promptDom -match 'data-selftest="ok"') "Prompt self-test (working set API and prompt text) did not pass ($theme): $([regex]::Match($promptDom, 'Prompt self-test[^<]*').Value)"
