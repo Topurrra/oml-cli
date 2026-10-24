@@ -177,9 +177,20 @@ A command is slow on a big module? Add `--timings` to see the milliseconds per p
 
 The skill is the `skill/` folder: instructions, rules, recipes and references.
 
-- **GitHub Copilot:** copy `skill/copilot-instructions.md` to `.github/copilot-instructions.md` and keep `skill/` at the repository root. It is short on purpose, so it costs few tokens per request.
-- **Claude Code:** copy the `skill/` folder to `%USERPROFILE%\.claude\skills\outsystems-oml\`.
-- **Other agents:** give them `skill/SKILL.md` and keep `skill/reference/` readable.
+Two files, one content, for any agent and model:
+
+- `skill/AGENTS.md`: always-on instructions with the rules inlined, loaded on every request. Short on purpose, so it costs few tokens per request.
+- `skill/SKILL.md` (with `rules.md`): the same guidance as an on-demand skill, for harnesses that load skills.
+
+Keep the `skill/` folder at the project root in every case: both files point to `skill/reference/` and `skill/recipes/`.
+
+| Harness | Install | Checked |
+|---|---|---|
+| Codex, Cursor, Windsurf, Zed, VS Code (GitHub Copilot), Copilot coding agent, Jules, Aider, Junie, Amp, opencode, Warp | Copy `skill/AGENTS.md` to `AGENTS.md` at the project root. | agents.md, 2026-10-25 |
+| GitHub Copilot (any version, also Visual Studio) | Copy `skill/AGENTS.md` to `.github/copilot-instructions.md`. | GitHub docs |
+| Gemini CLI | Copy `skill/AGENTS.md` to `AGENTS.md` and set `"contextFileName": "AGENTS.md"` in `.gemini/settings.json` (or copy it to `GEMINI.md`). | agents.md FAQ, 2026-10-25 |
+| Claude Code | Copy the `skill/` folder to `%USERPROFILE%\.claude\skills\outsystems-oml\` (on demand), or put `@AGENTS.md` in the project's `CLAUDE.md` (always on). | this repository uses the import |
+| Other agents | Give them `skill/AGENTS.md` (or `skill/SKILL.md`) as their instructions. | not verified per agent |
 - **Leading cheap worker agents (optional):** the lead model also reads [skill/architect.md](skill/architect.md). It plans lanes, gives each worker a brief ([worker-brief.md](skill/reference/worker-brief.md)), checks the results and merges them with one multi-part `oml apply`. It is not part of the default load.
 
 Tell the agent where `oml` and the module file are. No file yet? Open the module in Service Studio and let the agent run `oml pull`. The agent then works in a loop: read the module (`inspect`, `describe`, `find`) → copy a recipe into a spec → `apply` to a new staged file → `validate` and `describe` → for UI, `preview` in light and dark → fix and repeat. It asks you before anything that changes a real module or an environment.

@@ -2,6 +2,11 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## Unreleased
+
+### Changed
+- `skill/copilot-instructions.md` is now `skill/AGENTS.md`: the same always-on instructions, for any agent and model. The README has an install table per harness (AGENTS.md at the project root for Codex, Cursor, Windsurf, Zed, VS Code and others; `.github/copilot-instructions.md` for Copilot; `CLAUDE.md` import or the skill folder for Claude Code; a setting for Gemini CLI). Copilot users: copy `skill/AGENTS.md` where you copied the old file.
+
 ## 1.9.1
 
 ### Changed

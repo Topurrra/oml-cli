@@ -104,15 +104,15 @@ foreach ($t in $budget.Keys) {
 $load = (Tokens (Join-Path $repo 'skill/SKILL.md')) + (Tokens (Join-Path $repo 'skill/rules.md'))
 if ($load -gt 2700 * 1.15) { Fail "SKILL.md + rules.md is $load tokens; budget 2700 (+15%)" }
 
-# 7b. rules 4 and 7 of the Copilot file, and every rule on the website, read as in rules.md
+# 7b. rules 4 and 7 of AGENTS.md, and every rule on the website, read as in rules.md
 $ruleLines = @{}
 foreach ($m in [regex]::Matches((Get-Content -Raw (Join-Path $repo 'skill/rules.md')).Replace("`r`n", "`n"), '(?m)^(\d+)\. (.*)$')) { $ruleLines[[int]$m.Groups[1].Value] = $m.Value }
-$copilot = (Get-Content -Raw (Join-Path $repo 'skill/copilot-instructions.md')).Replace("`r`n", "`n")
-foreach ($n in 4, 7) { if (-not $copilot.Contains($ruleLines[$n] + "`n")) { Fail "copilot-instructions.md rule $n is not word for word rules.md" } }
-# 7c. the "Writing to the user" block (style of every text an agent writes to the user) is the same in SKILL.md and the Copilot file
+$agents = (Get-Content -Raw (Join-Path $repo 'skill/AGENTS.md')).Replace("`r`n", "`n")
+foreach ($n in 4, 7) { if (-not $agents.Contains($ruleLines[$n] + "`n")) { Fail "AGENTS.md rule $n is not word for word rules.md" } }
+# 7c. the "Writing to the user" block (style of every text an agent writes to the user) is the same in SKILL.md and AGENTS.md
 $skill = (Get-Content -Raw (Join-Path $repo 'skill/SKILL.md')).Replace("`r`n", "`n")
-$writing = foreach ($text in $skill, $copilot) { [regex]::Match($text, '(?ms)^## Writing to the user' + "`n" + '.*?(?=^## )').Value }
-if (-not $writing[0] -or $writing[0] -cne $writing[1]) { Fail 'the "## Writing to the user" block differs between SKILL.md and copilot-instructions.md, or one lacks it' }
+$writing = foreach ($text in $skill, $agents) { [regex]::Match($text, '(?ms)^## Writing to the user' + "`n" + '.*?(?=^## )').Value }
+if (-not $writing[0] -or $writing[0] -cne $writing[1]) { Fail 'the "## Writing to the user" block differs between SKILL.md and AGENTS.md, or one lacks it' }
 function Plain([string]$t) { ([System.Net.WebUtility]::HtmlDecode(($t -replace '<[^>]+>', '')) -replace '\*\*|`', '' -replace ' ?\((enforced|enforced by apply)\)', '').Trim() }
 # The site names the newer user-visible options.
 $siteText = Get-Content -Raw (Join-Path $repo 'docs/index.html')

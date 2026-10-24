@@ -205,6 +205,6 @@ GitHub Pages serves `docs/` from `main`. Configure Settings → Pages → Deploy
 | `src/Memory/` | `oml memory` (launcher only): `MemoryFormat.cs` (the 850-byte record and the hash chain), `MemoryStore.cs` (log, lock, repair, the `memory.idx` cache), `MemorySecrets.cs`, `MemoryContradiction.cs` (ports of voli's firewall and classifier), `MemoryCommand.cs`, `MemoryBench.cs`. |
 | `src/Core/` | Typed model host, spec builders, inspection, validation, preview, architecture, self-test, and CLI commands. |
 | `tests/` | JSON fixtures, PowerShell regression checks, and the LifeTime mock. |
-| `skill/` | The agent skill: `SKILL.md`, `rules.md`, the Copilot file, `recipes/`, and `reference/`. |
+| `skill/` | The agent skill: `SKILL.md` (on demand), `AGENTS.md` (always-on instructions for any agent; keep its rules and its "Writing to the user" block the same as `rules.md` and `SKILL.md`, `doc-check` compares them), `rules.md`, `recipes/`, and `reference/`. |
 | `docs/` | The website, served by GitHub Pages. |
 | `licenses/` and `THIRD-PARTY-NOTICES.md` | Licenses of adapted third-party code. |
