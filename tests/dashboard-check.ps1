@@ -415,18 +415,23 @@ try {
                 $profile = Join-Path $Tmp "dash-profile-$([guid]::NewGuid().ToString('N'))"
                 $dom = Join-Path $Tmp "dashboard-$($target.page)-$theme.html"
                 $address = "$base/?key=$key&theme=$theme$($target.hash)"
-                $arguments = @('--headless=new', '--disable-gpu', '--no-first-run', '--hide-scrollbars', "--user-data-dir=`"$profile`"", '--window-size=1440,1000',
-                    '--virtual-time-budget=20000', "--screenshot=`"$png`"", '--dump-dom', "`"$address`"")
-                # A cold browser start can stall under load: one retry, killing the whole browser tree first.
-                foreach ($attempt in 1, 2) {
-                    $run = Start-Process -FilePath $browser -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $dom -RedirectStandardError "$dom.err"
-                    if ($run.WaitForExit(60000)) { break }
-                    & taskkill /T /F /PID $run.Id 2>&1 | Out-Null
-                    if ($attempt -eq 2) { throw "Browser timed out twice on $($target.page) $theme" }
+                # Under regress load a page can miss the 20 s render budget (the first module load is the slowest):
+                # a page that is not ready gets one more try with 40 s.
+                foreach ($budget in 20000, 40000) {
+                    $arguments = @('--headless=new', '--disable-gpu', '--no-first-run', '--hide-scrollbars', "--user-data-dir=`"$profile`"", '--window-size=1440,1000',
+                        "--virtual-time-budget=$budget", "--screenshot=`"$png`"", '--dump-dom', "`"$address`"")
+                    # A cold browser start can stall under load: one retry, killing the whole browser tree first.
+                    foreach ($attempt in 1, 2) {
+                        $run = Start-Process -FilePath $browser -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput $dom -RedirectStandardError "$dom.err"
+                        if ($run.WaitForExit(60000)) { break }
+                        & taskkill /T /F /PID $run.Id 2>&1 | Out-Null
+                        if ($attempt -eq 2) { throw "Browser timed out twice on $($target.page) $theme" }
+                    }
+                    $text = ''
+                    for ($i = 0; $i -lt 50 -and $text -notmatch '</html>'; $i++) { Start-Sleep -Milliseconds 100; $text = Get-Content $dom -Raw -ErrorAction SilentlyContinue }
+                    Remove-Item $profile -Recurse -Force -ErrorAction SilentlyContinue
+                    if ($text -match "data-ready=`"$($target.page)`"") { break }
                 }
-                $text = ''
-                for ($i = 0; $i -lt 50 -and $text -notmatch '</html>'; $i++) { Start-Sleep -Milliseconds 100; $text = Get-Content $dom -Raw -ErrorAction SilentlyContinue }
-                Remove-Item $profile -Recurse -Force -ErrorAction SilentlyContinue
                 Require ($text -match 'data-js-errors="0"') "JavaScript errors on $($target.page) ($theme): $([regex]::Match($text, 'data-js-errors="\d+"').Value)"
                 Require ($text -match "data-ready=`"$($target.page)`"" -and $text -match "data-theme=`"$theme`"") "Page $($target.page) ($theme) did not finish rendering"
                 Require ((Test-Path $png) -and (Get-Item $png).Length -gt 5000) "No screenshot for $($target.page) ($theme)"
