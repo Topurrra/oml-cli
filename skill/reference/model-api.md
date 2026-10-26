@@ -97,7 +97,7 @@ Do not bypass their checks.
 ### 3. Reference the installed assemblies
 
 A separate Windows host can use `net8.0-windows` with `<RollForward>Major</RollForward>` and a newer SDK.
-The CLI itself uses net8.0 and LatestMajor.
+The CLI itself uses net10.0 and LatestMajor (Service Studio 11.55.94 and later run on .NET 10).
 Reference the installed assemblies:
 
 ```text

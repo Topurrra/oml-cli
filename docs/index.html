@@ -15,7 +15,7 @@ oml validate App.staged.oml
 oml version</code></pre></div><p>The archive includes the skill and documentation. Service Studio assemblies are loaded from your installation and are not included.</p></article><article><h3>02 / Build from source</h3><p>Install Service Studio 11 and the .NET 8 SDK. Clone the repository, then run these commands from its root.</p><div class="code-block"><div class="code-label">PowerShell<button class="copy" type="button" aria-label="Copy commands">Copy</button></div><pre><code>git clone https://github.com/Topurrra/oml-cli.git
 cd oml-cli
 dotnet build -c Release src/OmlCli.csproj
-$env:PATH = &quot;$PWD\src\bin\Release\net8.0;$env:PATH&quot;
+$env:PATH = &quot;$PWD\src\bin\Release\net10.0;$env:PATH&quot;
 oml version</code></pre></div><p>Keep the build output folder together. For another Service Studio folder, set <code>OML_SERVICE_STUDIO</code> and the build property <code>SS</code>. <a href="https://github.com/Topurrra/oml-cli/blob/main/README.md#install">Build configuration</a>.</p></article></div><p class="note">Unsigned executables may be blocked by company policy. Teams can build from source instead.</p><details><summary>Your first staged change</summary><p>Export your module as App.oml. Inspect it, record baseline validation errors, and save a change spec. Use a new output path for each attempt.</p><div class="code-block"><div class="code-label">PowerShell<button class="copy" type="button" aria-label="Copy commands">Copy</button></div><pre><code>oml inspect App.oml
 oml validate App.oml --warnings
 oml apply App.oml change.json App.staged.oml

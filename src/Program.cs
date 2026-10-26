@@ -78,6 +78,12 @@ public static class Program
                 TerminalOutput.PrintObject(new { error });
                 return 2;
             }
+            if (filtered[0] == "architecture" && filtered.Contains("--publish-order"))
+            {
+                // Core refuses this too, but only after the team's applications are downloaded; a package has no .oml file to publish anyway.
+                TerminalOutput.PrintObject(new { error = "--publish-order does not take --team: export the .oml files into a folder and use --in <folder>." });
+                return 2;
+            }
             return LifeTime.Architecture(args, RunCore);
         }
         return RunCore(args);

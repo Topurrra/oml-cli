@@ -83,7 +83,7 @@ for(const [label,count,color] of [['Added',S.added,'--green'],['Removed',S.remov
  const box=el('div',undefined,'stat',$('stats')); box.style.setProperty('--accent',`var(${color})`); el('b',String(count??0),undefined,box); el('span',label,undefined,box);
 }
 for(const a of [...new Set(changes.map(c=>c.area))]) { const o=el('option',AREAS[a]||a,undefined,$('f-area')); o.value=a; }
-const problems=[...(D.skipped||[]),...(D.warnings||[])];
+const problems=[...(D.skipped||[]),...(D.warnings||[]),...(D.unreadable||[]).map(u=>u.part+': '+u.reason)];
 if(problems.length) { $('problems').hidden=false; for(const p of problems) el('li',p,undefined,$('problem-list')); }
 const riskViews=risks.map(r=>{
  const card=el('article',undefined,'card '+(r.info?'info':'risk'),$('risks')); const head=el('div',undefined,'head',card);

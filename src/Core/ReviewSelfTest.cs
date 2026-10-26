@@ -132,6 +132,14 @@ static class ReviewSelfTest
             Check(!raw.Contains("</script><script>window.x") && raw.Contains("\\u003c/script\\u003e") && raw.Contains("\\u0026"), "the review page must escape raw markup itself");
             var markdown = ReviewReport.Markdown(document);
             Check(!markdown.Contains("</script><script>") && markdown.Contains("\\<script>") && markdown.Contains(Review.NotCovered), "the Markdown report escapes markup and carries the note");
+            // Parts the model could not read: listed like describe lists them (part and reason, capped), in JSON and Markdown.
+            Check(document["unreadable"]!.AsArray().Count == 0, "a module that reads fully lists no unreadable parts");
+            var unreadable = Enumerable.Range(1, 60).Select(i => new Unreadable.Item($"Home/Widget[{i}] property Width", "NullReferenceException: no")).ToList();
+            var capped = Unreadable.Cap(unreadable)!;
+            Check(capped.Length == 51 && capped[^1].part == "10 more", "unreadable parts are capped at 50 and a count: " + capped.Length);
+            document["unreadable"] = new JsonArray(capped.Select(u => (JsonNode?)new JsonObject { ["part"] = u.part, ["reason"] = u.reason }).ToArray());
+            Check(ReviewReport.Markdown(document).Contains("## Parts that could not be read") && ReviewReport.Markdown(document).Contains("Home/Widget\\[1\\] property Width: NullReferenceException: no"),
+                "the Markdown report lists the unreadable parts");
             // No mention of people, and no link to an issue or a merge request, from names in the module.
             document["module"] = "@team #123 !45 #x";
             Check(ReviewReport.Markdown(document).Contains("# Review: \\@team \\#123 \\!45 #x"), "the Markdown report escapes @, #123 and !45");

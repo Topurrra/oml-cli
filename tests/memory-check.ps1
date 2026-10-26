@@ -186,7 +186,8 @@ $r = Mem 'add', (([string][char]0xE9) * 151), '--dir', $proj; Require ($r.Exit -
 $r = Mem 'add', 'ok', '--why', ('w' * 201), '--dir', $proj; Require ($r.Exit -eq 2 -and $r.Json.error -match '--why is 201 bytes') '--why limit'
 $r = Mem 'add', 'ok', '--kind', 'retract', '--dir', $proj; Require ($r.Exit -eq 2 -and $r.Json.error -match 'retract') 'kind retract is not an add'
 $r = Mem 'add', 'ok', '--kind', 'weird', '--dir', $proj; Require ($r.Exit -eq 2) 'unknown kind'
-$r = Mem 'add', 'ok', '--module', 'two words', '--dir', $proj; Require ($r.Exit -eq 2) 'module with a space'
+$r = Mem 'add', 'ok', '--module', 'a/b', '--dir', $proj; Require ($r.Exit -eq 2) 'module with a slash'
+$r = Mem 'add', 'ok', '--module', 'two  words', '--dir', $proj; Require ($r.Exit -eq 2) 'module with a double space'
 $r = Mem 'add', 'ok', '--conf', '101', '--dir', $proj; Require ($r.Exit -eq 2) 'conf over 100'
 $r = Mem 'add', 'ok', '--elements', ((1..30 | ForEach-Object { "Element_$_" }) -join ','), '--dir', $proj; Require ($r.Exit -eq 2 -and $r.Json.error -match 'elements') 'elements over 120 bytes'
 $r = Mem 'add', '   ', '--dir', $proj; Require ($r.Exit -eq 2) 'empty text'
@@ -214,7 +215,7 @@ Write-Host 'ok   memory: add, recall (top 3, module filter, repo-wide records, n
 $p3 = NewProject 'lifecycle'
 $a = Add $p3 'The report timer runs at 02:00', '--kind', 'fact', '--module', 'Reports'
 $b = Add $p3 'The report timer runs at 03:00', '--supersedes', "$($a.id)"
-Require ($b.superseded -eq $a.id -and $b.kind -eq 'fact' -and $b.module -eq 'Reports') "supersede keeps the kind and module of the old record: $($b | ConvertTo-Json -Compress)"
+Require ($b.superseded -eq $a.id -and $b.kind -eq 'fact' -and $null -eq $b.module -and $b.scope -ceq 'scope changed from Reports to repo-wide') "supersede keeps the kind, not the module (none given = repo-wide), and says the scope changed: $($b | ConvertTo-Json -Compress)"
 $l = (Mem 'list', '--dir', $p3).Json
 Require ($l.total -eq 1 -and $l.records[0].id -eq $b.id) 'a superseded record is not live'
 $s = (Mem 'show', "$($a.id)", '--dir', $p3).Json
@@ -275,6 +276,31 @@ $p5b = NewProject 'clash-time'
 $null = Add $p5b 'Invoices are sent on Fridays', '--module', 'Billing', '--valid-from', '2020-01-01', '--valid-until', '2021-01-01'
 $t2 = Add $p5b 'Invoices are not sent on Fridays', '--module', 'Billing', '--valid-from', '2022-01-01'
 Require (-not $t2.contradicts) "records of two different eras are history, not a clash: $($t2 | ConvertTo-Json -Compress)"
+$pq = NewProject 'scope'
+$q1 = Add $pq 'The report timer runs at 03:00', '--module', 'Reports'
+$q0 = Add $pq 'The report timer runs at 02:30', '--module', 'Reports', '--supersedes', "$($q1.id)"
+Require ($null -eq $q0.scope -and $q0.module -ceq 'Reports') 'same scope: no scope message'
+$q1 = Add $pq 'Plain', '--supersedes', "$($q0.id)"
+Require ($q1.scope -ceq 'scope changed from Reports to repo-wide' -and $null -eq $q1.module) 'no --module on supersede = repo-wide, with the message'
+$q2 = Add $pq 'The report timer runs at 04:00', '--supersedes', "$($q1.id)", '--module', 'Sales Core'
+Require ($q2.module -ceq 'Sales Core' -and $q2.scope -ceq 'scope changed from repo-wide to Sales Core') "supersede with --module sets the new scope: $($q2 | ConvertTo-Json -Compress)"
+$q3 = Add $pq 'The report timer runs at 05:00', '--supersedes', "$($q2.id)", '--module', ' sales core '
+Require ($q3.module -ceq 'sales core' -and $null -eq $q3.scope) "same scope in another letter case and padded ends: no scope message: $($q3 | ConvertTo-Json -Compress)"
+# A module name with spaces through add, recall, list, handoff, doctor and the hash chain.
+$ps = NewProject 'spaced'
+$null = Add $ps 'Sales Core owns the quote total', '--module', 'Sales Core', '--kind', 'decision'
+$null = Add $ps 'Billing owns the invoice number', '--module', 'Billing'
+$null = Add $ps 'Repo wide rule about naming', '--kind', 'pref'
+$r = (Mem 'recall', 'quote total', '--module', 'Sales Core', '--dir', $ps).Json
+Require ($r.module -ceq 'Sales Core' -and $r.hits[0].module -ceq 'Sales Core' -and $r.hits[0].text -match 'quote total') "recall with a spaced module: $($r | ConvertTo-Json -Depth 5 -Compress)"
+$l = (Mem 'list', '--module', 'Sales Core', '--dir', $ps).Json
+Require ($l.total -eq 2 -and @($l.records.module | Where-Object { $_ -ceq 'Billing' }).Count -eq 0) 'list --module "Sales Core" keeps that module and the repo-wide record'
+$h = (Mem 'handoff', '--module', 'Sales Core', '--dir', $ps).Json
+Require (@($h.recent.text) -contains 'Sales Core owns the quote total' -and @($h.recent.text) -notcontains 'Billing owns the invoice number') 'handoff --module "Sales Core"'
+$d = (Mem 'doctor', '--dir', $ps).Json
+Require ($d.ok -eq $true -and $d.chain -eq 'ok') "doctor after a spaced module: $($d | ConvertTo-Json -Compress)"
+Require ((Chain-Problems (LogOf $ps)).Count -eq 0) 'the hash chain is valid with a spaced module'
+$r = Mem 'show', '0', '--dir', $ps; Require ($r.Json.module -ceq 'Sales Core') 'show reads a spaced module back whole'
 Write-Host 'ok   memory: supersede, retract, history, list --all, duplicates, valid time, contradiction warning'
 
 # ---- 4. secrets: refused at write, masked at recall ----------------------------------------------------------------------

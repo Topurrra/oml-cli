@@ -10,7 +10,8 @@
  ],
  "siteProperties": [
   {
-   "name": "ApiToken"
+   "name": "ApiToken",
+   "description": "Fixture ApiToken."
   }
  ],
  "entities": [
@@ -802,7 +803,8 @@
    "name": "NightlyCleanup",
    "action": "Cleanup",
    "schedule": "",
-   "timeout": 60
+   "timeout": 60,
+   "description": "Fixture NightlyCleanup."
   }
  ],
  "restServices": [

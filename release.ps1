@@ -131,7 +131,7 @@ try {
     $install = @'
 ### Install
 
-Requires Windows x64, Service Studio 11 and the .NET 8 runtime (or the newer runtime required by your Service Studio).
+Requires Windows x64, Service Studio 11 and the .NET 10 runtime.
 Unzip the archive and add its `bin` folder to PATH, keeping all CLI files together.
 
 ```powershell

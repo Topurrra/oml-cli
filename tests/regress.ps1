@@ -28,7 +28,7 @@ param([int]$Throttle = 4)
 $ErrorActionPreference = "Stop"
 $watch = [Diagnostics.Stopwatch]::StartNew()
 $tests = $PSScriptRoot
-$oml = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\src\bin\Release\net8.0\oml.exe"))
+$oml = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\src\bin\Release\net10.0\oml.exe"))
 $tmp = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\tmp"))
 New-Item -ItemType Directory -Force $tmp | Out-Null
 Get-ChildItem $tmp -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
@@ -195,6 +195,10 @@ Unit 'flowlayout-check' -After 'logic.json','service.json','platform.json','web.
   try { & (Join-Path $tests 'flowlayout-check.ps1') $oml $tmp }
   catch { $global:fail++; Write-Host "FAIL flow layout checks: $_" }
 }
+Unit 'inspect-check' {
+  try { & (Join-Path $tests "inspect-check.ps1") -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL inspect checks: $_" }
+}
 Unit 'describe-check' {
   try { & (Join-Path $tests "describe-check.ps1") -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL describe checks: $_" }
@@ -223,6 +227,10 @@ Unit 'turns-check' {
 Unit 'run-check' {
   try { & (Join-Path $tests 'run-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL run checks: $_" }
+}
+Unit 'batch-check' {
+  try { & (Join-Path $tests 'batch-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL batch checks: $_" }
 }
 Unit 'timings-check' {
   try { & (Join-Path $tests 'timings-check.ps1') -Oml $oml -Tmp $tmp }

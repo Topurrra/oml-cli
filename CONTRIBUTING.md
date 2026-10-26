@@ -2,16 +2,16 @@
 
 ## Build
 
-Use Windows, Service Studio 11, and the .NET 8 SDK.
+Use Windows, Service Studio 11, and the .NET 10 SDK.
 Run commands from the repository root:
 
 ```powershell
 dotnet build -c Release src/OmlCli.csproj
-$env:PATH = "$PWD\src\bin\Release\net8.0;$env:PATH"
+$env:PATH = "$PWD\src\bin\Release\net10.0;$env:PATH"
 oml version
 ```
 
-The executable is `src/bin/Release/net8.0/oml.exe`. Keep the build output folder together.
+The executable is `src/bin/Release/net10.0/oml.exe`. Keep the build output folder together.
 For a different Service Studio folder, set the runtime path and build property:
 
 ```powershell
@@ -182,7 +182,7 @@ To regenerate the architecture demo, remove the existing `docs/architecture-demo
 ```powershell
 $env:PATH="$env:USERPROFILE\.dotnet;$env:PATH"
 dotnet build src -c Release
-src\bin\Release\net8.0\oml.exe architecture-render tests\architecture-sample.json docs\architecture-demo.html
+src\bin\Release\net10.0\oml.exe architecture-render tests\architecture-sample.json docs\architecture-demo.html
 ```
 
 The demo uses the CLI's own page template and the checked-in sample. It needs no model command or server connection. Keep its license notice. The demo keeps a "Back to oml" link that is added to the generated header, not to the template. Add it again after each regeneration:

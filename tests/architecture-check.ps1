@@ -127,6 +127,17 @@ Check-Architecture ($LASTEXITCODE -eq 2 -and $refused.error -like 'Output alread
 $newHtml = Join-Path $dir 'must-not-write.html'
 $refused = & $Oml architecture --in $inputs --out $newHtml --json $json | ConvertFrom-Json
 Check-Architecture ($LASTEXITCODE -eq 2 -and -not (Test-Path $newHtml)) 'JSON overwrite must refuse before writing HTML'
+$forced = & $Oml architecture --in $inputs --out $html --json $json --force | ConvertFrom-Json
+Check-Architecture ($LASTEXITCODE -eq 0 -and $forced.html -eq $html) '--force overwrites existing outputs'
+$layersAsOut = Join-Path $dir 'layers-in.json'; '{"Shop*":"Core"}' | Set-Content $layersAsOut
+$refused = & $Oml architecture --in $inputs --layers $layersAsOut --out $layersAsOut --force | ConvertFrom-Json
+Check-Architecture ($LASTEXITCODE -eq 2 -and $refused.error -like 'Output is also an input:*' -and (Get-Content $layersAsOut -Raw) -like '*Shop**') '--force never overwrites an input'
+# An input module inside an input folder, named in upper case or by a relative path, is still an input.
+$refused = & $Oml architecture --in $inputs --out (Join-Path $inputs 'Shop_Th.oml').ToUpper() --force | ConvertFrom-Json
+Check-Architecture ($LASTEXITCODE -eq 2 -and $refused.error -like 'Output is also an input:*') '--force refuses an input in another case'
+Push-Location $inputs
+try { $refused = & $Oml architecture --in . --out .\Shop_Th.oml --force | ConvertFrom-Json; $relativeExit = $LASTEXITCODE } finally { Pop-Location }
+Check-Architecture ($relativeExit -eq 2 -and $refused.error -like 'Output is also an input:*') '--force refuses an input given as a relative path'
 foreach ($file in $hashes.Keys) { Check-Architecture ((Get-FileHash $file).Hash -eq $hashes[$file]) "Input was changed: $file" }
 $afterTemps = @(Get-ChildItem $env:TEMP -Directory -Filter 'oml-architecture-*' | ForEach-Object FullName)
 Check-Architecture (($afterTemps | Where-Object { $_ -notin $beforeTemps }).Count -eq 0) 'Package temp directory leaked'
@@ -139,4 +150,31 @@ $extensionJson = Join-Path $dir 'native.json'
 Run-ArchitectureCommand @('architecture','--in',$extensionPackage,'--in',$extensionPackage,'--app','Native','--app','Shop','--out',(Join-Path $dir 'native.html'),'--json',$extensionJson) | Out-Null
 $extensionData = Get-Content $extensionJson -Raw | ConvertFrom-Json
 Check-Architecture ($extensionData.modules.Count -eq 1 -and $extensionData.modules[0].kind -eq 'Extension' -and $extensionData.modules[0].layer -eq 'Foundation' -and $extensionData.modules[0].application -eq 'Native') 'Packaged extension, repeated inputs or repeated app filters'
-Write-Host "ok   architecture: layers, grouping, edges, eight findings, filtering, overrides, schema, overwrite; $($report.elapsedSeconds)s for seven modules"
+# Publish order: producers first. Admin_UI uses Shop_UI, which uses Shop_Th; Shop_CS and Shop_Lib use each other.
+$chainIn = Join-Path $dir 'chain'; New-Item -ItemType Directory $chainIn | Out-Null
+foreach ($f in @($th, $cw, $admin)) { Copy-Item $f $chainIn }
+$chainOut = Join-Path $dir 'chain-out'; New-Item -ItemType Directory $chainOut | Out-Null
+Push-Location $chainOut
+try { $po = Run-ArchitectureCommand @('architecture','--in',$chainIn,'--publish-order'); $po2 = Run-ArchitectureCommand @('architecture','--in',$chainIn,'--publish-order') } finally { Pop-Location }
+Check-Architecture (@(Get-ChildItem $chainOut).Count -eq 0) '--publish-order must write no file'
+Check-Architecture ((@($po.order.module) -join ',') -eq 'Shop_Th,Shop_UI,Admin_UI' -and (@($po.order.level) -join ',') -eq '0,1,2' -and @($po.cycles).Count -eq 0) "Publish order of a chain: $($po | ConvertTo-Json -Depth 6 -Compress)"
+Check-Architecture (@($po.order | Where-Object { -not (Test-Path $_.file) }).Count -eq 0 -and $po.order[0].file -eq (Join-Path $chainIn 'Shop_Th.oml')) 'Publish order names the input files'
+Check-Architecture (($po | ConvertTo-Json -Depth 6 -Compress) -eq ($po2 | ConvertTo-Json -Depth 6 -Compress)) 'Publish order is deterministic'
+$cycleIn = Join-Path $dir 'cycle'; New-Item -ItemType Directory $cycleIn | Out-Null
+foreach ($f in @($cs, $lib)) { Copy-Item $f $cycleIn }
+$pc = Run-ArchitectureCommand @('architecture','--in',$cycleIn,'--publish-order')
+Check-Architecture ((@($pc.order.module) -join ',') -eq 'Shop_CS,Shop_Lib' -and (@($pc.order.level) -join ',') -eq '0,0' -and @($pc.cycles).Count -eq 1 -and (@($pc.cycles[0]) -join ',') -eq 'Shop_CS,Shop_Lib') "Publish order of a cycle: $($pc | ConvertTo-Json -Depth 6 -Compress)"
+# --changed: a names file (one per line, # comments, a name outside the input warns) or a folder with the earlier files.
+$names = Join-Path $dir 'changed.txt'; Set-Content $names @('# changed today', 'Admin_UI', '', 'Shop_Th', 'Nope')
+$pn = Run-ArchitectureCommand @('architecture','--in',$chainIn,'--publish-order','--changed',$names)
+Check-Architecture ((@($pn.order.module) -join ',') -eq 'Shop_Th,Admin_UI' -and (@($pn.order.level) -join ',') -eq '0,1' -and ($pn.warnings -join ' ') -match 'Nope') "Publish order with a names file: $($pn | ConvertTo-Json -Depth 6 -Compress)"
+$before = Join-Path $dir 'chain-before'; New-Item -ItemType Directory $before | Out-Null
+Copy-Item $th $before; Copy-Item $portal (Join-Path $before 'Shop_UI.oml')
+$pf = Run-ArchitectureCommand @('architecture','--in',$chainIn,'--publish-order','--changed',$before)
+Check-Architecture ((@($pf.order.module) -join ',') -eq 'Shop_UI,Admin_UI' -and (@($pf.order.level) -join ',') -eq '0,1') "Publish order against an earlier folder: $($pf | ConvertTo-Json -Depth 6 -Compress)"
+foreach ($bad in @(@('--publish-order','--out',(Join-Path $dir 'po.html')), @('--publish-order','--json',(Join-Path $dir 'po.json')), @('--changed',$names))) {
+    $refused = & $Oml architecture --in $chainIn @bad | ConvertFrom-Json
+    Check-Architecture ($LASTEXITCODE -eq 2 -and $refused.error) "Publish order option refused: $($bad -join ' ')"
+}
+Check-Architecture (-not (Test-Path (Join-Path $dir 'po.html')) -and -not (Test-Path (Join-Path $dir 'po.json'))) 'A refused publish order must write nothing'
+Write-Host "ok   architecture: layers, grouping, edges, eight findings, filtering, overrides, schema, overwrite, publish order; $($report.elapsedSeconds)s for seven modules"

@@ -60,18 +60,64 @@ public static partial class Cli
     static int? CmdInspect(List<string> args)
     {
         if (args.Count < 2) return null;
-        string? only = null, since = null;
-        bool own = false, history = false;
-        for (var i = 2; i < args.Count; i++)
+        string? only = null, since = null, folder = null;
+        bool own = false, history = false, recursive = false;
+        var first = args[1] == "--in" ? 3 : 2;
+        if (args[1] == "--in" && args.Count < 3) return null;
+        if (args[1] == "--in") folder = args[2];
+        for (var i = first; i < args.Count; i++)
         {
+            if (args[i] == "--recursive" && folder is not null) { recursive = true; continue; }
             if (args[i] == "--own") { own = true; continue; }
             if (args[i] == "--history") { history = true; continue; }
             if (args[i] == "--only" && i + 1 < args.Count) { only = args[++i]; continue; }
             if (args[i] == "--changed-since" && i + 1 < args.Count) { since = args[++i]; continue; }
-            throw new CliError("inspect accepts --own, --only <sections>, --history and --changed-since <yyyy-mm-dd>.", 2);
+            throw new CliError("inspect accepts --own, --only <sections>, --history, --changed-since <yyyy-mm-dd>, and with --in <folder>: --recursive.", 2);
         }
+        if (folder is not null) return InspectFolder(folder, recursive, own, only, history, since);
         using var open = Open(args[1]); var module = open.Module;
         return Emit(Timings.Measure("inspect", () => Inspect.Filter(module, own, only, history, since)));
+    }
+
+    // inspect --in <folder>: every .oml in one process, so Service Studio's model loads once. A module that fails gives an error entry.
+    static int? InspectFolder(string folder, bool recursive, bool own, string? only, bool history, string? since)
+    {
+        if (!Directory.Exists(folder)) throw new CliError($"Folder not found: {folder}", 2);
+        var files = Directory.EnumerateFiles(folder, "*.oml", recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly)
+            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
+        var modules = new System.Text.Json.Nodes.JsonArray();
+        var failed = false;
+        // Inside `oml run` or the dashboard the sharing is already on and belongs to the caller: leave it on.
+        var nested = Model.ShareModules;
+        Model.ShareModules = true;
+        try
+        {
+            foreach (var file in files)
+            {
+                Model.TrimShared();
+                var name = Path.GetRelativePath(folder, file);
+                var loaded = false;
+                try
+                {
+                    using var open = Open(file);
+                    loaded = true;
+                    var result = System.Text.Json.JsonSerializer.SerializeToNode(Inspect.Filter(open.Module, own, only, history, since))!.AsObject();
+                    var entry = new System.Text.Json.Nodes.JsonObject { ["file"] = name };
+                    foreach (var (k, v) in result.ToArray()) { result.Remove(k); entry[k] = v; }
+                    modules.Add(entry);
+                }
+                // After the load, a CliError is a bad option (--only, --changed-since): the same for every file, so it stops the command.
+                catch (CliError) when (loaded) { throw; }
+                catch (Exception e) when (e is not OutOfMemoryException)
+                {
+                    failed = true;
+                    modules.Add(new System.Text.Json.Nodes.JsonObject { ["file"] = name, ["error"] = e.Message });
+                }
+            }
+        }
+        finally { if (!nested) Model.EndSharing(); }
+        Emit(new { modules });
+        return failed ? 1 : 0;
     }
 
     static int? CmdDescribe(List<string> args)

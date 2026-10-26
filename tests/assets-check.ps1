@@ -1,4 +1,4 @@
-param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net8.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
+param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
 $ErrorActionPreference = 'Stop'
 $assetDir = Join-Path $Tmp 'assets'
 New-Item -ItemType Directory -Force $assetDir | Out-Null
@@ -6,7 +6,7 @@ $env:TEMP = $Tmp; $env:TMP = $Tmp
 $project = Join-Path $PSScriptRoot 'AssetsTests\AssetsTests.csproj'
 & 'C:\Program Files\dotnet\dotnet.exe' build -c Release -v q -nologo $project
 if ($LASTEXITCODE -ne 0) { throw 'Asset test harness build failed' }
-$checks = Join-Path $PSScriptRoot 'AssetsTests\bin\Release\net8.0\AssetsTests.exe'
+$checks = Join-Path $PSScriptRoot 'AssetsTests\bin\Release\net10.0\AssetsTests.exe'
 function Check-Asset([string[]]$Arguments) {
     & $checks @Arguments
     if ($LASTEXITCODE -ne 0) { throw "Asset verification failed: $Arguments" }

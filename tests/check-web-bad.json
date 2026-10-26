@@ -94,5 +94,14 @@
     }
    ]
   }
+ ],
+ "edits": [
+  {
+   "op": "set",
+   "element": "Cart",
+   "properties": {
+    "description": "Fixture Cart."
+   }
+  }
  ]
 }

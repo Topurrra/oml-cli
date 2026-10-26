@@ -23,6 +23,7 @@ public static partial class Cli
 
     static int? CmdApply(List<string> args)
     {
+        if (args.Contains("--batch")) return CmdApplyBatch(args);
         if (args.Count < 4) return null;
         var positional = new List<string>();
         var describe = new List<string>();
@@ -40,7 +41,13 @@ public static partial class Cli
         return Apply.Run(positional[0], positional.Skip(1).SkipLast(1).ToList(), positional[^1], new ApplyOptions(describe, describeCreated), report);
     }
 
-    static int? CmdInstall(List<string> args) => args.Count == 3 ? Install(args[1], args[2]) : null;
+    static int? CmdInstall(List<string> args)
+    {
+        var allow = args.Contains("--allow-existing-errors");
+        var rest = args.Where(a => a != "--allow-existing-errors").ToList();
+        if (rest.Contains("--batch")) return rest.Count == 3 && rest[1] == "--batch" ? InstallBatch(rest[2], allow) : null;
+        return rest.Count == 3 ? Install(rest[1], rest[2], allow) : null;
+    }
 
     // `oml spec check <spec.json> --module <source.oml>`: the launcher calls this. It runs the whole apply build on
     // the loaded module, in memory and without a save, so every name resolves exactly as in apply. Returns the
@@ -84,7 +91,16 @@ public static partial class Cli
 
     // Validate, backup, copy, verify, restore on failure (skill section 16). The installed file is verified by its
     // SHA-256 against the exact bytes that were validated, so loading those same bytes again would add nothing.
-    static int Install(string staged, string target)
+    internal static int Install(string staged, string target, bool allowExisting = false)
+    {
+        var plan = InstallCheck(staged, target, allowExisting);
+        return Emit(InstallWrite(plan, plan.Bytes));
+    }
+
+    // The checks of an install, up to the point where it would write. Throws the refusal the single install gives.
+    internal record InstallPlan(string Staged, string Target, byte[] Bytes, string Hash, object[]? ExistingErrors);
+
+    internal static InstallPlan InstallCheck(string staged, string target, bool allowExisting)
     {
         staged = Path.GetFullPath(staged);
         target = Path.GetFullPath(target);
@@ -93,14 +109,35 @@ public static partial class Cli
 
         var bytes = File.ReadAllBytes(staged);
         var validatedHash = Convert.ToHexString(SHA256.HashData(bytes));
+        object[]? existingErrors = null;
         using (var module = Model.Load(bytes, "load staged", staged))
         {
             var stagedErrors = Model.Errors(module, "validate staged");
             if (stagedErrors.Length > 0)
-                throw new CliError($"Staged module has {stagedErrors.Length} validation errors; refusing to install.");
+            {
+                // Which staged errors does the target already have (same id and owner path)?
+                StudioGuards.ErrorKey Key(OutSystems.Model.IValidationMessage e) => new(e.Id, Model.OwnerName(e.Owner) ?? "");
+                var keys = stagedErrors.Select(Key).ToList();
+                var added = keys.Count;
+                try
+                {
+                    using var old = Model.Load(target);
+                    added = StudioGuards.SplitErrors(keys, Model.Errors(old, "validate target").Select(Key)).added.Count;
+                }
+                catch (Exception e) when (e is CliError or ModelError or IOException or UnauthorizedAccessException) { } // an unreadable target: every staged error counts as new
+                if (StudioGuards.InstallRefusal(stagedErrors.Length, added, allowExisting) is { } refusal) throw new CliError(refusal);
+                existingErrors = Model.Grouped(stagedErrors);
+            }
         }
 
         if (new FileInfo(target).IsReadOnly) throw new CliError($"Target is read-only: {target}. Nothing installed.", 2);
+        return new InstallPlan(staged, target, bytes, validatedHash, existingErrors);
+    }
+
+    // `bytes` are the validated bytes; a batch passes them again from disk after it checked their hash.
+    static object InstallWrite(InstallPlan plan, byte[] bytes)
+    {
+        var (target, validatedHash, existingErrors) = (plan.Target, plan.Hash, plan.ExistingErrors);
         var backup = $"{target}.{DateTime.Now:yyyyMMdd-HHmmss}.bak";
         if (File.Exists(backup)) throw new CliError($"Backup already exists: {backup}", 2);
         var targetHash = Timings.Measure("backup", () =>
@@ -129,7 +166,10 @@ public static partial class Cli
             { throw new CliError($"Install failed ({failure}), and restoring the backup failed too ({e.Message}). Copy {backup} over {target} by hand.", 2); }
             throw new CliError($"Install failed ({failure}). The target was restored from {backup}.");
         });
-        return Emit(new { installed = target, backup, sha256 = validatedHash });
+        if (existingErrors is not null)
+            return new { installed = target, backup, sha256 = validatedHash, existingErrors,
+                note = "The staged file has errors, and the target already had every one of them (--allow-existing-errors). No new error was added." };
+        return new { installed = target, backup, sha256 = validatedHash };
     }
 
     static string? TryHash(string path)

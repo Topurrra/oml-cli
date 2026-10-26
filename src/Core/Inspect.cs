@@ -24,10 +24,17 @@ static class Inspect
         {
             name = Model.NameOf(a),
             @public = Reflect.Get(a, "Public") as bool?,
-            inputs = a.InputParameters.Select(p => new { name = p.Name, type = Model.Describe(m, p.DataType) }),
-            outputs = a.OutputParameters.Select(p => new { name = p.Name, type = Model.Describe(m, p.DataType) }),
+            inputs = a.InputParameters.Select(Param),
+            outputs = a.OutputParameters.Select(Param),
             lastModifiedBy = h.By(a), lastModifiedDate = h.On(a),
         };
+        // A parameter entry; the description is there only when it is not empty.
+        JsonObject Param(IParameterSignature p)
+        {
+            var o = new JsonObject { ["name"] = p.Name, ["type"] = Model.Describe(m, p.DataType) };
+            if (ShortDescription(Reflect.Get(p, "Description") as string) is { } d) o["description"] = d;
+            return o;
+        }
 
         return new
         {
@@ -52,8 +59,9 @@ static class Inspect
             timers = Rows("timers", h.Keep(m.Timers), t => new { name = Model.NameOf(t), action = t.Action is { } a ? Model.NameOf(a) : null, schedule = t.Schedule,
                 timeout = t.TimeoutInMinutes, priority = t.Priority.ToString(), description = t.Description, lastModifiedBy = h.By(t), lastModifiedDate = h.On(t) }),
             processes = Rows("processes", h.Keep(m.Processes), p => new { name = Model.NameOf(p), launchOn = Reflect.Get(p.LaunchOn, "Entity") is { } e ? Model.NameOf(e) : null,
-                inputs = p.InputParameters.Select(i => new { name = i.Name, type = Model.Describe(m, i.DataType) }),
+                inputs = p.InputParameters.Select(Param),
                 nodes = ElementPaths.Ordered(p.Nodes.OfType<IObjectSignature>()).Select(n => new { name = Model.NameOf(n), kind = ElementPaths.Kind(n) }), lastModifiedBy = h.By(p), lastModifiedDate = h.On(p) }),
+            sessionVariables = Rows("sessionVariables", h.Keep(Describe.List(m, "SessionVariables")), v => new { name = Model.NameOf(v), type = Model.Describe(m, Reflect.Get(v, "DataType") as ITypeSignature), lastModifiedBy = h.By(v), lastModifiedDate = h.On(v) }, v => v),
             roles = Rows("roles", h.Keep(m.Roles), r => new { name = Model.NameOf(r), @public = Reflect.Get(r, "Public") as bool?, description = r.Description, persistent = r.IsPersistent,
                 actions = new[] { r.CheckRoleAction, r.GrantRoleAction, r.RevokeRoleAction }.Where(a => a is not null).Select(a => Model.NameOf(a!)), lastModifiedBy = h.By(r), lastModifiedDate = h.On(r) }),
             siteProperties = Rows("siteProperties", h.Keep(m.SiteProperties), p => new { name = p.Name, type = Model.Describe(m, p.DataType),
@@ -101,14 +109,18 @@ static class Inspect
             if (key == "name") { result["name"] = value?.DeepClone(); if (Describe.Kind(element) is var kind && !Implied(section, kind)) result["kind"] = kind; }
             else if (key != "description" && key != "kind") result[key] = value?.DeepClone();
         }
-        var description = System.Text.RegularExpressions.Regex.Replace((o["description"]?.GetValue<string>() ?? Reflect.Get(element, "Description") as string) ?? "", @"\s*[\r\n]+\s*", " ").Trim();
-        if (description.Length > 0)
-        {
-            var cut = DescriptionChars - 3;
-            if (description.Length > DescriptionChars && char.IsHighSurrogate(description[cut - 1])) cut--; // keep a surrogate pair whole
-            result["description"] = description.Length > DescriptionChars ? description[..cut] + "..." : description;
-        }
+        if (ShortDescription(o["description"]?.GetValue<string>() ?? Reflect.Get(element, "Description") as string) is { } description) result["description"] = description;
         return result;
+    }
+
+    // One line, cut to DescriptionChars; null when empty.
+    internal static string? ShortDescription(string? text)
+    {
+        var description = System.Text.RegularExpressions.Regex.Replace(text ?? "", @"\s*[\r\n]+\s*", " ").Trim();
+        if (description.Length == 0) return null;
+        var cut = DescriptionChars - 3;
+        if (description.Length > DescriptionChars && char.IsHighSurrogate(description[cut - 1])) cut--; // keep a surrogate pair whole
+        return description.Length > DescriptionChars ? description[..cut] + "..." : description;
     }
 
     static JsonNode? One(string section, Func<object?> read)
@@ -132,18 +144,30 @@ static class Inspect
         m.MobileFlows.SelectMany(f => f.Nodes.Where(s => s is IScreenSignature || IsBlock(s)).Select(s => (f.Name, (IObjectSignature)s)))
         .Concat(m.WebFlows.SelectMany(f => f.Nodes.Where(s => s is IScreenSignature || IsBlock(s)).Select(s => (f.Name, (IObjectSignature)s))));
 
-    static object ScreenRow(string flow, IObjectSignature s, History.View h) => new
+    // inputs stays a list of names; inputDescriptions maps a name to its description and is there only when one exists.
+    static object ScreenRow(string flow, IObjectSignature s, History.View h)
     {
-        flow, name = Model.NameOf(s), @public = Reflect.Get(s, "Public") as bool?,
-        inputs = Describe.List(s, "InputParameters").Select(Model.NameOf), roles = Roles(s), anonymousAccess = Reflect.Get(s, "AnonymousAccess") as bool?,
-        lastModifiedBy = h.By(s), lastModifiedDate = h.On(s),
-    };
+        var inputs = Describe.List(s, "InputParameters").ToArray();
+        var row = new Dictionary<string, object?>
+        {
+            ["flow"] = flow, ["name"] = Model.NameOf(s), ["public"] = Reflect.Get(s, "Public") as bool?,
+            ["inputs"] = inputs.Select(Model.NameOf).ToArray(), ["roles"] = Roles(s), ["anonymousAccess"] = Reflect.Get(s, "AnonymousAccess") as bool?,
+        };
+        var texts = new JsonObject();
+        foreach (var i in inputs)
+            if (ShortDescription(Reflect.Get(i, "Description") as string) is { } d && Model.NameOf(i) is { } n) texts[n] = d;
+        if (texts.Count > 0) row["inputDescriptions"] = texts;
+        row["lastModifiedBy"] = h.By(s); row["lastModifiedDate"] = h.On(s);
+        return row;
+    }
 
     public static object Filter(IESpace m, bool own, string? only, bool history = false, string? changedSince = null)
     {
         var since = changedSince is null ? null : History.ParseSince(changedSince);
         using var unreadable = new Unreadable();
         var result = JsonSerializer.SerializeToNode(Module(m, new History.View(history, since)))!.AsObject();
+        // Only Traditional Web modules have session variables. An empty list is left out, so --pretty output of the other modules stays as it was.
+        if (result["sessionVariables"] is JsonArray { Count: 0 }) result.Remove("sessionVariables");
         // A date filter lists changed elements only: module settings, content and references have no change date.
         if (since is not null) foreach (var key in new[] { "module", "content", "defaultScreen", "references" }) result.Remove(key);
         // The change fields are null when not asked for, and --pretty would print them.
@@ -156,12 +180,15 @@ static class Inspect
             {
                 ["actions"] = ["serverActions", "serviceActions", "clientActions"],
                 ["rest"] = ["restClients", "restServices"], ["static"] = ["staticEntities"],
+                // The output keys also work as filters, so the key a person reads is the key they can ask for.
+                ["serverActions"] = ["serverActions"], ["serviceActions"] = ["serviceActions"], ["clientActions"] = ["clientActions"],
+                ["restClients"] = ["restClients"], ["restServices"] = ["restServices"], ["staticEntities"] = ["staticEntities"],
             };
             var keep = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var key in only.Split(',', StringSplitOptions.TrimEntries))
             {
                 if (groups.TryGetValue(key, out var sections)) keep.UnionWith(sections);
-                else if (new[] { "entities", "structures", "screens", "blocks", "references", "timers", "roles", "processes", "siteProperties" }.Contains(key, StringComparer.OrdinalIgnoreCase)) keep.Add(key);
+                else if (new[] { "entities", "structures", "screens", "blocks", "references", "timers", "roles", "processes", "siteProperties", "sessionVariables", "exceptions" }.Contains(key, StringComparer.OrdinalIgnoreCase)) keep.Add(key);
                 else throw new CliError($"Unknown inspect section '{key}'.", 2);
             }
             if (since is not null && keep.All(k => k.Equals("references", StringComparison.OrdinalIgnoreCase)))
@@ -253,7 +280,7 @@ static class Inspect
             // What an execute node, event handler, lifecycle event, refresh or argument points at.
             @ref = new[] { "Action", "Handler", "Destination", "Exception", "DataSource", "Source", "Parameter", "SourceBlock", "Email", "OnExceptionHandler", "GlobalExceptionHandler", "Image" }
                 .Select(p => Ref(o, p))
-                .Where(v => v is not null).Select(v => Model.NameOf(v!)).FirstOrDefault(),
+                .Where(v => v is not null).Select(v => Model.NameOf(v!)).FirstOrDefault() ?? (FieldMappings.Is(o) ? FieldMappings.Field(o) : null), // a field mapping points at its target field
             source = ConnectorName(o, "SourceNode"),
             target = ConnectorName(o, "TargetNode"),
             left = Reflect.Get(o, "LeftSource") is { } left ? Model.NameOf(left) : null,

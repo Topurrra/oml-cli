@@ -1,7 +1,7 @@
 # oml dashboard, end to end: start it on a free port, check the security rules, call each kind of endpoint, then stop it.
 # With Edge or Chrome installed it also takes light and dark screenshots of three pages into $Tmp and checks that the
 # page reported no JavaScript error (theme.js counts them on <html data-js-errors>), the same way preview-check reads the DOM.
-param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net8.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
+param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
 $ErrorActionPreference = 'Stop'
 $Tmp = [IO.Path]::GetFullPath($Tmp)
 New-Item -ItemType Directory -Force $Tmp | Out-Null

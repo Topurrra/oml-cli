@@ -101,6 +101,11 @@ static class Reflect
     public static (Stage stage, Action apply) Plan(IESpace m, object o, string key, JsonElement value)
     {
         if (History.IsField(key)) throw new ModelError("history fields are written by Service Studio; oml does not change them");
+        // A per-field record mapping has one thing to set: the expression that fills the field.
+        if (FieldMappings.Is(o))
+            return key.Equals("value", StringComparison.OrdinalIgnoreCase) && value.ValueKind == JsonValueKind.String
+                ? (Stage.Expression, () => FieldMappings.SetSource(o, value.GetString()!))
+                : throw new ModelError($"a field mapping takes only \"value\" (the expression for field {FieldMappings.Field(o)}), as a string");
         // Exact setter, then exact writable property, then a fuzzy setter: "exception" must reach the Exception
         // property, not SetExceptionMessage, while "message" may still find SetExceptionMessage.
         if (value.ValueKind == JsonValueKind.String && Setter(o, key, typeof(string), fuzzy: false) is { } set)

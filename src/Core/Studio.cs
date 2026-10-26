@@ -27,23 +27,46 @@ static class Studio
         return new { url = Url, apps = Call("listApps", input: null)["apps"] };
     });
 
-    public static int Publish(string target) => Guard("Publishing through Service Studio", ManualPublish, () =>
+    // The names of the modules open now; the batch publish checks them before it publishes anything.
+    public static List<string> OpenModuleNames() => Guard("Reading Service Studio's open modules", "Check Edit > MCP Server in Service Studio.", () =>
+    {
+        Connect();
+        return (Call("listApps", input: null)["apps"] as JsonArray ?? new())
+            .Where(a => a?["isOpen"]?.GetValue<bool>() == true).Select(a => a!["name"]!.GetValue<string>()).ToList();
+    });
+
+    public static int Publish(string target)
+    {
+        var r = PublishOne(target);
+        Cli.Emit(new { module = r.module, published = r.published, warning = r.warning, result = r.result, manualStep = r.published ? null : ManualPublish });
+        return r.published ? 0 : 1;
+    }
+
+    // One publish, without printing: `publish` prints it, and the batch publish (PublishBatch) collects it.
+    public static PublishBatch.PublishResult PublishOne(string target) => Guard("Publishing through Service Studio", ManualPublish, () =>
     {
         var name = OpenModule(target);
+        JsonNode? apps = null;
+        try { apps = Call("listApps", input: null); } catch (CliError) { } // only for the warning: a failed lookup never blocks a publish
+        var warning = StudioGuards.PublishWarning(name, StudioGuards.FindApp(apps, name));
         var result = Call("omlPublish", new JsonObject { ["eSpaceName"] = name });
-        var published = Flag(result, "published", "omlPublish");
-        Cli.Emit(new { module = name, published, result, manualStep = published ? null : ManualPublish });
-        return published ? 0 : 1;
+        return new PublishBatch.PublishResult(name, Flag(result, "published", "omlPublish"), warning, result);
     });
 
     public static int References(string target) => Guard("Refreshing references through Service Studio", ManualRefresh, () =>
     {
         var name = OpenModule(target);
         var result = Call("omlRefreshReferences", new JsonObject { ["eSpaceName"] = name });
+        var (refreshed, busy) = StudioGuards.RefreshOutcome(result);
+        if (!refreshed)
+        {
+            Cli.Emit(new { module = name, refreshed = false, message = busy, result, manualStep = ManualRefresh });
+            return 1;
+        }
         var hasErrors = Flag(result, "hasErrors", "omlRefreshReferences");
         Cli.Emit(new
         {
-            module = name, result, manualStep = hasErrors ? ManualRefresh : null,
+            module = name, refreshed = true, result, manualStep = hasErrors ? ManualRefresh : null,
             next = "The refreshed module is open in Service Studio; save or publish it there.",
         });
         return hasErrors ? 1 : 0;

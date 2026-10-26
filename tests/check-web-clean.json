@@ -40,5 +40,14 @@
     }
    ]
   }
+ ],
+ "edits": [
+  {
+   "op": "set",
+   "element": "CartId",
+   "properties": {
+    "description": "Fixture CartId."
+   }
+  }
  ]
 }

@@ -33,33 +33,46 @@ static class Architecture
         var sources = new List<string>();
         var apps = new List<string>();
         var singles = new Dictionary<string, string>();
+        var force = false;
+        var publishOrder = false;
         for (var i = 1; i < args.Count; i++)
         {
             var option = args[i];
-            if (option is not ("--in" or "--app" or "--layers" or "--out" or "--json" or "--team-label")
+            if (option == "--force") { force = true; continue; }
+            if (option == "--publish-order") { publishOrder = true; continue; }
+            if (option is not ("--in" or "--app" or "--layers" or "--out" or "--json" or "--team-label" or "--changed")
                 || i + 1 >= args.Count || args[i + 1].StartsWith("--"))
-                throw new CliError("architecture accepts repeated --in <folder|file.oml|file.oap>, --app <Name>, --layers <file.json>, --out <file.html>, --json <file.json>, and --team-label <Name>.", 2);
+                throw new CliError("architecture accepts repeated --in <folder|file.oml|file.oap>, --app <Name>, --layers <file.json>, --out <file.html>, --json <file.json>, --force, --publish-order [--changed <names file|folder>] and --team-label <Name>.", 2);
             var value = args[++i];
             if (option == "--in") sources.Add(value);
             else if (option == "--app") apps.Add(value);
             else if (!singles.TryAdd(option, value)) throw new CliError($"Duplicate option {option}.", 2);
         }
         if (sources.Count == 0) throw new CliError("architecture requires --in <folder|file.oml|file.oap>.", 2);
+        if (publishOrder) return PublishOrderRun(sources, apps, singles, force);
+        if (singles.ContainsKey("--changed")) throw new CliError("--changed works only with --publish-order.", 2);
         var html = Path.GetFullPath(singles.GetValueOrDefault("--out", "architecture.html"));
         var jsonPath = singles.TryGetValue("--json", out var jp) ? Path.GetFullPath(jp) : null;
         if (string.Equals(html, jsonPath, StringComparison.OrdinalIgnoreCase)) throw new CliError("HTML and JSON outputs must have different paths.", 2);
-        foreach (var path in new[] { html, jsonPath }.OfType<string>()) Fresh(path);
+        foreach (var path in new[] { html, jsonPath }.OfType<string>())
+        {
+            // --force replaces an output file only: never an input (a file, or a module file inside an input folder), the layers file, or a folder.
+            if (force && IsInput(path, sources, singles.GetValueOrDefault("--layers")))
+                throw new CliError($"Output is also an input: {path}. Use another output path.", 2);
+            if (!force) Fresh(path);
+            else if (Directory.Exists(path)) throw new CliError($"Output is a folder: {path}.", 2);
+        }
         try
         {
             var overrides = ReadOverrides(singles.GetValueOrDefault("--layers"));
             var result = Read(sources, apps, singles.GetValueOrDefault("--team-label"), overrides);
             var json = result.document.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
             var page = ArchitecturePage.Render(json);
-            using (var stream = new FileStream(html, FileMode.CreateNew))
+            using (var stream = new FileStream(html, force ? FileMode.Create : FileMode.CreateNew))
             using (var writer = new StreamWriter(stream)) writer.Write(page);
             if (jsonPath is not null)
             {
-                using var stream = new FileStream(jsonPath, FileMode.CreateNew);
+                using var stream = new FileStream(jsonPath, force ? FileMode.Create : FileMode.CreateNew);
                 using var writer = new StreamWriter(stream);
                 writer.Write(json);
             }
@@ -78,10 +91,76 @@ static class Architecture
         { throw new CliError(e.Message, 2); }
     }
 
+    // --publish-order: print the modules producers first. It writes no file.
+    static int PublishOrderRun(List<string> sources, List<string> apps, Dictionary<string, string> singles, bool force)
+    {
+        if (force || singles.ContainsKey("--out") || singles.ContainsKey("--json") || singles.ContainsKey("--team-label"))
+            throw new CliError("--publish-order prints the order and writes no file; it does not take --out, --json, --force or --team.", 2);
+        try
+        {
+            var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var result = Read(sources, apps, null, ReadOverrides(singles.GetValueOrDefault("--layers")), fileOf: files);
+            var warnings = result.warnings;
+            var inputs = result.document["modules"]!.AsArray().Select(m => m!.AsObject()).Where(m => !m["external"]!.GetValue<bool>()).ToList();
+            // An extension is published from Integration Studio, not by oml publish.
+            warnings.AddRange(inputs.Where(m => Text(m, "kind") == "Extension").Select(m => $"Extension {Text(m, "name")} is not in the order: publish it from Integration Studio."));
+            var own = inputs.Where(m => Text(m, "kind") != "Extension").Select(m => Text(m, "name")).ToList();
+            ISet<string>? changed = null;
+            if (singles.TryGetValue("--changed", out var list)) changed = ReadChanged(list, own, files, warnings);
+            var (order, cycles) = PublishOrder.Compute(own,
+                result.document["edges"]!.AsArray().Select(e => (Text(e!.AsObject(), "from"), Text(e.AsObject(), "to"))), changed);
+            // Printed as a built tree so that an empty cycles list stays in the output (Emit drops empty values).
+            TerminalOutput.PrintNode(JsonSerializer.SerializeToNode(new {
+                order = order.Select(o => new { module = o.module, file = files.GetValueOrDefault(o.module), level = o.level }).ToArray(),
+                cycles, warnings
+            })!);
+            return 0;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or ArgumentException)
+        { throw new CliError(e.Message, 2); }
+    }
+
+    // A folder: the modules whose file differs from, or is missing in, the same-named file there (a loose .oml file; a module from a package counts as changed).
+    // A file: one module name per line (empty lines and lines starting with # are skipped), or a JSON array of names.
+    static HashSet<string> ReadChanged(string path, List<string> modules, Dictionary<string, string> files, List<string> warnings)
+    {
+        var full = Path.GetFullPath(path);
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (Directory.Exists(full))
+        {
+            foreach (var name in modules)
+            {
+                var file = files.GetValueOrDefault(name);
+                var before = file is null || !File.Exists(file) ? null : Directory.EnumerateFiles(full, Path.GetFileName(file), SearchOption.AllDirectories).FirstOrDefault();
+                if (before is null || !File.ReadAllBytes(file!).AsSpan().SequenceEqual(File.ReadAllBytes(before))) result.Add(name);
+            }
+            return result;
+        }
+        if (!File.Exists(full)) throw new CliError($"--changed expects a module list file or a folder: {full}", 2);
+        var text = File.ReadAllText(full);
+        var names = text.TrimStart().StartsWith('[') ? JsonSerializer.Deserialize<string[]>(text)!
+            : text.Split((char)10).Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith('#'));
+        foreach (var name in names)
+        {
+            if (!modules.Contains(name, StringComparer.OrdinalIgnoreCase)) warnings.Add($"Changed module {name} is not in the input.");
+            else result.Add(name);
+        }
+        return result;
+    }
+
+    static bool IsInput(string path, List<string> sources, string? layers)
+    {
+        var same = (string a, string b) => string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
+        if (layers is not null && same(layers, path)) return true;
+        return sources.Any(s => same(s, path)
+            || Directory.Exists(s) && Path.GetExtension(path).ToLowerInvariant() is ".oml" or ".oap" or ".xif"
+               && Path.GetFullPath(path).StartsWith(Path.TrimEndingDirectorySeparator(Path.GetFullPath(s)) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+    }
+
     static void Fresh(string path)
     {
         if (File.Exists(path) || Directory.Exists(path))
-            throw new CliError($"Output already exists: {path}. Use a new output path, or delete that file first.", 2);
+            throw new CliError($"Output already exists: {path}. Use a new output path, delete that file first, or add --force.", 2);
     }
 
     internal static Dictionary<string, string> ReadOverrides(string? path)
@@ -118,8 +197,9 @@ static class Architecture
     }
 
     // visit: called for each loaded .oml module while it is open (oml check reads its flows there).
+    // fileOf: filled with the file of each module (a package member is shown as package.oap!member.oml).
     internal static Result Read(IReadOnlyList<string> sources, IReadOnlyList<string> apps, string? team,
-        IReadOnlyDictionary<string, string> overrides, Action<IESpace, string>? visit = null)
+        IReadOnlyDictionary<string, string> overrides, Action<IESpace, string>? visit = null, Dictionary<string, string>? fileOf = null)
     {
         var warnings = new List<string>();
         var skipped = new List<(string input, string reason)>();
@@ -142,6 +222,8 @@ static class Architecture
         var temp = Path.Combine(Path.GetTempPath(), "oml-architecture-" + Guid.NewGuid().ToString("N"));
         var pending = files.Where(f => Path.GetExtension(f).Equals(".oml", StringComparison.OrdinalIgnoreCase)).Select(f => (path: f, app: "(no application)")).ToList();
         var membership = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var packageOf = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        string Shown(string path) => packageOf.TryGetValue(path, out var pkg) ? pkg + "!" + Path.GetFileName(path) : path;
         try
         {
             var n = 0;
@@ -158,7 +240,7 @@ static class Architecture
                             warnings.Add($"Module {m.name} is listed in both {old} and {m.app}; using {old}.");
                         else membership[m.name] = m.app;
                     }
-                    foreach (var file in Directory.EnumerateFiles(folder).Where(f => Path.GetExtension(f).ToLowerInvariant() is ".oml" or ".xif")) pending.Add((file, ""));
+                    foreach (var file in Directory.EnumerateFiles(folder).Where(f => Path.GetExtension(f).ToLowerInvariant() is ".oml" or ".xif")) { pending.Add((file, "")); packageOf[file] = package; }
                 }
                 catch (Exception e) { Skip(package, (e.InnerException ?? e).Message); }
             }
@@ -177,6 +259,7 @@ static class Architecture
                         var extensionApp = membership.GetValueOrDefault(extensionName, "(no application)");
                         if (apps.Count > 0 && !apps.Contains(extensionApp, StringComparer.OrdinalIgnoreCase)) continue;
                         if (!snapshots.TryAdd(extensionName, ReadExtension(extension, extensionApp, overrides))) warnings.Add($"Skipped duplicate module {extensionName}: {file.path}");
+                        else if (fileOf is not null) fileOf[extensionName] = Shown(file.path);
                         continue;
                     }
                     using var module = Model.Load(file.path);
@@ -191,6 +274,7 @@ static class Architecture
                         producerKinds[reference.Name] = reference.Kind.ToString().Contains("Extension", StringComparison.OrdinalIgnoreCase) ? "Extension"
                             : reference.ModuleType.ToString().Contains("Library", StringComparison.OrdinalIgnoreCase) ? "Library" : "Unknown";
                     snapshots.Add(name, snapshot);
+                    if (fileOf is not null) fileOf[name] = Shown(file.path);
                     allEdges.AddRange(edges);
                 }
                 catch (Exception e) { Skip(file.path, (e.InnerException ?? e).Message); }

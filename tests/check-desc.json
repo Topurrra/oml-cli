@@ -1,0 +1,59 @@
+{
+ "module": { "description": "Fixture for the missing-description rule: each kind once without and once with a description." },
+ "entities": [
+  { "name": "Ledger", "public": true, "description": "Bookings.",
+    "attributes": [ { "name": "Amount", "type": "Decimal" }, { "name": "Note", "description": "Free text." }, { "name": "Name" } ] }
+ ],
+ "structures": [
+  { "name": "Row", "public": true, "description": "A row.", "attributes": [ { "name": "Cell" }, { "name": "Label", "description": "Shown." } ] }
+ ],
+ "serverActions": [
+  { "name": "Tick", "flow": [] },
+  { "name": "Lookup", "public": true, "description": "Finds a value.",
+    "inputs": [ { "name": "Id", "type": "Integer" }, { "name": "Key", "description": "The key." } ],
+    "outputs": [ { "name": "Value", "description": "The value." } ], "flow": [] }
+ ],
+ "roles": [
+  { "name": "BareRole", "public": true },
+  { "name": "FullRole", "public": true, "description": "Staff." }
+ ],
+ "siteProperties": [
+  { "name": "BareProp", "type": "Integer", "default": "1" },
+  { "name": "FullProp", "type": "Integer", "default": "1", "description": "A limit." }
+ ],
+ "timers": [
+  { "name": "BareTimer", "action": "Tick", "schedule": "", "timeout": 20 },
+  { "name": "FullTimer", "action": "Tick", "schedule": "", "timeout": 20, "description": "Runs Tick." }
+ ],
+ "images": [
+  { "name": "BareLogo", "file": "check-desc.svg", "public": true },
+  { "name": "FullLogo", "file": "check-desc.svg", "public": true }
+ ],
+ "themes": [
+  { "name": "BareTheme", "styleSheet": ".a { color: navy; }" },
+  { "name": "FullTheme", "styleSheet": ".b { color: navy; }" }
+ ],
+ "processes": [
+  { "name": "BareProc", "public": true, "inputs": [ { "name": "Ref", "type": "Integer" } ],
+    "flow": [ { "kind": "end", "name": "Done" } ] },
+  { "name": "FullProc", "public": true, "description": "Runs.", "inputs": [ { "name": "Ref", "type": "Integer", "description": "Ref." } ],
+    "flow": [ { "kind": "end", "name": "Done" } ] }
+ ],
+ "blocks": [
+  { "name": "BareCard", "public": true, "inputs": [ { "name": "Title" }, { "name": "Name" }, { "name": "Body", "description": "Text." } ],
+    "widgets": [ { "type": "Expression", "value": "Title" } ] },
+  { "name": "FullCard", "public": true, "inputs": [ { "name": "Title", "description": "Heading." } ],
+    "widgets": [ { "type": "Expression", "value": "Title" } ] }
+ ],
+ "screens": [
+  { "name": "BareHome", "public": true, "inputs": [ { "name": "Query", "mandatory": false } ] },
+  { "name": "FullHome", "public": true, "inputs": [ { "name": "Query", "mandatory": false, "description": "Search." } ] }
+ ],
+ "edits": [
+  { "op": "set", "element": "FullCard", "properties": { "description": "A card." } },
+  { "op": "set", "element": "FullHome", "properties": { "description": "Home." } },
+  { "op": "set", "element": "FullLogo", "properties": { "description": "The logo." } },
+  { "op": "set", "element": "BareTheme", "properties": { "public": true } },
+  { "op": "set", "element": "FullTheme", "properties": { "public": true, "description": "Dark." } }
+ ]
+}

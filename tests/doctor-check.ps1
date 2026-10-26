@@ -1,6 +1,6 @@
 # Checks `oml doctor`: the JSON shape, the checks that must pass on a working machine, the failure and warning cases,
 # and that LifeTime settings never reach the output. Run from the repo root after a build.
-param([string]$Oml = (Join-Path $PSScriptRoot '..\src\bin\Release\net8.0\oml.exe'))
+param([string]$Oml = (Join-Path $PSScriptRoot '..\src\bin\Release\net10.0\oml.exe'))
 $ErrorActionPreference = 'Stop'
 $names = @('OML_SERVICE_STUDIO','OML_STUDIO_PORT','OML_LIFETIME_HOST','OML_LIFETIME_TOKEN')
 $saved = @{}; foreach ($name in $names) { $saved[$name] = [Environment]::GetEnvironmentVariable($name) }

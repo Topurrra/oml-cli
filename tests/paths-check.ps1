@@ -176,4 +176,17 @@ foreach ($section in 'entities', 'serverActions', 'screens', 'blocks', 'referenc
   $sorted = [string[]]$names.Clone(); [Array]::Sort($sorted, [StringComparer]::OrdinalIgnoreCase)
   Require (($section -notin 'screens', 'blocks' -or $names.Count -gt 2) -and ($names -join '|') -ceq ($sorted -join '|')) "inspect $section is not sorted by name: $($names -join ', ')"
 }
+# Directly under an action, its own input or output parameter wins over a flow node of the same name; the typed form reaches the node.
+$same = Join-Path $Tmp 'paths-same.oml'
+$r = Apply (Join-Path $Tmp 'PathsTest-blank.oml') '{ "serverActions": [{ "name": "Pick", "inputs": [{ "name": "Seed", "type": "Integer" }], "outputs": [{ "name": "Response", "type": "Text" }], "flow": [{ "kind": "assign", "name": "Response", "assign": { "Response": "\"x\"" }, "next": "Seed" }, { "kind": "assign", "name": "Seed", "assign": { "Response": "\"y\"" } }] }] }' $same
+Require $r.saved "same-name fixture: $($r | ConvertTo-Json -Depth 6 -Compress)"
+foreach ($name in 'Response', 'Seed') {
+  Require ((Oml @('describe', $same, "Pick/$name")).Json.kind -match 'Parameter') "Pick/$name did not mean the parameter"
+  Require ((Oml @('tree', $same, "ServerAction:Pick/$name")).Json.kind -match 'Parameter') "ServerAction:Pick/$name did not mean the parameter"
+  Require ((Oml @('tree', $same, "Pick/Assign:$name")).Json.kind -eq 'Assign') "Pick/Assign:$name did not reach the node"
+}
+# Before another part the rest of the path chooses, as it did: the assignment below is the node's, not the parameter's.
+foreach ($name in 'Response', 'Seed') { Require ((Oml @('tree', $same, "Pick/$name/Assignment[0]")).Json.kind -eq 'Assignment') "Pick/$name/Assignment[0] did not reach the node's assignment" }
+$e = Apply $same '{ "edits": [{ "op": "rename", "element": "Pick/Assign:Response", "to": "SetResponse" }] }' (Join-Path $Tmp 'paths-same-out.oml')
+Require $e.saved "rename through the typed form: $($e | ConvertTo-Json -Depth 6 -Compress)"
 Write-Host 'ok   element paths: top-level wins, no fall-through, no edits of references, ambiguous candidates work everywhere, stable index paths'

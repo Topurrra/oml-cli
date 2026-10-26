@@ -1,4 +1,4 @@
-param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net8.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
+param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
 # The oml check HTML report: offline, data escaped, and in headless Edge/Chrome the filters work in both themes without script errors.
 $ErrorActionPreference = 'Stop'
 $dir = Join-Path $Tmp ('check-page-' + [guid]::NewGuid().ToString('N'))

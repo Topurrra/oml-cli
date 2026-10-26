@@ -3,10 +3,10 @@
 // Related keys: timers, roles, siteProperties, access. Timer execution needs runtime tests.
 {
   "roles": [{ "name": "ProductManager", "persistent": true }],
-  "siteProperties": [{ "name": "MaxProducts", "type": "Integer", "default": "50", "multiTenant": false }],
+  "siteProperties": [{ "name": "MaxProducts", "description": "Most products a list shows.", "type": "Integer", "default": "50", "multiTenant": false }],
   "serverActions": [{ "name": "Timer_ReadLimit", "description": "Reads the limit site property.", "locals": [{ "name": "Limit", "type": "Integer" }],
     "flow": [{ "kind": "assign", "assign": { "Limit": "Site.MaxProducts" } }] }],
-  "timers": [{ "name": "ReadProductLimit", "action": "Timer_ReadLimit", "schedule": "WhenPublished", "timeout": 20, "priority": "Normal" }],
+  "timers": [{ "name": "ReadProductLimit", "description": "Reads the product limit after each publish.", "action": "Timer_ReadLimit", "schedule": "WhenPublished", "timeout": 20, "priority": "Normal" }],
   "screens": [{ "name": "ProductAdmin", "layout": "LayoutTopMenu", "access": { "anonymous": false, "registered": false, "roles": ["ProductManager"] },
     "widgets": [{ "type": "Text", "text": "Product administration" }] }]
 }

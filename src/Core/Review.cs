@@ -115,7 +115,8 @@ static class Review
         var b = Timings.Measure("readAfter", () => ReviewModel.Read(after));
         if (a.Key != b.Key)
             throw new CliError($"The two files are different modules ({a.Module} and {b.Module}): review compares two versions of one module.", 2);
-        var changes = Timings.Measure("compare", () => Compare(a, b));
+        var kinds = new Dictionary<string, int>(); // Compare counts each changed property by name, for the summary.
+        var changes = Timings.Measure("compare", () => Compare(a, b, kinds));
         var risks = Timings.Measure("risks", () => ProductionRules.ForReview(before).Risks(after)
             .OrderBy(r => r.Info).ThenBy(r => r.Rule).ThenBy(r => r.Element, StringComparer.OrdinalIgnoreCase).ThenBy(r => r.Text, StringComparer.Ordinal).ToList());
         var skipped = new List<string>();
@@ -134,8 +135,9 @@ static class Review
             if (known.GetValueOrDefault(Key(f)) > 0) known[Key(f)]--;
             else fresh.Add(f);
         var warnings = new List<string>();
-        if (a.Unreadable + b.Unreadable > 0)
-            warnings.Add($"{a.Unreadable + b.Unreadable} parts of the modules could not be read; they are not compared.");
+        var unreadable = Unreadable.Cap(a.Unreadable.Concat(b.Unreadable).ToList());
+        if (a.Unreadable.Count + b.Unreadable.Count > 0)
+            warnings.Add($"{a.Unreadable.Count + b.Unreadable.Count} parts of the modules could not be read; they are not compared. They are listed in \"unreadable\".");
         return new JsonObject
         {
             ["schema"] = 1, ["module"] = b.Module, ["before"] = beforePath, ["after"] = afterPath,
@@ -145,6 +147,9 @@ static class Review
                 ["added"] = changes.Count(c => c.What == "added"), ["removed"] = changes.Count(c => c.What == "removed"),
                 ["recreated"] = changes.Count(c => c.What == "recreated"), ["renamed"] = changes.Count(c => c.What == "renamed"), ["changed"] = changes.Count(c => c.What == "changed"),
                 ["risks"] = risks.Count(r => !r.Info), ["info"] = risks.Count(r => r.Info), ["newFindings"] = fresh.Count, ["resolvedFindings"] = known.Values.Sum(),
+                ["changes"] = changes.Count,
+                ["byArea"] = new JsonObject(Areas.Where(x => changes.Any(c => c.Area == x.id)).Select(x => KeyValuePair.Create(x.id, (JsonNode?)changes.Count(c => c.Area == x.id)))),
+                ["changeKinds"] = new JsonObject(kinds.OrderByDescending(k => k.Value).ThenBy(k => k.Key, StringComparer.Ordinal).Select(k => KeyValuePair.Create(k.Key, (JsonNode?)k.Value))),
             },
             ["risks"] = new JsonArray(risks.Select(r => (JsonNode?)Risk(r)).ToArray()),
             ["changes"] = new JsonArray(changes.Select(c => (JsonNode?)new JsonObject
@@ -159,6 +164,7 @@ static class Review
                 ["element"] = f["element"]!.DeepClone(), ["detail"] = f["detail"]?.DeepClone(), ["fix"] = f["fix"]?.DeepClone(),
             }).ToArray()),
             ["skipped"] = new JsonArray(skipped.Select(s => (JsonNode?)s).ToArray()),
+            ["unreadable"] = new JsonArray((unreadable ?? []).Select(u => (JsonNode?)new JsonObject { ["part"] = u.part, ["reason"] = u.reason }).ToArray()),
             ["warnings"] = new JsonArray(warnings.Select(s => (JsonNode?)s).ToArray()),
             ["note"] = NotCovered,
             ["elapsedSeconds"] = Math.Round(watch.Elapsed.TotalSeconds, 3),
@@ -204,6 +210,8 @@ static class Review
         }
         foreach (var key in new[] { "skipped", "warnings" })
             if (full[key]!.AsArray().Count > 0) output[key] = full[key]!.DeepClone();
+        // The parts that could not be read, as many as the page and the Markdown list.
+        if (full["unreadable"]!.AsArray().Count > 0) output["unreadable"] = full["unreadable"]!.DeepClone();
         output["note"] = NotCovered;
         output["elapsedSeconds"] = full["elapsedSeconds"]!.DeepClone();
         return output;
@@ -213,7 +221,7 @@ static class Review
 
     // ---- Comparison ----
 
-    internal static List<Change> Compare(Snapshot a, Snapshot b)
+    internal static List<Change> Compare(Snapshot a, Snapshot b, Dictionary<string, int> kinds)
     {
         Dictionary<string, List<Item>> Members(Snapshot s) => s.Order.Select(k => s.Items[k]).GroupBy(i => i.Unit).ToDictionary(g => g.Key, g => g.ToList());
         var (membersA, membersB) = (Members(a), Members(b));
@@ -233,8 +241,8 @@ static class Review
             var renamed = ua.Name != ub.Name;
             if (renamed) details.Add($"renamed from {ua.Label} to {ub.Label}");
             var texts = new List<Text>();
-            details.AddRange(Props(ua, ub, $"{kind} {ub.Label}", texts));
-            details.AddRange(Inside(a, b, membersA.GetValueOrDefault(unit) ?? new(), membersB.GetValueOrDefault(unit) ?? new(), unit, top.Kind == "Reference", texts));
+            details.AddRange(Props(ua, ub, $"{kind} {ub.Label}", texts, kinds));
+            details.AddRange(Inside(a, b, membersA.GetValueOrDefault(unit) ?? new(), membersB.GetValueOrDefault(unit) ?? new(), unit, top.Kind == "Reference", texts, kinds));
             if (details.Count > 0) changes.Add(new(Area(top.Kind), kind, ub.Label, renamed ? "renamed" : "changed", details, texts));
         }
         // Deleted and made again with the same name (in Service Studio, or a module built again): one change. It is
@@ -283,7 +291,7 @@ static class Review
     }
 
     // Changes inside one top element that is in both modules.
-    static IEnumerable<string> Inside(Snapshot a, Snapshot b, List<Item> inA, List<Item> inB, string unit, bool reference, List<Text> texts)
+    static IEnumerable<string> Inside(Snapshot a, Snapshot b, List<Item> inA, List<Item> inB, string unit, bool reference, List<Text> texts, Dictionary<string, int> kinds)
     {
         var keysA = inA.Select(i => i.Key).ToHashSet();
         var keysB = inB.Select(i => i.Key).ToHashSet();
@@ -312,7 +320,7 @@ static class Review
             var old = a.Items[i.Key];
             var moved = old.Parent != i.Parent ? new[] { $"moved from {ParentName(a, old, unit)} to {ParentName(b, i, unit)}" } : [];
             var subject = $"{Human(i.Kind)} {(old.Name != i.Name ? old.Label : Display(i, kind: false))}{Where(b, i, unit)}";
-            if (Changed(subject, old, i, moved.Concat(Props(old, i, subject, texts))) is not { } line) continue;
+            if (Changed(subject, old, i, moved.Concat(Props(old, i, subject, texts, kinds))) is not { } line) continue;
             if (i.IsWidget) widgetsChanged.Add((Display(i), line));
             else lines.Add(line);
         }
@@ -321,7 +329,7 @@ static class Review
         // Widgets at a summary level: each change while there are few, then one line with the widgets' names.
         if (widgetsChanged.Count <= 5) lines.AddRange(widgetsChanged.Select(w => "widget " + w.line));
         else lines.Add(Plural(widgetsChanged.Count, "widget") + " changed: " + Names(widgetsChanged.Select(w => w.name).ToList()));
-        lines.AddRange(Flows(a, b, inA, inB, unit, texts));
+        lines.AddRange(Flows(a, b, inA, inB, unit, texts, kinds));
         return lines;
     }
 
@@ -347,7 +355,7 @@ static class Review
     // ---- Flows ----
 
     // Node changes in each flow (an action, a screen action, a process activity...), in plain words.
-    static IEnumerable<string> Flows(Snapshot a, Snapshot b, List<Item> inA, List<Item> inB, string unit, List<Text> texts)
+    static IEnumerable<string> Flows(Snapshot a, Snapshot b, List<Item> inA, List<Item> inB, string unit, List<Text> texts, Dictionary<string, int> kinds)
     {
         var flows = inB.Concat(inA).Where(i => i.IsNode && i.Parent is not null).Select(i => i.Parent!).Distinct().ToList();
         foreach (var flow in flows)
@@ -390,7 +398,7 @@ static class Review
             {
                 var (o, n) = (nodesA[k], nodesB[k]);
                 var what = new List<string>();
-                what.AddRange(Props(o, n, $"step {o.Label}{owner}", texts));
+                what.AddRange(Props(o, n, $"step {o.Label}{owner}", texts, kinds));
                 if (!moved.Contains(k))
                     foreach (var label in o.Next.Select(x => x.label).Concat(n.Next.Select(x => x.label)).Distinct())
                     {
@@ -441,7 +449,7 @@ static class Review
 
     // The property changes between two versions of one element. Long text and code also go to `texts` (with the
     // changed lines) for the Markdown and HTML reports; the details stay one short line each.
-    static IEnumerable<string> Props(Item o, Item n, string subject, List<Text> texts)
+    static IEnumerable<string> Props(Item o, Item n, string subject, List<Text> texts, Dictionary<string, int> kinds)
     {
         // A secret site property or a sensitive REST input: its value is never printed.
         var secret = o.Props.GetValueOrDefault("IsSecret") == "True" || n.Props.GetValueOrDefault("IsSecret") == "True"
@@ -451,6 +459,8 @@ static class Review
             var (was, now) = (o.Props.GetValueOrDefault(key) ?? "", n.Props.GetValueOrDefault(key) ?? "");
             if (was == now) continue;
             var word = key == "OriginalName" ? (n.Props.Any(p => p.Key.EndsWith("Placement", StringComparison.Ordinal) && p.Value.Contains("Header")) ? "header name" : "external name") : Word(key);
+            var kind = key.Contains(' ') && key != "ui flow" ? key[..key.IndexOf(' ')] : word; // "argument X" -> "argument"
+            kinds[kind] = kinds.GetValueOrDefault(kind) + 1;
             var longText = Code.Contains(key) || was.Length > 80 || now.Length > 80 || was.Contains('\n') || now.Contains('\n');
             if (key == "Description") yield return "description changed";
             else if (secret && key == "DefaultValue") yield return "default value changed (secret: values not shown)";

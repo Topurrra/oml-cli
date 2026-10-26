@@ -26,9 +26,11 @@ sealed class Unreadable : IDisposable
 
     // Null when everything was read, so the field is left out. At most 50 distinct parts, then one "N more" entry that
     // counts every other failure. keep: which sections are still in the output (inspect --only, --changed-since).
-    public Item[]? Items(Func<string, bool>? keep = null)
+    public Item[]? Items(Func<string, bool>? keep = null) => Cap(all.Where(i => i.Section is null || keep?.Invoke(i.Section) != false).ToList());
+
+    // The same cap for a list kept elsewhere (the review report).
+    public static Item[]? Cap(List<Item> kept)
     {
-        var kept = all.Where(i => i.Section is null || keep?.Invoke(i.Section) != false).ToList();
         if (kept.Count == 0) return null;
         var listed = kept.Distinct().Take(Keep).ToList();
         if (kept.Count > listed.Count)

@@ -37,6 +37,7 @@ Symptoms of oml itself (apply, install, publish, LifeTime, fonts and images), th
 |---|---|---|
 | Publish fails with "Invalid compiler output. Object reference not set to an instance of an object" | On 11.55.92, generic Identifier types on Id caused this failure. | Use LongIntegerType for entity Id and IntegerType for static Id. Current CLI uses these types. |
 | File-based publish refuses an open module | Open copy would be published instead of the file. | Close that copy, or explicitly select the open module by name. |
+| Publish fails with "A concurrent publication was detected" (and the output has a version 0 `warning`) | The module is a copy extracted from an `.oap`, not the server version. | Open the server version in Service Studio (or `oml pull` it), apply the spec again to that file, then publish. |
 | Publish status Blocked | Automatic merge and publish approval is missing. | Ask the user to enable automatic merge and publish in the MCP Server approval dialog. |
 | Save passes but publish fails | Compilation and runtime validation are separate. | Fix the typed model or dependency; test in the target environment. |
 

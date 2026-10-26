@@ -209,6 +209,9 @@ partial class Builder
                     dataDeletes.Add((label, () => DeleteData(target, edit)));
                     break;
                 }
+
+                if (FieldMappings.Is(target))
+                    throw new ModelError($"'{Required("element")}' is a field mapping; it cannot be deleted. Change it with set and \"value\".");
                 if (target is IActionNode)
                 {
                     var edges = Edges(target.Parent!).ToList();
@@ -217,7 +220,18 @@ partial class Builder
                     if (incoming.Count != 1 || outgoing.Count != 1 || ReferenceEquals(outgoing[0].to, target))
                         throw new ModelError("flow node deletion requires exactly one incoming and one outgoing connector");
                     if (target.Parent is IObjectSignature flowOwner) FlowLayout.MarkChanged(flowOwner);
+                    // A comment arrow is a note, not flow: one that points at the node goes with it.
+                    foreach (var (comment, arrow) in CommentArrows(target.Parent!).Where(a => ReferenceEquals(Reflect.Get(a.arrow, "TargetNode"), target)).ToList())
+                    {
+                        arrow.Delete();
+                        Warnings.Add($"{Required("element")}: removed the comment arrow from {Model.NameOf(comment) ?? "a comment"} that pointed at it");
+                    }
                     Connect(incoming[0].from, incoming[0].property, outgoing[0].to);
+                    // After the expressions of the same spec are set: a deleted node must have no reader left (checked then).
+                    // Not for a node without outputs: its name can be a parameter's too (`Item.Code` then reads the parameter).
+                    if (target is not (IAssignNode or IIfNode or ISwitchNode or IRaiseExceptionNode or IRefreshDataNode or IEndNode)
+                        && Model.NameOf(target) is { } deleted && target.Parent is { } holder)
+                        dataDeletes.Add((label, () => NodeReaders(holder, deleted, Required("element"))));
                 }
                 // Deleting a filter, sort or group of a grouped aggregate can drop its source, with no validation error.
                 // Inside an aggregate, check that every other part is still there.
@@ -338,11 +352,36 @@ partial class Builder
         _ => throw new ModelError($"unknown connector '{connector}'"),
     };
 
+    // The flow connectors of an action. A comment's arrows are notes: they are not edges (see CommentArrows).
     static IEnumerable<(object from, object to, string property)> Edges(IObjectSignature action)
     {
-        foreach (var node in Elements(Reflect.Get(action, "Nodes")).OfType<IObjectSignature>())
+        foreach (var node in Elements(Reflect.Get(action, "Nodes")).OfType<IObjectSignature>().Where(n => n is not ICommentNode))
         foreach (var edge in node.Children.Concat(Elements(Reflect.Get(node, "Connectors")).OfType<IObjectSignature>()).Distinct())
             if (Reflect.Get(edge, "SourceNode") is { } from && Reflect.Get(edge, "TargetNode") is { } to)
-                yield return (from, to, ConnectorProperty(edge.GetType().Name));
+            {
+                string property;
+                try { property = ConnectorProperty(edge.GetType().Name); }
+                catch (ModelError)
+                {
+                    throw new ModelError($"flow node '{Model.NameOf(node)}' in {Model.OwnerName(action)} has a connector of type '{edge.GetType().Name}' that oml does not know; "
+                        + "change this flow in Service Studio");
+                }
+                yield return (from, to, property);
+            }
+    }
+
+    static IEnumerable<(IObjectSignature comment, IObjectSignature arrow)> CommentArrows(IObjectSignature action) =>
+        Elements(Reflect.Get(action, "Nodes")).OfType<ICommentNode>()
+            .SelectMany(c => Elements(Reflect.Get(c, "Connectors")).OfType<IObjectSignature>().Select(a => ((IObjectSignature)c, a)));
+
+    // A node's outputs are read by name (`Node.List`, `Node.Count`) in expressions anywhere in its action, in the
+    // field mappings of arguments and assignments too. Deleting the node would leave those without a source.
+    void NodeReaders(IObjectSignature action, string node, string path)
+    {
+        var readers = FieldMappings.Expressions(action).Where(e => FieldMappings.Reads(e.text, node))
+            .Select(e => $"{ElementPaths.PathTo(m, e.owner) ?? Model.OwnerName(e.owner)} ({e.text})").Distinct().Order(StringComparer.Ordinal).ToList();
+        if (readers.Count > 0)
+            throw new ModelError($"refused: cannot delete '{path}': {readers.Count} expression{(readers.Count == 1 ? " still reads" : "s still read")} its outputs: {string.Join("; ", readers.Take(10))}"
+                + (readers.Count > 10 ? $"; and {readers.Count - 10} more" : "") + ". Change them first (set), then delete the node.");
     }
 }

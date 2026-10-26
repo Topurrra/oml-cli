@@ -98,7 +98,7 @@ static class MemoryCommand
                 var file = Path.GetFullPath(m);
                 name = Path.GetFileNameWithoutExtension(file);
             }
-            else name = m;
+            else name = m.Trim();
         }
         return (folder, name);
     }
@@ -162,6 +162,9 @@ static class MemoryCommand
     // ---- add -----------------------------------------------------------------------------------------------------
 
     static readonly Regex NameForm = new(@"^[\p{L}\p{N}_.\-]+$", RegexOptions.CultureInvariant);
+    // A module name may hold single spaces inside ("Sales Core"). The log pads every field with spaces and reads it back
+    // with TrimEnd, so inner spaces are safe; the ends are trimmed first, so a name never ends in padding.
+    static readonly Regex ModuleForm = new(@"^[\p{L}\p{N}_.\-]+( [\p{L}\p{N}_.\-]+)*$", RegexOptions.CultureInvariant);
 
     static string[] SplitList(string? text) => (text ?? "").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Distinct(StringComparer.Ordinal).ToArray();
 
@@ -200,7 +203,7 @@ static class MemoryCommand
             if (srcSize > MemoryFormat.SrcMax) throw new MemoryException($"--src is {srcSize} bytes; the limit is {MemoryFormat.SrcMax}. Use a short agent name.", 2);
             var whySize = MemoryFormat.Bytes(why);
             if (whySize > MemoryFormat.WhyMax) throw new MemoryException($"--why is {whySize} bytes; the limit is {MemoryFormat.WhyMax}. Give the reason in one short sentence.", 2);
-            if (module is not null && (!NameForm.IsMatch(module) || MemoryFormat.Bytes(module) > MemoryFormat.ModuleMax)) throw new MemoryException($"--module must be a module name (letters, digits, _ . -) of at most {MemoryFormat.ModuleMax} bytes.", 2);
+            if (module is not null && (!ModuleForm.IsMatch(module) || MemoryFormat.Bytes(module) > MemoryFormat.ModuleMax)) throw new MemoryException($"--module must be a module name (letters, digits, _ . - and single spaces inside) of at most {MemoryFormat.ModuleMax} bytes.", 2);
             if (elements.Any(e => !NameForm.IsMatch(e.Replace("/", ""))) || MemoryFormat.Bytes(string.Join(',', elements)) > MemoryFormat.ElementsMax)
                 throw new MemoryException($"--elements takes element names or paths separated by commas, at most {MemoryFormat.ElementsMax} bytes in all. Name the main ones.", 2);
             if (tags.Any(t => !NameForm.IsMatch(t)) || MemoryFormat.Bytes(string.Join(',', tags)) > MemoryFormat.TagsMax)
@@ -226,7 +229,6 @@ static class MemoryCommand
                 if (state.Replaced.TryGetValue(supersedes, out var by))
                     throw new MemoryException($"Record {supersedes} is already {(by.ByKind == MemoryFormat.Retract ? "retracted" : "superseded")} by record {by.By}.", 1, $"Supersede the current one instead. See: oml memory history {supersedes}");
             }
-            module ??= target?.Module;
             kind ??= target?.Kind ?? "fact";
             module ??= "";
             if (target is null)
@@ -250,6 +252,8 @@ static class MemoryCommand
                 ["id"] = record.Seq, ["kind"] = kind, ["module"] = Opt(module), ["text"] = text,
             };
             if (supersedes >= 0) report["superseded"] = supersedes;
+            if (target is not null && !string.Equals(target.Module, module, StringComparison.OrdinalIgnoreCase))
+                report["scope"] = $"scope changed from {(target.Module.Length == 0 ? "repo-wide" : M(target.Module))} to {(module.Length == 0 ? "repo-wide" : module)}";
             if (repaired is not null) report["repaired"] = Repaired(repaired);
             if (clashes.Count > 0)
             {

@@ -1,4 +1,4 @@
-param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net8.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
+param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
 $ErrorActionPreference = 'Stop'
 $dir = Join-Path $Tmp 'architecture-page'
 New-Item -ItemType Directory -Force $dir | Out-Null

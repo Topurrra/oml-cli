@@ -168,6 +168,40 @@ Assert ($e.error -like '*--fail-on*') 'Invalid --fail-on'
 $e = Invoke-Oml @('check', $bad, '--baseline', (Join-Path $dir 'not-a-report.json')) 2
 Assert ($e.error -like 'Baseline *findings*') "Invalid baseline: $($e.error)"
 
+# check --diff: what a change fixed and what it introduced, per rule. $both fixes missing-description on OrderDto and keeps the new unused action.
+$fixSpec = Join-Path $dir 'fix-description.json'
+'{"edits":[{"op":"set","element":"OrderDto","properties":{"description":"An order."}}]}' | Set-Content $fixSpec
+$both = Join-Path $dir 'CheckBad3.oml'
+$fixed = Invoke-Oml @('apply', $changed, $fixSpec, $both)
+Assert $fixed.saved 'Fixed and changed module'
+$d = Invoke-Oml @('check', '--diff', $bad, $both) 1
+Assert ($d.summary.fixed -eq 1 -and $d.summary.introduced -eq 1 -and $d.summary.unchanged -eq ($once.Count - 1)) "Diff summary: $($d.summary | ConvertTo-Json -Compress)"
+Assert (@($d.rules).Count -eq 2) "Diff lists only the rules with a change: $(($d.rules | ForEach-Object rule) -join ', ')"
+$mdRule = $d.rules | Where-Object rule -eq 'missing-description'
+$ua = $d.rules | Where-Object rule -eq 'unused-action'
+Assert ($mdRule.fixed -eq 1 -and $mdRule.introduced -eq 0 -and $mdRule.fixedFindings[0].element -eq 'OrderDto' -and @($mdRule.introducedFindings).Count -eq 0) "missing-description diff: $($mdRule | ConvertTo-Json -Compress -Depth 4)"
+Assert ($ua.introduced -eq 1 -and $ua.fixed -eq 0 -and $ua.introducedFindings[0].element -eq 'AlsoNeverCalled' -and $ua.introducedFindings[0].module -eq 'CheckBad') "unused-action diff: $($ua | ConvertTo-Json -Compress -Depth 4)"
+# The other way round, the description comes back and the new action goes: one fixed, one introduced, exit 1.
+$d = Invoke-Oml @('check', '--diff', $both, $bad) 1
+Assert ($d.summary.fixed -eq 1 -and $d.summary.introduced -eq 1) 'Diff reversed: the description comes back, the action goes'
+$d = Invoke-Oml @('check', '--diff', $changed, $bad) 0
+Assert ($d.summary.fixed -eq 1 -and $d.summary.introduced -eq 0 -and $d.summary.unchanged -eq $once.Count -and @($d.rules).Count -eq 1 -and $d.rules[0].rule -eq 'unused-action') "Diff with only fixes: $($d | ConvertTo-Json -Compress -Depth 4)"
+$d = Invoke-Oml @('check', '--diff', $bad, $bad) 0
+Assert ($d.summary.fixed -eq 0 -and $d.summary.introduced -eq 0 -and $d.summary.unchanged -eq $once.Count -and @($d.rules).Count -eq 0) 'Diff of a file with itself'
+# The module name is not part of the match: a copy saved under another module name has the same findings.
+$renamedCopy = New-Fixture 'CheckBadCopy' 'CrossDevice' 'check-bad.json'
+$d = Invoke-Oml @('check', '--diff', $bad, $renamedCopy) 0
+Assert ($d.summary.fixed -eq 0 -and $d.summary.introduced -eq 0 -and $d.summary.unchanged -eq $once.Count) "Diff of a renamed copy: $($d.summary | ConvertTo-Json -Compress)"
+# --rules applies to both sides: with unused-action off, the introduced finding is not seen; an ignore hides a fix too.
+$diffRules = Join-Path $dir 'diff-rules.json'
+'{"rules":[{"id":"unused-action","enabled":false}],"ignore":[{"rule":"missing-description","element":"OrderDto","reason":"Test."}]}' | Set-Content $diffRules
+$d = Invoke-Oml @('check', '--diff', $bad, $both, '--rules', $diffRules) 0
+Assert ($d.summary.fixed -eq 0 -and $d.summary.introduced -eq 0) "Diff with --rules: $($d.summary | ConvertTo-Json -Compress)"
+Invoke-Oml @('check', '--diff', $bad) 2 | Out-Null
+Invoke-Oml @('check', '--diff', $bad, $both, '--baseline', $json) 2 | Out-Null
+Invoke-Oml @('check', '--diff', $bad, (Join-Path $dir 'missing.oml')) 2 | Out-Null
+Invoke-Oml @('check', '--diff', $bad, $fixSpec) 2 | Out-Null
+
 # Several modules: the architecture rules join, and duplicates are found across modules.
 $folder = Join-Path $dir 'team'; New-Item -ItemType Directory $folder | Out-Null
 Copy-Item $bad, $clean $folder
@@ -207,6 +241,75 @@ $steps = Join-Path $dir 'steps.json'
 [ordered]@{ steps = @(, [string[]]@('check', $clean)) + @(, [string[]]@('check', $clean, '--team', 'X')) } | ConvertTo-Json -Depth 5 | Set-Content $steps
 $run = Invoke-Oml @('run', $steps, '--continue') 2
 Assert ($run.results[0].exitCode -eq 0 -and $run.results[0].output.summary.findings -eq 0 -and $run.results[1].output.error -like "'check --team' is not allowed inside 'oml run'*") 'check inside oml run'
+
+# missing-description: every kind once without and once with a description, the well-known names, allNames and attributes.
+Copy-Item (Join-Path $tests 'check-desc.svg') $dir
+$desc = New-Fixture 'CheckDesc' 'CrossDevice' 'check-desc.json'
+function Same($A, $B) { (@($A) -join '|') -eq (@($B) -join '|') }
+function Missing($Report) { @($Report.findings | Where-Object rule -eq 'missing-description' | ForEach-Object { ($_.detail -split ' has no description')[0] + ' @ ' + $_.element } | Sort-Object) }
+$expected = @('Block BareCard @ MainFlow/BareCard', 'Image BareLogo @ BareLogo', 'Parameter Query of BareHome @ MainFlow/BareHome/Query', 'Parameter Ref of BareProc @ BareProc/Ref',
+    'Parameter Title of BareCard @ MainFlow/BareCard/Title', 'Process BareProc @ BareProc', 'Role BareRole @ BareRole', 'Screen BareHome @ MainFlow/BareHome',
+    'SiteProperty BareProp @ BareProp', 'Theme BareTheme @ BareTheme', 'Timer BareTimer @ BareTimer') | Sort-Object
+$r = Invoke-Oml @('check', $desc)
+Assert (Same (Missing $r) $expected) "missing-description kinds: $((Missing $r) -join '; ')"
+$timer = $r.findings | Where-Object { $_.detail -like 'Timer *' }
+Assert ($timer.detail -like '*timers have no public flag*' -and ($r.findings | Where-Object { $_.detail -like 'SiteProperty *' }).detail -like '*site properties have no public flag*') 'Timers and site properties say they have no public flag'
+Assert (-not ($r.findings | Where-Object { $_.detail -like '*Lookup*' -or $_.detail -like '*FullCard*' -or $_.element -like '*Full*' })) 'Filled descriptions and Id/Name parameters are not reported'
+# The options: allNames also reports the well-known names, attributes reports attributes of public entities and structures.
+function Rules([hashtable]$Options) {
+    $file = Join-Path $dir ('desc-rules-' + [guid]::NewGuid().ToString('N') + '.json')
+    @{ rules = @(@{ id = 'missing-description'; options = $Options }) } | ConvertTo-Json -Depth 6 | Set-Content $file
+    return $file
+}
+$r = Invoke-Oml @('check', $desc, '--rules', (Rules @{ allNames = 1 }))
+$extra = @(Missing $r | Where-Object { $expected -notcontains $_ })
+Assert (Same $extra (@('Parameter Id of Lookup @ Lookup/Id', 'Parameter Name of BareCard @ MainFlow/BareCard/Name') | Sort-Object)) "allNames: $($extra -join '; ')"
+$r = Invoke-Oml @('check', $desc, '--rules', (Rules @{ attributes = 1 }))
+$extra = @(Missing $r | Where-Object { $expected -notcontains $_ })
+Assert (Same $extra (@('Attribute Amount of Ledger @ Ledger/Amount', 'Attribute Cell of Row @ Row/Cell') | Sort-Object)) "attributes: $($extra -join '; ')"
+$r = Invoke-Oml @('check', $desc, '--rules', (Rules @{ allNames = 1; attributes = 1 }))
+Assert ((Missing $r).Count -eq $expected.Count + 6) "allNames and attributes together (the 2 names, 2 attributes, and Ledger's Id and Name attributes): $((Missing $r).Count)"
+foreach ($value in 2, -1) { $e = Invoke-Oml @('check', $desc, '--rules', (Rules @{ allNames = $value })) 2; Assert ($e.error -like '*option allNames must be 0 or 1*') "allNames $value is refused: $($e.error)" }
+# Traditional Web: a session variable has no public flag and no spec key for a description; edits.set gives it one.
+$webSpec = Get-Content (Join-Path $tests 'check-web-clean.json') -Raw | ConvertFrom-Json
+$webSpec.PSObject.Properties.Remove('edits')
+$webNoDesc = Join-Path $dir 'web-nodesc.json'; $webSpec | ConvertTo-Json -Depth 30 | Set-Content $webNoDesc
+$blank = Join-Path $dir 'WebNoDesc-blank.oml'; $webMod = Join-Path $dir 'WebNoDesc.oml'
+Invoke-Oml @('new', $blank, '--name', 'WebNoDesc', '--kind', 'WebResponsive') | Out-Null
+$w = Invoke-Oml @('apply', $blank, $webNoDesc, $webMod); Assert $w.saved 'Web fixture without descriptions'
+$r = Invoke-Oml @('check', $webMod)
+Assert (Same (Missing $r) @('SessionVariable CartId @ CartId')) "Session variable: $((Missing $r) -join '; ')"
+# set paths: the plain element name or a Kind: prefix works for each kind; a parameter is Owner/Param, a well-known name too.
+$paths = @('BareLogo', 'BareProc', 'BareProc/Ref', 'BareProp', 'BareRole', 'BareTheme', 'BareTimer', 'BareCard', 'BareCard/Title', 'BareCard/Name', 'BareHome', 'BareHome/Query', 'ServerAction:Lookup/Id', 'Entity:Ledger/Amount', 'Entity:Ledger/Id', 'Entity:Ledger/Name', 'Structure:Row/Cell')
+$setSpec = Join-Path $dir 'set-descriptions.json'
+[ordered]@{ edits = @($paths | ForEach-Object { [ordered]@{ op = 'set'; element = $_; properties = [ordered]@{ description = "Set on $_" } } }) } | ConvertTo-Json -Depth 6 | Set-Content $setSpec
+$setOut = Join-Path $dir 'CheckDesc-set.oml'
+$a = Invoke-Oml @('apply', $desc, $setSpec, $setOut)
+Assert ($a.saved -and $a.created.Count -eq $paths.Count) "set descriptions: $($a | ConvertTo-Json -Depth 5 -Compress)"
+$r = Invoke-Oml @('check', $setOut, '--rules', (Rules @{ allNames = 1; attributes = 1 }))
+Assert ((Missing $r).Count -eq 0) "Findings left after set: $((Missing $r) -join '; ')"
+# The element of each finding is a set path as it is (commands.md says so).
+$all = Invoke-Oml @('check', $desc, '--rules', (Rules @{ allNames = 1; attributes = 1 }))
+$byElement = Join-Path $dir 'set-by-element.json'
+[ordered]@{ edits = @($all.findings | Where-Object { $_.rule -eq 'missing-description' -and $_.element } | ForEach-Object { [ordered]@{ op = 'set'; element = $_.element; properties = [ordered]@{ description = "Set on $($_.element)" } } }) } | ConvertTo-Json -Depth 6 | Set-Content $byElement
+$byOut = Join-Path $dir 'CheckDesc-by-element.oml'
+$a = Invoke-Oml @('apply', $desc, $byElement, $byOut)
+Assert ($a.saved -and $a.created.Count -eq $paths.Count) "set by finding element: $($a | ConvertTo-Json -Depth 5 -Compress)"
+Assert ((Missing (Invoke-Oml @('check', $byOut, '--rules', (Rules @{ allNames = 1; attributes = 1 })))).Count -eq 0) 'Findings left after set by finding element'
+$setSession = Join-Path $dir 'set-session.json'; '{"edits":[{"op":"set","element":"SessionVariable:CartId","properties":{"description":"Cart."}}]}' | Set-Content $setSession
+$a = Invoke-Oml @('apply', $webMod, $setSession, (Join-Path $dir 'WebNoDesc-set.oml'))
+Assert ($a.saved -and (Missing (Invoke-Oml @('check', (Join-Path $dir 'WebNoDesc-set.oml')))).Count -eq 0) 'set description of a session variable'
+# duplicated-flow on odd flows (no nodes of its own, a node without an outgoing connector, a comment alone, a grouped
+# query), counted from one node: the rule runs for the module, nothing is skipped, and the one real copy is found.
+$flows = New-Fixture 'CheckFlows' 'CrossDevice' 'check-flows.json'
+$oneNode = Join-Path $dir 'one-node-rules.json'
+Invoke-Oml @('check', '--init-rules', '--out', $oneNode) | Out-Null
+$oneRules = Get-Content $oneNode -Raw | ConvertFrom-Json
+($oneRules.rules | Where-Object id -eq 'duplicated-flow').options.minNodes = 1
+$oneRules | ConvertTo-Json -Depth 10 | Set-Content $oneNode
+$r = Invoke-Oml @('check', $flows, '--rules', $oneNode)
+Assert (@($r.summary.skipped).Count -eq 0) "duplicated-flow failed on odd flows: $(($r.summary.skipped | ConvertTo-Json -Compress))"
+Assert ((Count $r 'duplicated-flow') -eq 1 -and ($r.findings | Where-Object rule -eq 'duplicated-flow').element -eq 'RaiseTwin') "duplicated-flow on odd flows: $(($r.findings | ForEach-Object { $_.rule + ' ' + $_.element }) -join '; ')"
 
 # Input errors.
 Invoke-Oml @('check') 2 | Out-Null

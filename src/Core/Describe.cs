@@ -20,6 +20,7 @@ static class Describe
     static string Text(object? o) => o is IExpression e ? e.Text : o as string ?? "";
     internal static string Kind(object o)
     {
+        if (FieldMappings.Is(o)) return FieldMappings.Kind;
         if (Reflect.Property(o, "HTTPMethod") is not null) return "RESTMethod";
         if (Reflect.Get(o, "EntityKind")?.ToString() == "Static") return "StaticEntity";
         if (Inspect.IsBlock(o)) return "Block";
@@ -140,7 +141,7 @@ static class Describe
             + (Reflect.Get(o, "Fetch") is { } fetch ? (fetch.ToString() == "OnDemand" ? " [on demand]" : "")
                 + (Reflect.Get(o, "ServerRequestTimeout") is int timeout ? " timeout " + timeout + " s" : "") + AfterFetch(o) : ""); // data actions
         string AfterFetch(object o) => Reflect.Get(o, "OnAfterFetch") is { } evt && Reflect.Get(evt, "Destination") is { } handler ? " on after fetch -> " + Name(handler) : "";
-        string Args(object o) => string.Join(", ", List(o, "Arguments").Where(a => Expr(a, "Value").Length > 0).OrderBy(a => Name(Reflect.Get(a, "Parameter")), StringComparer.Ordinal).Select(a => Name(Reflect.Get(a, "Parameter")) + " = " + Expr(a, "Value")));
+        string Args(object o) => string.Join(", ", List(o, "Arguments").Where(a => Expr(a, "Value").Length > 0).OrderBy(a => Name(Reflect.Get(a, "Parameter")), StringComparer.Ordinal).Select(a => Name(Reflect.Get(a, "Parameter")) + " = " + Expr(a, "Value") + FieldMappings.Suffix(a)));
 
         public void Element(object root, int indent)
         {
@@ -259,7 +260,7 @@ static class Describe
             if (kind == "ForEachNode")
             { Line(indent, "for each " + Expr(node, "RecordList") + ":"); Flow(Target(node, "Cycle"), indent + 1, visited); }
             else if (kind == "AssignNode")
-                foreach (var a in List(node, "Assignments")) Line(indent, "set " + Expr(a, "Variable") + " = " + Expr(a, "Value"));
+                foreach (var a in List(node, "Assignments")) Line(indent, "set " + Expr(a, "Variable") + " = " + Expr(a, "Value") + FieldMappings.Suffix(a));
             else if (Reflect.Get(node, "Action") is { } action)
             {
                 var qualified = Qualified(m, action); Calls.TryAdd(qualified, action);

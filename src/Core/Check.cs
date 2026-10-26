@@ -13,10 +13,63 @@ static class Check
     public static int Run(List<string> args)
     {
         var watch = Stopwatch.StartNew();
+        if (args.Contains("--diff")) return Diff(args, watch);
         CheckInput.Request request;
         try { request = CheckInput.Parse(args); }
         catch (CheckInputError e) { throw new CliError(e.Message, 2); }
         if (request.InitRules is { } rulesOut) return InitRules(rulesOut);
+        var scan = Scan(request, watch);
+        var (findings, ignored, skipped, timings, architecture) = (scan.Findings, scan.Ignored, scan.Skipped, scan.Timings, scan.Architecture);
+        var baseline = request.Baseline;
+        if (baseline is not null)
+            foreach (var f in findings)
+            {
+                var key = CheckInput.Key(Text(f, "rule"), Text(f, "module"), Text(f, "element"));
+                var known = baseline.GetValueOrDefault(key) > 0;
+                if (known) baseline[key]--;
+                f["status"] = known ? "existing" : "new";
+            }
+
+        var summary = new JsonObject { ["findings"] = findings.Count };
+        foreach (var s in CheckInput.Severities) summary[s] = findings.Count(f => Text(f, "severity") == s);
+        summary["byCategory"] = new JsonObject(CheckCatalog.All.Select(x => x.Category).Distinct()
+            .Select(c => KeyValuePair.Create(c, (JsonNode?)findings.Count(f => Text(f, "category") == c))));
+        if (baseline is not null)
+        {
+            summary["new"] = findings.Count(f => Text(f, "status") == "new");
+            summary["existing"] = findings.Count(f => Text(f, "status") == "existing");
+        }
+        summary["ignored"] = ignored;
+        summary["skipped"] = skipped;
+        var document = new JsonObject {
+            ["schema"] = 1, ["generatedAt"] = DateTimeOffset.UtcNow.ToString("O"), ["omlVersion"] = typeof(Cli).Assembly.GetName().Version?.ToString(3),
+            ["input"] = new JsonObject { ["sources"] = Array(request.Sources), ["apps"] = Array(request.Apps), ["team"] = request.TeamLabel,
+                ["rules"] = request.RulesPath, ["baseline"] = request.BaselinePath, ["layers"] = request.Layers },
+            ["modules"] = timings, ["summary"] = summary, ["findings"] = new JsonArray(findings.ToArray<JsonNode?>()),
+            ["warnings"] = Array(architecture.warnings), ["elapsedSeconds"] = Math.Round(watch.Elapsed.TotalSeconds, 3),
+        };
+        try
+        {
+            if (request.Json is { } jsonPath) Write(jsonPath, document.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            if (request.Html is { } html) Write(html, CheckPage.Render(document.ToJsonString()));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { throw new CliError(e.Message, 2); }
+        document["html"] = request.Html;
+        document["json"] = request.Json;
+        if (Timings.Enabled) document["timings"] = Timings.Report();
+        TerminalOutput.PrintNode(document);
+        if (request.FailOn is not { } failOn) return 0;
+        // A gate must not pass on a partial check: anything skipped is an input error.
+        if (skipped.Count > 0) return 2;
+        // With a baseline, only new findings fail the run: teams can adopt the check without fixing old debt first.
+        return findings.Any(f => Rank(Text(f, "severity")) <= Rank(failOn) && (baseline is null || Text(f, "status") == "new")) ? 1 : 0;
+    }
+
+    sealed record Scanned(List<JsonObject> Findings, int Ignored, JsonArray Skipped, JsonArray Timings, Architecture.Result Architecture);
+
+    // Reads the request's modules once and runs the rules: the findings of `check` and of `check --diff`.
+    static Scanned Scan(CheckInput.Request request, Stopwatch watch)
+    {
         var settings = request.Settings;
         bool Enabled(string rule) => settings.Rules[rule].Enabled;
         int Option(string rule, string key) => settings.Rules[rule].Options[key];
@@ -61,49 +114,71 @@ static class Check
             }
 
         var findings = Findings(hits, settings, out var ignored);
-        var baseline = request.Baseline;
-        if (baseline is not null)
-            foreach (var f in findings)
-            {
-                var key = CheckInput.Key(Text(f, "rule"), Text(f, "module"), Text(f, "element"));
-                var known = baseline.GetValueOrDefault(key) > 0;
-                if (known) baseline[key]--;
-                f["status"] = known ? "existing" : "new";
-            }
+        return new(findings, ignored, skipped, timings, architecture);
+    }
 
-        var summary = new JsonObject { ["findings"] = findings.Count };
-        foreach (var s in CheckInput.Severities) summary[s] = findings.Count(f => Text(f, "severity") == s);
-        summary["byCategory"] = new JsonObject(CheckCatalog.All.Select(x => x.Category).Distinct()
-            .Select(c => KeyValuePair.Create(c, (JsonNode?)findings.Count(f => Text(f, "category") == c))));
-        if (baseline is not null)
+    // `oml check --diff <before.oml> <after.oml>`: the findings that one change fixed and introduced, per rule.
+    // A finding is the same in both when rule and element are equal (the detail text when the element is empty);
+    // the same key twice is counted twice. The module name is not compared: each file holds one module, and a renamed copy must still match. Exit 0 when nothing is introduced, 1 when something is, 2 on an input error
+    // or when a rule or module was skipped (a partial check cannot prove anything).
+    static int Diff(List<string> args, Stopwatch watch)
+    {
+        const string usage = "check --diff needs <before.oml> <after.oml> and accepts --rules <oml-rules.json>.";
+        var files = new List<string>();
+        string? rulesFile = null;
+        for (var i = 1; i < args.Count; i++)
+            if (args[i] == "--diff") continue;
+            else if (args[i] == "--rules" && rulesFile is null && i + 1 < args.Count && !args[i + 1].StartsWith("--")) rulesFile = Path.GetFullPath(args[++i]);
+            else if (!args[i].StartsWith("--")) files.Add(args[i]);
+            else throw new CliError(usage, 2);
+        if (files.Count != 2) throw new CliError(usage, 2);
+        foreach (var f in files)
         {
-            summary["new"] = findings.Count(f => Text(f, "status") == "new");
-            summary["existing"] = findings.Count(f => Text(f, "status") == "existing");
+            if (!Path.GetExtension(f).Equals(".oml", StringComparison.OrdinalIgnoreCase)) throw new CliError($"Not an .oml module file: {f}", 2);
+            if (!File.Exists(f)) throw new CliError($"File not found: {Path.GetFullPath(f)}", 2);
         }
-        summary["ignored"] = ignored;
-        summary["skipped"] = skipped;
+        CheckInput.Settings settings;
+        try { settings = CheckInput.ReadSettings(rulesFile); }
+        catch (CheckInputError e) { throw new CliError(e.Message, 2); }
+        Scanned Read(string file) => Scan(new([Path.GetFullPath(file)], [], null, null, null, null, rulesFile, null, null, null, settings, null), watch);
+        var (before, after) = (Read(files[0]), Read(files[1]));
+
+        // An empty element is told apart by its detail.
+        string Key(JsonObject f) => CheckInput.Key(Text(f, "rule"), "", Text(f, "element").Length > 0 ? Text(f, "element") : Text(f, "detail"));
+        // Findings of `from` that `other` does not have, each key as often as it is missing.
+        List<JsonObject> Missing(List<JsonObject> from, List<JsonObject> other, out int common)
+        {
+            var left = other.GroupBy(Key).ToDictionary(g => g.Key, g => g.Count());
+            var missing = new List<JsonObject>();
+            common = 0;
+            foreach (var f in from)
+                if (left.GetValueOrDefault(Key(f)) > 0) { left[Key(f)]--; common++; }
+                else missing.Add(f);
+            return missing;
+        }
+        var fixedFindings = Missing(before.Findings, after.Findings, out var unchanged);
+        var introduced = Missing(after.Findings, before.Findings, out _);
+        JsonArray Shape(IEnumerable<JsonObject> list) => new(list.Select(f => (JsonNode?)new JsonObject {
+            ["rule"] = f["rule"]!.DeepClone(), ["severity"] = f["severity"]!.DeepClone(), ["module"] = f["module"]!.DeepClone(), ["element"] = f["element"]!.DeepClone(),
+            ["title"] = f["title"]!.DeepClone(), ["detail"] = f["detail"]?.DeepClone() }).ToArray());
+        var rules = new JsonArray();
+        foreach (var rule in CheckCatalog.All.Select(x => x.Id))
+        {
+            var (gone, added) = (fixedFindings.Where(f => Text(f, "rule") == rule).ToList(), introduced.Where(f => Text(f, "rule") == rule).ToList());
+            if (gone.Count + added.Count == 0) continue;
+            rules.Add(new JsonObject { ["rule"] = rule, ["fixed"] = gone.Count, ["introduced"] = added.Count,
+                ["fixedFindings"] = Shape(gone), ["introducedFindings"] = Shape(added) });
+        }
+        var skipped = new JsonArray(before.Skipped.Concat(after.Skipped).Select(n => n!.DeepClone()).ToArray<JsonNode?>());
         var document = new JsonObject {
-            ["schema"] = 1, ["generatedAt"] = DateTimeOffset.UtcNow.ToString("O"), ["omlVersion"] = typeof(Cli).Assembly.GetName().Version?.ToString(3),
-            ["input"] = new JsonObject { ["sources"] = Array(request.Sources), ["apps"] = Array(request.Apps), ["team"] = request.TeamLabel,
-                ["rules"] = request.RulesPath, ["baseline"] = request.BaselinePath, ["layers"] = request.Layers },
-            ["modules"] = timings, ["summary"] = summary, ["findings"] = new JsonArray(findings.ToArray<JsonNode?>()),
-            ["warnings"] = Array(architecture.warnings), ["elapsedSeconds"] = Math.Round(watch.Elapsed.TotalSeconds, 3),
+            ["rules"] = rules,
+            ["summary"] = new JsonObject { ["fixed"] = fixedFindings.Count, ["introduced"] = introduced.Count, ["unchanged"] = unchanged },
+            ["before"] = Path.GetFullPath(files[0]), ["after"] = Path.GetFullPath(files[1]),
         };
-        try
-        {
-            if (request.Json is { } jsonPath) Write(jsonPath, document.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
-            if (request.Html is { } html) Write(html, CheckPage.Render(document.ToJsonString()));
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { throw new CliError(e.Message, 2); }
-        document["html"] = request.Html;
-        document["json"] = request.Json;
-        if (Timings.Enabled) document["timings"] = Timings.Report();
+        if (skipped.Count > 0) document["skipped"] = skipped;
+        document["elapsedSeconds"] = Math.Round(watch.Elapsed.TotalSeconds, 3);
         TerminalOutput.PrintNode(document);
-        if (request.FailOn is not { } failOn) return 0;
-        // A gate must not pass on a partial check: anything skipped is an input error.
-        if (skipped.Count > 0) return 2;
-        // With a baseline, only new findings fail the run: teams can adopt the check without fixing old debt first.
-        return findings.Any(f => Rank(Text(f, "severity")) <= Rank(failOn) && (baseline is null || Text(f, "status") == "new")) ? 1 : 0;
+        return skipped.Count > 0 ? 2 : introduced.Count > 0 ? 1 : 0;
     }
 
     // Hits as report findings, sorted: the team's severities, without the ignored ones (counted). `oml review` uses it too.

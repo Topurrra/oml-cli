@@ -1,0 +1,19 @@
+{
+  "exceptions": ["Odd"],
+  "entities": [{ "name": "Item", "attributes": [{ "name": "Label", "type": "Text" }] }],
+  "serverActions": [
+    { "name": "EmptyFlow", "description": "No nodes of its own.", "flow": [] },
+    { "name": "RaiseOnly", "description": "A node with no outgoing connector.", "flow": [
+      { "kind": "raiseException", "name": "Fail", "exception": "Odd", "message": "\"x\"" } ] },
+    { "name": "RaiseTwin", "description": "The same flow as RaiseOnly.", "flow": [
+      { "kind": "raiseException", "name": "Fail", "exception": "Odd", "message": "\"x\"" } ] },
+    { "name": "CommentOnly", "description": "A comment and nothing else.", "flow": [
+      { "kind": "comment", "text": "Nothing to run yet." } ] },
+    { "name": "CommentThenRaise", "description": "A comment before a node with no outgoing connector.", "flow": [
+      { "kind": "comment", "text": "Always fails." },
+      { "kind": "raiseException", "name": "Fail", "exception": "Odd", "message": "\"y\"" } ] },
+    { "name": "Grouped", "description": "A grouped query.", "outputs": [{ "name": "Rows", "type": "Integer" }], "flow": [
+      { "kind": "aggregate", "name": "ByLabel", "sources": ["Item"], "groupBy": ["Item.Label"], "maxRecords": 10 },
+      { "kind": "assign", "name": "Count", "assign": { "Rows": "ByLabel.Count" } } ] }
+  ]
+}

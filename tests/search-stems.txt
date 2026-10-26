@@ -119,6 +119,7 @@ part: part, parts
 path: path, paths
 pattern: pattern, patterns
 placeholder: placeholder, placeholders
+point: point, points
 problem: problem, problems
 process: process, processes
 property: properties, property

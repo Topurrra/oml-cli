@@ -11,11 +11,13 @@ class AmbiguousPathError(string message) : ModelError(message);
 //   Kind:Name     only elements of that kind (Screen:Orders, Entity:Orders, Flow:Admin)
 //   Module.Name   first part only: an element of that module (this module or a reference)
 //   Kind[i]       the i-th child of that kind, as tree prints unnamed parts
+// Directly under an action, a name that an input or output parameter and a flow node both carry means the parameter
+// when it ends the path (`Pick/Response`); `Pick/Assign:Response` is the node. Before another part, the rest of the path chooses.
 // Each part takes the first group of candidates that has a match (own top-level, referenced, then each breadth-first
 // level). Within that group, the rest of the path picks; it never falls through to a later group.
 static class ElementPaths
 {
-    public static string Kind(object o) => Reflect.Get(o, "CustomWidgetDescriptor") is { } descriptor
+    public static string Kind(object o) => FieldMappings.Is(o) ? FieldMappings.Kind : Reflect.Get(o, "CustomWidgetDescriptor") is { } descriptor
         ? descriptor.GetType().Name.Replace("Descriptor", "") : o.GetType().Name;
 
     // Children in an order that is the same on every load. The model's Children enumeration varies between loads (the
@@ -23,6 +25,14 @@ static class ElementPaths
     // block (inputs, locals, aggregates, actions, events). Those follow the parent's Conditions list or their
     // parameter's position, then their GlobalKey, after the other children (widgets and the rest) in model order.
     public static IEnumerable<IObjectSignature> Children(IObjectSignature o)
+    {
+        // A field mapping holds its source expression; an argument or assignment holds its mappings (see FieldMappings).
+        if (FieldMappings.Is(o)) return FieldMappings.Source(o) is IObjectSignature { } source ? [source] : [];
+        var mappings = FieldMappings.Of(o);
+        return mappings.Count == 0 ? Direct(o) : Direct(o).Concat(mappings);
+    }
+
+    static IEnumerable<IObjectSignature> Direct(IObjectSignature o)
     {
         var all = o.Children.Distinct().ToList();
         var member = Cached(holders, o, () => o is OutSystems.Model.UI.IScreenSignature || Inspect.IsBlock(o));
@@ -191,9 +201,15 @@ static class ElementPaths
     static List<IObjectSignature> Matches(IObjectSignature root, IObjectSignature scope, string[] parts, int i, Failure failure)
     {
         if (i == parts.Length) return [scope];
-        foreach (var group in Groups(root, scope, parts[i], i == 0))
+        foreach (var all in Groups(root, scope, parts[i], i == 0))
         {
+            var group = all;
             if (group.Count == 0) continue;
+            // The last part, directly under an action: its own input or output parameter wins over a flow node of the
+            // same name (`Action/Response`); the typed form `Action/Kind:Name` still reaches the node. A middle part
+            // keeps the old rule (the rest of the path chooses), so a path that worked still reaches the same element.
+            if (i == parts.Length - 1 && group.Count > 1 && group.All(o => ReferenceEquals(o.Parent, scope))
+                && group.Where(o => o is IInputParameterSignature or IOutputParameterSignature).ToList() is { Count: > 0 } own) group = own;
             if (failure.Write && group.Count > 1) { failure.Several ??= (i, group); return []; }
             var found = new List<IObjectSignature>();
             foreach (var candidate in group)

@@ -33,6 +33,9 @@ Keep the user's own words close.
 | `log` | Task, staged file or open question for the next agent (tags `task`, `staged`, `question`). |
 
 Always give `--module <Name>`.
+A name may hold single spaces, such as `"Sales Core"`.
+`--module` matches one module name exactly (letters case ignored). `recall --module X` returns the records of X and the repo-wide records. It does not match a group of modules.
+For an application, add a tag and put it in the question: `--tags app-sales`, then `recall "app-sales quote total"`.
 Name the elements with `--elements A,B`.
 Give the reason with `--why "<reason>"`, 200 bytes at most.
 Add `--tags a,b` if they help.
@@ -50,6 +53,8 @@ Add `--tags a,b` if they help.
 
 - The fact changed: `oml memory add "<new fact>" --supersedes <id>`.
 - The old record stays in the file. Only the new one counts.
+- The new record gets the scope you give it. No `--module` makes it repo-wide.
+- If the scope changes, the output says `scope changed from <old> to <new>`. Give `--module` again to keep the old scope.
 - The fact is no longer true: `oml memory retract <id> --why "<reason>"`.
 - `add` may print `contradicts`. These are older records that the new one may contradict.
 - If the new record replaces one of them, run the `retract` command in `hint`.

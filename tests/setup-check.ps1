@@ -3,7 +3,7 @@
 # never the person's real HKCU\Software\Classes. A snapshot of real Classes keys before and after proves nothing else changed.
 # Actions: `oml setup run ... --no-ui` does the work and prints what it would open, so no window or message box appears.
 # Runs in the alone lane: it writes to HKCU.
-param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net8.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
+param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
 $ErrorActionPreference = 'Stop'
 $Tmp = [IO.Path]::GetFullPath($Tmp)
 New-Item -ItemType Directory -Force $Tmp | Out-Null

@@ -296,7 +296,11 @@ static class CheckRules
         Try("duplicated-flow", () =>
         {
             foreach (var f in flows)
-                if (Size(f) is var size && size >= option("duplicated-flow", "minNodes")) prints.Add(new(Hash(f), module, PathOf(f.Owner), size));
+            {
+                // A flow the model cannot read in full is left out of the comparison; it must not fail the rule for the module.
+                try { if (Size(f) is var size && size >= option("duplicated-flow", "minNodes")) prints.Add(new(Hash(f), module, PathOf(f.Owner), size)); }
+                catch (Exception e) when (e is System.Reflection.TargetInvocationException or NullReferenceException or InvalidCastException or NotSupportedException or InvalidOperationException or KeyNotFoundException) { }
+            }
         });
 
         // Queries that run for a screen or block.
@@ -379,20 +383,45 @@ static class CheckRules
                 if (entity.Public && !entity.ExposeReadOnly && Reflect.Get(entity, "EntityKind")?.ToString() is not ("Static" or "Client")) Add("public-entity-writable", entity);
         });
 
-        // Descriptions: the module, its public contracts, and the parameters of public actions.
+        // Descriptions: the module, its public contracts and their parameters, and the elements that have no public flag.
+        // Well-known names (CommonNames) are skipped unless allNames = 1; attributes are read only with attributes = 1.
         Try("missing-description", () =>
         {
+            var allNames = option("missing-description", "allNames") > 0;
+            var attributes = option("missing-description", "attributes") > 0;
+            bool Empty(object o) => string.IsNullOrWhiteSpace(Reflect.Get(o, "Description") as string);
+            bool Skipped(object p) => !allNames && CommonNames.Contains(Name(p));
+            IEnumerable<IObjectSignature> Inputs(object o) => List(o, "InputParameters").OfType<IObjectSignature>();
+            IEnumerable<IObjectSignature> Outputs(object o) => List(o, "OutputParameters").OfType<IObjectSignature>();
+            void Parameters(IObjectSignature owner, IEnumerable<IObjectSignature> parameters)
+            {
+                foreach (var p in parameters)
+                    if (!Skipped(p) && Empty(p)) Add("missing-description", p, $"Parameter {Name(p)} of {Name(owner)} has no description.");
+            }
             if (string.IsNullOrWhiteSpace(Reflect.Get(m, "Description") as string)) hits.Add(new("missing-description", module, "", $"Module {module} has no description."));
             foreach (var e in ModuleReferences.Elements(m).Where(e => Reflect.Get(e, "Public") is true).Distinct())
             {
                 var elementKind = Architecture.ElementKind(e);
-                if (elementKind is not ("Entity" or "StaticEntity" or "Structure" or "ServerAction" or "ServiceAction" or "ClientAction" or "Block")) continue;
-                if (string.IsNullOrWhiteSpace(Reflect.Get(e, "Description") as string)) Add("missing-description", e, $"{elementKind} {Name(e)} has no description.");
-                if (elementKind.EndsWith("Action", StringComparison.Ordinal))
-                    foreach (var p in List(e, "InputParameters").Concat(List(e, "OutputParameters")).OfType<IObjectSignature>())
-                        if (!CommonNames.Contains(Name(p)) && string.IsNullOrWhiteSpace(Reflect.Get(p, "Description") as string))
-                            Add("missing-description", p, $"Parameter {Name(p)} of {Name(e)} has no description.");
+                if (elementKind is not ("Entity" or "StaticEntity" or "Structure" or "ServerAction" or "ServiceAction" or "ClientAction" or "Block" or "Screen" or "Image" or "Role" or "Theme")) continue;
+                if (Empty(e)) Add("missing-description", e, $"{elementKind} {Name(e)} has no description.");
+                if (elementKind.EndsWith("Action", StringComparison.Ordinal)) Parameters(e, Inputs(e).Concat(Outputs(e)));
+                else if (elementKind is "Block" or "Screen") Parameters(e, Inputs(e));
+                else if (attributes && elementKind is "Entity" or "StaticEntity" or "Structure")
+                    foreach (var a in List(e, "Attributes").OfType<IObjectSignature>())
+                        if (!Skipped(a) && Empty(a)) Add("missing-description", a, $"Attribute {Name(a)} of {Name(e)} has no description.");
             }
+            foreach (var process in m.Processes.OfType<IObjectSignature>().Where(x => Reflect.Get(x, "Public") is true))
+            {
+                if (Empty(process)) Add("missing-description", process, $"Process {Name(process)} has no description.");
+                Parameters(process, Inputs(process).Concat(Outputs(process)));
+            }
+            // Timers, site properties and session variables have no Public flag in the model: all of them are checked.
+            foreach (var timer in m.Timers.OfType<IObjectSignature>().Where(Empty))
+                Add("missing-description", timer, $"Timer {Name(timer)} has no description (timers have no public flag).");
+            foreach (var property in m.SiteProperties.OfType<IObjectSignature>().Where(Empty))
+                Add("missing-description", property, $"SiteProperty {Name(property)} has no description (site properties have no public flag).");
+            foreach (var variable in List(m, "SessionVariables").OfType<IObjectSignature>().Where(Empty))
+                Add("missing-description", variable, $"SessionVariable {Name(variable)} has no description (session variables have no public flag).");
         });
 
         // Unused elements: Service Studio's own warnings.
@@ -488,6 +517,15 @@ static class CheckRules
 
     static int Nesting(Flow f) => Nesting(f.Nodes.Cast<object>().ToList(), n => f.Next[(IObjectSignature)n].Select(t => ((object)t.target, t.cycle)));
 
+    static List<(IObjectSignature target, bool cycle)> Next(Flow f, IObjectSignature n) => f.Next.TryGetValue(n, out var t) ? t : [];
+
+    // A model read that may throw inside the model (a missing part of an odd flow): null then, like a missing reference.
+    static object? Read(object o, string key)
+    {
+        try { return Reflect.Get(o, key); }
+        catch (Exception e) when (e is System.Reflection.TargetInvocationException or NullReferenceException or InvalidCastException or NotSupportedException or InvalidOperationException) { return null; }
+    }
+
     // Structure hash: node kinds, the elements each node points at (called actions, aggregate sources, refreshed data,
     // destinations), expressions and connections, in a fixed walk order from Start.
     static string Hash(Flow f)
@@ -500,19 +538,21 @@ static class CheckRules
         {
             if (order.ContainsKey(n)) continue;
             order[n] = order.Count;
-            foreach (var t in f.Next[n].AsEnumerable().Reverse()) pending.Push(t.target);
+            foreach (var t in Next(f, n).AsEnumerable().Reverse()) pending.Push(t.target);
         }
         foreach (var (n, i) in order.OrderBy(p => p.Value))
         {
             text.Append(i).Append(':').Append(n.GetType().Name);
-            var parts = new[] { n }.Concat(ModuleReferences.Descendants(n)).ToList();
-            var references = parts.Where(p => p is not IExpression).SelectMany(p => ReferenceKeys.Select(k => Reflect.Get(p, k)))
+            var parts = new List<IObjectSignature> { n };
+            try { parts.AddRange(ModuleReferences.Descendants(n)); }
+            catch (Exception e) when (e is System.Reflection.TargetInvocationException or NullReferenceException or InvalidCastException or NotSupportedException) { }
+            var references = parts.Where(p => p is not IExpression).SelectMany(p => ReferenceKeys.Select(k => Read(p, k)))
                 .OfType<IObjectSignature>().Where(r => !parts.Contains(r)).Select(r => r.GetType().Name + ":" + PathOf(r)).Order(StringComparer.Ordinal);
             text.Append(" {").Append(string.Join("|", references)).Append('}');
-            var expressions = parts.OfType<IExpression>().Select(e => e.Text ?? "").Order(StringComparer.Ordinal);
+            var expressions = parts.OfType<IExpression>().Select(e => Read(e, "Text") as string ?? "").Order(StringComparer.Ordinal);
             text.Append(" [").Append(string.Join("|", expressions)).Append(']');
-            if (n is ISQLNode sql) text.Append(" sql ").Append(sql.Statement);
-            foreach (var t in f.Next[n]) text.Append(t.cycle ? " c" : " >").Append(order.GetValueOrDefault(t.target, -1));
+            if (n is ISQLNode) text.Append(" sql ").Append(Read(n, "Statement") as string);
+            foreach (var t in Next(f, n)) text.Append(t.cycle ? " c" : " >").Append(order.GetValueOrDefault(t.target, -1));
             text.Append('\n');
         }
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())));

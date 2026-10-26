@@ -2,9 +2,34 @@
 
 Keep a Changelog style: one section per release, newest first.
 
-## Unreleased
+## 1.10.0
+
+### Added
+- `oml apply --batch <index.json>` applies many modules in one process and prints every item with one combined `summary`. `oml install --batch <index.json>` checks every item first and installs none if any would be refused. A field report needed 92 separate `apply` and `install` runs and added the outputs by hand.
+- `oml check --diff <before.oml> <after.oml> [--rules <oml-rules.json>]` runs the rules on both files and lists per rule the findings that were fixed and introduced (`rules`, `summary.fixed`, `summary.introduced`, `summary.unchanged`). A finding is matched by rule and element (the detail when the element is empty); the module name is not compared, so a copy saved under another module name still matches. Exit 1 when a finding is introduced, 2 on an input error or a skipped rule.
+- `oml review` JSON `summary` has `changes` (number of changed top elements), `byArea` and `changeKinds` (changed properties by name, such as `description`), so scripts need not read the Markdown.
+- `oml architecture --in <folder> --publish-order [--changed <names file|folder>]` prints the modules in publish order, producers first: `{ order: [ { module, file, level } ], cycles, warnings }`. It writes no file. With `--changed`, it lists only the changed modules (a names file, or an earlier folder to compare with), ordered by the whole dependency graph. A cycle is listed in `cycles` and still gets a fixed order, sorted by name.
+- `oml publish --in <folder> --order <order.json>` publishes the modules of an order file one by one through the normal single publish, and stops at the first failure. It reports each result, the module where it stopped and the modules not tried (`notRun`). Exit 0 all published, 1 stopped on a failure, 2 bad input (a module missing from the folder, or already open in Service Studio: nothing is published). `oml run` and the dashboard still refuse `publish`. A manual 1-Click Publish stays the fallback.
+- `install --allow-existing-errors`: installs a staged file whose errors all exist in the target too (same message ID and owner path). The output lists them under `existingErrors`. A new error still refuses.
+- `oml inspect --in <folder> [--recursive]` reads every module in a folder in one process and prints `{ modules: [ { file, ... } ] }`. A broken file gives an `error` entry and the rest continue. Ten modules take about 2 seconds, not 20.
+- `inspect` shows `description` on action, service action, client action and process parameters, `inputDescriptions` on screens and blocks, and a new `sessionVariables` section (Traditional Web modules with session variables; the section is left out when there are none).
+- `oml architecture --force` overwrites the `--out` and `--json` files. It never overwrites an input.
+- `oml check`: the `missing-description` rule now also covers public blocks, screens, images, roles, themes and processes, the input parameters of public blocks and screens, and the parameters of public processes. Timers, site properties and session variables have no public flag in the model, so all of them are checked. The new rule options `allNames` (report the well-known names Id, Name, Label and so on, which are skipped by default) and `attributes` (report attributes of public entities and structures) are switches: 0 is off, 1 is on. Each finding's `element` works as the `set` path to fill the description.
+
+### Fixed
+- `publish` adds a `warning` when the module has version 0 in Service Studio. A copy extracted from an `.oap` has version 0 and fails to publish; the warning says what to do. A new module also has version 0, so the publish goes on.
+- `references` exits 1 with `refreshed: false` when Service Studio is busy and refreshed nothing.
+- `inspect --only` accepts the output keys (`siteProperties`, `serverActions`, `serviceActions`, `clientActions`, `restClients`, `restServices`, `staticEntities`) as well as the group names, in any case.
+- Per-field record mappings were invisible. When a record goes to an input of another record type, Service Studio keeps one mapping per target field; `tree`, `describe`, the delete checks and `review` skipped them, so a node that only a mapping used looked unused. `tree` now shows each as a `FieldMapping` child, `describe` prints `Item = Rec { Field = expression }`, `set` changes one (`"value"`), `review` compares them, and deleting a flow node with outputs is refused while any expression of its action still reads them (mappings included).
+- Deleting a flow node failed with `unknown connector 'Comment'` when the action had a comment with an arrow to another node. Comment arrows are no flow connectors now; one that points at the deleted node is removed with it (the report has a warning).
+- `Action/Name` at the end of a path now means the action's own input or output parameter when a flow node has the same name. Before, the path was ambiguous. `Action/Assign:Name` reaches the node.
+- The `duplicated-flow` check rule no longer fails on flows the model cannot read in full.
+- `oml review` lists the parts it could not read (`unreadable`, in JSON, `--md` and the page), like `describe` does.
 
 ### Changed
+- oml now targets .NET 10. Service Studio 11.55.94 and later run on .NET 10, and their assemblies do not build against .NET 8. Build from source with the .NET 10 SDK; the output is in `src\bin\Release\net10.0`. The released oml still needs only the .NET runtime that Service Studio installs.
+- `oml memory add --supersedes` no longer copies the old record's `--module`. The new record has the scope you give it (no `--module` = repo-wide); a different scope is reported as `scope changed from <old> to <new>`.
+- `oml memory` accepts single spaces inside a module name (`--module "Sales Core"`). `memory.md` says what `--module` matches and suggests tags for application-level grouping.
 - `skill/copilot-instructions.md` is now `skill/AGENTS.md`: the same always-on instructions, for any agent and model. The README has an install table per harness (AGENTS.md at the project root for Codex, Cursor, Windsurf, Zed, VS Code and others; `.github/copilot-instructions.md` for Copilot; `CLAUDE.md` import or the skill folder for Claude Code; a setting for Gemini CLI). Copilot users: copy `skill/AGENTS.md` where you copied the old file.
 
 ## 1.9.1

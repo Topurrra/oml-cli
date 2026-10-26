@@ -16,7 +16,7 @@
 
 `oml apply` refuses rules 2, 3, 4, 5 and 6, and warns on rule 7 (`PublicServerAction`). Tell the user the manual step it prints; do not try to work around it.
 
-Edit O11 `.oml` modules with `<repo>/src/bin/Release/net8.0/oml.exe`, or `oml` on PATH. `oml --help` prints the usage.
+Edit O11 `.oml` modules with `<repo>/src/bin/Release/net10.0/oml.exe`, or `oml` on PATH. `oml --help` prints the usage.
 
 ## Safety
 

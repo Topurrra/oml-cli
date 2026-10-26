@@ -84,6 +84,11 @@ static class ReviewReport
             md.AppendLine().AppendLine($"## {title}").AppendLine();
             foreach (var item in items) md.AppendLine($"- {Md(S(item))}");
         }
+        if (d["unreadable"]!.AsArray() is { Count: > 0 } unreadable)
+        {
+            md.AppendLine().AppendLine("## Parts that could not be read").AppendLine();
+            foreach (var u in unreadable) md.AppendLine($"- {Md(S(u!["part"]))}: {Md(S(u["reason"]))}");
+        }
         md.AppendLine().AppendLine($"Made by oml review {Md(S(d["omlVersion"]))}.");
         return md.ToString();
     }

@@ -512,6 +512,14 @@ internal static class TerminalRender
 
     static void CheckView(StringBuilder sb, JsonObject root)
     {
+        // `check --diff`: fixed and introduced findings per rule.
+        if (root["summary"] is JsonObject diff && diff["fixed"] is not null && root["rules"] is JsonArray changed)
+        {
+            sb.AppendLine(TerminalColors.Paint($"Fixed {Text(diff, "fixed")}, introduced {Text(diff, "introduced")}, unchanged {Text(diff, "unchanged")}", TerminalColors.Bold));
+            if (changed.Count > 0) BuildTable(sb, changed.OfType<JsonObject>().ToArray(), new[] { "rule", "fixed", "introduced" }, 0);
+            RenderObject(sb, Without(root, "summary", "rules"), 0, section: true);
+            return;
+        }
         var handled = new List<string> { "summary" };
         if (root["summary"] is JsonObject summary)
         {

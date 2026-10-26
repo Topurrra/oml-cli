@@ -17,6 +17,7 @@ static class CliUsage
         oml extension new <out.xif> --name <Name> [--spec <spec.json>]
         oml templates           (local template/sample modules and bundles)
         oml inspect <module.oml> [--own] [--only entities,structures,actions,screens,blocks,references,timers,roles,processes,rest,static,siteProperties] [--history] [--changed-since <yyyy-mm-dd>]
+        oml inspect --in <folder> [--recursive] [--own] [--only ...]   (every .oml in the folder in one process: {modules:[{file,...}]}, a broken file gives an error entry)
         oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [--history] [--css]
         oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
         oml find <module.oml> --text "<words>" [--top N]  (this module's elements ranked by name, description, expressions, SQL, labels)
@@ -24,9 +25,11 @@ static class CliUsage
         oml meta <file.oml>...   (the module header without loading the model: name, version, upgrade level, key, hashes, signature, type)
         oml meta --diff <a.oml> <b.oml>   (which header fields differ)
         oml expr "<text>"   (parse an expression: ok and its canonical form, or the parse error; exit 1 on invalid)
-        oml architecture [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--out <file.html>] [--json <file.json>]
+        oml architecture [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--out <file.html>] [--json <file.json>] [--force]
+        oml architecture --in <folder|file.oml|file.oap>... --publish-order [--changed <names file|folder>] [--app <Name>]... [--layers <layers.json>]   (JSON: the modules producers first, cycles; writes no file)
         oml check [<module.oml>] [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--rules <oml-rules.json>] [--baseline <old-check.json>] [--out <report.html>] [--json <report.json>] [--fail-on high|medium|low]
         oml check --init-rules [--out <oml-rules.json>]   (writes the team rules file: every rule, on/off, severity, options)
+        oml check --diff <before.oml> <after.oml> [--rules <oml-rules.json>]   (findings fixed and introduced per rule; exit 1 when one is introduced)
         oml review <before.oml> <after.oml> [--md <file.md>] [--out <file.html>] [--notes <file.md>] [--rules <oml-rules.json>]   (what changed, production-rule risks, new check findings)
         oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
         oml preview <module.oml> <Block|Screen|Email> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>] [--wait <ms>] [--click <selector>] [--type <selector>=<text>] [--eval <js>] [--serve [--no-open]]
@@ -34,6 +37,7 @@ static class CliUsage
         oml tree <module.oml> <ElementName> [--depth N]   (object tree of one action, screen, entity, ...; at most 250 parts)
         oml validate <module.oml> [--warnings]
         oml apply <source.oml> <spec.json>... <staged-out.oml> [--describe A,B,...] [--describe-created] [--report <report.json>]
+        oml apply --batch <index.json>   (many modules in one process: {items:[{source,spec,staged}]}; one combined summary; exit 1 if any item failed)
         oml spec [<key>]                   (reference for one spec key; no key lists them. Runs without Service Studio)
         oml spec --search "<words>" [--top N]   (ranked search of the spec keys and sections)
         oml spec check <spec.json> [--module <source.oml>]   (checks a spec's shape; with --module also its names, nothing saved; exit 1 on problems)
@@ -58,11 +62,13 @@ static class CliUsage
         oml memory handoff [--module <Name>] [--top N]   (a short brief for the next agent from the newest records; read only)
         oml run <steps.json> [--continue]   (several commands in one process, so Service Studio loads once; "-" reads the steps from stdin)
         oml translations export <module.oml> <file> [--format Excel|xlsx|ResX]
-        oml install <staged.oml> <target.oml>
+        oml install <staged.oml> <target.oml> [--allow-existing-errors]
+        oml install --batch <index.json> [--allow-existing-errors]   (items {staged,target}; checks all first, installs none if any is refused)
 
         oml studio                          (Service Studio's MCP server: reachable? open modules)
         oml pull [Module] [--out file.oml]  (save the module open in Service Studio to a file; needs 11.55.93+)
         oml publish <Module | file.oml>     (1-Click Publish through Service Studio)
+        oml publish --in <folder> --order <order.json>   (publish many modules in that order; stops at the first failure)
         oml references <Module | file.oml>  (Refresh All references through Service Studio)
         oml lt environments|teams|team-apps|apps|download|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lt' for usage)
         oml font woff2 <input> [output.woff2] [--force]

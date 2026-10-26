@@ -96,7 +96,8 @@ static class CheckCatalog
             "Keep one action and call it from the other places.", "Duplicated Code", Options: new() { ["minNodes"] = 5 }),
         new("missing-description", Maint, "low", "Public element without description",
             "The module, a public element or a parameter of a public action has no description. Consumers do not know what it does or what to pass.",
-            "Write a short description: what it does, and what each parameter means.", "Missing descriptions on public element or parameter"),
+            "Write a short description: what it does, and what each parameter means.", "Missing descriptions on public element or parameter",
+            Options: new() { ["allNames"] = 0, ["attributes"] = 0 }),
         new("unused-action", Maint, "low", "Unused action",
             "Service Studio reports an action that is never used in this module.",
             "Delete it, or make it public (ask the user: rule 7).", "Unused Actions in Module"),
@@ -234,8 +235,9 @@ static class CheckInput
                             {
                                 if (!current.Options.ContainsKey(o.Name))
                                     throw Bad($"rule \"{id}\" has no option \"{o.Name}\"" + (current.Options.Count == 0 ? "." : $"; use {string.Join(", ", current.Options.Keys)}."));
-                                if (o.Value.ValueKind != JsonValueKind.Number || !o.Value.TryGetInt32(out var number) || number < 1)
-                                    throw Bad($"rule \"{id}\": option {o.Name} must be a whole number of at least 1.");
+                                var switchOption = o.Name is "allNames" or "attributes"; // 0 = off, 1 = on
+                                if (o.Value.ValueKind != JsonValueKind.Number || !o.Value.TryGetInt32(out var number) || number < (switchOption ? 0 : 1) || switchOption && number > 1)
+                                    throw Bad(switchOption ? $"rule \"{id}\": option {o.Name} must be 0 or 1." : $"rule \"{id}\": option {o.Name} must be a whole number of at least 1.");
                                 current.Options[o.Name] = number;
                             }
                             break;

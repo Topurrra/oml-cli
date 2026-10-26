@@ -1,6 +1,6 @@
 # Apply JSONC recipes with the current CLI. All paths stay under this worktree.
 param(
-  [string]$Oml = (Join-Path $PSScriptRoot '../src/bin/Release/net8.0/oml.exe')
+  [string]$Oml = (Join-Path $PSScriptRoot '../src/bin/Release/net10.0/oml.exe')
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent

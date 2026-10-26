@@ -1,0 +1,13 @@
+{
+  "entities": [{ "name": "Applicant", "attributes": [{ "name": "Code", "type": "Long Integer" }, { "name": "Name", "type": "Text" }] }],
+  "structures": [{ "name": "Summary", "attributes": [{ "name": "LastCode", "type": "Long Integer" }, { "name": "Name", "type": "Text" }] }],
+  "serverActions": [
+    { "name": "Take", "inputs": [{ "name": "Item", "type": "Summary" }], "flow": [] },
+    { "name": "Collect", "locals": [{ "name": "Rec", "type": "Applicant" }, { "name": "Out", "type": "Summary" }, { "name": "Others", "type": "Integer" }], "flow": [
+      { "kind": "aggregate", "name": "GetApplicants", "sources": ["Applicant"], "maxRecords": 1 },
+      { "kind": "execute", "action": "Take", "name": "Add", "args": { "Item": "Rec" } },
+      { "kind": "assign", "name": "Fill", "assign": { "Out": "Rec" } },
+      { "kind": "aggregate", "name": "GetOthers", "sources": ["Applicant"], "maxRecords": 5 },
+      { "kind": "assign", "name": "CountOthers", "assign": { "Others": "GetOthers.Count" } } ] }
+  ]
+}

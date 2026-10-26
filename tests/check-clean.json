@@ -11,27 +11,32 @@
  "siteProperties": [
   {
    "name": "ServiceToken",
-   "isSecret": true
+   "isSecret": true,
+   "description": "Fixture ServiceToken."
   },
   {
    "name": "PageSize",
    "type": "Integer",
-   "default": "20"
+   "default": "20",
+   "description": "Fixture PageSize."
   },
   {
    "name": "PasswordMinLength",
    "type": "Integer",
-   "default": "8"
+   "default": "8",
+   "description": "Fixture PasswordMinLength."
   },
   {
    "name": "TokenLifetimeMinutes",
    "type": "Integer",
-   "default": "30"
+   "default": "30",
+   "description": "Fixture TokenLifetimeMinutes."
   },
   {
    "name": "UseApiKeyHeader",
    "type": "Boolean",
-   "default": "False"
+   "default": "False",
+   "description": "Fixture UseApiKeyHeader."
   }
  ],
  "entities": [
@@ -891,7 +896,8 @@
    "name": "NightlyCleanup",
    "action": "Cleanup",
    "schedule": "",
-   "timeout": 20
+   "timeout": 20,
+   "description": "Fixture NightlyCleanup."
   }
  ],
  "blocks": [

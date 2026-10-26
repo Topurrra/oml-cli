@@ -1,4 +1,4 @@
-param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net8.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp", [switch]$Page)
+param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp", [switch]$Page)
 # oml review: a before/after pair made with oml apply (tests/review-before.json, then tests/review-after.json) covers every
 # area; each change is found in plain words, renames stay renames, risks name their rule, new findings come from oml check,
 # and the outputs (JSON, --md, --notes, --out) and input errors behave. -Page: the HTML page in headless Edge/Chrome instead.
@@ -100,7 +100,7 @@ $r = $text | ConvertFrom-Json
 Assert ($text.StartsWith('{"module":"ReviewApp","summary":') -and $text.IndexOf('"summary"') -lt $text.IndexOf('"changes"')) "Summary counts come first: $($text.Substring(0, [Math]::Min(120, $text.Length)))"
 Assert ((Get-FileHash $before).Hash -eq $beforeHash -and (Get-FileHash $after).Hash -eq $afterHash) 'review changed an input file'
 $s = $r.summary
-Assert ($s.added -eq 4 -and $s.removed -eq 0 -and $s.recreated -eq 0 -and $s.renamed -eq 0) "Summary: $($s | ConvertTo-Json -Compress)"
+Assert ($s.added -eq 4 -and $s.removed -eq 0 -and $s.recreated -eq 0 -and $s.renamed -eq 0) "Summary: $($s | ConvertTo-Json -Compress -Depth 5)"
 function Change([string]$Name) { $c = @($r.changes | Where-Object name -eq $Name); Assert ($c.Count -eq 1) "Expected one change for $Name, got $($c.Count): $($r.changes | ConvertTo-Json -Depth 5 -Compress)"; $c[0] }
 function Details([string]$Name) { (Change $Name).details -join ' | ' }
 # The JSON keeps 5 details per element; the Markdown has all of them.
@@ -152,6 +152,15 @@ Assert ($findings -contains 'anonymous-screen-server MainFlow/Orders' -and $find
 $checkBefore = Invoke-Oml @('check', $before) | ConvertFrom-Json
 Assert (-not ($checkBefore.findings | Where-Object { $_.rule -eq 'anonymous-screen-server' })) 'The before module must not have the anonymous finding'
 Assert ($r.note -eq 'Logic bugs are not covered; 0 findings does not mean the code is correct.') 'The not-covered note in JSON'
+# The summary counts what the changes list says, so a script never parses the Markdown.
+Assert ($r.summary.changes -eq $r.changes.Count) "summary.changes $($r.summary.changes) vs $($r.changes.Count) changes"
+$areas = @($r.changes | Group-Object area)
+Assert (@($r.summary.byArea.PSObject.Properties).Count -eq $areas.Count) "byArea areas: $($r.summary.byArea | ConvertTo-Json -Compress -Depth 5)"
+foreach ($g in $areas) { Assert ($r.summary.byArea.($g.Name) -eq $g.Count) "byArea.$($g.Name) is $($r.summary.byArea.($g.Name)), the list has $($g.Count)" }
+$kinds = $r.summary.changeKinds
+Assert ($kinds.'default value' -eq 1 -and $kinds.'style sheet' -ge 2 -and $kinds.'timeout in minutes' -eq 1 -and $kinds.detail -eq 1) "changeKinds: $($kinds | ConvertTo-Json -Compress -Depth 5)"
+$counts = @($kinds.PSObject.Properties.Value)
+Assert ((($counts | Sort-Object -Descending) -join ',') -eq ($counts -join ',')) "changeKinds are sorted, most frequent first: $($counts -join ',')"
 
 # --md, --notes and --out.
 foreach ($file in @($md, $notes, $html)) { Assert ((Get-Content $file -Raw).Contains('Logic bugs are not covered; 0 findings does not mean the code is correct.')) "Note missing in $file" }
@@ -175,13 +184,14 @@ Assert ($c.changes.Count -eq 0 -and $c.risks.Count -eq 0 -and $c.summary.info -e
 $more = Join-Path $dir 'more.json'; $after2 = Join-Path $dir 'After2.oml'
 Set-Content $more '{ "edits": [
   { "op": "set", "element": "Report/ReadTotals", "properties": { "statement": "SELECT {Order}.[Total]\n  FROM {Order}\n  WHERE {Order}.[Total] > 0" } },
-  { "op": "set", "element": "MaxItems", "properties": { "isSecret": true, "defaultValue": "987654" } } ] }' -Encoding utf8
+  { "op": "set", "element": "MaxItems", "properties": { "isSecret": true, "defaultValue": "987654", "description": "Changed text." } } ] }' -Encoding utf8
 Invoke-Oml @('apply', $after, $more, $after2) | Out-Null
 $md2 = Join-Path $dir 'more.md'; $html2 = Join-Path $dir 'more.html'
 $text2 = Invoke-Oml @('review', $after, $after2, '--md', $md2, '--out', $html2)
 $r3 = $text2 | ConvertFrom-Json
 Assert ((@($r3.changes | Where-Object name -eq 'Report').details) -contains 'step ReadTotals: statement changed (whitespace only)') "Whitespace only: $($r3.changes | ConvertTo-Json -Depth 5 -Compress)"
 Assert ((@($r3.changes | Where-Object name -eq 'MaxItems').details) -contains 'default value changed (secret: values not shown)') "Secret site property: $($r3.changes | ConvertTo-Json -Depth 5 -Compress)"
+Assert ($r3.summary.changeKinds.description -eq 1 -and $r3.summary.changeKinds.statement -eq 1 -and $r3.summary.changeKinds.'default value' -eq 1 -and @($r3.changes.details | Where-Object { $_ -eq 'description changed' }).Count -eq 1) "Summary of the second review: $($r3.summary | ConvertTo-Json -Compress -Depth 5)"
 foreach ($out in @($text2, (Get-Content $md2 -Raw), (Get-Content $html2 -Raw))) { Assert (-not $out.Contains('987654') -and -not $out.Contains('Changed lines of step ReadTotals')) 'A secret value or a whitespace-only change was printed' }
 
 # Traditional Web: an input's Type and a button's Label are settings of their own.

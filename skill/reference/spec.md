@@ -912,7 +912,8 @@ Paths use slash-separated scopes: `Action/Node`, `Screen/Widget`, `Screen/Screen
 Each segment searches breadth-first within its parent. From the module, this module's own top-level element wins;
 when it does not hold the rest of the path, the path fails (it does not fall through to a deeper or referenced element).
 `Kind:Name` (`Screen:Orders`) and `Module.Name` qualify a name. An ambiguous path is refused with an exact path for
-every candidate; copy one. Edits refuse elements of referenced modules. Tree accepts the same paths. See "Element paths" in `commands.md`.
+every candidate; copy one. At the end of a path, directly under an action, an input or output parameter wins over a flow node
+of the same name (`Pick/Response` is the parameter); write `Pick/Assign:Response` for the node. Edits refuse elements of referenced modules. Tree accepts the same paths. See "Element paths" in `commands.md`.
 Unnamed elements use `Kind[index]`, indexed from zero among siblings of that kind.
 For example: `Orders/Header/Button[0]/Text[0]`. Copy the emitted path; indexes can change after edits. Flow nodes and action or instance arguments have a fixed order on every load.
 Labels persist where supported. Raise Exception on Service Studio 11.55.92 needs an index path after reopening.
@@ -930,7 +931,7 @@ For entities and attributes created in the same spec:
 - Attribute checks also cover whole-row queries and CRUD calls on the owning entity.
 - Public/static data deletion emits warnings.
 
-A flow node is reconnected only with exactly one incoming and one outgoing connector. Branches, junctions, and Start/End deletion are refused. Widgets and local variables can be removed from existing actions and screens.
+A flow node is reconnected only with exactly one incoming and one outgoing connector. A comment arrow is a note, not flow: an arrow that points at the deleted node goes with it (the report has a warning), and other arrows stay. The delete of a node with outputs (aggregate, SQL, action call) is refused while an expression in the same action, per-field record mappings included, still reads `Node.`; the refusal lists each reader. A node without outputs (Assign, If, Switch, Raise exception, Refresh, End) is not checked. Set those expressions first: `set` before `delete` in one edits list works. Branches, junctions, and Start/End deletion are refused. Widgets and local variables can be removed from existing actions and screens.
 
 ### Copy, translations, resources, and folders
 

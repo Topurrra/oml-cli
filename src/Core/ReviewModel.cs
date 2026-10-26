@@ -31,7 +31,9 @@ static class ReviewModel
         public required string Module, Key;
         public readonly Dictionary<string, Item> Items = new(StringComparer.Ordinal);
         public readonly List<string> Order = new(); // walk order, for a stable report
-        public int Unreadable;                      // parts whose getters threw; they are left out of the comparison
+        public readonly List<Unreadable.Item> Unreadable = new(); // parts whose getters threw; they are left out of the comparison
+        public void Fail(Func<string> part, TargetInvocationException e) =>
+            Unreadable.Add(new(part(), $"{(e.InnerException ?? e).GetType().Name}: {(e.InnerException ?? e).Message}"));
     }
 
     // Properties that are not something a person changes: identity, canvas position, Service Studio's authorship record,
@@ -126,7 +128,7 @@ static class ReviewModel
     static IObjectSignature[] Children(IObjectSignature o, Snapshot snap)
     {
         try { return ElementPaths.Children(o).ToArray(); }
-        catch (TargetInvocationException) { snap.Unreadable++; return []; }
+        catch (TargetInvocationException e) { snap.Fail(() => "children of " + Unreadable.Where(o), e); return []; }
     }
 
     // Describe's kind names, or the concrete type for platform objects that name no model interface.
@@ -153,12 +155,19 @@ static class ReviewModel
         {
             if (IsConnector(c)) item.Next.Add((ElementPaths.Kind(c), Target(c, snap)));
             else if (IsArgument(c) && Get(c, "Value", snap) is IExpression { Text.Length: > 0 } value)
-                item.Props["argument " + (Get(c, "Parameter", snap) is { } parameter ? Model.NameOf(parameter) : "?")] = value.Text;
+            {
+                var argument = "argument " + (Get(c, "Parameter", snap) is { } parameter ? Model.NameOf(parameter) : "?");
+                item.Props[argument] = value.Text;
+                Mappings(c, argument, item);
+            }
             else if (c is OutSystems.Model.Logic.Nodes.ISwitchCondition)
                 item.Next.Add(("case " + (Get(c, "Value", snap) is IExpression { Text.Length: > 0 } e ? e.Text : (++cases).ToString()), Target(Get(c, "Link", snap) ?? c, snap)));
             else if (c is IExpression) continue;
             else if (Kind(c) == "Assignment")
+            {
                 item.Props["set " + Text(Get(c, "Variable", snap))] = Text(Get(c, "Value", snap));
+                Mappings(c, "set " + Text(Get(c, "Variable", snap)), item);
+            }
             else if (Kind(c) == "ExtendedProperty")
                 item.Props["attribute " + (Model.NameOf(c) ?? Text(Get(c, "Property", snap)))] = Text(Get(c, "Value", snap));
             else if (Kind(c) == "UILifeCycleEvent" && Get(c, "Destination", snap) is IObjectSignature handler)
@@ -172,13 +181,20 @@ static class ReviewModel
         item.Next.Sort((a, b) => string.CompareOrdinal(a.label, b.label) is var byLabel and not 0 ? byLabel : string.CompareOrdinal(a.target, b.target));
     }
 
+    // The per-field mappings of an argument or assignment are part of its value: `argument Item.LastId`.
+    static void Mappings(IObjectSignature owner, string key, Item item)
+    {
+        foreach (var mapping in FieldMappings.Of(owner))
+            if (FieldMappings.Text(mapping) is { Length: > 0 } text) item.Props[key + "." + FieldMappings.Field(mapping)] = Expressions.Canonical(text) ?? text;
+    }
+
     static string Target(object connector, Snapshot snap) => Get(connector, "TargetNode", snap) is IObjectSignature t ? t.GlobalKey.ToString()! : "";
     static string Text(object? o) => o is IExpression e ? Expressions.Canonical(e.Text) ?? e.Text : o as string ?? (o is not null ? Model.NameOf(o) ?? "" : "");
 
     static object? Get(object o, string name, Snapshot snap)
     {
         try { return Reflect.Property(o, name)?.GetValue(o); }
-        catch (TargetInvocationException) { snap.Unreadable++; return null; }
+        catch (TargetInvocationException e) { snap.Fail(() => Unreadable.Where(o) + " property " + name, e); return null; }
     }
 
     // Some platform types (the None type) throw for Parent: they belong to no element.
@@ -192,7 +208,7 @@ static class ReviewModel
     {
         object? v;
         try { v = p.GetValue(o); }
-        catch (TargetInvocationException) { snap.Unreadable++; return null; }
+        catch (TargetInvocationException e) { snap.Fail(() => Unreadable.Where(o) + " property " + p.Name, e); return null; }
         switch (v)
         {
             case null: return null;

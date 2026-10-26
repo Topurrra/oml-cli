@@ -1,4 +1,4 @@
-param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net8.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
+param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
 # oml image: ICO write and read, PNG to SVG tracing (quality against the source), embed mode, the SVG optimizer and its
 # pixel gate, batches and refusals. Fixtures are written here; raster inputs are drawn from them by oml itself.
 $ErrorActionPreference = 'Stop'
@@ -9,7 +9,7 @@ New-Item -ItemType Directory -Force $dir | Out-Null
 $project = Join-Path $PSScriptRoot 'AssetsTests\AssetsTests.csproj'
 & 'C:\Program Files\dotnet\dotnet.exe' build -c Release -v q -nologo $project | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Asset test harness build failed' }
-$harness = Join-Path $PSScriptRoot 'AssetsTests\bin\Release\net8.0\AssetsTests.exe'
+$harness = Join-Path $PSScriptRoot 'AssetsTests\bin\Release\net10.0\AssetsTests.exe'
 function Require([bool]$Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
 function Harness([string[]]$Arguments) {
     $text = & $harness @Arguments

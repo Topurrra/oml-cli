@@ -15,6 +15,7 @@ export const cookbook = [
   ] },
   { group: 'Read a module', items: [
     ['oml inspect C:\\Work\\Orders.oml --own --only entities,actions,screens', 'List the entities, actions and screens that the module owns.'],
+    ['oml inspect --in C:\\Work --own --only entities', 'Inspect every module in a folder in one run.'],
     ['oml inspect C:\\Work\\Orders.oml --only references', 'List the modules and elements that Orders uses.'],
     ['oml describe C:\\Work\\Orders.oml Order_Save', 'Explain one action in a few readable lines.'],
     ['oml describe C:\\Work\\Orders.oml OrderDetail Order_Save Order', 'Explain several elements in one call.'],
@@ -35,6 +36,7 @@ export const cookbook = [
     ['oml check --in C:\\Exports\\Payments --json C:\\Exports\\check.json --fail-on high', 'Check a folder of modules. Exit code 1 when a high finding is reported.'],
     ['oml check --init-rules --out C:\\Work\\oml-rules.json', 'Write the team rules file: every rule, on or off, with its severity.'],
     ['oml check C:\\Work\\Orders.oml --rules C:\\Work\\oml-rules.json --baseline C:\\Work\\old-check.json', 'Use the team rules and mark which findings are new.'],
+    ['oml check --diff C:\\Work\\Orders.oml C:\\Work\\Orders.staged.oml', 'Which check findings the change fixed and which it introduced, per rule. Exit code 1 when one is introduced.'],
     ['oml review C:\\Work\\Orders.oml C:\\Work\\Orders.staged.oml --md C:\\Work\\Orders.review.md', 'What changed, the production-rule risks and new findings. Run it before you install.'],
     ['oml review C:\\Work\\Orders.oml C:\\Work\\Orders.staged.oml --out C:\\Work\\review.html --notes C:\\Work\\release-notes.md', 'Write the review as a web page, and short release notes for testers.'],
     ['oml test scaffold C:\\Work\\Orders.oml Order_Save --bdd C:\\Work\\BDDFramework.oml --out C:\\Work\\orders-tests.json', 'Write a spec for BDD test screens in a separate test module.'],
@@ -55,9 +57,11 @@ export const cookbook = [
     ['oml apply C:\\Work\\Orders.oml C:\\Work\\change.json C:\\Work\\Orders.staged.oml', 'Apply a spec to a new staged file. The source does not change.'],
     ['oml apply C:\\Work\\Orders.oml C:\\Work\\change.json C:\\Work\\Orders.staged.oml --describe-created', 'Apply and describe the new elements in the same call.'],
     ['oml apply C:\\Work\\Orders.oml C:\\Work\\change.json C:\\Work\\Orders.staged.oml --timings', 'Also show how many milliseconds each phase took.'],
+    ['oml apply --batch C:\\Work\\batch\\apply.json', 'Apply a spec to many modules in one run. The index lists source, spec and staged for each.'],
     ['oml new C:\\Work\\OrdersApi.oml --template TemplateService --name OrdersApi', 'Create a module from a local template. oml templates lists them.'],
     ['oml run C:\\Work\\steps.json', 'Run several commands in one process, so Service Studio loads once.'],
     ['oml install C:\\Work\\Orders.staged.oml C:\\Work\\Orders.oml', 'Replace the module with the staged file. Only after you check it.'],
+    ['oml install --batch C:\\Work\\batch\\install.json', 'Install many staged files. If one is refused, none is installed.'],
     ['oml translations export C:\\Work\\Orders.oml C:\\Work\\Orders-translations.xlsx', 'Export the translations to Excel.'],
   ] },
   { group: 'User interface', items: [
@@ -73,12 +77,15 @@ export const cookbook = [
     ['oml pull Orders --out C:\\Work\\Orders.oml', 'Save the module open in Service Studio to a file.'],
     ['oml publish C:\\Work\\Orders.oml', '1-Click Publish through Service Studio. Ask before you publish.'],
     ['oml references Orders', 'Refresh All references through Service Studio.'],
+    ['oml publish --in C:\\Work\\Modules --order C:\\Work\\order.json', 'Publish many modules in the order of the file. It stops at the first failure. Ask before you publish.'],
   ] },
   { group: 'REST and architecture', items: [
     ['oml openapi C:\\Work\\Orders.oml --api OrdersApi --out C:\\Work\\OrdersApi.openapi.json', 'Export one exposed REST API as OpenAPI 3.0.3.'],
     ['oml openapi C:\\Work\\Orders.oml --server https://dev.example.com/Orders/rest/OrdersApi', 'Export every exposed API with a real server address.'],
     ['oml architecture --in C:\\Exports\\Payments --out C:\\Exports\\payments-architecture.html', 'Make an architecture page from a folder of .oap and .oml files.'],
     ['oml architecture --in C:\\Exports --app Payments --json C:\\Exports\\payments.json', 'Keep one application and also write the data as JSON.'],
+    ['oml architecture --in C:\\Work\\Modules --publish-order > C:\\Work\\order.json', 'List the modules in publish order: producers before consumers.'],
+    ['oml architecture --in C:\\Work\\Modules --publish-order --changed C:\\Work\\Before', 'Order only the modules that differ from an earlier folder.'],
     ['oml architecture --team Payments --out C:\\Exports\\team.html', 'Read the team\'s applications from LifeTime.'],
   ] },
   { group: 'LifeTime', items: [

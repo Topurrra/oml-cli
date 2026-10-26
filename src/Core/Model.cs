@@ -221,6 +221,7 @@ static class Model
     // throws (some interfaces on referenced-module proxies) is skipped rather than failing the lookup.
     public static string? NameOf(object o)
     {
+        if (FieldMappings.Is(o)) return FieldMappings.Field(o); // the target field names a per-field mapping
         foreach (var p in NameProperties.GetOrAdd(o.GetType(), _ => new[] { "Name", "Label" }
                      .SelectMany(property => Reflect.Interfaces(o).Select(i => i.GetProperty(property)))
                      .Where(p => p?.PropertyType == typeof(string)).ToArray()!))

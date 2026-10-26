@@ -32,13 +32,19 @@ partial class Builder
 
     static string DataPath(IObjectSignature target)
     {
+        // Each part is listed by the nearest ancestor that has it as a child: a field mapping's expression sits below
+        // an internal part (the mapping's source) that the tree does not show.
         var parts = new List<string>();
-        for (var o = target; o.Parent is { } parent; o = parent)
-            if (ElementPaths.Children(parent).Contains(o)) parts.Insert(0, ElementPaths.Segment(o, parent));
+        for (var o = target; o.Parent is { } parent;)
+        {
+            var holder = Ancestors(o).FirstOrDefault(a => ElementPaths.Children(a).Contains(o));
+            if (holder is not null) parts.Insert(0, ElementPaths.Segment(o, holder));
+            o = holder ?? parent;
+        }
         return string.Join("/", parts);
     }
 
-    static List<string> DataUsages(IObjectSignature target)
+    internal static List<string> DataUsages(IObjectSignature target)
     {
         var owned = new HashSet<IObjectSignature>();
         void Own(IObjectSignature o)

@@ -139,7 +139,7 @@ Why: output is similar, because both sides write the same CSS and JavaScript. MC
 
 ## Install
 
-**Prerequisites:** Windows, Service Studio 11, and the .NET 8 runtime (the SDK to build from source). Publishing and reference refresh need Service Studio 11.55.91 or later with its MCP server started (**Edit > MCP Server > Start MCP server**).
+**Prerequisites:** Windows, Service Studio 11, and the .NET 10 runtime (the SDK to build from source). Service Studio 11.55.94 and later install it. Publishing and reference refresh need Service Studio 11.55.91 or later with its MCP server started (**Edit > MCP Server > Start MCP server**).
 
 **Release:** download `oml-<version>-win-x64.zip` from [Releases](https://github.com/Topurrra/oml-cli/releases), unzip it, keep its folders together, and add `bin` to PATH. Unsigned executables may be blocked by company policy; then build from source.
 
@@ -147,7 +147,7 @@ Why: output is similar, because both sides write the same CSS and JavaScript. MC
 
 ```powershell
 dotnet build -c Release src/OmlCli.csproj
-$env:PATH = "$PWD\src\bin\Release\net8.0;$env:PATH"
+$env:PATH = "$PWD\src\bin\Release\net10.0;$env:PATH"
 oml version
 ```
 
