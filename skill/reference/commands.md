@@ -981,6 +981,64 @@ oml preview Staged.oml FxCard --theme dark --width 390 --screenshot dark-390.png
 
 Exit 0 when the file was written. Exit 2 for an unknown element, a bad option or an existing output.
 
+## QA
+
+`oml qa page <url> [--headed] [--width N] [--height N] [--timeout <ms>] [--screenshot <file.png>] [--engine auto|cdp|uia]`
+`oml qa run <qa.json> [--base-url <url>] [--headed] [--width N] [--height N] [--timeout <ms>] [--out <folder>] [--continue] [--engine auto|cdp|uia]`
+
+Tests the published app like a manual tester. `preview` renders one element offline; `qa` uses the real app, with real data and server actions. It opens Edge or Chrome with a new, empty profile, never yours. The profile is deleted at the end.
+
+`qa page` prints what the screen shows, in about 2 KB: `actions`, `inputs`, `tables` (columns, row count, 3 sample rows), `feedback` and `invalid` messages, `headings`, other named `widgets`, and `errors`. With the DevTools engine it also prints `calls`: each OutSystems call with its `status`, `rows` and server `exception`. Use it to find the targets for a QA file.
+
+Targets are OutSystems names. A widget's Name is the last part of its DOM id (`b2-b3-SaveButton` is `SaveButton`). Other targets: `text:<label>` (a button, link or field label), `css:<selector>` (DevTools only), and `Name#N` for the Nth match.
+
+A QA file (JSONC):
+
+```jsonc
+{
+  "baseUrl": "https://dev.example.com/Orders/",
+  "viewport": { "width": 1366, "height": 900 },   // optional
+  "timeout": 15000,                                // optional, per step
+  "steps": [
+    { "open": "OrdersList", "expect": { "screen": "OrdersList", "table": { "target": "OrdersTable", "rows": ">0" } } },
+    { "expect": { "table": { "target": "OrdersTable", "column": "Status", "notMatch": "^\\d+$" } } },
+    { "click": "NewOrderLink", "expect": { "screen": "OrderDetail" } },
+    { "fill": { "CustomerInput": "Ana", "PasswordInput": "$env:QA_PASSWORD" } },
+    { "select": { "StatusDropdown": "Open" } },
+    { "click": "SaveButton", "expect": { "feedback": "success" } }
+  ]
+}
+```
+
+| Action | What it does |
+|---|---|
+| `open` | A screen name or path under `baseUrl`, or a full URL on the same host. |
+| `click` | Clicks the target. A click on Delete, Remove and similar needs `"allowDestructive": true` in the step. |
+| `fill` | Types into fields, checks the value, and types again once if the screen resets it. `"$env:NAME"` reads a variable, so secrets are not in the file or the report. |
+| `select` | Picks a dropdown option by its text. |
+| `press` | A key: Enter, Tab, Escape, arrows, Space, Backspace, Delete. DevTools only. |
+| `wait` | Milliseconds, or a text to wait for. |
+| `screenshot` | Saves the page as a PNG in the output folder. |
+
+`expect` keys: `screen`, `url`, `text`, `noText`, `visible`, `hidden`, `value` (`{ "Field": "text" }`), `feedback` (`"success"` or `{ "type", "text" }`), `call` (`"FetchOrders"` or `{ "name", "rows": ">0" }`, DevTools only), `table` (`target`, `rows`, `column`, `match`, `notMatch`), `count` (`{ "target", "is": ">=2" }`), `invalid` (`true`, `false` or a field). Counts take `>`, `>=`, `<`, `<=`, `=`, `!=` or a number. Expectations are retried until they hold or the timeout passes.
+
+After every action, the step waits until the screen is ready. Every step also fails on a JavaScript error, a failed request to the app's own server, a server exception from an OutSystems call, or an error message on the screen. Use `"allowErrors": true` in a step that expects an error. A failed step saves a screenshot. Without `--continue`, the steps after a failure are skipped.
+
+Two engines. `--engine auto` (default) picks one:
+
+| Engine | How | Limits |
+|---|---|---|
+| `cdp` | DevTools: real input events, the DOM, the network and JavaScript errors. Headless unless `--headed`. | Needs remote debugging. A `RemoteDebuggingAllowed = 0` policy blocks it. |
+| `uia` | Windows UI Automation over a normal browser window. Chromium shows DOM ids as automation ids, so widget Names work. The window is placed left of all monitors unless `--headed`. | No `call`, JavaScript errors, `press` or `css:`. Ready means "the screen stopped changing", not "the network is idle". Each `open` opens a new window, which takes the keyboard focus for a moment. |
+
+`auto` reads the Edge or Chrome policy and uses `uia` when remote debugging is off. `oml doctor` shows which engine `qa` uses. oml reads the policy only; it never changes it.
+
+Output: `{ ok, passed, failed, skipped, ms, engine, engineNote, steps: [ { n, do, ok, ms, readyMs, calls, error, notes, screenshot, url } ] }`. With `--out`, also `qa-report.json` and the screenshots in that folder; without it, screenshots go to `%TEMP%\oml-qa\<time>`.
+
+Use test data on a development environment only. Do not run a QA file that clicks Save or Delete against production.
+
+Exit 0 when every step passed, 1 when a step failed, 2 for a usage or environment problem.
+
 ## Architect skill
 
 No command. [architect.md](../architect.md) tells a strong model how to lead cheap worker agents with the commands above: split the work into lanes, give each worker a brief ([worker-brief.md](worker-brief.md)), then check every part with `oml spec check`, merge all parts with one `oml apply <source> <part1.json> <part2.json> <staged>`, and run `oml review`, `oml check` and `oml preview`. The default skill load does not include it. `tests/architect-check.ps1` runs its worked example.

@@ -71,6 +71,8 @@ export const cookbook = [
     ['oml preview C:\\Work\\Orders.staged.oml OrderList --height 2000 --screenshot C:\\Work\\list.png', 'Take a taller screenshot of a long screen.'],
     ['oml preview C:\\Work\\Orders.staged.oml LoginForm --type "#Username=ana" --click "#Login" --wait 500 --screenshot C:\\Work\\login.png', 'Type, click and wait before the screenshot.'],
     ['oml preview C:\\Work\\Orders.staged.oml StatusBadge --serve', 'A live preview in your browser that reloads when the file changes. Ctrl+C stops it.'],
+    ['oml qa page https://dev.example.com/Orders/OrdersList', 'Test the running app: what the screen shows (actions, inputs, tables, messages, errors) in a browser of its own.'],
+    ['oml qa run C:\\Work\\orders-qa.json --out C:\\Work\\qa', 'Run QA steps like a manual tester (open, click, fill, expect). Writes the report and screenshots of failed steps.'],
   ] },
   { group: 'Service Studio', items: [
     ['oml studio', 'Check that Service Studio\'s MCP server answers and list the open modules.'],

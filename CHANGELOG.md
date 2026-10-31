@@ -2,7 +2,13 @@
 
 Keep a Changelog style: one section per release, newest first.
 
-## 1.10.0
+## Unreleased
+
+### Added
+- `oml qa page <url>` and `oml qa run <qa.json>` test the published app like a manual tester, in a browser with its own throwaway profile. Targets are widget Names (the last part of the DOM id), `text:<label>` or `css:<selector>`. Steps: `open`, `click`, `fill`, `select`, `press`, `wait`, `screenshot`, each with optional `expect` (`screen`, `text`, `visible`, `value`, `feedback`, `call` with `rows`, `table` with column patterns, `count`, `invalid`). Every step also fails on a JavaScript error, a failed request to the app's server, a server exception or an error message. A click on Delete or Remove needs `allowDestructive`. `"$env:NAME"` keeps secrets out of the file and the report. Exit 0 all passed, 1 a step failed, 2 usage.
+- Two engines for `qa`: DevTools (`cdp`: real input events, the network, JavaScript errors) and Windows UI Automation (`uia`: a browser window left of all monitors, read through the accessibility tree). `--engine auto` uses `uia` when a `RemoteDebuggingAllowed = 0` policy blocks DevTools, as on many company PCs. `uia` has no network checks, JavaScript errors, key presses or `css:` targets. No new dependency: the DevTools client is a WebSocket, UI Automation is COM interop.
+- `fill` checks every field again once the screen settles and types once more where a late data load reset it; the step notes it.
+- `oml doctor`: the `browser` check says which engine `oml qa` uses and why.
 
 ### Added
 - `oml apply --batch <index.json>` applies many modules in one process and prints every item with one combined `summary`. `oml install --batch <index.json>` checks every item first and installs none if any would be refused. A field report needed 92 separate `apply` and `install` runs and added the outputs by hand.

@@ -71,6 +71,8 @@ static class CliUsage
         oml publish --in <folder> --order <order.json>   (publish many modules in that order; stops at the first failure)
         oml references <Module | file.oml>  (Refresh All references through Service Studio)
         oml lt environments|teams|team-apps|apps|download|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lt' for usage)
+        oml qa page <url> [--headed] [--width N] [--height N] [--timeout <ms>] [--screenshot <file.png>] [--engine auto|cdp|uia]   (test a running app: what the screen shows, compactly: actions, inputs, tables, messages, the OutSystems calls it made, errors)
+        oml qa run <qa.json> [--base-url <url>] [--headed] [--width N] [--height N] [--timeout <ms>] [--out <folder>] [--continue] [--engine auto|cdp|uia]   (run QA steps like a manual tester: open, click, fill, select, press, wait, expect; exit 1 when a step fails)
         oml font woff2 <input> [output.woff2] [--force]
         oml font batch <folder> [--out folder] [--force]
         oml image <input> [--to png|jpeg|webp|svg|ico] [--max-width N] [--max-height N] [--quality 1-100] [--out file] [--force] [--precision 0-10] [--strip-title] [--remove-ids] [--aggressive]   (convert, resize or optimize a raster image or SVG)
