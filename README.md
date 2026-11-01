@@ -85,7 +85,7 @@ oml check --in C:\Exports\Payments --out check.html --json check.json
 oml check --team Payments --rules oml-rules.json --baseline last-check.json --fail-on high
 ```
 
-Each finding has a rule id, a severity, a category (Security, Performance, Maintainability, Architecture), the module and element path, what is wrong, how to fix it, and the AI Mentor pattern name when there is one. There are 35 rules. Examples: a query inside a loop, a screen query without a row limit, server calls from client loops and screen events, Expand Inline SQL fed by input, `GetUserId()` sent from the client, secret-looking site properties, public entities that are not read-only, long, deep or duplicated flows, and the `oml architecture` findings when you give several modules.
+Each finding has a rule id, a severity, a category (Security, Performance, Maintainability, Architecture), the module and element path, what is wrong, how to fix it, and the AI Mentor pattern name when there is one. There are 36 rules. Examples: a query inside a loop, a screen query without a row limit, server calls from client loops and screen events, Expand Inline SQL fed by input, `GetUserId()` sent from the client, secret-looking site properties, public entities that are not read-only, long, deep or duplicated flows, and the `oml architecture` findings when you give several modules.
 
 - `oml check --init-rules` writes `oml-rules.json`. Turn rules on or off, set severities and thresholds so that they match your active AI Mentor rules, and list ignored elements with a reason.
 - `--baseline` marks each finding `new` or `existing`; with `--fail-on`, only new findings make the exit code 1.

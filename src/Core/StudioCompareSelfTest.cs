@@ -45,6 +45,9 @@ static class StudioCompareSelfTest
                && StudioGuards.PublishWarning("M", JsonNode.Parse("""{ "version": { "n": "0" } }""")) is null && StudioGuards.PublishWarning("M", JsonNode.Parse("\"0\"")) is null, "publish: odd version shapes fail open");
         Expect(StudioGuards.FindApp(JsonNode.Parse("""{ "apps": [ 5, { "name": 7 }, { "name": "M", "version": "0" } ] }"""), "M") is { } found && found["version"]!.ToString() == "0"
                && StudioGuards.FindApp(JsonNode.Parse("""{ "apps": "x" }"""), "M") is null && StudioGuards.FindApp(JsonNode.Parse("[1]"), "M") is null && StudioGuards.FindApp(null, "M") is null, "publish: listApps lookup never throws");
+        Expect(StudioGuards.SameNameRefusal(JsonNode.Parse("""{ "apps": [ { "name": "M", "isOpen": true }, { "name": "M", "isOpen": true } ] }"""), "M") is { } twice && twice.Contains("2 open modules named 'M'")
+               && StudioGuards.SameNameRefusal(JsonNode.Parse("""{ "apps": [ { "name": "M", "isOpen": true }, { "name": "M", "isOpen": false }, { "name": "N", "isOpen": true } ] }"""), "M") is null
+               && StudioGuards.SameNameRefusal(JsonNode.Parse("""{ "apps": [ 5, { "name": "M", "isOpen": "yes" }, { "name": "M" } ] }"""), "M") is null && StudioGuards.SameNameRefusal(null, "M") is null, "publish: two open modules of one name refuse; other shapes pass");
         Expect(StudioGuards.RefreshOutcome(JsonNode.Parse("""{ "hasErrors": false, "items": ["Screen is busy"], "detail": { "text": "x is busy" } }""")).refreshed, "references: a deeper text does not count");
         var busy = StudioGuards.RefreshOutcome(JsonNode.Parse("""{ "message": "Service Studio is busy, try again." }"""));
         Expect(!busy.refreshed && busy.message!.Contains("busy"), "references: busy is not a refresh");

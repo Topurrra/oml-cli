@@ -45,6 +45,21 @@ static class StudioGuards
             ? apps.FirstOrDefault(a => a is JsonObject x && x["name"] is JsonValue n && n.TryGetValue<string>(out var s) && s == module)
             : null;
 
+    // listApps has no server or environment field, and publish and refresh name a module only. With two open modules of
+    // one name (from two environments), Service Studio picks one and publishes it to the server it came from; refuse
+    // instead. Any other reply shape returns null.
+    internal static string? SameNameRefusal(JsonNode? reply, string module)
+    {
+        var open = reply is JsonObject o && o["apps"] is JsonArray apps
+            ? apps.Count(a => a is JsonObject x && x["name"] is JsonValue n && n.TryGetValue<string>(out var s) && s == module
+                              && x["isOpen"] is JsonValue v && v.TryGetValue<bool>(out var isOpen) && isOpen)
+            : 0;
+        return open > 1
+            ? $"Service Studio has {open} open modules named '{module}', probably from different environments. It cannot tell them apart and would use one of them. " +
+              "Close every copy but the one you mean, then run again."
+            : null;
+    }
+
     // Service Studio answers "Service Studio is busy..." in a normal reply when it refreshed nothing. Only a text field at
     // the top of the reply counts: a deeper text (an element or message name) must not turn a real refresh into a failure.
     internal static (bool refreshed, string? message) RefreshOutcome(JsonNode? result)

@@ -192,7 +192,8 @@ static class Studio
     {
         Connect();
         if (!target.EndsWith(".oml", StringComparison.OrdinalIgnoreCase))
-            return IsOpen(target) ? target : throw new CliError($"Module '{target}' is not open in Service Studio. Open it, or pass its .oml file.", 2);
+            return StudioGuards.SameNameRefusal(Call("listApps", input: null), target) is { } refusal ? throw new CliError(refusal, 2)
+                : IsOpen(target) ? target : throw new CliError($"Module '{target}' is not open in Service Studio. Open it, or pass its .oml file.", 2);
 
         var path = Path.GetFullPath(target);
         if (!File.Exists(path)) throw new CliError($"File not found: {path}", 2);

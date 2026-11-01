@@ -29,7 +29,7 @@ $webClean = New-Fixture 'CheckWebClean' 'WebResponsive' 'check-web-clean.json'
 $hashes = @{}; foreach ($f in @($bad, $clean, $webBad, $webClean)) { $hashes[$f] = (Get-FileHash $f).Hash }
 
 # Default rules: each module rule exactly once, opt-in rules and several-module rules never.
-$once = @('aggregate-unlimited','sql-unlimited','query-in-loop','server-call-in-client-loop','multiple-server-calls','server-call-in-client-event',
+$once = @('aggregate-unlimited','sql-unlimited','sql-column-order','query-in-loop','server-call-in-client-loop','multiple-server-calls','server-call-in-client-event',
     'site-property-update','timer-long-timeout','anonymous-screen-server','sql-expand-inline','sql-expand-inline-input','getuserid-client',
     'getuserid-block-argument','site-property-secret','client-variable-secret','render-assign','public-entity-writable','long-flow','deep-nesting','duplicated-flow','missing-description',
     'unused-action','unused-query')
@@ -41,12 +41,13 @@ foreach ($f in $r.findings) {
     foreach ($field in @('rule','severity','category','title','module','element','detail','fix','aiMentorName')) { Assert ($f.PSObject.Properties.Name -contains $field) "Finding field $field missing on $($f.rule)" }
     Assert ($f.severity -in @('high','medium','low') -and $f.category -in @('Security','Performance','Maintainability','Architecture') -and $f.module -eq 'CheckBad' -and $f.detail -and $f.fix) "Finding schema of $($f.rule)"
 }
-$where = @{ 'aggregate-unlimited'='MainFlow/Orders/LoadSql/AllOrders'; 'sql-unlimited'='MainFlow/Orders/LoadSql/AllCustomers'; 'query-in-loop'='LoopQuery/GetOrders'
+$where = @{ 'aggregate-unlimited'='MainFlow/Orders/LoadSql/AllOrders'; 'sql-unlimited'='MainFlow/Orders/LoadSql/AllCustomers'; 'sql-column-order'='MainFlow/Orders/LoadSql/AllCustomers'; 'query-in-loop'='LoopQuery/GetOrders'
     'server-call-in-client-loop'='ClientLoop/Ping'; 'multiple-server-calls'='ClientTwice'; 'server-call-in-client-event'='MainFlow/Dashboard/LoadOnReady'
     'sql-expand-inline'='InlinePrivate/Search'; 'sql-expand-inline-input'='InlineSearch/Search'; 'getuserid-client'='ClientUser/ForUser'
     'site-property-secret'='ApiToken'; 'public-entity-writable'='Customer'; 'long-flow'='LongFlow'; 'deep-nesting'='Nested'; 'duplicated-flow'='CopyB'
     'missing-description'='OrderDto'; 'unused-action'='NeverCalled'; 'client-variable-secret'='AuthToken'; 'render-assign'='MainFlow/Counter/CountRenders'; 'unused-query'='UnusedQuery/GetIgnored'; 'anonymous-screen-server'='MainFlow/PublicHome' }
 foreach ($rule in $where.Keys) { Assert (($r.findings | Where-Object rule -eq $rule).element -eq $where[$rule]) "Element of $rule is '$(($r.findings | Where-Object rule -eq $rule).element)', expected '$($where[$rule])'" }
+Assert (($r.findings | Where-Object rule -eq 'sql-column-order').detail -like 'AllCustomers selects Name as column 1, where the output attribute is Id*') "sql-column-order detail: $(($r.findings | Where-Object rule -eq 'sql-column-order').detail)"
 Assert (($r.findings | Where-Object rule -eq 'query-in-loop').aiMentorName -eq 'Aggregate or SQL query inside a cycle') 'AI Mentor name of query-in-loop'
 Assert (($r.findings | Where-Object rule -eq 'query-in-loop').detail -like 'GetOrders runs inside the loop Inner.*') 'A query in nested loops is reported once, with the inner loop'
 Assert ((($r.findings | Where-Object rule -eq 'render-assign').detail) -like "'CountRenders' changes the Counter's data*") 'render-assign names the handler'

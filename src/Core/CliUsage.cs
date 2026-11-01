@@ -46,6 +46,7 @@ static class CliUsage
         oml doc --search "<words>" [--top N] [--in <folder> | --library]   (ranked search of doc sections, spec keys, recipes, warnings and commands; --library searches the OutSystems 11 docs instead; compact JSON)
         oml library [status]   (the local copy of the OutSystems 11 docs for doc --search --library: sources, commit, files)
         oml library fetch [--source product|support|howtos]... [--from <unzipped repository>]   (download or update the OutSystems 11 docs from GitHub: Markdown only, about 15 MB)
+        oml library update [--check] [--source product|support|howtos]...   (fetch again only the sources OutSystems changed; --check lists the changed pages and downloads nothing)
         oml skills [list]   (your company skills: Markdown rules that override OutSystems best practices; oml doc <name> prints one)
         oml skills add <file.md> [--force]   (check a skill file (name and description frontmatter, size, secrets) and install it for this user)
         oml skills remove <name>   (uninstall one company skill; the source file stays)

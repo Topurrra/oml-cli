@@ -17,7 +17,7 @@ Exposed and consumed REST APIs: URLs, errors, status codes, authentication, type
 - A bad request (wrong type, missing mandatory input, unknown path or verb) returns 400, 404, 405, 406 or 415 with an `Errors` list. The flow does not run.
 - An unhandled exception in the flow rolls back the database and returns 500 with the exception message.
 - Other status codes (201 after a create, 404 when not found): call `SetStatusCode` just before End or before raising. It comes from the HTTPRequestHandler extension: add a `references` entry.
-- Exposed APIs allow calls from any web origin (CORS). CORS protects nothing.
+- Exposed APIs allow calls from any web origin (CORS). CORS protects nothing. `CrossSiteRequests = Restrict` has no runtime effect: never rely on it.
 - Descriptions of the API, methods and parameters become its documentation.
 - By default a parameter that holds its default value is left out of the JSON.
 - PATCH cannot tell "not sent" from a default. Use unlikely defaults per field and update only fields that differ.

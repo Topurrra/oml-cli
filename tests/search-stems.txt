@@ -36,6 +36,7 @@ component: component, components
 connect: connect, connected
 connector: connector, connectors
 consumer: consumer, consumers
+copy: copies, copy
 creat: create, created, creates, creating
 customer: customer, customers
 cycl: cycle, cycles
@@ -53,6 +54,7 @@ enabl: enable, enabled
 end: end, ends
 entity: entities, entity
 entry: entries, entry
+environment: environment, environments
 error: error, errors
 escap: escape, escaping
 event: event, events
@@ -143,6 +145,7 @@ reopen: reopen, reopening
 replac: replace, replaced, replaces
 report: report, reports
 request: request, requested
+request: request, requested, requests
 requir: required, requires
 resourc: resource, resources
 result: result, results
