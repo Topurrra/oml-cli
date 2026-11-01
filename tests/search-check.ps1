@@ -41,9 +41,9 @@ Write-Host "ok   search: $($r.Text)"
 # to confirm, dropped to 0.536/0.732/0.648 (BM25F 0.411/0.643/0.542, BM25 0.286/0.482/0.420, grep 0.268/0.482/0.390):
 # a command entry is first in 1 of the 7 changed queries, the others moved with the index statistics. This is the
 # release number. Do not tune on blind4.
-# commands: 36 plain requests a command answers ("deploy to production" -> oml lt). Measured before the command words in
+# commands: 40 plain requests a command answers ("deploy to production" -> oml lt). Measured before the command words in
 # src/DocSearch.cs: 0.361/0.556/0.484; after: 0.778/0.972/0.870 (tune MRR -0.001, held 0, blind2 0, blind3 -0.003, blind4
-# +0.003). It was tuned on, so it is not blind. Plain BM25 routes these better (MRR 0.968): the full engine's synonyms
+# +0.003) on the first 36; with the 4 oml qa requests 0.750/0.925/0.847. It was tuned on, so it is not blind. Plain BM25 routes these better (MRR 0.968): the full engine's synonyms
 # and glossary pull doc sections ahead of the command, so the baseline rule below skips this set.
 $min = @{
   'tune' = @{ top1 = 0.83; top3 = 0.94; mrr = 0.89 }

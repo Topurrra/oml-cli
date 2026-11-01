@@ -316,6 +316,7 @@ static class DocSearch
         ["dashboard"] = "web dashboard developers browser",
         ["font"] = "font woff2 convert",
         ["image"] = "image resize convert optimize png jpeg webp svg ico",
+        ["qa"] = "manual qa e2e end to end the running published app in a browser click buttons what the screen shows",
     };
 
     // The comment lines before the JSON starts, without the slashes.

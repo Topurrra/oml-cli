@@ -19,6 +19,7 @@ block: block, blocks
 boolean: boolean, booleans
 branch: branch, branches
 build: build, building
+button: button, buttons
 call: call, calling, calls
 cas: case, cases
 cell: cell, cells
