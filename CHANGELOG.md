@@ -5,11 +5,6 @@ Keep a Changelog style: one section per release, newest first.
 ## Unreleased
 
 ### Added
-- `oml hooks install|status|remove [--dir <project>]`: a Claude Code PreToolUse hook in the project's `.claude\settings.local.json`. It refuses reading `commands.md`, `spec.md` or `model-api.md` whole (Read, Grep, cat or Get-Content) and changing `.oml` files with a tool or a shell command (rule 9). The instructions become checks that cost no tokens. Input it cannot read is allowed.
-- SKILL.md holds the 11 rules itself, so an agent no longer spends a turn reading `rules.md` first. `rules.md` stays the source for `oml doc rules`, AGENTS.md and the website; `doc-check` keeps the copies word for word.
-- `oml memory traps --command "<command>"` lists the live trap records a shell command may run into: the command names one of the trap's elements, or holds two or more words of its text. The module comes from `--module` or the first module file in the command. Read only, allowed in `oml run`, never blocks; a pre-command hook can call it. Without `--command` it lists the live traps. No pattern is stored, so the record format does not change.
-- `oml memory add` prints `similar` when a live record of the same module (or a repo-wide one) has almost the same words (60% of the distinct words in common), with a `retract` hint. The record is still written.
-- `oml memory bench --quality <fixture.json> [--details]` scores recall (top 1, top 3, MRR, weak flag) per question set, in memory. `tests/memory-bench.json` has 16 more records and a blind set of 26 questions written before any run; `tests/memory-check.ps1` holds both sets to the same thresholds.
 - `oml qa page <url>` and `oml qa run <qa.json>` test the published app like a manual tester, in a browser with its own throwaway profile. Targets are widget Names (the last part of the DOM id), `text:<label>` or `css:<selector>`. Steps: `open`, `click`, `fill`, `select`, `press`, `wait`, `screenshot`, each with optional `expect` (`screen`, `text`, `visible`, `value`, `feedback`, `call` with `rows`, `table` with column patterns, `count`, `invalid`). Every step also fails on a JavaScript error, a failed request to the app's server, a server exception or an error message. A click on Delete or Remove needs `allowDestructive`. `"$env:NAME"` keeps secrets out of the file and the report. Exit 0 all passed, 1 a step failed, 2 usage.
 - Two engines for `qa`: DevTools (`cdp`: real input events, the network, JavaScript errors) and Windows UI Automation (`uia`: a browser window left of all monitors, read through the accessibility tree). `--engine auto` uses `uia` when a `RemoteDebuggingAllowed = 0` policy blocks DevTools, as on many company PCs. `uia` has no network checks, JavaScript errors, key presses or `css:` targets. No new dependency: the DevTools client is a WebSocket, UI Automation is COM interop.
 - `fill` checks every field again once the screen settles and types once more where a late data load reset it; the step notes it.
@@ -19,6 +14,15 @@ Keep a Changelog style: one section per release, newest first.
 - Layout checks: `qa page` lists `layout` findings (`overflow`, `small` click targets under 24 x 24 px, `overlap`) and the real `viewport`. New `expect` keys `inView` (no scrolling needed) and `layout`.
 - Ready waits for the OutSystems screen transition to end (one `active-screen` in `#transitionContainer`). Before, a step could act while the old and new screens were both on the page.
 - UI Automation engine: the ready wait listens for structure, name and value change events instead of reading the page every 80 ms, and reuses one read of the page until it changes. A click step costs about the app's own transition time; checks after it take 20 to 50 ms instead of about 700.
+
+## 1.12.0
+
+### Added
+- `oml hooks install|status|remove [--dir <project>]`: a Claude Code PreToolUse hook in the project's `.claude\settings.local.json`. It refuses reading `commands.md`, `spec.md` or `model-api.md` whole (Read, Grep, cat or Get-Content) and changing `.oml` files with a tool or a shell command (rule 9). The instructions become checks that cost no tokens. Input it cannot read is allowed.
+- SKILL.md holds the 11 rules itself, so an agent no longer spends a turn reading `rules.md` first. `rules.md` stays the source for `oml doc rules`, AGENTS.md and the website; `doc-check` keeps the copies word for word.
+- `oml memory traps --command "<command>"` lists the live trap records a shell command may run into: the command names one of the trap's elements, or holds two or more words of its text. The module comes from `--module` or the first module file in the command. Read only, allowed in `oml run`, never blocks; a pre-command hook can call it. Without `--command` it lists the live traps. No pattern is stored, so the record format does not change.
+- `oml memory add` prints `similar` when a live record of the same module (or a repo-wide one) has almost the same words (60% of the distinct words in common), with a `retract` hint. The record is still written.
+- `oml memory bench --quality <fixture.json> [--details]` scores recall (top 1, top 3, MRR, weak flag) per question set, in memory. `tests/memory-bench.json` has 16 more records and a blind set of 26 questions written before any run; `tests/memory-check.ps1` holds both sets to the same thresholds.
 
 ## 1.11.0
 
