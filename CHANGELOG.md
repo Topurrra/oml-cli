@@ -17,6 +17,10 @@ Keep a Changelog style: one section per release, newest first.
 - Layout checks: `qa page` lists `layout` findings (`overflow`, `small` click targets under 24 x 24 px, `overlap`) and the real `viewport`. New `expect` keys `inView` (no scrolling needed) and `layout`.
 - Ready waits for the OutSystems screen transition to end (one `active-screen` in `#transitionContainer`). Before, a step could act while the old and new screens were both on the page.
 - UI Automation engine: the ready wait listens for structure, name and value change events instead of reading the page every 80 ms, and reuses one read of the page until it changes. A click step costs about the app's own transition time; checks after it take 20 to 50 ms instead of about 700.
+
+## 1.11.0
+
+### Added
 - `oml library update [--check] [--source <name>]...` fetches again only the doc sources that OutSystems changed (1 GitHub call per source when nothing changed). `--check` lists the number of new commits, the changed pages and the first 10 of them, and downloads nothing. A run 9 days after a fetch found 212 changed product pages.
 - `oml check` rule `sql-column-order` (high): a SQL query whose SELECT columns do not match its output attributes, in number or by name. Columns fill the attributes by position and Service Studio does not compare them; a wrong count fails at run time with "Error executing query", and swapped columns of one type return wrong data. `oml review` lists it as a new finding. Found by the OutSystems MCP skill team (outsystems11-mcp, 2026-10-29).
 - `oml publish <Module>` and `oml references <Module>` refuse when Service Studio has several open modules of that name (from different environments): it names modules only and would use one of them.
