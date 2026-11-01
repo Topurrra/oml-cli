@@ -7,7 +7,7 @@ namespace OmlCli.Qa;
 // The runner retries them all until they hold or the step's timeout passes.
 static class QaExpect
 {
-    public static readonly string[] Keys = ["screen", "url", "text", "noText", "visible", "hidden", "value", "feedback", "call", "table", "count", "invalid"];
+    public static readonly string[] Keys = ["screen", "url", "text", "noText", "visible", "hidden", "value", "feedback", "call", "table", "count", "invalid", "inView", "layout"];
 
     public static async Task<string?> Check(IQaEngine b, string key, JsonElement v, int seq) => key switch
     {
@@ -23,8 +23,27 @@ static class QaExpect
         "table" => await Table(b, v),
         "count" => await Count(b, v),
         "invalid" => await Invalid(b, v),
+        "inView" => await InView(b, v),
+        "layout" => await Layout(b, v),
         _ => $"unknown expectation {key}",
     };
+
+    // "SaveButton" or a list: each wholly in the window without scrolling (above the fold).
+    static async Task<string?> InView(IQaEngine b, JsonElement v)
+    {
+        var boxes = await b.Helper("boxes");
+        var wrong = Strings(v).Select(t => QaLayout.InView(boxes, t)).OfType<string>().ToList();
+        return wrong.Count == 0 ? null : string.Join("; ", wrong);
+    }
+
+    // true: no overflow, small or overlap finding. A list ("overflow", "small", "overlap") checks only those kinds.
+    static async Task<string?> Layout(IQaEngine b, JsonElement v)
+    {
+        if (v.ValueKind == JsonValueKind.False) return null;
+        var kinds = v.ValueKind == JsonValueKind.Array ? Strings(v).ToHashSet() : null;
+        var found = QaLayout.Findings(await b.Helper("boxes")).Where(f => kinds is null || kinds.Contains(f[..f.IndexOf(':')])).ToList();
+        return found.Count == 0 ? null : "layout: " + string.Join("; ", found);
+    }
 
     static async Task<string?> Screen(IQaEngine b, string screen)
     {

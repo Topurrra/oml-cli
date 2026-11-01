@@ -11,7 +11,13 @@ namespace OmlCli.Qa;
 // Value pattern: no mouse, no keyboard. What it cannot do: network checks, JavaScript errors, key presses, css: targets.
 sealed class UiaEngine : IQaEngine
 {
-    const int StableMs = 500; // the page's text and element count unchanged this long counts as ready
+    const int StableMs = 500;   // without events: the page's text and element count unchanged this long counts as ready
+    const int QuietMs = 250;    // with events: no structure, name or value change this long, then one read confirms
+    const int EventsTrustMs = 3_000; // a page that never stops changing (a clock, an animation): fall back to the text check
+    static readonly int[] Watched = [Uia.Name, Uia.ValueValue];
+
+    readonly Changes changes = new();
+    bool listening;
 
     readonly string exe, profile;
     readonly bool headed;
@@ -24,6 +30,7 @@ sealed class UiaEngine : IQaEngine
     UiaPage.Node? last;
 
     public string Mode => "uia";
+    public bool Alive => browser is null || !browser.HasExited;
     public QaNetwork Network { get; } = new();
 
     public UiaEngine(bool headed, int width, int height)
@@ -67,23 +74,71 @@ sealed class UiaEngine : IQaEngine
         }
         foreach (var old in before) Win32.PostMessage(old, Win32.WmClose, IntPtr.Zero, IntPtr.Zero);
         if (!headed && foreground != IntPtr.Zero && Win32.IsWindow(foreground)) Win32.SetForegroundWindow(foreground);
-        last = null;
+        (last, cached) = (null, null);
+        Listen();
+    }
+
+    // Change events for the new window: the ready wait reads the page only once they go quiet. When registering
+    // fails, the wait polls instead.
+    void Listen()
+    {
+        try
+        {
+            automation.RemoveAllEventHandlers();
+            var root = automation.ElementFromHandle(window);
+            automation.AddStructureChangedEventHandler(root, Uia.TreeScopeSubtree, null, changes);
+            automation.AddPropertyChangedEventHandlerNativeArray(root, Uia.TreeScopeSubtree, null, changes, Watched, Watched.Length);
+            changes.Mark();
+            listening = true;
+        }
+        catch (Exception e) when (Uia.Failed(e) || e is InvalidCastException or NotSupportedException) { listening = false; }
+    }
+
+    // Notes when the page last changed. UI Automation calls it on its own threads; it must not call UI Automation back.
+    public sealed class Changes : IUIAutomationStructureChangedEventHandler, IUIAutomationPropertyChangedEventHandler
+    {
+        long last = Stopwatch.GetTimestamp();
+        public void HandleStructureChangedEvent(IUIAutomationElement sender, int changeType, int[] runtimeId) => Mark();
+        public void HandlePropertyChangedEvent(IUIAutomationElement sender, int propertyId, object newValue) => Mark();
+        public void Mark() => Interlocked.Exchange(ref last, Stopwatch.GetTimestamp());
+        public long Last => Interlocked.Read(ref last);
+        public double QuietMs => Stopwatch.GetElapsedTime(Last).TotalMilliseconds;
     }
 
     // The tab's web document: the largest Document element in the window (the browser's own UI has none that size).
+    // For a moment (a dropdown's list closing, a page replacing another) the window can show no document: retry for a second.
     IUIAutomationElement Document()
     {
         if (window == IntPtr.Zero) throw new QaFailure("No page is open: start with an open step.");
-        var docs = Uia.Items(automation.ElementFromHandle(window).FindAll(Uia.TreeScopeDescendants, documents)).ToList();
-        return docs.OrderByDescending(d => Uia.Current(d, Uia.BoundingRectangle) is double[] { Length: 4 } r ? r[2] * r[3] : 0).FirstOrDefault()
-            ?? throw new QaFailure("The browser window has no web page yet.");
+        for (var clock = Stopwatch.StartNew(); ; Thread.Sleep(50))
+        {
+            var docs = Uia.Items(automation.ElementFromHandle(window).FindAll(Uia.TreeScopeDescendants, documents)).ToList();
+            var doc = docs.OrderByDescending(d => Uia.Current(d, Uia.BoundingRectangle) is double[] { Length: 4 } r ? r[2] * r[3] : 0).FirstOrDefault();
+            if (doc is not null) return doc;
+            if (clock.ElapsedMilliseconds > 1_000) throw new QaFailure("The browser window has no web page.");
+        }
     }
 
-    UiaPage Read() => new(Document().BuildUpdatedCache(request));
+    // One read serves every helper call until the page changes: with change events, a read taken after the last
+    // event is still the page. Without events (or after an action of oml's own), every call reads again.
+    UiaPage? cached;
+    long cachedAt;
+    UiaPage Read()
+    {
+        if (listening && cached is not null && changes.Last == cachedAt) return cached;
+        var at = changes.Last;
+        var page = new UiaPage(Document().BuildUpdatedCache(request));
+        (cached, cachedAt) = (page, at);
+        return page;
+    }
 
+    // Ready: the page has loaded, shows text, and stopped changing. With change events, "stopped" is QuietMs without an
+    // event and a read with no event during it; without them (or on a page that never stops), the text and element
+    // count unchanged for StableMs.
     public async Task<long> WaitReady(int timeoutMs)
     {
         var clock = Stopwatch.StartNew();
+        await Task.Delay(120); // let the click's own changes start
         string? signature = null;
         long stableSince = 0;
         string why = "the page did not load";
@@ -91,16 +146,24 @@ sealed class UiaEngine : IQaEngine
         {
             try
             {
-                var page = Read();
-                var text = page.Text();
-                var now = $"{page.Url}|{page.All.Count}|{text.GetHashCode()}";
-                if (page.Busy || page.Url.Length == 0 || page.Url == "about:blank" || text.Length == 0) { why = page.Busy ? "the page is still loading" : "the page is empty"; signature = null; }
-                else if (now != signature) { signature = now; stableSince = clock.ElapsedMilliseconds; why = "the page kept changing"; }
-                else if (clock.ElapsedMilliseconds - stableSince >= StableMs) return clock.ElapsedMilliseconds;
+                var events = listening && clock.ElapsedMilliseconds < EventsTrustMs;
+                if (!events || changes.QuietMs >= QuietMs)
+                {
+                    var before = changes.Last;
+                    var page = Read();
+                    var text = page.Text();
+                    var now = $"{page.Url}|{page.All.Count}|{text.GetHashCode()}";
+                    if (page.Busy || page.Url.Length == 0 || page.Url == "about:blank" || text.Length == 0) { why = page.Busy ? "the page is still loading" : "the page is empty"; signature = null; }
+                    else if (!page.ScreenSettled) { why = "the OutSystems screen transition did not end"; signature = null; }
+                    else if (events && changes.Last == before) return clock.ElapsedMilliseconds;
+                    else if (now != signature) { signature = now; stableSince = clock.ElapsedMilliseconds; why = "the page kept changing"; }
+                    else if (clock.ElapsedMilliseconds - stableSince >= StableMs) return clock.ElapsedMilliseconds;
+                }
+                else why = "the page kept changing";
             }
-            catch (Exception e) when (e is QaFailure or System.Runtime.InteropServices.COMException) { why = e.Message; signature = null; }
+            catch (Exception e) when (e is QaFailure || Uia.Failed(e)) { why = e.Message; signature = null; }
             if (clock.ElapsedMilliseconds > timeoutMs) throw new QaFailure($"The page was not ready in {timeoutMs} ms: {why}.");
-            await Task.Delay(80);
+            await Task.Delay(40);
         }
     }
 
@@ -119,11 +182,12 @@ sealed class UiaEngine : IQaEngine
             "text" => JsonSerializer.SerializeToElement(page.Text()),
             "table" => page.Table((string)args[0]!, (int?)args[1]),
             "summary" => page.Summary(page.Root.Name),
+            "boxes" => page.Boxes(),
             _ => throw new QaUsage("Unknown page helper " + method),
         };
         if (method == "locate" && last is { Offscreen: true, ScrollItem: true })
             try { Pattern<IUIAutomationScrollItemPattern>(last, Uia.ScrollItemPattern)?.ScrollIntoView(); }
-            catch (System.Runtime.InteropServices.COMException) { }
+            catch (Exception x) when (Uia.Failed(x)) { }
         return Task.FromResult(result);
     }
 
@@ -136,6 +200,7 @@ sealed class UiaEngine : IQaEngine
         var n = last ?? throw new QaFailure("Nothing located to click.");
         try
         {
+            cached = null;
             if (n.Invoke && Pattern<IUIAutomationInvokePattern>(n, Uia.InvokePattern) is { } invoke) invoke.Invoke();
             else if (n.Toggle && Pattern<IUIAutomationTogglePattern>(n, Uia.TogglePattern) is { } toggle) toggle.Toggle();
             else if (n.SelectItem && Pattern<IUIAutomationSelectionItemPattern>(n, Uia.SelectionItemPattern) is { } select) select.Select();
@@ -143,7 +208,7 @@ sealed class UiaEngine : IQaEngine
             else if (Pattern<IUIAutomationLegacyIAccessiblePattern>(n, Uia.LegacyIAccessiblePattern) is { } legacy) legacy.DoDefaultAction();
             else throw new QaFailure($"{UiaPage.Txt(n)}: this element offers no click action to UI Automation.");
         }
-        catch (System.Runtime.InteropServices.COMException e) { throw new QaFailure($"click failed: {e.Message}"); }
+        catch (Exception e) when (Uia.Failed(e)) { throw new QaFailure($"click failed: {e.Message}"); }
         return Task.CompletedTask;
     }
 
@@ -152,8 +217,9 @@ sealed class UiaEngine : IQaEngine
     {
         var n = last ?? throw new QaFailure("Nothing located to type into.");
         if (Pattern<IUIAutomationValuePattern>(n, Uia.ValuePattern) is not { } value) throw new QaFailure("This field does not accept text through UI Automation.");
+        cached = null;
         try { value.SetValue(text); }
-        catch (System.Runtime.InteropServices.COMException e) { throw new QaFailure($"typing failed: {e.Message}"); }
+        catch (Exception e) when (Uia.Failed(e)) { throw new QaFailure($"typing failed: {e.Message}"); }
         return Task.CompletedTask;
     }
 
@@ -169,11 +235,12 @@ sealed class UiaEngine : IQaEngine
         {
             options = new UiaPage(n.Element.BuildUpdatedCache(request)).All.Where(o => o.Type == Uia.ListItem).ToList();
             if (options.Count > 0) break;
-            if (attempt == 0) try { expand?.Expand(); } catch (System.Runtime.InteropServices.COMException) { }
+            if (attempt == 0) try { expand?.Expand(); } catch (Exception x) when (Uia.Failed(x)) { }
             await Task.Delay(100);
         }
+        cached = null;
         try { return Pick(options, option); }
-        finally { try { expand?.Collapse(); } catch (System.Runtime.InteropServices.COMException) { } }
+        finally { try { expand?.Collapse(); } catch (Exception x) when (Uia.Failed(x)) { } }
     }
 
     static JsonElement Pick(List<UiaPage.Node> options, string option)
@@ -198,12 +265,32 @@ sealed class UiaEngine : IQaEngine
 
     public Task<string> Url() => Task.FromResult(Uia.Current(Document(), Uia.ValueValue) as string ?? "");
 
+    // Recording: keep the latest read of the page (cheap while nothing changes), and answer a click from the read
+    // taken before it, so the target is what the person saw, not the screen the click led to.
+    MouseHook? hook;
+    public async Task<JsonElement?> NextClick(CancellationToken cancel)
+    {
+        hook ??= new MouseHook();
+        UiaPage? before = null;
+        while (!cancel.IsCancellationRequested)
+        {
+            if (!Win32.IsWindow(window)) return null;
+            try { before = Read(); } catch (Exception e) when (e is QaFailure || Uia.Failed(e)) { }
+            if (!hook.Next(out var point, 120)) { await Task.Yield(); continue; }
+            if (MouseHook.WindowOf(point.X, point.Y) != window || before?.RecordAt(point.X, point.Y) is not { } click) continue;
+            return click;
+        }
+        return null;
+    }
+
     public Task<QaNetwork.CallResult> ReadCall(QaNetwork.Request request) => Task.FromResult(new QaNetwork.CallResult(null, null, "no network in UI Automation mode"));
     public (List<string> Exceptions, List<string> Console) ErrorsSince(int exceptionCount, int consoleCount) => ([], []);
     public (int Exceptions, int Console) ErrorCounts() => (0, 0);
 
     public void Dispose()
     {
+        hook?.Dispose();
+        if (listening) try { automation.RemoveAllEventHandlers(); } catch (Exception x) when (Uia.Failed(x)) { }
         if (browser is not null)
         {
             foreach (var w in Win32.BrowserWindows(browser.Id)) Win32.PostMessage(w, Win32.WmClose, IntPtr.Zero, IntPtr.Zero);

@@ -35,6 +35,21 @@ sealed class UiaPage
     public string Url => Root.ValueText;
     public bool Busy => (Root.State & Uia.StateBusy) != 0;
 
+    // An OutSystems screen change: the old screen loses "active-screen" while the next one loads, then both sit in
+    // #transitionContainer during the animation (classes like fade-enter, fade-leave). Settled is one active screen
+    // with no enter or leave class. A page without the container (or whose screen divs UIA does not show) is settled.
+    public bool ScreenSettled
+    {
+        get
+        {
+            var container = All.FirstOrDefault(n => n.Id == "transitionContainer");
+            if (container is null) return true;
+            var screens = Below(container).Where(n => Regex.IsMatch(n.Class, @"(^|\s)screen-container(\s|$)")).ToList();
+            if (screens.Count == 0) return true;
+            return screens.Count == 1 && Regex.IsMatch(screens[0].Class, @"(^|\s)active-screen(\s|$)") && !Regex.IsMatch(screens[0].Class, @"-(enter|leave|exit)(-active)?(\s|$)");
+        }
+    }
+
     public UiaPage(IUIAutomationElement cachedRoot)
     {
         Root = Build(cachedRoot, null);
@@ -204,6 +219,28 @@ sealed class UiaPage
             else data.Add(cells.Select(Txt).ToList());
         }
         return (columns, data);
+    }
+
+    // For recording: the smallest action or field under a screen point (UIA bounds are screen coordinates), and the
+    // same answer as the page helper's recordAt (target, text, tag, field, and the inputs as they are now).
+    public JsonElement? RecordAt(double x, double y)
+    {
+        var n = All.Where(n => Vis(n) && (IsClickable(n) || IsField(n)) && x >= n.X && x < n.X + n.W && y >= n.Y && y < n.Y + n.H)
+            .OrderBy(n => n.W * n.H).FirstOrDefault();
+        if (n is null || Target(n) is not { } target) return null;
+        var text = Short(Txt(n), 50);
+        return J(new { target, text = text.Length > 0 ? text : null, tag = n.Type == Uia.Hyperlink ? "a" : IsField(n) ? "field" : "button", field = IsField(n), inputs = Summary(Root.Name).GetProperty("inputs") });
+    }
+
+    // The same shape as the page helper's boxes(): positions relative to the document (the viewport), outermost
+    // actions and fields only. UI Automation has no scroll width, so horizontal overflow comes from the boxes alone.
+    public JsonElement Boxes()
+    {
+        var items = All.Where(n => Vis(n) && (IsClickable(n) || IsField(n)))
+            .Where(n => !All.Any(o => o != n && Contains(o, n) && o.Type is Uia.Button or Uia.Hyperlink))
+            .Select(n => new { target = Target(n), tag = n.Type == Uia.Hyperlink ? "a" : IsField(n) ? "field" : "button", x = n.X - Root.X, y = n.Y - Root.Y, w = n.W, h = n.H })
+            .Where(i => i.target is not null).ToList();
+        return J(new { viewport = new { w = Root.W, h = Root.H }, items });
     }
 
     public JsonElement Summary(string title)

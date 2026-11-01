@@ -10,6 +10,8 @@ namespace OmlCli.Qa;
 interface IQaEngine : IDisposable
 {
     string Mode { get; }
+    // False once the browser exited or the connection to it closed (a session then stops).
+    bool Alive { get; }
     QaNetwork Network { get; }
     Task Navigate(string url);
     Task<long> WaitReady(int timeoutMs);
@@ -25,4 +27,7 @@ interface IQaEngine : IDisposable
     Task<QaNetwork.CallResult> ReadCall(QaNetwork.Request request);
     (List<string> Exceptions, List<string> Console) ErrorsSince(int exceptionCount, int consoleCount);
     (int Exceptions, int Console) ErrorCounts();
+    // For `qa record`: the next click a person makes in the window, as the page helper's recordAt answers it (target,
+    // text, tag, field, and the inputs as they were just before the click). Null when the window was closed.
+    Task<JsonElement?> NextClick(CancellationToken cancel);
 }

@@ -81,6 +81,8 @@ sealed class CdpEngine : IQaEngine
     void OnEvent(string method, JsonElement p)
     {
         Network.OnEvent(method, p);
+        if (method == "Runtime.bindingCalled" && p.GetProperty("name").GetString() == RecordBinding)
+            recorded.Add(p.GetProperty("payload").GetString()!);
         lock (gate)
         {
             if (method == "Runtime.exceptionThrown")
@@ -119,6 +121,16 @@ sealed class CdpEngine : IQaEngine
 
     public Task<JsonElement> Helper(string method, params object?[] args) => Eval(QaScript.Call(method, args));
 
+    const string Settled = """
+        (() => {
+          if (document.readyState !== 'complete') return false;
+          const tc = document.getElementById('transitionContainer');
+          if (!tc) return true;
+          const s = [...tc.children].filter(c => c.classList.contains('screen-container'));
+          return s.length === 0 || s.length === 1 && s[0].classList.contains('active-screen') && ![...s[0].classList].some(c => /-(enter|leave|exit)(-active)?$/.test(c));
+        })()
+        """;
+
     public async Task Navigate(string url)
     {
         var r = await Cdp.Send("Page.navigate", new { url }, 30_000);
@@ -136,8 +148,9 @@ sealed class CdpEngine : IQaEngine
             var (inFlight, quietFor) = Network.State(StuckMs);
             if (inFlight == 0 && quietFor >= QuietMs)
             {
-                var state = await Eval("document.readyState");
-                if (state.ValueKind == JsonValueKind.String && state.GetString() == "complete") return clock.ElapsedMilliseconds;
+                // Complete, and no OutSystems screen transition running (see UiaPage.ScreenSettled).
+                var state = await Eval(Settled);
+                if (state.ValueKind == JsonValueKind.True) return clock.ElapsedMilliseconds;
             }
             if (clock.ElapsedMilliseconds > timeoutMs)
                 throw new QaFailure($"The page was not ready in {timeoutMs} ms: {Network.Pending(StuckMs)}.");
@@ -146,6 +159,7 @@ sealed class CdpEngine : IQaEngine
     }
 
     public string Mode => "cdp";
+    public bool Alive => Cdp.Closed is null && !process.HasExited;
 
     // A real mouse click at the element's centre, after locate scrolled it into view and hit-tested it.
     public async Task Activate(JsonElement at)
@@ -165,6 +179,34 @@ sealed class CdpEngine : IQaEngine
     }
 
     public Task<QaNetwork.CallResult> ReadCall(QaNetwork.Request request) => QaNetwork.Read(Cdp, request);
+
+    // Recording: a pointerdown listener in every document (also after navigations) asks the page helper what was
+    // clicked, before the click acts, and sends it to oml through a DevTools binding.
+    const string RecordBinding = "__omlqaRecord";
+    readonly System.Collections.Concurrent.BlockingCollection<string> recorded = [];
+    bool recording;
+
+    public async Task<JsonElement?> NextClick(CancellationToken cancel)
+    {
+        if (!recording)
+        {
+            var listener = $$"""
+                (() => {
+                  const h = window.__omlqa || (window.__omlqa = {{QaScript.Helper}});
+                  if (window.__omlqaRecording) return;
+                  window.__omlqaRecording = true;
+                  document.addEventListener('pointerdown', ev => { const s = h.recordAt(ev.target); if (s) window.{{RecordBinding}}(JSON.stringify(s)); }, true);
+                })()
+                """;
+            await Cdp.Send("Runtime.addBinding", new { name = RecordBinding });
+            await Cdp.Send("Page.addScriptToEvaluateOnNewDocument", new { source = listener });
+            await Eval(listener);
+            recording = true;
+        }
+        while (!cancel.IsCancellationRequested && Alive)
+            if (recorded.TryTake(out var payload, 150)) return JsonDocument.Parse(payload).RootElement.Clone();
+        return null;
+    }
 
     static readonly Dictionary<string, (string Code, int Vk)> Keys = new(StringComparer.OrdinalIgnoreCase)
     {

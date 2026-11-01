@@ -15,7 +15,16 @@ function Call([string[]]$a) {
 function File([string]$name, [string]$text) { $p = Join-Path $work $name; Set-Content $p $text; $p }
 
 $r = Call 'qa', '--help'
-Require ($r.Exit -eq 0 -and $r.Text -match 'oml qa page' -and $r.Text -match 'oml qa run') "help: $($r.Text)"
+foreach ($line in 'oml qa page', 'oml qa run', 'oml qa record', 'oml qa start', 'oml qa stop') { Require ($r.Exit -eq 0 -and $r.Text -match $line) "help misses ${line}: $($r.Text)" }
+
+# record: refused before a window opens. (qa stop is not called: it would stop a real session on this machine.)
+$r = Call 'qa', 'record', 'not-a-url'
+Require ($r.Exit -eq 2 -and $r.Json.error -match 'not an http') "record without URL: $($r.Text)"
+$taken = File 'taken.jsonc' '{}'
+$r = Call 'qa', 'record', 'https://dev.example.com/App/Home', '--out', $taken
+Require ($r.Exit -eq 2 -and $r.Json.error -match 'exists') "record over an existing file: $($r.Text)"
+$r = Call 'qa', 'frobnicate', 'x'
+Require ($r.Exit -eq 2 -and $r.Json.error -match 'oml qa run') "unknown subcommand: $($r.Text)"
 
 $r = Call @('qa')
 Require ($r.Exit -eq 2 -and $r.Json.error -match 'oml qa run') "no arguments: $($r.Text)"

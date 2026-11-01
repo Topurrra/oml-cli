@@ -110,6 +110,18 @@ static class QaScript
               const rows = [...tbl.querySelectorAll('tbody tr')].map(tr => [...tr.cells].map(txt));
               return { columns: head, rows };
             },
+            recordAt(el) {
+              const e = el && el.closest && el.closest(CLICKABLE + ',' + FIELDS);
+              if (!e || !target(e)) return null;
+              return { target: target(e), text: txt(e).slice(0, 50) || undefined, tag: e.tagName === 'A' ? 'a' : e.matches(FIELDS) ? 'field' : 'button', field: e.matches(FIELDS), inputs: this.summary().inputs };
+            },
+            boxes() {
+              const items = [...document.querySelectorAll(CLICKABLE + ',' + FIELDS)].filter(vis)
+                .filter((e, _, all) => !all.some(o => o !== e && o.contains(e) && o.matches('a,button')))
+                .map(e => { const r = e.getBoundingClientRect(); return { target: target(e), tag: e.tagName === 'A' ? 'a' : e.matches(FIELDS) ? 'field' : 'button', x: r.left, y: r.top, w: r.width, h: r.height }; })
+                .filter(i => i.target);
+              return { viewport: { w: innerWidth, h: innerHeight }, scrollWidth: document.documentElement.scrollWidth, items };
+            },
             summary() {
               const actions = [...document.querySelectorAll(CLICKABLE)].filter(vis)
                 .filter((e, _, all) => !all.some(o => o !== e && o.contains(e) && o.matches('a,button')))

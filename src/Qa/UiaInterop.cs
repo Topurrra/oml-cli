@@ -47,6 +47,10 @@ static class Uia
         return v is string or bool or int or double or double[] ? v : null;
     }
 
+    // What a UI Automation call throws when the element or the action is not available: COM errors, and the .NET
+    // exceptions that some UIA error codes map to (an element that went away, an action the state does not allow).
+    public static bool Failed(Exception e) => e is COMException or InvalidOperationException or ArgumentException or UnauthorizedAccessException or TimeoutException;
+
     public static IEnumerable<IUIAutomationElement> Items(IUIAutomationElementArray? array)
     {
         if (array is null) yield break;
@@ -55,7 +59,7 @@ static class Uia
 }
 
 [ComImport, Guid("30cbe57d-d9d0-452a-ab13-7ac5ac4825ee"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IUIAutomation
+public interface IUIAutomation
 {
     void _CompareElements();
     void _CompareRuntimeIds();
@@ -78,13 +82,45 @@ interface IUIAutomation
     IUIAutomationCondition CreateTrueCondition();
     void _CreateFalseCondition();
     IUIAutomationCondition CreatePropertyCondition(int propertyId, [MarshalAs(UnmanagedType.Struct)] object value);
+    void _CreatePropertyConditionEx();
+    void _CreateAndCondition();
+    void _CreateAndConditionFromArray();
+    void _CreateAndConditionFromNativeArray();
+    void _CreateOrCondition();
+    void _CreateOrConditionFromArray();
+    void _CreateOrConditionFromNativeArray();
+    void _CreateNotCondition();
+    void _AddAutomationEventHandler();
+    void _RemoveAutomationEventHandler();
+    void AddPropertyChangedEventHandlerNativeArray(IUIAutomationElement element, int scope, IUIAutomationCacheRequest? request,
+        IUIAutomationPropertyChangedEventHandler handler, [MarshalAs(UnmanagedType.LPArray)] int[] properties, int count);
+    void _AddPropertyChangedEventHandler();
+    void _RemovePropertyChangedEventHandler();
+    void AddStructureChangedEventHandler(IUIAutomationElement element, int scope, IUIAutomationCacheRequest? request, IUIAutomationStructureChangedEventHandler handler);
+    void _RemoveStructureChangedEventHandler();
+    void _AddFocusChangedEventHandler();
+    void _RemoveFocusChangedEventHandler();
+    void RemoveAllEventHandlers();
+}
+
+// Event callbacks: UI Automation calls them on its own threads. oml's handlers only note the time.
+[ComImport, Guid("e81d1b4e-11c5-42f8-9754-e7036c79f054"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IUIAutomationStructureChangedEventHandler
+{
+    void HandleStructureChangedEvent(IUIAutomationElement sender, int changeType, [MarshalAs(UnmanagedType.SafeArray, SafeArraySubType = VarEnum.VT_I4)] int[] runtimeId);
+}
+
+[ComImport, Guid("40cd37d4-c756-4b0c-8c6f-bddfeeb13b50"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+public interface IUIAutomationPropertyChangedEventHandler
+{
+    void HandlePropertyChangedEvent(IUIAutomationElement sender, int propertyId, [MarshalAs(UnmanagedType.Struct)] object newValue);
 }
 
 [ComImport, Guid("352ffba8-0973-437c-a61f-f64cafd81df9"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IUIAutomationCondition { }
+public interface IUIAutomationCondition { }
 
 [ComImport, Guid("b32a92b5-bc25-4078-9c08-d7ee95c48e03"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IUIAutomationCacheRequest
+public interface IUIAutomationCacheRequest
 {
     void AddProperty(int propertyId);
     void AddPattern(int patternId);
@@ -96,14 +132,14 @@ interface IUIAutomationCacheRequest
 }
 
 [ComImport, Guid("14314595-b4bc-4055-95f2-58f2e42c9855"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IUIAutomationElementArray
+public interface IUIAutomationElementArray
 {
     int Length { get; }
     IUIAutomationElement GetElement(int index);
 }
 
 [ComImport, Guid("d22108aa-8ac5-49a5-837b-37bbb3d7591e"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IUIAutomationElement
+public interface IUIAutomationElement
 {
     void SetFocus();
     void _GetRuntimeId();
@@ -125,25 +161,25 @@ interface IUIAutomationElement
 }
 
 [ComImport, Guid("fb377fbe-8ea6-46d5-9c73-6499642d3059"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IUIAutomationInvokePattern { void Invoke(); }
+public interface IUIAutomationInvokePattern { void Invoke(); }
 
 [ComImport, Guid("a94cd8b1-0844-4cd6-9d2d-640537ab39e9"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IUIAutomationValuePattern { void SetValue([MarshalAs(UnmanagedType.BStr)] string value); }
+public interface IUIAutomationValuePattern { void SetValue([MarshalAs(UnmanagedType.BStr)] string value); }
 
 [ComImport, Guid("94cf8058-9b8d-4ab9-8bfd-4cd0a33c8c70"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IUIAutomationTogglePattern { void Toggle(); }
+public interface IUIAutomationTogglePattern { void Toggle(); }
 
 [ComImport, Guid("a8efa66a-0fda-421a-9194-38021f3578ea"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IUIAutomationSelectionItemPattern { void Select(); }
+public interface IUIAutomationSelectionItemPattern { void Select(); }
 
 [ComImport, Guid("619be086-1f4e-4ee4-bafa-210128738730"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IUIAutomationExpandCollapsePattern { void Expand(); void Collapse(); }
+public interface IUIAutomationExpandCollapsePattern { void Expand(); void Collapse(); }
 
 [ComImport, Guid("b488300f-d015-4f19-9c29-bb595e3645ef"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IUIAutomationScrollItemPattern { void ScrollIntoView(); }
+public interface IUIAutomationScrollItemPattern { void ScrollIntoView(); }
 
 [ComImport, Guid("828055ad-355b-4435-86d5-3b51c14a9b1b"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-interface IUIAutomationLegacyIAccessiblePattern { void Select(int flags); void DoDefaultAction(); }
+public interface IUIAutomationLegacyIAccessiblePattern { void Select(int flags); void DoDefaultAction(); }
 
 // The Win32 calls the UI Automation engine needs: find the browser's windows, close one, give the foreground back,
 // and copy a window to a PNG (PrintWindow with PW_RENDERFULLCONTENT also renders an off-screen Chromium window).

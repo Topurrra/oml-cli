@@ -50,12 +50,14 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
             if (problems.Count > 0) throw new QaFailure(string.Join(" | ", problems));
             result["ok"] = true;
         }
-        catch (QaFailure e)
+        // A usage error stops the run; anything else (a failed check, an element that went away, a browser error) fails
+        // this step only, with a screenshot, so one surprise does not lose the report of the steps before it.
+        catch (Exception e) when (e is not QaUsage)
         {
             result["ok"] = false;
-            result["error"] = e.Message;
-            try { result["screenshot"] = await browser.Screenshot(Path.Combine(shotDir, $"step-{n}-failed.png")); } catch (CdpException) { }
-            try { result["url"] = await browser.Url(); } catch (Exception x) when (x is CdpException or QaFailure) { }
+            result["error"] = e is QaFailure ? e.Message : $"{e.GetType().Name}: {e.Message}";
+            try { result["screenshot"] = await browser.Screenshot(Path.Combine(shotDir, $"step-{n}-failed.png")); } catch (Exception x) when (x is not QaUsage) { }
+            try { result["url"] = await browser.Url(); } catch (Exception x) when (x is not QaUsage) { }
         }
         if (notes.Count > 0) result["notes"] = notes;
         result["ms"] = clock.ElapsedMilliseconds;

@@ -73,6 +73,9 @@ export const cookbook = [
     ['oml preview C:\\Work\\Orders.staged.oml StatusBadge --serve', 'A live preview in your browser that reloads when the file changes. Ctrl+C stops it.'],
     ['oml qa page https://dev.example.com/Orders/OrdersList', 'Test the running app: what the screen shows (actions, inputs, tables, messages, errors) in a browser of its own.'],
     ['oml qa run C:\\Work\\orders-qa.json --out C:\\Work\\qa', 'Run QA steps like a manual tester (open, click, fill, expect). Writes the report and screenshots of failed steps.'],
+    ['oml qa record https://dev.example.com/Orders/OrdersList --out C:\\Work\\orders-qa.jsonc', 'Click through the app once; oml writes the QA file. Close the window to finish.'],
+    ['oml qa start', 'Keep one browser open, so the next qa run and qa page start at once and keep your login.'],
+    ['oml qa stop', 'Close the browser that oml qa start opened.'],
   ] },
   { group: 'Service Studio', items: [
     ['oml studio', 'Check that Service Studio\'s MCP server answers and list the open modules.'],

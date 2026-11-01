@@ -983,12 +983,14 @@ Exit 0 when the file was written. Exit 2 for an unknown element, a bad option or
 
 ## QA
 
-`oml qa page <url> [--headed] [--width N] [--height N] [--timeout <ms>] [--screenshot <file.png>] [--engine auto|cdp|uia]`
-`oml qa run <qa.json> [--base-url <url>] [--headed] [--width N] [--height N] [--timeout <ms>] [--out <folder>] [--continue] [--engine auto|cdp|uia]`
+`oml qa page <url> [--headed] [--width N] [--height N] [--timeout <ms>] [--screenshot <file.png>] [--engine auto|cdp|uia] [--no-session]`
+`oml qa run <qa.json> [--base-url <url>] [--headed] [--width N] [--height N] [--timeout <ms>] [--out <folder>] [--continue] [--engine auto|cdp|uia] [--no-session]`
+`oml qa record <url> [--out <qa.jsonc>] [--engine auto|cdp|uia] [--width N] [--height N]`
+`oml qa start [--engine auto|cdp|uia] [--headed] [--width N] [--height N]` and `oml qa stop`
 
 Tests the published app like a manual tester. `preview` renders one element offline; `qa` uses the real app, with real data and server actions. It opens Edge or Chrome with a new, empty profile, never yours. The profile is deleted at the end.
 
-`qa page` prints what the screen shows, in about 2 KB: `actions`, `inputs`, `tables` (columns, row count, 3 sample rows), `feedback` and `invalid` messages, `headings`, other named `widgets`, and `errors`. With the DevTools engine it also prints `calls`: each OutSystems call with its `status`, `rows` and server `exception`. Use it to find the targets for a QA file.
+`qa page` prints what the screen shows, in about 2 KB: `actions`, `inputs`, `tables` (columns, row count, 3 sample rows), `feedback` and `invalid` messages, `headings`, other named `widgets`, `layout` findings, the real `viewport`, and `errors`. With the DevTools engine it also prints `calls`: each OutSystems call with its `status`, `rows` and server `exception`. Use it to find the targets for a QA file.
 
 Targets are OutSystems names. A widget's Name is the last part of its DOM id (`b2-b3-SaveButton` is `SaveButton`). Other targets: `text:<label>` (a button, link or field label), `css:<selector>` (DevTools only), and `Name#N` for the Nth match.
 
@@ -1020,9 +1022,17 @@ A QA file (JSONC):
 | `wait` | Milliseconds, or a text to wait for. |
 | `screenshot` | Saves the page as a PNG in the output folder. |
 
-`expect` keys: `screen`, `url`, `text`, `noText`, `visible`, `hidden`, `value` (`{ "Field": "text" }`), `feedback` (`"success"` or `{ "type", "text" }`), `call` (`"FetchOrders"` or `{ "name", "rows": ">0" }`, DevTools only), `table` (`target`, `rows`, `column`, `match`, `notMatch`), `count` (`{ "target", "is": ">=2" }`), `invalid` (`true`, `false` or a field). Counts take `>`, `>=`, `<`, `<=`, `=`, `!=` or a number. Expectations are retried until they hold or the timeout passes.
+`expect` keys: `screen`, `url`, `text`, `noText`, `visible`, `hidden`, `value` (`{ "Field": "text" }`), `feedback` (`"success"` or `{ "type", "text" }`), `call` (`"FetchOrders"` or `{ "name", "rows": ">0" }`, DevTools only), `table` (`target`, `rows`, `column`, `match`, `notMatch`), `count` (`{ "target", "is": ">=2" }`), `invalid` (`true`, `false` or a field), `inView` (a target or list, wholly in the window without scrolling), `layout` (`true`, or a list of kinds). Counts take `>`, `>=`, `<`, `<=`, `=`, `!=` or a number. Expectations are retried until they hold or the timeout passes.
 
-After every action, the step waits until the screen is ready. Every step also fails on a JavaScript error, a failed request to the app's own server, a server exception from an OutSystems call, or an error message on the screen. Use `"allowErrors": true` in a step that expects an error. A failed step saves a screenshot. Without `--continue`, the steps after a failure are skipped.
+Layout findings come from the boxes of the screen's actions and fields. Positions are for checks only; clicks always find the element first.
+
+| Kind | Finding |
+|---|---|
+| `overflow` | The page is wider than the window, or an element crosses the window's edge. An off-canvas menu wholly outside the window is not a finding. |
+| `small` | A button or field smaller than 24 x 24 px (WCAG 2.2, 2.5.8). Links are exempt. |
+| `overlap` | Two actions or fields cover more than a third of the smaller one. |
+
+After every action, the step waits until the screen is ready: the page loaded, the network quiet (DevTools) or the page stopped changing (UI Automation), and no OutSystems screen transition running (`#transitionContainer` holds one `active-screen` with no enter or leave class). Every step also fails on a JavaScript error, a failed request to the app's own server, a server exception from an OutSystems call, or an error message on the screen. Use `"allowErrors": true` in a step that expects an error. A failed step saves a screenshot. Without `--continue`, the steps after a failure are skipped.
 
 Two engines. `--engine auto` (default) picks one:
 
@@ -1034,6 +1044,26 @@ Two engines. `--engine auto` (default) picks one:
 `auto` reads the Edge or Chrome policy and uses `uia` when remote debugging is off. `oml doctor` shows which engine `qa` uses. oml reads the policy only; it never changes it.
 
 Output: `{ ok, passed, failed, skipped, ms, engine, engineNote, steps: [ { n, do, ok, ms, readyMs, calls, error, notes, screenshot, url } ] }`. With `--out`, also `qa-report.json` and the screenshots in that folder; without it, screenshots go to `%TEMP%\oml-qa\<time>`.
+
+The UI Automation window cannot be narrower than the browser allows (about 500 px for Edge). Check `viewport` in `qa page`; test phone widths with the DevTools engine.
+
+### Session
+
+`oml qa start` keeps one browser open in a background process. Later `qa run` and `qa page` use it: no browser start (6 to 8 seconds), and the app's login stays. Their output has `"session": true`. `--no-session` runs one command in a browser of its own. The session uses the engine and window size it started with.
+
+The session listens on a named pipe that only the same Windows user can open. It does one request at a time; a second one gets "busy". It stops on `oml qa stop`, after 30 minutes without a request, or when its browser is closed. Its state is in `%LOCALAPPDATA%\oml-cli\qa-session.json`.
+
+### Record
+
+`oml qa record <url>` opens the app in a visible window. Use the app; oml writes a QA file (default `qa-recorded.jsonc`; an existing file is refused).
+
+- Each click on a button or link becomes a `click` step with the widget Name, or `text:<label>` for an element without a Name.
+- Text typed into a field you clicked, and dropdown choices, become `fill` and `select` steps. They are read at the next click.
+- A click that changes the screen gets `expect screen`; one that shows a feedback message gets `expect feedback`.
+- A password field is written as `"$env:QA_PASSWORD"`, never its value.
+- Fields that changed without a click into them (the screen set them, or Tab) are listed in `notes`, not recorded.
+
+Finish with Ctrl+C in the console (keeps text typed after the last click) or by closing the window. Check the file and add expectations before you run it. With UI Automation, a low-level mouse hook sees your left clicks; only clicks inside the recording window are used.
 
 Use test data on a development environment only. Do not run a QA file that clicks Save or Delete against production.
 
