@@ -137,6 +137,7 @@ read: read, reads
 record: record, records
 referenc: reference, referenced, references
 refresh: refresh, refreshed
+refus: refuse, refused, refuses
 refus: refused, refuses
 remov: remove, removed, removes
 renam: rename, renames, renaming

@@ -1,6 +1,6 @@
 # Architect: lead worker agents
 
-Read this only if you lead cheap worker agents. Also read [SKILL.md](SKILL.md) and [rules.md](rules.md): every rule applies to you and to each worker.
+Read this only if you lead cheap worker agents. Also read [SKILL.md](SKILL.md): every rule in it applies to you and to each worker.
 
 You plan, brief, check and report. A worker is a subagent. Workers write spec parts. You alone apply, review and report.
 

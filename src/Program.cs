@@ -28,7 +28,7 @@ public static class Program
         return UsageLog.Enabled ? UsageLog.Measure(filtered, () => Dispatch(args, filtered)) : Dispatch(args, filtered);
     }
 
-    internal static readonly string[] TimingsRefused = ["lt", "font", "doctor", "spec", "doc", "warn", "dashboard", "setup", "log", "image", "memory", "library", "skills"];
+    internal static readonly string[] TimingsRefused = ["lt", "font", "doctor", "spec", "doc", "warn", "dashboard", "setup", "log", "image", "memory", "library", "skills", "hooks"];
     internal static string TimingsRefusal(string command) => $"--timings is not available for {command}.";
     // Output encoding (commands.md, "Output encoding"). A console window gets UTF-16 through WriteConsoleW: every
     // character shows, and the console code page is not changed (.NET never sets code page 1200 on the console).
@@ -54,12 +54,13 @@ public static class Program
             return result == "ok" ? 0 : 1;
         }
         // Commands the launcher runs itself print their usage lines here, without Service Studio.
-        if (filtered.FirstOrDefault() is "lt" or "font" or "doctor" or "setup" or "image" or "dashboard" or "library" && (filtered.Contains("--help") || filtered.Contains("-h")))
+        if (filtered.FirstOrDefault() is "lt" or "font" or "doctor" or "setup" or "image" or "dashboard" or "library" or "hooks" && (filtered.Contains("--help") || filtered.Contains("-h")))
         {
             // lt: one line per subcommand, with its options.
             TerminalOutput.PrintHelp(filtered[0] == "lt" ? LifeTime.Usage.Replace(" | ", Environment.NewLine + "oml lt ") : CliUsage.For(filtered[0]), filtered[0]);
             return 0;
         }
+        if (filtered.FirstOrDefault() == "hooks") return AgentHooks.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "lt") return LifeTime.Run(filtered.Skip(1).ToArray(), RunCore);
         if (filtered.FirstOrDefault() == "font") return FontAssets.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "doctor") return Doctor.Run(filtered.Skip(1).ToArray());

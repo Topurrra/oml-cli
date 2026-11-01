@@ -1077,6 +1077,19 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 
 **oml memory bench** `<new folder> --records N [--runs R]` is for maintainers (`tests/memory-check.ps1` runs it at 1k and 10k records, and at 100k with `-Speed`): it writes a synthetic store of N records into a new folder and prints the timings above as JSON. `bench --quality <fixture.json>` scores recall on a fixture in memory and writes no store; a fixture record over the limits of `add` or with a secret is refused. Neither is listed in `oml --help`.
 
+## Agent hooks
+
+`oml hooks install` adds a Claude Code PreToolUse hook to the project, so two skill instructions become checks the agent cannot skip. A hook costs no tokens; a refused call costs one short message.
+
+**What it refuses** (exit 2; Claude Code shows the agent the reason and the command to use instead):
+
+- Reading a large skill reference whole: `skill/reference/commands.md` (about 47k tokens), `spec.md` (about 19k) and `model-api.md` (about 14k). A Read needs a `limit` of at most 400 lines, a Grep in content mode a `head_limit` of at most 100, and a `cat`, `type` or `Get-Content` of the file a pipe or a line limit. The refusal points to `oml doc commands#<section>` or `oml spec <key>`. Only paths that end in `reference/<file>` count, so another project's `spec.md` is not refused.
+- Changing an `.oml` file (rule 9): Edit, Write, MultiEdit or NotebookEdit on it, or a shell command that writes it (a `>` redirect, `Set-Content`, `Add-Content`, `Out-File`, `sed -i`, `WriteAllBytes`). `oml apply`, `oml install` and copies are not refused.
+
+Anything the hook cannot read is allowed: a broken hook never blocks work. Each check starts `oml.exe` once (about 35 ms).
+
+**Where.** `<project>\.claude\settings.local.json` (`--dir`, else the current folder): the personal settings file, which is not committed, because the hook holds this machine's `oml.exe` path. `install` keeps your other settings and hooks and replaces only oml's entry; run it again after you move `oml.exe` (`status` says `exeFound: false`). `remove` takes out only oml's entry. A settings file that is not valid JSON is never changed. Claude Code reads hooks when a session starts.
+
 ## Library
 
 `oml library fetch` downloads the OutSystems 11 documentation, so `oml doc --search "<words>" --library` can answer platform questions: Service Center, LifeTime, Platform Server, deployment zones, network, errors. `oml doc --search` without `--library` searches only oml's own docs; a weak match there suggests `--library`.

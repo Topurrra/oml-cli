@@ -12,6 +12,9 @@ export const cookbook = [
     ['oml setup --status', 'List the Explorer entries and whether they are installed.'],
     ['oml setup --remove', 'Remove the Explorer entries that oml setup added, and nothing else.'],
     ['oml selftest', 'Run the build check on the installed Service Studio.'],
+    ['oml hooks install', 'Add the Claude Code hook to this project: agents cannot read the large skill references whole or edit .oml files.'],
+    ['oml hooks status', 'Show whether the Claude Code hook is in this project and its oml.exe still exists.'],
+    ['oml hooks remove --dir C:\\Work\\Orders', 'Take oml\'s hook out of that project, and nothing else.'],
   ] },
   { group: 'Read a module', items: [
     ['oml inspect C:\\Work\\Orders.oml --own --only entities,actions,screens', 'List the entities, actions and screens that the module owns.'],
