@@ -2,7 +2,7 @@
 
 Keep a Changelog style: one section per release, newest first.
 
-## Unreleased
+## 1.11.0
 
 ### Added
 - `oml library update [--check] [--source <name>]...` fetches again only the doc sources that OutSystems changed (1 GitHub call per source when nothing changed). `--check` lists the number of new commits, the changed pages and the first 10 of them, and downloads nothing. A run 9 days after a fetch found 212 changed product pages.
