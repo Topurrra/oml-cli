@@ -8,7 +8,7 @@ namespace OmlCli;
 static class DocCommand
 {
     const string Prefix = "OmlCli.doc.";
-    const string DocUsage = "Usage: oml doc [<topic>[#section]]   (no topic lists the topics)\n       oml doc --search \"<words>\" [--top N] [--in <folder> | --library]   (ranked search of the topics, spec keys, recipes, warnings and commands; --library: the OutSystems 11 docs)";
+    const string DocUsage = "Usage: oml doc [<topic>[#section]]   (no topic lists the topics)\n       oml doc commands[#<section>]   (the command reference: its sections, or one section)\n       oml doc --search \"<words>\" [--top N] [--in <folder> | --library]   (ranked search of the topics, spec keys, recipes, warnings and commands; --library: the OutSystems 11 docs)";
     const string WarnUsage = "Usage: oml warn <id | title words>   (for example: oml warn NoErrorHandlingInFlow, oml warn security warning)";
 
     // The knowledge files, plus `rules`: skill/rules.md, embedded once as OmlCli.rules.md (the dashboard shows it too).
@@ -47,6 +47,7 @@ static class DocCommand
         }
         Console.WriteLine();
         Console.WriteLine("oml doc <topic> prints one topic; oml doc <topic>#<section> prints one section (oml doc ui-reactive#forms).");
+        Console.WriteLine("oml doc commands lists the sections of the command reference; oml doc commands#<section> prints one (oml doc commands#memory).");
         Console.WriteLine("oml warn <id> prints the cause and fix of one validation message.");
         Console.WriteLine("oml doc --search \"<words>\" finds the section, spec key, recipe or warning that answers a question.");
         return 0;
@@ -65,6 +66,7 @@ static class DocCommand
         var hash = query.IndexOf('#');
         var (name, section) = hash < 0 ? (query, null) : (query[..hash], query[(hash + 1)..]);
         if (name.EndsWith(".md", StringComparison.OrdinalIgnoreCase)) name = name[..^3];
+        if (name.Equals(Commands, StringComparison.OrdinalIgnoreCase)) return ShowCommands(section);
         // A company skill (oml skills): its names never clash with a topic.
         if (CompanySkills.Installed().TryGetValue(name, out var skill))
         {
@@ -86,14 +88,21 @@ static class DocCommand
         return ShowSection(matches[0], text, section);
     }
 
-    static List<string> Closest(IEnumerable<string> names, string q) =>
-        names.Select(n => (n, d: SpecDocs.Norm(n).Contains(q) || q.Contains(SpecDocs.Norm(n)) ? 0 : SpecDocs.Distance(SpecDocs.Norm(n), q)))
-            .OrderBy(x => x.d).ThenBy(x => x.n.Length).Take(3).Select(x => x.n).ToList();
+    // `oml doc commands[#section]`: skill/reference/commands.md, about 47k tokens. It is not a topic: no section gives the
+    // list of sections instead of the whole file, and the search index leaves it out (oml --help lines are entries).
+    const string Commands = "commands";
 
-    // A section runs from its heading to the next heading of the same or a higher level.
-    static int ShowSection(string topic, string text, string query)
+    static int ShowCommands(string? section)
     {
-        var lines = text.Split('\n');
+        var text = SpecDocs.Resource("OmlCli.commands.md").TrimEnd();
+        if (!string.IsNullOrWhiteSpace(section)) return ShowSection(Commands, text, section);
+        Console.WriteLine("The command reference is too long to print whole. Print one section: oml doc commands#<section>. Usage of one command: oml <command> --help.");
+        Console.WriteLine("Sections: " + string.Join(", ", Headings(text).Select(h => SpecDocs.Slug(h.Title))));
+        return 0;
+    }
+
+    static List<(int Index, int Level, string Title)> Headings(string[] lines)
+    {
         var headings = new List<(int Index, int Level, string Title)>();
         var fence = false;
         for (var i = 0; i < lines.Length; i++)
@@ -102,6 +111,20 @@ static class DocCommand
             if (!fence && Regex.Match(lines[i], @"^(#{2,6}) (.+?)\s*$") is { Success: true } m)
                 headings.Add((i, m.Groups[1].Length, m.Groups[2].Value));
         }
+        return headings;
+    }
+
+    static List<(int Index, int Level, string Title)> Headings(string text) => Headings(text.Split('\n'));
+
+    static List<string> Closest(IEnumerable<string> names, string q) =>
+        names.Select(n => (n, d: SpecDocs.Norm(n).Contains(q) || q.Contains(SpecDocs.Norm(n)) ? 0 : SpecDocs.Distance(SpecDocs.Norm(n), q)))
+            .OrderBy(x => x.d).ThenBy(x => x.n.Length).Take(3).Select(x => x.n).ToList();
+
+    // A section runs from its heading to the next heading of the same or a higher level.
+    static int ShowSection(string topic, string text, string query)
+    {
+        var lines = text.Split('\n');
+        var headings = Headings(lines);
         var q = SpecDocs.Norm(query);
         var found = headings.Where(h => SpecDocs.Norm(h.Title) == q || SpecDocs.Slug(h.Title) == query.ToLowerInvariant()).ToList();
         if (found.Count == 0 && q.Length >= 3) found = headings.Where(h => SpecDocs.Norm(h.Title).StartsWith(q)).ToList();

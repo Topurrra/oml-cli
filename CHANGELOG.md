@@ -17,6 +17,13 @@ Keep a Changelog style: one section per release, newest first.
 - Layout checks: `qa page` lists `layout` findings (`overflow`, `small` click targets under 24 x 24 px, `overlap`) and the real `viewport`. New `expect` keys `inView` (no scrolling needed) and `layout`.
 - Ready waits for the OutSystems screen transition to end (one `active-screen` in `#transitionContainer`). Before, a step could act while the old and new screens were both on the page.
 - UI Automation engine: the ready wait listens for structure, name and value change events instead of reading the page every 80 ms, and reuses one read of the page until it changes. A click step costs about the app's own transition time; checks after it take 20 to 50 ms instead of about 700.
+- `oml doc commands#<section>` prints one section of the command reference (`skill/reference/commands.md`, about 47k tokens). `oml doc commands` lists the sections instead of printing the file. SKILL.md, AGENTS.md, the reference topics and the REST recipe now point to a section, not to the whole file.
+
+### Changed
+- `oml doc --search` finds the command for a plain request more often ("deploy an application to production" -> `oml lt`, "copy the staged module over the original" -> `oml install`). The command entries carry the words developers use for them. A new `commands` set of 36 requests in `tests/search-bench.json` measures this: MRR 0.484 before, 0.870 after, with the other sets unchanged within 0.003.
+- `tests/doc-check.ps1` also checks the size of `oml --help` and of each command reference section, and that no skill file sends an agent to the whole command reference.
+
+## 1.10.0
 
 ### Added
 - `oml apply --batch <index.json>` applies many modules in one process and prints every item with one combined `summary`. `oml install --batch <index.json>` checks every item first and installs none if any would be refused. A field report needed 92 separate `apply` and `install` runs and added the outputs by hand.

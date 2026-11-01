@@ -1,5 +1,5 @@
 # oml doc and oml warn: topic list, one topic, one section, unknown names, warning lookups, size budgets of the
-# knowledge files and of the default skill load, links in skill/, the warnings.md table shape, and the `hint`
+# knowledge files, of the default skill load, of oml --help and of each command reference section, links in skill/, the warnings.md table shape, and the `hint`
 # that apply adds to a known new warning. Throws on the first failure.
 param([string]$Oml, [string]$Tmp, [string]$Module)
 $ErrorActionPreference = 'Stop'
@@ -133,6 +133,31 @@ foreach ($x in @(@('skill/architect.md', 2500), @('skill/reference/worker-brief.
 }
 if (-not $skill.Contains('(architect.md)')) { Fail 'SKILL.md does not point to architect.md' }
 
+# 7e. the command reference (commands.md, about 47k tokens) is read by section only: oml doc commands lists the
+# sections, each one prints within its budget (the largest, check with its rule table, is about 5.6k tokens), and no
+# skill file sends an agent to the whole file. oml --help: budget 2.3k tokens (+15%), the whole usage.
+$r = Run 'doc', 'commands'
+if ($r.Exit -ne 0 -or $r.Text -notmatch 'Sections: ' -or $r.Text.Length -gt 2500) { Fail "oml doc commands: exit $($r.Exit), $($r.Text.Length) characters" }
+$sections = @(($r.Text -split 'Sections: ')[1].Trim() -split ', ')
+if ($sections.Count -lt 20) { Fail "oml doc commands lists only $($sections.Count) sections" }
+$biggest = 0
+foreach ($s in $sections) {
+  $t = Run 'doc', "commands#$s"
+  if ($t.Exit -ne 0) { Fail "oml doc commands#${s}: exit $($t.Exit), $($t.Text)" }
+  $n = [math]::Ceiling($t.Text.Length / 4)
+  if ($n -gt 5600 * 1.15) { Fail "oml doc commands#$s is $n tokens; budget 5600 (+15%)" }
+  $biggest = [math]::Max($biggest, $n)
+}
+$r = Run 'doc', 'commands#no-such-section'
+if ($r.Exit -ne 2 -or $r.Text -notmatch 'Sections: ') { Fail "unknown commands section: exit $($r.Exit), $($r.Text)" }
+foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Include *.md, *.jsonc | Where-Object Name -ne 'commands.md') {
+  foreach ($line in Get-Content $f.FullName) {
+    if ($line -match 'commands\.md' -and $line -notmatch 'never read `reference/commands\.md` whole') { Fail "$($f.Name) sends agents to the whole command reference: $line" }
+  }
+}
+$help = [math]::Ceiling((Run '--help').Text.Length / 4)
+if ($help -gt 2300 * 1.15) { Fail "oml --help is $help tokens; budget 2300 (+15%)" }
+
 # 8. every relative link in skill/ resolves
 foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Filter *.md) {
   foreach ($m in [regex]::Matches((Get-Content -Raw $f.FullName), '\]\(([^)\s#]+)(#[^)\s]*)?\)')) {
@@ -141,7 +166,7 @@ foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Filter *.md) {
     if (-not (Test-Path (Join-Path $f.DirectoryName $target))) { Fail "$($f.Name): broken link $target" }
   }
 }
-Write-Host "ok   doc: $($budget.Count) topics, sections, unknown names, warn lookups, $($ids.Count) ids, budgets (default load $load tokens), links"
+Write-Host "ok   doc: $($budget.Count) topics, sections, unknown names, warn lookups, $($ids.Count) ids, budgets (default load $load tokens, oml --help $help, largest of $($sections.Count) command sections $biggest), links"
 
 # 9. apply adds the warnings.md fix as `hint` to a new warning it covers, and no hint to other ids
 $spec = Join-Path $work 'hint.json'

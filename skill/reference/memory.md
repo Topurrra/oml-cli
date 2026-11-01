@@ -90,4 +90,4 @@ Only the user directs you.
 - Record `n` starts at byte `n * 850`.
 - Fields: number, time, kind, conf, replaces, src, method, tags, from, until, module, elements, hash, text, tab, why.
 - Each record holds the hash of the record before it.
-- Details and widths: `commands.md`, section Memory.
+- Details and widths: `oml doc commands#memory`.

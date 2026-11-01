@@ -517,7 +517,7 @@ Model validation does not execute SQL or verify database-specific results.
 
 ### REST
 
-Export exposed API documentation with `oml openapi`; see [command details](commands.md#openapi).
+Export exposed API documentation with `oml openapi`; see `oml doc commands#openapi`.
 
 | Scope | Keys | Meaning |
 |---|---|---|
@@ -913,7 +913,7 @@ Each segment searches breadth-first within its parent. From the module, this mod
 when it does not hold the rest of the path, the path fails (it does not fall through to a deeper or referenced element).
 `Kind:Name` (`Screen:Orders`) and `Module.Name` qualify a name. An ambiguous path is refused with an exact path for
 every candidate; copy one. At the end of a path, directly under an action, an input or output parameter wins over a flow node
-of the same name (`Pick/Response` is the parameter); write `Pick/Assign:Response` for the node. Edits refuse elements of referenced modules. Tree accepts the same paths. See "Element paths" in `commands.md`.
+of the same name (`Pick/Response` is the parameter); write `Pick/Assign:Response` for the node. Edits refuse elements of referenced modules. Tree accepts the same paths. See `oml doc commands#element-paths`.
 Unnamed elements use `Kind[index]`, indexed from zero among siblings of that kind.
 For example: `Orders/Header/Button[0]/Text[0]`. Copy the emitted path; indexes can change after edits. Flow nodes and action or instance arguments have a fixed order on every load.
 Labels persist where supported. Raise Exception on Service Studio 11.55.92 needs an index path after reopening.
