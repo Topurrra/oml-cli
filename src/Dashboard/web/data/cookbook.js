@@ -141,6 +141,7 @@ export const cookbook = [
     ['oml memory retract 12 --why "The timer was removed"', 'Mark a record as no longer true. The record stays in the file.'],
     ['oml memory doctor --module C:\\Work\\Orders.oml', 'Check the hash chain (finds edits made outside oml) and that the named elements still exist in the module.'],
     ['oml memory handoff --module Orders', 'Print a short brief for the next agent: the task, staged files and open questions.'],
+    ['oml memory traps --command "oml describe Orders.oml OrderDetail"', 'List the trap records this command may run into, by element names and words. Read only; it never blocks.'],
   ] },
   { group: 'OutSystems docs library', items: [
     ['oml library fetch', 'Download the OutSystems 11 docs (docs-product, docs-support, docs-howtos) from GitHub: Markdown only, about 15 MB. Run it again to update.'],

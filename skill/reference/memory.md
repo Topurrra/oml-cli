@@ -14,7 +14,7 @@ Run `init` only when the user asks for memory.
 - Recall again when you must decide something.
 - Recall again when the user answers a question.
 - End of a task: write 1 to 3 records, as the `write` field of recall says.
-- After a failed command: add a `trap` record with what failed, why, and the fix. Recall always shows the newest 3 traps of the module (`traps`).
+- After a failed command: add a `trap` record with what failed, why, and the fix. Recall always shows the newest 3 traps of the module (`traps`). For a command: `oml memory traps --command "<cmd>"`.
 - Run `oml memory handoff` if another agent continues.
 
 ## What to write
@@ -56,7 +56,7 @@ Add `--tags a,b` if they help.
 - The new record gets the scope you give it. No `--module` makes it repo-wide.
 - If the scope changes, the output says `scope changed from <old> to <new>`. Give `--module` again to keep the old scope.
 - The fact is no longer true: `oml memory retract <id> --why "<reason>"`.
-- `add` may print `contradicts`. These are older records that the new one may contradict.
+- `add` may print `contradicts` or `similar`: older records it may contradict or repeat.
 - If the new record replaces one of them, run the `retract` command in `hint`.
 - `oml memory history <id>` shows what replaced what.
 

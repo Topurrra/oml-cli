@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace OmlCli;
 
@@ -26,6 +28,7 @@ static class MemoryBench
 
     public static int Run(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--quality") return Quality(args[1..]);
         string? folder = null;
         var records = 1000;
         var runs = 3;
@@ -109,4 +112,93 @@ static class MemoryBench
     }
 
     static string Cap(string s) => char.ToUpperInvariant(s[0]) + s[1..];
+
+    // ---- quality -------------------------------------------------------------------------------------------------
+
+    // `oml memory bench --quality <fixture.json> [--details]`: recall quality on a fixed set of records and questions, in
+    // memory (no store is written). The fixture holds "records" (module, kind, text, elements, why, tags) and "queries"
+    // (q, expect = the 1-based record number that answers it, a list of them, or null when nothing does, and set = tune
+    // or blind). It prints top 1, top 3, MRR and the weak flag per set; --details adds the rank, score and coverage of
+    // every question, to calibrate the weak flag on the tune set. A record that holds a secret is refused, as by `add`.
+    static int Quality(string[] args)
+    {
+        var usage = "Usage: oml memory bench --quality <fixture.json> [--details]";
+        var details = args.Contains("--details");
+        var files = args.Where(a => a != "--details").ToArray();
+        if (files.Length != 1 || files[0].StartsWith("--", StringComparison.Ordinal)) throw new MemoryException(usage, 2);
+        var path = Path.GetFullPath(files[0]);
+        if (!File.Exists(path)) throw new MemoryException($"Fixture not found: {path}", 2);
+        JsonNode? root;
+        try { root = JsonNode.Parse(File.ReadAllText(path)); }
+        catch (JsonException e) { throw new MemoryException($"The fixture is not valid JSON: {e.Message}", 2); }
+        if (root?["records"] is not JsonArray recs || root["queries"] is not JsonArray queries) throw new MemoryException("The fixture needs \"records\" and \"queries\" arrays.", 2);
+
+        string S(JsonNode? n, string key) => n?[key]?.GetValue<string>() ?? "";
+        string[] L(JsonNode? n, string key) => S(n, key).Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var records = new List<MemRecord>();
+        foreach (var n in recs)
+        {
+            var r = new MemRecord
+            {
+                Seq = records.Count, Ts = MemoryFormat.Iso(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(records.Count)),
+                Kind = S(n, "kind").Length > 0 ? S(n, "kind") : "fact", Module = S(n, "module"), Text = MemoryFormat.Sanitize(S(n, "text")), Why = MemoryFormat.Sanitize(S(n, "why")),
+                Elements = L(n, "elements"), Tags = L(n, "tags").Select(t => t.ToLowerInvariant()).ToArray(), Src = "bench", Method = "add",
+            };
+            if (!MemoryFormat.Kinds.Contains(r.Kind)) throw new MemoryException($"Fixture record {records.Count + 1} has the unknown kind '{r.Kind}'.", 2);
+            if (r.Text.Length == 0 || MemoryFormat.Bytes(r.Text) > MemoryFormat.TextMax || MemoryFormat.Bytes(r.Why) > MemoryFormat.WhyMax)
+                throw new MemoryException($"Fixture record {records.Count + 1} has no text, or a text or why over the limits of `add` ({MemoryFormat.TextMax} and {MemoryFormat.WhyMax} bytes).", 2);
+            foreach (var value in new[] { r.Text, r.Why, r.Module, string.Join(',', r.Elements), string.Join(',', r.Tags) })
+                if (MemorySecrets.Find(value) is { } secret) throw new MemoryException($"Fixture record {records.Count + 1} holds what looks like a secret ({secret}). A fixture must hold none.", 2);
+            records.Add(r);
+        }
+        var state = new MemState { Candidates = records, Total = records.Count };
+
+        var sets = new SortedDictionary<string, Score>(StringComparer.Ordinal);
+        var rows = new List<object>();
+        foreach (var q in queries)
+        {
+            var text = S(q, "q");
+            var set = S(q, "set").Length > 0 ? S(q, "set") : "tune";
+            var expect = q?["expect"] switch
+            {
+                JsonArray a => a.Select(x => x!.GetValue<int>() - 1).ToArray(),
+                JsonValue v => [v.GetValue<int>() - 1],
+                _ => Array.Empty<int>(),
+            };
+            var (hits, weak, _, coverage) = MemoryCommand.RecallScored(state, null, null, text, 10);
+            var rank = hits.FindIndex(h => expect.Contains(h.Record.Seq)) + 1; // 0 = not in the top 10
+            if (!sets.TryGetValue(set, out var s)) sets[set] = s = new Score();
+            if (expect.Length == 0) { s.Unanswerable++; if (weak || hits.Count == 0) s.WeakUnanswerable++; }
+            else
+            {
+                s.Answerable++;
+                if (rank == 1) s.Top1++;
+                if (rank is >= 1 and <= 3) s.Top3++; else s.Missed.Add(text);
+                if (rank >= 1) s.Rr += 1.0 / rank;
+                if (weak) s.WeakAnswerable++;
+            }
+            if (details)
+                rows.Add(new { set, q = text, answerable = expect.Length > 0, rank = expect.Length > 0 ? rank : (int?)null, weak, score = hits.Count > 0 ? Math.Round(hits[0].Score, 2) : (double?)null, coverage = hits.Count > 0 ? Math.Round(coverage, 2) : (double?)null });
+        }
+        static double R(double x) => Math.Round(x, 3);
+        TerminalOutput.PrintObject(new
+        {
+            records = records.Count, queries = queries.Count,
+            sets = sets.ToDictionary(kv => kv.Key, kv => (object)new
+            {
+                answerable = kv.Value.Answerable, unanswerable = kv.Value.Unanswerable,
+                top1 = R(kv.Value.Top1 / (double)Math.Max(1, kv.Value.Answerable)), top3 = R(kv.Value.Top3 / (double)Math.Max(1, kv.Value.Answerable)), mrr = R(kv.Value.Rr / Math.Max(1, kv.Value.Answerable)),
+                weakAnswerable = kv.Value.WeakAnswerable, weakUnanswerable = kv.Value.WeakUnanswerable, missed = kv.Value.Missed,
+            }),
+            details = details ? rows : null,
+        });
+        return 0;
+    }
+
+    sealed class Score
+    {
+        public int Answerable, Unanswerable, Top1, Top3, WeakAnswerable, WeakUnanswerable;
+        public double Rr;
+        public List<string> Missed = [];
+    }
 }

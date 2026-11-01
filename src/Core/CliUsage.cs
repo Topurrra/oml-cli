@@ -60,6 +60,7 @@ static class CliUsage
         oml memory retract <id> --why "<reason>"   (mark a record as no longer true; it stays in the file)
         oml memory doctor [--module <file.oml>]   (check the hash chain, the file end and the index; with a module, check that the elements still exist)
         oml memory handoff [--module <Name>] [--top N]   (a short brief for the next agent from the newest records; read only)
+        oml memory traps [--command "<command>"] [--module <Name>] [--top N]   (live trap records; with --command, those the command may run into, by words; read only, never blocks)
         oml run <steps.json> [--continue]   (several commands in one process, so Service Studio loads once; "-" reads the steps from stdin)
         oml translations export <module.oml> <file> [--format Excel|xlsx|ResX]
         oml install <staged.oml> <target.oml> [--allow-existing-errors]
