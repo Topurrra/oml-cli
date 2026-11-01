@@ -496,7 +496,7 @@
     {
      "kind": "sql",
      "name": "Find",
-     "sql": "SELECT {Customer}.* FROM {Customer} WHERE {Customer}.[Name] = @Value",
+     "sql": "SELECT {Customer}.[Id], {Customer}.[Name] AS CustomerName FROM {Customer} WHERE {Customer}.[Name] = @Value",
      "maxRecords": 5,
      "params": [
       {

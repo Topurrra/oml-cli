@@ -38,6 +38,8 @@ Symptoms of oml itself (apply, install, publish, LifeTime, fonts and images), th
 | Publish fails with "Invalid compiler output. Object reference not set to an instance of an object" | On 11.55.92, generic Identifier types on Id caused this failure. | Use LongIntegerType for entity Id and IntegerType for static Id. Current CLI uses these types. |
 | File-based publish refuses an open module | Open copy would be published instead of the file. | Close that copy, or explicitly select the open module by name. |
 | Publish fails with "A concurrent publication was detected" (and the output has a version 0 `warning`) | The module is a copy extracted from an `.oap`, not the server version. | Open the server version in Service Studio (or `oml pull` it), apply the spec again to that file, then publish. |
+| Publish refuses: several open modules with one name | Two environments; Service Studio names modules, not servers. | Close all copies but one. |
+| Flow canvas shows old labels after a merge | The open canvas does not redraw. | Open another element and come back. |
 | Publish status Blocked | Automatic merge and publish approval is missing. | Ask the user to enable automatic merge and publish in the MCP Server approval dialog. |
 | Save passes but publish fails | Compilation and runtime validation are separate. | Fix the typed model or dependency; test in the target environment. |
 
@@ -74,6 +76,7 @@ Failures of the published app. First find where the code runs: browser or server
 | You need a trace | `LogMessage` (client and server versions) | Service Center, Monitoring, General, filtered by module. Logging is asynchronous: lines can come out of order. Log no secrets or personal data; remove debug logs after use. |
 | A screen is slow | Browser Network tab: many or slow requests | Server calls in loops or lifecycle events: run `oml check`. |
 | A query or integration is slow | LifeTime Analytics, Slow Calls (a call over 200 ms by default; repeats in one action add up, so a query in a For Each is one slow call); `SLOWSQL` and `SLOWEXTENSION` lines in Monitoring, General | Fetch once with a join; suggest an index to the user. |
+| SQL fails with 500 "Error executing query." | Service Center error log | SELECT columns do not match the output attributes: `oml check` rule `sql-column-order`. |
 | Screen data stays empty | Aggregate or data action | On-demand fetch never refreshed, or read too early in OnInitialize or OnReady: `oml doc ui-reactive#lifecycle`. |
 | The screen flickers or freezes | OnRender, OnAfterFetch | OnRender changes screen data, or OnAfterFetch refreshes its own source (`oml check` rules `render-assign`, `self-refreshing-aggregate`). |
 ## Platform problems

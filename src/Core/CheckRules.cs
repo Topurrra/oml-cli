@@ -322,6 +322,32 @@ static class CheckRules
                 }
         });
 
+        // SELECT columns fill the outputs' attributes by position, whatever their aliases; Service Studio does not compare
+        // them. A wrong count fails at run time ("Error executing query"); two swapped columns of one type give wrong data.
+        Try("sql-column-order", () =>
+        {
+            foreach (var sql in all.OfType<ISQLNode>())
+            {
+                var outputs = sql.Outputs.Select(o => o.EntityOrStructure).ToList();
+                if (outputs.Count == 0 || outputs.Any(o => o is null)) continue;
+                var expected = outputs.SelectMany(o => List(o!, "Attributes").Select(Name)).ToList();
+                var columns = SqlSelect.Columns(sql.Statement ?? "", name => outputs.FirstOrDefault(o => Name(o!).Equals(name, StringComparison.OrdinalIgnoreCase)) is { } o ? List(o, "Attributes").Select(Name).ToList() : null);
+                if (columns is null) continue;
+                var shape = string.Join(", ", outputs.Select(o => $"{Name(o!)} ({string.Join(", ", List(o!, "Attributes").Select(Name))})"));
+                if (columns.Count != expected.Count)
+                {
+                    Add("sql-column-order", sql, $"{Name(sql)} selects {columns.Count} columns for {expected.Count} output attributes: {shape}.");
+                    continue;
+                }
+                for (var i = 0; i < columns.Count; i++)
+                    if (columns[i] is { } c && !c.Equals(expected[i], StringComparison.OrdinalIgnoreCase) && expected.Contains(c, StringComparer.OrdinalIgnoreCase))
+                    {
+                        Add("sql-column-order", sql, $"{Name(sql)} selects {c} as column {i + 1}, where the output attribute is {expected[i]}: {shape}.");
+                        break;
+                    }
+            }
+        });
+
         var screens = all.OfType<IScreenSignature>().Where(s => !Inspect.IsBlock(s)).ToList();
         bool HasRole(IScreenSignature s, object? role) => role is not null && List(s, "Roles").Any(r => ReferenceEquals(r, role));
         Try("registered-screen", () =>

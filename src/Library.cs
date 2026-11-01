@@ -10,7 +10,8 @@ namespace OmlCli;
 // their own use. The copy lives in %LOCALAPPDATA%\oml-cli\library (OML_LIBRARY overrides it, for tests).
 static class Library
 {
-    const string Usage = "Usage: oml library [status]\n       oml library fetch [--source product|support|howtos]...\n       oml library fetch --source <name> --from <folder of an unzipped repository>";
+    const string Usage = "Usage: oml library [status]\n       oml library fetch [--source product|support|howtos]...\n       oml library fetch --source <name> --from <folder of an unzipped repository>\n       oml library update [--check] [--source product|support|howtos]...";
+    const string ZipHint = "No access to GitHub? On a machine with access, download the repository as a ZIP (github.com/OutSystems/<repo>: Code > Download ZIP), unzip it here, then run: oml library fetch --source <name> --from <unzipped folder>";
     internal static readonly (string Name, string Repo)[] Sources = [("product", "docs-product"), ("support", "docs-support"), ("howtos", "docs-howtos")];
     const string Owner = "OutSystems";
     const int Parallel = 8;
@@ -34,6 +35,7 @@ static class Library
     public static int Run(string[] args)
     {
         if (args is [] or ["status"]) return Status();
+        if (args[0] == "update") return Update(args[1..]);
         if (args[0] != "fetch") return Fail($"Unknown library command '{args[0]}'. {Usage}");
         var names = new List<string>();
         string? from = null;
@@ -57,40 +59,134 @@ static class Library
         var failed = false;
         foreach (var (name, repo) in chosen)
         {
-            var watch = System.Diagnostics.Stopwatch.StartNew();
-            var temp = Path.Combine(Root, $"{repo}.tmp-{Guid.NewGuid():N}");
-            try
-            {
-                var (commit, files, bytes) = from is null ? Download(repo, temp) : Copy(from, temp);
-                var info = new JsonObject
-                {
-                    ["source"] = name, ["repo"] = $"{Owner}/{repo}", ["commit"] = commit, ["fetchedUtc"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                    ["files"] = files, ["kb"] = bytes / 1024, ["license"] = LicenseNote,
-                };
-                File.WriteAllText(Path.Combine(temp, "source.json"), JsonOutput.Write(info));
-                // Replace the old copy only now, so a failed fetch keeps the last good one.
-                var target = Path.Combine(Root, repo);
-                if (Directory.Exists(target)) Directory.Delete(target, recursive: true);
-                Directory.Move(temp, target);
-                LibraryIndex.Delete();
-                info["seconds"] = Math.Round(watch.Elapsed.TotalSeconds, 1);
-                results.Add(info);
-            }
-            catch (Exception e) when (e is HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException or InvalidDataException or JsonException)
-            {
-                failed = true;
-                results.Add(new JsonObject { ["source"] = name, ["repo"] = $"{Owner}/{repo}", ["error"] = e.Message });
-            }
-            finally { if (Directory.Exists(temp)) Directory.Delete(temp, recursive: true); }
+            var info = FetchOne(name, repo, from);
+            failed |= info["error"] is not null;
+            results.Add(info);
         }
 
         var output = new JsonObject { ["library"] = Root, ["sources"] = results, ["license"] = LicenseNote, ["next"] = "oml doc --search \"<words>\" --library" };
         // Build the saved search index now, so the first search is fast too.
         if (Folders() is { Count: > 0 } fetched) output["indexed"] = DocSearch.LibraryIndex(fetched, []).Count;
-        if (failed)
-            output["hint"] = "No access to GitHub? On a machine with access, download the repository as a ZIP (github.com/OutSystems/<repo>: Code > Download ZIP), unzip it here, then run: oml library fetch --source <name> --from <unzipped folder>";
+        if (failed) output["hint"] = ZipHint;
         TerminalOutput.PrintNode(output);
         return failed ? 2 : 0;
+    }
+
+    // One source into a temp folder, then over the old copy: a failed fetch keeps the last good one.
+    static JsonObject FetchOne(string name, string repo, string? from)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var temp = Path.Combine(Root, $"{repo}.tmp-{Guid.NewGuid():N}");
+        try
+        {
+            var (commit, files, bytes) = from is null ? Download(repo, temp) : Copy(from, temp);
+            var info = new JsonObject
+            {
+                ["source"] = name, ["repo"] = $"{Owner}/{repo}", ["commit"] = commit, ["fetchedUtc"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                ["files"] = files, ["kb"] = bytes / 1024, ["license"] = LicenseNote,
+            };
+            File.WriteAllText(Path.Combine(temp, "source.json"), JsonOutput.Write(info));
+            var target = Path.Combine(Root, repo);
+            if (Directory.Exists(target)) Directory.Delete(target, recursive: true);
+            Directory.Move(temp, target);
+            LibraryIndex.Delete();
+            info["seconds"] = Math.Round(watch.Elapsed.TotalSeconds, 1);
+            return info;
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException or InvalidDataException or JsonException)
+        {
+            return new JsonObject { ["source"] = name, ["repo"] = $"{Owner}/{repo}", ["error"] = e.Message };
+        }
+        finally { if (Directory.Exists(temp)) Directory.Delete(temp, recursive: true); }
+    }
+
+    // `oml library update [--check] [--source <name>]...`: a fetched source whose repository has a newer commit is fetched
+    // again; the others stay as they are (one GitHub call each). --check only reports. A source imported with --from has
+    // no commit to compare, so it counts as outdated.
+    static int Update(string[] args)
+    {
+        var check = false;
+        var names = new List<string>();
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (args[i] == "--check") check = true;
+            else if (args[i] == "--source" && i + 1 < args.Length) names.Add(args[++i]);
+            else return Fail($"Unknown option {args[i]}. {Usage}");
+        }
+        var unknown = names.FirstOrDefault(n => !Sources.Any(s => s.Name == n));
+        if (unknown is not null) return Fail($"Unknown source '{unknown}'. Sources: {string.Join(", ", Sources.Select(s => s.Name))}.");
+        var fetched = Sources.Where(s => File.Exists(Path.Combine(Root, s.Repo, "source.json"))).ToArray();
+        if (fetched.Length == 0) return Fail("No library yet. Run: oml library fetch");
+        if (names.FirstOrDefault(n => !fetched.Any(s => s.Name == n)) is { } missing) return Fail($"Source '{missing}' was never fetched. Run: oml library fetch --source {missing}");
+        var chosen = names.Count == 0 ? fetched : fetched.Where(s => names.Contains(s.Name)).ToArray();
+
+        var results = new JsonArray();
+        bool failed = false, changed = false;
+        using var http = Client();
+        foreach (var (name, repo) in chosen)
+        {
+            var old = JsonNode.Parse(File.ReadAllText(Path.Combine(Root, repo, "source.json")))?["commit"]?.GetValue<string>() ?? "";
+            var row = new JsonObject { ["source"] = name, ["commit"] = old };
+            try
+            {
+                var latest = Latest(http, repo);
+                row["latest"] = latest;
+                row["upToDate"] = latest == old;
+                if (latest != old)
+                {
+                    changed = true;
+                    if (IsCommit(old)) Changes(http, repo, old, latest, row);
+                    if (!check)
+                    {
+                        var info = FetchOne(name, repo, null);
+                        if (info["error"] is { } error) { failed = true; row["error"] = error.DeepClone(); }
+                        else { row["updated"] = true; row["files"] = info["files"]!.DeepClone(); row["seconds"] = info["seconds"]!.DeepClone(); }
+                    }
+                }
+            }
+            catch (Exception e) when (e is HttpRequestException or TaskCanceledException or IOException or InvalidDataException or JsonException)
+            {
+                failed = true;
+                row["error"] = e.Message;
+            }
+            results.Add(row);
+        }
+
+        var output = new JsonObject { ["library"] = Root, ["sources"] = results };
+        if (!check && changed && Folders() is { Count: > 0 } folders) output["indexed"] = DocSearch.LibraryIndex(folders, []).Count;
+        if (check && changed) output["next"] = "oml library update";
+        if (failed) output["hint"] = ZipHint;
+        TerminalOutput.PrintNode(output);
+        return failed ? 2 : 0;
+    }
+
+    static bool IsCommit(string text) => System.Text.RegularExpressions.Regex.IsMatch(text, "^[0-9a-f]{40}$");
+
+    static HttpClient Client()
+    {
+        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
+        http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("oml-cli", "1"));
+        return http;
+    }
+
+    // The newest commit of the default branch.
+    static string Latest(HttpClient http, string repo)
+    {
+        var commit = Get(http, $"https://api.github.com/repos/{Owner}/{repo}/commits/HEAD", "application/vnd.github.sha").Trim();
+        return IsCommit(commit) ? commit : throw new InvalidDataException($"GitHub gave no commit id for {repo}.");
+    }
+
+    // The doc pages that changed between two commits (GitHub lists at most 300 files): how many, and the first 10.
+    static void Changes(HttpClient http, string repo, string from, string to, JsonObject row)
+    {
+        var compare = JsonNode.Parse(Get(http, $"https://api.github.com/repos/{Owner}/{repo}/compare/{from}...{to}", "application/vnd.github+json"))!;
+        var pages = (compare["files"] as JsonArray ?? [])
+            .Select(f => f?["filename"]?.GetValue<string>() ?? "")
+            .Where(p => p.StartsWith("src/", StringComparison.Ordinal) && p.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+            .Select(p => p[4..]).ToList();
+        row["commits"] = compare["total_commits"]?.DeepClone();
+        row["changedPages"] = pages.Count;
+        if (pages.Count > 0) row["pages"] = new JsonArray(pages.Take(10).Select(p => (JsonNode)JsonValue.Create(p)!).ToArray());
     }
 
     static int Status()
@@ -108,11 +204,9 @@ static class Library
     // tree), then each file from raw.githubusercontent.com at that commit. The system proxy settings apply.
     static (string commit, int files, long bytes) Download(string repo, string temp)
     {
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
-        http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("oml-cli", "1"));
+        using var http = Client();
         var api = $"https://api.github.com/repos/{Owner}/{repo}";
-        var commit = Get(http, $"{api}/commits/HEAD", "application/vnd.github.sha").Trim();
-        if (!System.Text.RegularExpressions.Regex.IsMatch(commit, "^[0-9a-f]{40}$")) throw new InvalidDataException($"GitHub gave no commit id for {repo}.");
+        var commit = Latest(http, repo);
         var tree = JsonNode.Parse(Get(http, $"{api}/git/trees/{commit}?recursive=1", "application/vnd.github+json"))!;
         if (tree["truncated"]?.GetValue<bool>() == true) throw new InvalidDataException($"GitHub cut the file list of {repo}; the library cannot be complete.");
         var paths = tree["tree"]!.AsArray()

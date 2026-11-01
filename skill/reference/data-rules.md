@@ -49,7 +49,7 @@ Entities, types, static entities, delete rules, indexes, aggregates, SQL and tra
 
 ## SQL
 
-- Server logic only. Entities as `{Order}`, attributes as `[Total]`, parameters as `@Name`. An output structure is required and must match the SELECT columns in order.
+- Server logic only. Entities as `{Order}`, attributes as `[Total]`, parameters as `@Name`. An output structure is required. Columns fill its attributes by position, not by alias; Service Studio does not check this (`oml check` rule `sql-column-order`).
 - `maxRecords` on SQL does not limit the query; it cuts the result afterwards. Limit inside the SQL (`TOP`, `FETCH FIRST`).
 - `SELECT *` cannot be checked against the output (warning). Use `SELECT {Order}.*`.
 - Optional filter without Expand Inline (SQL Server syntax): `(@Name = '' OR {Customer}.[Name] LIKE '%' + @Name + '%')`.

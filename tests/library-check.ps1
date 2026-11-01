@@ -76,9 +76,18 @@ try {
   Require ((Get-Content (Join-Path $copy 'source.json') -Raw) -match 'local copy') 'a failed fetch removed the last copy'
   Require (@(Get-ChildItem $env:OML_LIBRARY -Directory | Where-Object Name -like '*.tmp-*').Count -eq 0) 'a failed fetch left a temp folder'
 
+  # update: refusals offline, and a failed check keeps the last copy
+  $r = Call 'library', 'update', '--source', 'support'
+  Require ($r.Exit -eq 2 -and $r.Json.error -match 'never fetched') "update of a source never fetched: $($r.Text)"
+  $r = Call 'library', 'update', '--bogus'
+  Require ($r.Exit -eq 2 -and $r.Json.error -match 'Unknown option') "update with a bad option: $($r.Text)"
+  $r = Call 'library', 'update', '--check'
+  Require ($r.Exit -eq 2 -and $r.Json.sources[0].commit -eq 'local copy' -and $r.Json.sources[0].error -and $r.Json.hint -match 'Download ZIP') "update without GitHub: $($r.Text)"
+  Require ((Get-Content (Join-Path $copy 'source.json') -Raw) -match 'local copy') 'a failed update removed the last copy'
+
   $r = Call 'library', '--help'
-  Require ($r.Exit -eq 0 -and $r.Text -match 'oml library fetch') "help: $($r.Text)"
-  Write-Host 'ok   library: empty status, import with --from (src only, LICENSE), status, search hit with file and section, refusals, failed fetch keeps the last copy'
+  Require ($r.Exit -eq 0 -and $r.Text -match 'oml library fetch' -and $r.Text -match 'oml library update') "help: $($r.Text)"
+  Write-Host 'ok   library: empty status, import with --from (src only, LICENSE), status, search hit with file and section, refusals, failed fetch keeps the last copy, update refusals and a failed update'
 }
 finally {
   foreach ($k in $saved.Keys) { Set-Item "env:$k" $saved[$k] -ErrorAction SilentlyContinue; if ($null -eq $saved[$k]) { Remove-Item "env:$k" -ErrorAction SilentlyContinue } }

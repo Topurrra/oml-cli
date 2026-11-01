@@ -5,6 +5,10 @@ Keep a Changelog style: one section per release, newest first.
 ## Unreleased
 
 ### Added
+- `oml library update [--check] [--source <name>]...` fetches again only the doc sources that OutSystems changed (1 GitHub call per source when nothing changed). `--check` lists the number of new commits, the changed pages and the first 10 of them, and downloads nothing. A run 9 days after a fetch found 212 changed product pages.
+- `oml check` rule `sql-column-order` (high): a SQL query whose SELECT columns do not match its output attributes, in number or by name. Columns fill the attributes by position and Service Studio does not compare them; a wrong count fails at run time with "Error executing query", and swapped columns of one type return wrong data. `oml review` lists it as a new finding. Found by the OutSystems MCP skill team (outsystems11-mcp, 2026-10-29).
+- `oml publish <Module>` and `oml references <Module>` refuse when Service Studio has several open modules of that name (from different environments): it names modules only and would use one of them.
+- Notes from the same source: `CrossSiteRequests = Restrict` has no runtime effect (`oml doc rest`); an open flow canvas does not redraw after an automatic merge, and the SQL 500 "Error executing query" points to `sql-column-order` (`oml doc troubleshooting`).
 - `oml doc commands#<section>` prints one section of the command reference (`skill/reference/commands.md`, about 47k tokens). `oml doc commands` lists the sections instead of printing the file. SKILL.md, AGENTS.md, the reference topics and the REST recipe now point to a section, not to the whole file.
 
 ### Changed

@@ -866,7 +866,7 @@
       {
        "kind": "sql",
        "name": "AllCustomers",
-       "sql": "SELECT {Customer}.* FROM {Customer}",
+       "sql": "SELECT {Customer}.[Name], {Customer}.[Id] FROM {Customer}",
        "outputs": [
         "Customer"
        ]

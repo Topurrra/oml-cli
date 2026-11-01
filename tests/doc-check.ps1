@@ -19,11 +19,12 @@ function Run([string[]]$a) {
 }
 function Tokens($path) { [math]::Ceiling((Get-Content -Raw $path).Replace("`r`n", "`n").Length / 4) } # same count on LF and CRLF checkouts
 
-# Size budget per topic in tokens (characters / 4). A file may be at most 15% over its budget.
+# Size budget per topic in tokens (characters / 4). A file may be at most 15% over its budget. data-rules, rest and
+# troubleshooting were raised by 50-100 for the SQL column order, CrossSiteRequests and same-name publish notes.
 $budget = [ordered]@{
-  'ui-reactive' = 1500; 'osui-patterns' = 2000; 'data-rules' = 1200; 'logic-rules' = 1200; 'security' = 800
-  'rest' = 900; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2000
-  'traditional-to-reactive' = 900; 'troubleshooting' = 2000; 'ui-checklist' = 700; 'testing' = 2000
+  'ui-reactive' = 1500; 'osui-patterns' = 2000; 'data-rules' = 1250; 'logic-rules' = 1200; 'security' = 800
+  'rest' = 950; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2000
+  'traditional-to-reactive' = 900; 'troubleshooting' = 2100; 'ui-checklist' = 700; 'testing' = 2000
   'best-practices' = 1300; 'rules' = 900; 'memory' = 1100
 }
 # Where a topic's file is: skill/reference/<topic>.md, except rules (skill/rules.md, which SKILL.md loads first).

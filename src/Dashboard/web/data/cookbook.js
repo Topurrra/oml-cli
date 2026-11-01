@@ -138,9 +138,11 @@ export const cookbook = [
     ['oml memory handoff --module Orders', 'Print a short brief for the next agent: the task, staged files and open questions.'],
   ] },
   { group: 'OutSystems docs library', items: [
-    ['oml library fetch', 'Download the OutSystems 11 docs (docs-product, docs-support, docs-howtos) from GitHub: Markdown only, about 15 MB. Run it again to update.'],
+    ['oml library fetch', 'Download the OutSystems 11 docs (docs-product, docs-support, docs-howtos) from GitHub: Markdown only, about 15 MB.'],
     ['oml library fetch --source product --from C:\\Downloads\\docs-product-master', 'No GitHub access: use a repository ZIP that was downloaded on another machine and unzipped.'],
     ['oml library', 'Show the fetched sources: commit, date, files and folder.'],
+    ['oml library update --check', 'See which OutSystems doc pages changed since your fetch; downloads nothing.'],
+    ['oml library update', 'Fetch again only the sources OutSystems changed.'],
     ['oml doc --search "service action unable to connect" --library', 'Search the OutSystems 11 docs for platform questions: servers, Service Center, LifeTime, errors.'],
   ] },
   { group: 'Company skills', items: [
