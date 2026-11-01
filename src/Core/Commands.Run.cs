@@ -15,7 +15,7 @@ public static partial class Cli
     public static Func<string[], int>? LauncherRun;
     static readonly string[] LauncherCommands = ["spec", "doc", "warn", "memory"];
     // `oml memory` in a run reads only: the other subcommands write the project's memory file and need the agent to decide, outside a batch.
-    static readonly string[] MemoryReads = ["recall", "list", "show", "history", "handoff"];
+    static readonly string[] MemoryReads = ["recall", "list", "show", "history", "handoff", "traps"];
 
     static readonly string[] RunAllowed =
         ["apply", "architecture", "census", "check", "describe", "doc", "find", "inspect", "memory", "openapi", "preview", "review", "spec", "test", "tree", "validate", "warn"];

@@ -256,6 +256,13 @@ Require ($st.Json.status -eq 'expired' -and $st.Text.Contains('"validFrom":"2020
 Require ((Mem 'list', '--all', '--dir', $p4).Json.records.id -contains $ex.id) 'list --all shows the expired record'
 $fut = Add $p4 'This rule starts in 2999', '--valid-from', '2999-01-01'
 Require ((Mem 'show', "$($fut.id)", '--dir', $p4).Json.status -eq 'not yet valid') 'a record that starts later is not live yet'
+# near duplicates: a reworded copy is written, and the older one is named with a retract hint (same module or repo-wide only)
+$nd = Add $p4 'Invoices are created by the nightly timer job', '--module', 'Billing'
+Require ($nd.id -gt $x.id -and @($nd.similar.id) -contains $x.id -and @($nd.similar.id) -notcontains $z.id -and $nd.hint -match "oml memory retract $($x.id) " -and $nd.notice -match 'never orders') "a reworded copy names the similar record: $($nd | ConvertTo-Json -Compress)"
+$nu = Add $p4 'Payment callbacks check an HMAC signature', '--module', 'Billing'
+Require (-not $nu.similar) "an unrelated record has no similar records: $($nu | ConvertTo-Json -Compress)"
+$nl = Add $p4 'Invoices created by nightly timer today', '--module', 'Billing', '--kind', 'log'
+Require (-not $nl.similar) 'a log record is not checked for near duplicates'
 # contradiction warning: the record is written, and the older one is named
 $p5 = NewProject 'clash'
 $c1 = Add $p5 'The Orders_CS module is private', '--module', 'Orders'
@@ -544,8 +551,8 @@ function RunSteps($steps, [string[]]$opt = @()) {
   $text = & $Oml run $file @opt; $code = $LASTEXITCODE
   [pscustomobject]@{ Code = $code; Json = (($text -join "`n") | ConvertFrom-Json) }
 }
-$run = RunSteps @(@('memory', 'recall', 'timer producer', '--dir', $rp), @('memory', 'list', '--dir', $rp), @('memory', 'show', '0', '--dir', $rp), @('memory', 'history', '0', '--dir', $rp), @('memory', 'handoff', '--dir', $rp), @('spec', 'entities'))
-Require ($run.Code -eq 0 -and $run.Json.results.Count -eq 6 -and (@($run.Json.results.exitCode | Where-Object { $_ -ne 0 }).Count -eq 0)) "oml run with the read commands: exit $($run.Code) $($run.Json | ConvertTo-Json -Depth 8 -Compress)"
+$run = RunSteps @(@('memory', 'recall', 'timer producer', '--dir', $rp), @('memory', 'list', '--dir', $rp), @('memory', 'show', '0', '--dir', $rp), @('memory', 'history', '0', '--dir', $rp), @('memory', 'handoff', '--dir', $rp), @('spec', 'entities'), @('memory', 'traps', '--command', 'oml apply Orders.oml x.json', '--dir', $rp))
+Require ($run.Code -eq 0 -and $run.Json.results.Count -eq 7 -and (@($run.Json.results.exitCode | Where-Object { $_ -ne 0 }).Count -eq 0)) "oml run with the read commands: exit $($run.Code) $($run.Json | ConvertTo-Json -Depth 8 -Compress)"
 Require ($run.Json.results[0].output.hits[0].id -eq 0 -and $run.Json.results[0].output.notice -match 'never orders' -and $run.Json.results[0].output.write -match 'add 1-3 records' -and $run.Json.results[4].output.task.id -eq 0) 'run: recall and handoff output'
 $refused = RunSteps @(@('memory', 'add', 'no', '--dir', $rp), @('memory', 'retract', '0', '--why', 'no', '--dir', $rp), @('memory', 'init', '--dir', $rp), @('memory', 'doctor', '--dir', $rp), @('memory', 'bench', (Join-Path $work 'x')), @('memory')) @('--continue')
 Require ($refused.Json.results.Count -eq 6 -and (@($refused.Json.results.exitCode | Where-Object { $_ -ne 2 }).Count -eq 0) -and $refused.Json.results[0].output.error -match "not allowed inside 'oml run'") "run must refuse the memory commands that write: $($refused.Json | ConvertTo-Json -Depth 8 -Compress)"
@@ -553,7 +560,7 @@ Require ((Mem 'list', '--all', '--dir', $rp).Json.total -eq 1) 'a refused step w
 # no store: exit 1, so the rest of the run still goes on
 $noStore = RunSteps @(@('memory', 'recall', 'anything', '--dir', ($empty + 'x')), @('spec', 'entities'))
 Require ($noStore.Code -eq 1 -and $noStore.Json.results.Count -eq 2 -and $noStore.Json.results[0].exitCode -eq 1 -and $noStore.Json.results[1].exitCode -eq 0) "a missing store must not stop an oml run: $($noStore.Json | ConvertTo-Json -Depth 8 -Compress)"
-Write-Host 'ok   memory: oml run allows recall, list, show, history and handoff; add, retract, init, doctor and bench are refused; a missing store does not stop the run'
+Write-Host 'ok   memory: oml run allows recall, list, show, history, handoff and traps; add, retract, init, doctor and bench are refused; a missing store does not stop the run'
 
 # ---- 12. handoff ---------------------------------------------------------------------------------------------------------------
 $hp = NewProject 'handoff'
@@ -572,6 +579,32 @@ Require ($h.recent.Count -eq 1 -and $h.recent[0].text -eq 'Other module fact') '
 $hq = NewProject 'handoff-empty'
 Require ((Mem 'handoff', '--dir', $hq).Json.hint -match 'No live record') 'handoff of an empty store'
 Write-Host 'ok   memory: handoff (latest task, staged files, open questions, recent records)'
+
+# ---- 12b. traps: the trap records a command may run into ---------------------------------------------------------------------------
+$tp = NewProject 'trap-check'
+$t0 = Add $tp 'The OrderDetail screen is huge; read it with tree --depth 2 first', '--kind', 'trap', '--module', 'Orders', '--elements', 'OrderDetail'
+$t1 = Add $tp 'Publishing with --publish fails when the producer module has broken references; run check first', '--kind', 'trap'
+$t2 = Add $tp 'The warehouse API answers 429 above 10 calls per second', '--kind', 'trap', '--module', 'Inventory'
+$null = Add $tp 'OrderDetail shows the order lines', '--kind', 'fact', '--module', 'Orders', '--elements', 'OrderDetail'
+$all = (Mem 'traps', '--dir', $tp).Json
+Require ($all.total -eq 3 -and $all.traps[0].id -eq $t2.id -and @($all.traps.kind | Where-Object { $_ -ne 'trap' }).Count -eq 0 -and $all.notice -match 'never orders') "traps lists the live traps, newest first: $($all | ConvertTo-Json -Depth 5 -Compress)"
+$r = Mem 'traps', '--command', 'oml describe Orders.oml OrderDetail', '--dir', $tp
+Require ($r.Exit -eq 0 -and $r.Json.module -ceq 'Orders' -and @($r.Json.traps).Count -eq 1 -and $r.Json.traps[0].id -eq $t0.id -and @($r.Json.traps[0].matched) -contains 'OrderDetail' -and $r.Json.hint -match 'by words') "a command that names a trap's element: $($r.Text)"
+$r = Mem 'traps', '--command', 'oml describe Orders.oml Checkout', '--dir', $tp
+Require ($r.Exit -eq 0 -and -not $r.Json.traps -and $r.Json.checked -eq 2 -and -not $r.Json.hint) "an unrelated command matches no trap (the module name alone does not count): $($r.Text)"
+$r = Mem 'traps', '--command', 'oml check Billing.oml; oml apply Billing.oml spec.json --publish', '--dir', $tp
+Require (@($r.Json.traps).Count -eq 1 -and $r.Json.traps[0].id -eq $t1.id) "two words of a repo-wide trap match: $($r.Text)"
+$r = Mem 'traps', '--command', 'oml apply Billing.oml spec.json --publish', '--dir', $tp
+Require (-not $r.Json.traps) "one shared word is not a match: $($r.Text)"
+$r = Mem 'traps', '--command', 'curl warehouse api calls per second', '--module', 'Orders', '--dir', $tp
+Require (-not ($r.Json.traps.id -contains $t2.id)) 'a trap of another module is not checked'
+$r = Mem 'traps', '--command', 'curl warehouse api calls per second', '--dir', $tp
+Require ($r.Json.traps.id -contains $t2.id) 'without a module, every trap is checked'
+$r = Mem 'traps', '--command', "deploy --token $github warehouse api", '--dir', $tp
+Require ($r.Exit -eq 0 -and $r.Text -notmatch [regex]::Escape($github)) "the command is masked in the output: $($r.Text)"
+$r = Mem 'traps', 'oml', 'tree', '--dir', $tp; Require ($r.Exit -eq 2 -and $r.Json.error -match '--command') 'the command goes in --command'
+$r = Mem 'traps', '--command', ' ', '--dir', $tp; Require ($r.Exit -eq 2) 'an empty --command is refused'
+Write-Host 'ok   memory: traps lists the trap records, and --command finds the ones a command may run into (element names, two words, module scope, masked)'
 
 # ---- 13. doctor --module: the elements still exist ------------------------------------------------------------------------------
 $dm = Join-Path $work 'module'; New-Item -ItemType Directory -Force $dm | Out-Null
@@ -596,43 +629,34 @@ Write-Host 'ok   memory: doctor --module finds elements that no longer exist (ot
 
 # ---- 14. usage ---------------------------------------------------------------------------------------------------------------------
 $h = (& $Oml memory --help) -join "`n"
-Require ($LASTEXITCODE -eq 0 -and ([regex]::Matches($h, '(?m)^oml memory ')).Count -eq 9 -and $h -notmatch 'oml new ') 'oml memory --help prints the 9 memory usage lines'
+Require ($LASTEXITCODE -eq 0 -and ([regex]::Matches($h, '(?m)^oml memory ')).Count -eq 10 -and $h -notmatch 'oml new ') 'oml memory --help prints the 10 memory usage lines'
 $h2 = (& $Oml memory add --help) -join "`n"; Require ($h2 -ceq $h) 'oml memory add --help prints the memory usage'
 $null = & $Oml memory 2>&1; Require ($LASTEXITCODE -eq 2) 'oml memory without a command: exit 2'
 $null = & $Oml memory recall x --timings 2>&1; Require ($LASTEXITCODE -eq 2) '--timings is refused for memory'
 Write-Host 'ok   memory: usage'
 
 # ---- 15. recall benchmark ------------------------------------------------------------------------------------------------------------------
+# `oml memory bench --quality` scores recall on tests/memory-bench.json in memory, per set: tune, and blind (written before
+# any run against it; never tune the engine or the weak flag on it). The same thresholds hold for both sets.
 $fx = Get-Content -Raw (Join-Path $PSScriptRoot 'memory-bench.json') | ConvertFrom-Json
-$bp = NewProject 'quality'
-foreach ($rec in $fx.records) {
-  $a = @('add', $rec.text, '--kind', $rec.kind, '--dir', $bp)
-  if ($rec.module) { $a += '--module', $rec.module }
-  if ($rec.elements) { $a += '--elements', $rec.elements }
-  if ($rec.why) { $a += '--why', $rec.why }
-  if ($rec.tags) { $a += '--tags', $rec.tags }
-  $r = Mem $a; Require ($r.Exit -eq 0) "benchmark record not accepted (a fixture must hold no secret): $($rec.text) -> $($r.Text)"
+$q = & $Oml memory bench --quality (Join-Path $PSScriptRoot 'memory-bench.json') --json
+Require ($LASTEXITCODE -eq 0) "memory bench --quality failed: $q"
+$q = $q | ConvertFrom-Json
+Require ($q.records -eq $fx.records.Count -and $q.queries -eq $fx.queries.Count) "bench --quality read $($q.records) records and $($q.queries) queries"
+foreach ($set in 'tune', 'blind') {
+  $s = $q.sets.$set
+  Require ($null -ne $s -and $s.answerable -gt 0 -and $s.unanswerable -gt 0) "the $set set has answerable and unanswerable queries"
+  Write-Host "     memory benchmark ($set): $($s.answerable) answerable queries: top1 $($s.top1), top3 $($s.top3), MRR $($s.mrr); flagged weak: $($s.weakAnswerable) of $($s.answerable) answerable, $($s.weakUnanswerable) of $($s.unanswerable) unanswerable; missed: $($s.missed -join ' | ')"
+  Require ($s.top1 -ge 0.70 -and $s.top3 -ge 0.90 -and $s.mrr -ge 0.80) "memory benchmark ($set) below its thresholds (top1 >= 0.70, top3 >= 0.90, MRR >= 0.80): $($s.top1) / $($s.top3) / $($s.mrr)"
+  Require ($s.weakAnswerable -le [math]::Ceiling($s.answerable * 0.30) -and $s.weakUnanswerable -eq $s.unanswerable) "weak flag ($set): $($s.weakAnswerable) of $($s.answerable) answerable queries flagged (at most 30 percent), $($s.weakUnanswerable) of $($s.unanswerable) unanswerable flagged (all expected)"
 }
-$top1 = 0; $top3 = 0; $answerable = 0; $mrr = 0.0; $weakAnswerable = 0; $weakUnanswerable = 0; $unanswerable = 0; $miss = @()
-foreach ($qq in $fx.queries) {
-  $r = Mem 'recall', $qq.q, '--dir', $bp
-  Require ($r.Exit -eq 0) "benchmark query failed: $($qq.q)"
-  if ($null -ne $qq.expect) {
-    $answerable++
-    $rank = 0; for ($i = 0; $i -lt $r.Json.hits.Count; $i++) { if ($r.Json.hits[$i].id -eq ($qq.expect - 1)) { $rank = $i + 1; break } }
-    if ($rank -eq 1) { $top1++ }; if ($rank -ge 1 -and $rank -le 3) { $top3++ } else { $miss += $qq.q }
-    if ($rank -ge 1) { $mrr += 1.0 / $rank }
-    if ($r.Json.weak) { $weakAnswerable++ }
-  } else {
-    $unanswerable++
-    if ($r.Json.weak -or $r.Json.hits.Count -eq 0) { $weakUnanswerable++ }
-  }
-}
-$m1 = [math]::Round($top1 / $answerable, 3); $m3 = [math]::Round($top3 / $answerable, 3); $mm = [math]::Round($mrr / $answerable, 3)
-Write-Host "     memory benchmark: $answerable answerable queries: top1 $m1, top3 $m3, MRR $mm; flagged weak: $weakAnswerable of $answerable answerable, $weakUnanswerable of $unanswerable unanswerable; missed: $($miss -join ' | ')"
-Require ($m1 -ge 0.70 -and $m3 -ge 0.90 -and $mm -ge 0.80) "memory benchmark below its thresholds (top1 >= 0.70, top3 >= 0.90, MRR >= 0.80): $m1 / $m3 / $mm"
-Require ($weakAnswerable -le [math]::Ceiling($answerable * 0.30) -and $weakUnanswerable -eq $unanswerable) "weak flag: $weakAnswerable of $answerable answerable queries flagged (at most 30 percent), $weakUnanswerable of $unanswerable unanswerable flagged (all expected)"
-Write-Host "ok   memory: recall benchmark ($($fx.records.Count) records, $($fx.queries.Count) queries)"
+$d = & $Oml memory bench --quality (Join-Path $PSScriptRoot 'memory-bench.json') --details --json | ConvertFrom-Json
+Require ($d.details.Count -eq $fx.queries.Count -and ($d.details | Where-Object { $_.answerable -and $null -eq $_.rank }).Count -eq 0) '--details gives a rank for every answerable query'
+$bad = Join-Path $work 'bad-fixture.json'
+Set-Content $bad (@{ records = @(@{ kind = 'fact'; text = "the key is $aws" }); queries = @() } | ConvertTo-Json -Depth 5)
+$r = & $Oml memory bench --quality $bad 2>&1 | Out-String
+Require ($LASTEXITCODE -eq 2 -and $r -match 'secret' -and $r -notmatch $aws) "a fixture record with a secret is refused without echoing it: $r"
+Write-Host "ok   memory: recall benchmark ($($fx.records.Count) records, $($fx.queries.Count) queries, tune and blind)"
 
 # ---- 16. speed: 1k, 10k and 100k generated records -------------------------------------------------------------------------------------------
 # `oml memory bench` writes a synthetic store into a new folder and times recall without the index, with a rebuild of it, and with it.

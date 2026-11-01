@@ -188,6 +188,7 @@ them: theme, themes
 timer: timer, timers
 total: total, totals
 translation: translation, translations
+trap: trap, traps
 typ: type, typed, types
 use: use, uses
 user: user, users

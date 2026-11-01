@@ -2,6 +2,13 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## Unreleased
+
+### Added
+- `oml memory traps --command "<command>"` lists the live trap records a shell command may run into: the command names one of the trap's elements, or holds two or more words of its text. The module comes from `--module` or the first module file in the command. Read only, allowed in `oml run`, never blocks; a pre-command hook can call it. Without `--command` it lists the live traps. No pattern is stored, so the record format does not change.
+- `oml memory add` prints `similar` when a live record of the same module (or a repo-wide one) has almost the same words (60% of the distinct words in common), with a `retract` hint. The record is still written.
+- `oml memory bench --quality <fixture.json> [--details]` scores recall (top 1, top 3, MRR, weak flag) per question set, in memory. `tests/memory-bench.json` has 16 more records and a blind set of 26 questions written before any run; `tests/memory-check.ps1` holds both sets to the same thresholds.
+
 ## 1.11.0
 
 ### Added
