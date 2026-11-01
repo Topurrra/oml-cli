@@ -281,6 +281,10 @@ Unit 'search-check' {
   try { & (Join-Path $tests 'search-check.ps1') -Oml $oml -Tmp $tmp -Module $reactive }
   catch { $global:fail++; Write-Host "FAIL search checks: $_" }
 }
+Unit 'hooks-check' {
+  try { & (Join-Path $tests 'hooks-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL hooks checks: $_" }
+}
 Unit 'memory-check' {
   try { & (Join-Path $tests 'memory-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL memory checks: $_" }

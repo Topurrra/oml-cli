@@ -27,7 +27,7 @@ $budget = [ordered]@{
   'traditional-to-reactive' = 900; 'troubleshooting' = 2100; 'ui-checklist' = 700; 'testing' = 2000
   'best-practices' = 1300; 'rules' = 900; 'memory' = 1100
 }
-# Where a topic's file is: skill/reference/<topic>.md, except rules (skill/rules.md, which SKILL.md loads first).
+# Where a topic's file is: skill/reference/<topic>.md, except rules (skill/rules.md; SKILL.md holds the same 11 rules).
 function TopicFile($t) { if ($t -eq 'rules') { Join-Path $repo 'skill/rules.md' } else { Join-Path $ref "$t.md" } }
 
 # 1. the topic list names every topic, one line each
@@ -37,7 +37,7 @@ $listed = @($r.Text -split "`n" | Where-Object { $_ -match '^(\S+)  -  \S' } | F
 if ((($listed | Sort-Object) -join ',') -ne ((@($budget.Keys) | Sort-Object) -join ',')) { Fail "topics listed: $($listed -join ', ')" }
 # SKILL.md's "Topics:" line names every topic, so agents know each one exists
 $skillTopics = [regex]::Match((Get-Content -Raw (Join-Path $repo 'skill/SKILL.md')), '(?m)^Topics: (.*)$').Groups[1].Value
-# rules is not on that line: SKILL.md tells agents to read rules.md first. memory is not either: the `write` field of a memory recall points to it, which saves tokens in the default load.
+# rules is not on that line: SKILL.md holds the rules itself. memory is not either: the `write` field of a memory recall points to it, which saves tokens in the default load.
 foreach ($t in $budget.Keys) { if ($t -notin 'rules', 'memory' -and -not $skillTopics.Contains("``$t``")) { Fail "SKILL.md Topics line does not name $t" } }
 
 # 2. one topic prints the whole file; topic names are case-insensitive and may end in .md.
@@ -97,19 +97,24 @@ foreach ($line in (Get-Content (Join-Path $ref 'warnings.md'))) {
 }
 if ($ids.Count -lt 40) { Fail "warnings.md has only $($ids.Count) ids" }
 
-# 7. size budgets, and the default skill load (SKILL.md + rules.md): budget 2.7k tokens (+15%), about 2.8k today
+# 7. size budgets, and the default skill load: SKILL.md, which holds the 11 rules, so no second read is needed.
+#    Budget 2.7k tokens (+15%); SKILL.md + rules.md was 2.7k before the rules moved in.
 foreach ($t in $budget.Keys) {
   $n = Tokens (TopicFile $t)
   if ($n -gt $budget[$t] * 1.15) { Fail "$t.md is $n tokens; budget $($budget[$t]) (+15%)" }
 }
-$load = (Tokens (Join-Path $repo 'skill/SKILL.md')) + (Tokens (Join-Path $repo 'skill/rules.md'))
-if ($load -gt 2700 * 1.15) { Fail "SKILL.md + rules.md is $load tokens; budget 2700 (+15%)" }
+$load = Tokens (Join-Path $repo 'skill/SKILL.md')
+if ($load -gt 2700 * 1.15) { Fail "SKILL.md is $load tokens; budget 2700 (+15%)" }
 
 # 7b. rules 4 and 7 of AGENTS.md, and every rule on the website, read as in rules.md
 $ruleLines = @{}
 foreach ($m in [regex]::Matches((Get-Content -Raw (Join-Path $repo 'skill/rules.md')).Replace("`r`n", "`n"), '(?m)^(\d+)\. (.*)$')) { $ruleLines[[int]$m.Groups[1].Value] = $m.Value }
 $agents = (Get-Content -Raw (Join-Path $repo 'skill/AGENTS.md')).Replace("`r`n", "`n")
 foreach ($n in 4, 7) { if (-not $agents.Contains($ruleLines[$n] + "`n")) { Fail "AGENTS.md rule $n is not word for word rules.md" } }
+# SKILL.md holds every rule word for word, and no longer sends agents to read rules.md.
+$skillText = (Get-Content -Raw (Join-Path $repo 'skill/SKILL.md')).Replace("`r`n", "`n")
+foreach ($n in $ruleLines.Keys) { if (-not $skillText.Contains($ruleLines[$n] + "`n")) { Fail "SKILL.md rule $n is not word for word rules.md" } }
+if ($ruleLines.Count -ne 11 -or $skillText -match '\]\(rules\.md\)') { Fail "SKILL.md must hold the 11 rules and not link rules.md ($($ruleLines.Count) rules)" }
 # 7c. the "Writing to the user" block (style of every text an agent writes to the user) is the same in SKILL.md and AGENTS.md
 $skill = (Get-Content -Raw (Join-Path $repo 'skill/SKILL.md')).Replace("`r`n", "`n")
 $writing = foreach ($text in $skill, $agents) { [regex]::Match($text, '(?ms)^## Writing to the user' + "`n" + '.*?(?=^## )').Value }
@@ -136,7 +141,7 @@ if (-not $skill.Contains('(architect.md)')) { Fail 'SKILL.md does not point to a
 
 # 7e. the command reference (commands.md, about 47k tokens) is read by section only: oml doc commands lists the
 # sections, each one prints within its budget (the largest, check with its rule table, is about 5.6k tokens), and no
-# skill file sends an agent to the whole file. oml --help: budget 2.3k tokens (+15%), the whole usage.
+# skill file sends an agent to the whole file. oml --help: budget 2.4k tokens (+15%), the whole usage (raised from 2.3k for oml qa, library update and hooks).
 $r = Run 'doc', 'commands'
 if ($r.Exit -ne 0 -or $r.Text -notmatch 'Sections: ' -or $r.Text.Length -gt 2500) { Fail "oml doc commands: exit $($r.Exit), $($r.Text.Length) characters" }
 $sections = @(($r.Text -split 'Sections: ')[1].Trim() -split ', ')
@@ -157,7 +162,7 @@ foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Include *.md, *
   }
 }
 $help = [math]::Ceiling((Run '--help').Text.Length / 4)
-if ($help -gt 2300 * 1.15) { Fail "oml --help is $help tokens; budget 2300 (+15%)" }
+if ($help -gt 2400 * 1.15) { Fail "oml --help is $help tokens; budget 2400 (+15%)" }
 
 # 8. every relative link in skill/ resolves
 foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Filter *.md) {

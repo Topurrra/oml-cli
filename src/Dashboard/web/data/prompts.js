@@ -5,7 +5,7 @@ export const PROMPTS = [
     title: 'Small task',
     when: 'one module, one feature or fix, up to about 10 elements. A cheap model is fine.',
     text: String.raw`[oml] Small task
-Use oml (the OutSystems 11 CLI) and its skill. Follow the skill's Standard loop and rules.md.
+Use oml (the OutSystems 11 CLI) and its skill. Follow the skill's rules and Standard loop.
 
 Module to change: <path to the .oml file, for example C:\Work\Orders.oml>
 Read-only modules (producers): <paths, or "none">
@@ -23,7 +23,7 @@ Do not install or publish. Ask me before anything that changes a real module or 
     title: 'Architect',
     when: 'several modules, a large feature, or many similar elements. Use a strong model; it leads cheaper worker subagents.',
     text: String.raw`[oml] Architect task
-Use oml (the OutSystems 11 CLI) as the architect: read the skill's architect.md and follow it, and rules.md.
+Use oml (the OutSystems 11 CLI) as the architect: read the skill's architect.md and follow it, and the rules in SKILL.md.
 Plan lanes, give each worker subagent its brief, check every result yourself, and merge the parts with one oml apply.
 
 Modules: <path - Change or Read only, one per line>
