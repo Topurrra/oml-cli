@@ -2,7 +2,7 @@
 
 Keep a Changelog style: one section per release, newest first.
 
-## Unreleased
+## 1.12.0
 
 ### Added
 - `oml hooks install|status|remove [--dir <project>]`: a Claude Code PreToolUse hook in the project's `.claude\settings.local.json`. It refuses reading `commands.md`, `spec.md` or `model-api.md` whole (Read, Grep, cat or Get-Content) and changing `.oml` files with a tool or a shell command (rule 9). The instructions become checks that cost no tokens. Input it cannot read is allowed.
