@@ -278,9 +278,45 @@ static class DocSearch
             return new SearchDoc
             {
                 Id = "command:" + command, Kind = "command", Title = "oml " + command, Open = $"oml {command} --help", TitleIsName = false,
-                Body = described.Success ? described.Groups[2].Value + "\n" + described.Groups[1].Value : line,
+                Body = (described.Success ? described.Groups[2].Value + "\n" + described.Groups[1].Value : line) + "\n" + CommandWords.GetValueOrDefault(command, ""),
             };
         });
+
+    // The words a developer uses for what a command does, when the usage line does not hold them ("deploy to production"
+    // for lt). Tuned on the commands set of tests/search-bench.json; the usage text stays short for oml --help.
+    static readonly Dictionary<string, string> CommandWords = new()
+    {
+        ["pull"] = "get save download open module from service studio into a file",
+        ["publish"] = "publish 1-click deploy module to the server",
+        ["references"] = "refresh update references dependencies producers",
+        ["lt"] = "lifetime deploy deployment environments production staging tag version application release promote",
+        ["review"] = "what changed difference compare two versions before after code review diff",
+        ["find"] = "which module defines owns where is defined producer consumer search elements by words",
+        ["inspect"] = "overview list entities screens actions blocks contents summary of a module",
+        ["describe"] = "what does an element action screen entity do details explain",
+        ["tree"] = "object tree nodes paths of an action or screen",
+        ["doctor"] = "check setup working installed diagnose health problem",
+        ["studio"] = "service studio reachable connected running open modules mcp",
+        ["new"] = "create a new empty blank module",
+        ["install"] = "copy staged module over the original target replace overwrite backup",
+        ["expr"] = "expression valid parse syntax formula check",
+        ["meta"] = "module header version upgrade level key without loading",
+        ["library"] = "download outsystems documentation docs offline local copy",
+        ["log"] = "usage log slow slowest commands failures statistics",
+        ["preview"] = "screenshot render html picture how a screen or block looks",
+        ["check"] = "code smells ai mentor quality lint technical debt",
+        ["architecture"] = "layers violations dependencies graph cycles publish order of modules",
+        ["memory"] = "remember decision notes next agent handoff brief project knowledge trap",
+        ["run"] = "many several commands one process batch steps",
+        ["translations"] = "translations languages excel resx",
+        ["openapi"] = "openapi swagger contract",
+        ["app"] = "unpack extract list oap osp package application",
+        ["setup"] = "explorer right click context menu entries",
+        ["skills"] = "company coding rules standards conventions",
+        ["dashboard"] = "web dashboard developers browser",
+        ["font"] = "font woff2 convert",
+        ["image"] = "image resize convert optimize png jpeg webp svg ico",
+    };
 
     // The comment lines before the JSON starts, without the slashes.
     internal static string RecipeHeader(string text) =>
@@ -498,8 +534,8 @@ static class DocSearch
         var ids = Corpus.Select(d => d.Id).ToHashSet(StringComparer.Ordinal);
         var results = new JsonArray();
         var watch = System.Diagnostics.Stopwatch.StartNew();
-        // { "tune": [...], "held": [...], "blind2": [...], "blind3": [...], "blind4": [...] }: tune is for tuning; the others were written blind.
-        foreach (var (set, q) in new[] { "tune", "held", "blind2", "blind3", "blind4" }.SelectMany(set => (bench[set]?.AsArray() ?? []).Select(q => (set, q))))
+        // { "tune": [...], "held": [...], "blind2": [...], "blind3": [...], "blind4": [...], "commands": [...] }: tune is for tuning; held to blind4 were written blind; commands: plain requests a command answers.
+        foreach (var (set, q) in new[] { "tune", "held", "blind2", "blind3", "blind4", "commands" }.SelectMany(set => (bench[set]?.AsArray() ?? []).Select(q => (set, q))))
         {
             var query = q!["q"]!.GetValue<string>();
             var expect = q["expect"]?.AsArray().Select(e => e!.GetValue<string>()).ToArray() ?? [];

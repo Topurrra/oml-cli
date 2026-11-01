@@ -28,6 +28,9 @@
     <EmbeddedResource Include="..\skill\reference\spec.md" LogicalName="OmlCli.spec.md" />
     <!-- `oml doc <topic>` and `oml warn`: the knowledge files for agents, one topic each. -->
     <EmbeddedResource Include="..\skill\reference\best-practices.md;..\skill\reference\ui-reactive.md;..\skill\reference\osui-patterns.md;..\skill\reference\data-rules.md;..\skill\reference\logic-rules.md;..\skill\reference\security.md;..\skill\reference\rest.md;..\skill\reference\processes-timers-email.md;..\skill\reference\architecture-rules.md;..\skill\reference\warnings.md;..\skill\reference\traditional-to-reactive.md;..\skill\reference\troubleshooting.md;..\skill\reference\ui-checklist.md;..\skill\reference\testing.md;..\skill\reference\memory.md" LogicalName="OmlCli.doc.%(Filename)%(Extension)" />
+    <!-- `oml doc commands#<section>`: one section of the command reference. It is kept out of the search index (the
+         usage lines are command entries already) and is never printed whole: it is about 47k tokens. -->
+    <EmbeddedResource Include="..\skill\reference\commands.md" LogicalName="OmlCli.commands.md" />
     <!-- `oml dashboard`: its page, and the skill pages it shows (the UI checklist is the doc topic above). The web
          folder keeps its structure in the resource name: Dashboard\web\core\dom.js becomes OmlCli.web.core.dom.js.
          The front end is split into modules, one folder per kind (core, pages, data). -->

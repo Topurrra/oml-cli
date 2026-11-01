@@ -1,7 +1,7 @@
 // Build an exposed REST API with GET (path parameter) and POST (JSON body) methods that call server actions.
 // Base: fresh CrossDevice. Rename Order, OrderApi and the structures together; new elements only, so a published API keeps its consumers.
 // Related keys: structures, restServices, actions, location (url, body), flow, execute. Authentication stays at the plugin default (None); set it in Service Studio.
-// Export the contract for consumers with: oml openapi <staged.oml> <file.json>   (see commands.md, openapi).
+// Export the contract for consumers with: oml openapi <staged.oml> <file.json>   (details: oml doc commands#openapi).
 {
   "exceptions": ["InvalidOrder"],
   "entities": [{ "name": "Order", "attributes": [

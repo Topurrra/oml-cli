@@ -2,6 +2,15 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## Unreleased
+
+### Added
+- `oml doc commands#<section>` prints one section of the command reference (`skill/reference/commands.md`, about 47k tokens). `oml doc commands` lists the sections instead of printing the file. SKILL.md, AGENTS.md, the reference topics and the REST recipe now point to a section, not to the whole file.
+
+### Changed
+- `oml doc --search` finds the command for a plain request more often ("deploy an application to production" -> `oml lt`, "copy the staged module over the original" -> `oml install`). The command entries carry the words developers use for them. A new `commands` set of 36 requests in `tests/search-bench.json` measures this: MRR 0.484 before, 0.870 after, with the other sets unchanged within 0.003.
+- `tests/doc-check.ps1` also checks the size of `oml --help` and of each command reference section, and that no skill file sends an agent to the whole command reference.
+
 ## 1.10.0
 
 ### Added

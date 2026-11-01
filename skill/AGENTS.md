@@ -93,6 +93,6 @@ Never read `skill/reference/model-api.md` unless you change the CLI itself.
 ## Output
 
 Commands print compact JSON by default. Use `--pretty` only for humans.
-For packages, extensions, fonts, images, LifeTime and publishing, see `skill/reference/commands.md`.
+For packages, extensions, fonts, images, LifeTime and publishing, run `oml <command> --help`, or `oml doc commands` for the sections of the command reference (never read the file whole).
 Exit codes: `0` success; `1` model/validation failure or attention needed; `2` usage/environment failure.
 An apply can return `saved: true` with exit `1` after reopen errors. Check both JSON and exit code.

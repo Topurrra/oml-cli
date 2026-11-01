@@ -32,9 +32,12 @@ column: column, columns
 command: command, commands
 comment: comment, comments
 component: component, components
+connect: connect, connected
 connector: connector, connectors
+consumer: consumer, consumers
 creat: create, created, creates, creating
 customer: customer, customers
+cycl: cycle, cycles
 day: day, days
 decimal: decimal, decimals
 default: default, defaults
@@ -107,6 +110,7 @@ mov: move, moves
 nam: name, named, names
 need: needed, needs
 nod: node, nodes
+note: note, notes
 number: number, numbers
 object: object, objects
 one: one, ones
