@@ -90,7 +90,7 @@ static class CliUsage
         oml widgets             (registered widget descriptors)
         oml selftest   (build check; also runs by itself on a Service Studio build not seen before)
         oml doctor [--text] [--selftest]   (checks the setup and says what to fix)
-        oml dif <file.md> [--port N] [--no-open]   (show an agent's change walkthrough in the dashboard: Markdown, call stacks, element links, review of the staged module, comments to copy back)
+        oml dif <file.md> [--port N] [--no-open]   (an agent's change walkthrough on the dashboard: call stacks, flows, element links, review, comments)
         oml dashboard [--port N] [--no-open] [--module <file.oml>]   (local web dashboard for developers; reads only, on 127.0.0.1)
         oml hooks [status|install|remove] [--dir <project>]   (Claude Code hooks for this project: refuse reading the large skill references whole and changing .oml files)
         oml setup [--remove | --status]   (Explorer right-click entries for the current user: fonts, images, .oml files, folders)
