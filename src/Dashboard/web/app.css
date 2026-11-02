@@ -346,3 +346,23 @@ td > .button:last-child { margin-top: 8px; }
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition: none !important; scroll-behavior: auto !important; }
   .spinner { border-top-color: var(--line-strong); }
 }
+
+/* Dif page (oml dif): call stacks, element links, comments */
+.dif-doc .doc { max-width: 920px; }
+.dif-stack { background: var(--sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 0; margin: 0 0 14px; overflow-x: auto; line-height: 1.55; }
+.dif-row { display: block; padding: 0 14px 0 8px; white-space: pre; }
+.dif-row.add { background: var(--add-bg); color: var(--add); }
+.dif-row.del { background: var(--del-bg); color: var(--del); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--del) 45%, transparent); }
+.dif-mark { display: inline-block; width: 1.4em; color: var(--muted); user-select: none; }
+.dif-note { color: var(--muted); font-style: italic; }
+.dif-ref { font: inherit; font-family: var(--mono); font-size: .92em; background: var(--accent-soft); color: var(--accent); border: 1px solid transparent; border-radius: 6px; padding: 0 5px; cursor: pointer; }
+.dif-ref:hover, .dif-ref[aria-expanded="true"] { border-color: var(--accent); }
+.dif-ref:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.dif-panel { border-left: 3px solid var(--accent); background: var(--sunken); border-radius: var(--radius-sm); padding: 10px 14px; margin: 0 0 14px; }
+.dif-review { margin: 0 0 14px; }
+.dif-comments { margin: 0; padding-left: 1.4em; display: grid; gap: 12px; }
+.dif-comments p { margin: 4px 0 6px; }
+.dif-quote { margin: 4px 0; padding: 4px 10px; border-left: 3px solid var(--mark); background: var(--sunken); color: var(--muted); white-space: pre-wrap; max-height: 7.5em; overflow: hidden; }
+.dif-form { border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 14px; display: grid; gap: 8px; background: var(--card); }
+.dif-form textarea { width: 100%; font: inherit; }
+.dif-comment-button { position: absolute; z-index: 30; box-shadow: var(--shadow); }

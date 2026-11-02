@@ -41,6 +41,11 @@ static partial class Dashboard
                     return 2;
                 }
             }
+            else if (args[i] == "--dif" && i + 1 < args.Length && difFile is null)
+            {
+                difFile = Path.GetFullPath(args[++i]);
+                if (DifProblem(difFile) is { } problem) { Console.Error.WriteLine(problem); return 2; }
+            }
             else if (args[i] == "--port" && i + 1 < args.Length && int.TryParse(args[++i], out var p) && p is >= 1024 and <= 65535) requested = p;
             else { Console.Error.WriteLine($"Usage: {Usage} (port 1024-65535)"); return 2; }
         }
@@ -59,7 +64,8 @@ static partial class Dashboard
         var url = $"http://127.0.0.1:{port}/?key={key}";
         // The page opens a module from #/explorer?module=<path> (see route() in web/app.js).
         if (module is not null) url += "#/explorer?module=" + Uri.EscapeDataString(module);
-        TerminalOutput.PrintObject(new { url, workFolder = WorkRoot });
+        else if (difFile is not null) url += "#/dif";
+        TerminalOutput.PrintObject(new { url, workFolder = WorkRoot, dif = difFile });
         Console.WriteLine($"oml dashboard is running at {url}");
         Console.WriteLine("Keep this window open while you use it. Press Ctrl+C to stop.");
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; Stopping.Set(); };

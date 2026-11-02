@@ -34,6 +34,8 @@ It only reads: it never installs, publishes, refreshes references, or tags or de
 On Windows 11, choose "Show more options" first. Results are written next to the file and never replace a file; Explorer then shows them. If something fails, a message box says why, and `%LOCALAPPDATA%\oml-cli\setup.log` keeps a line per run.
 `oml setup --status` lists the entries, and `oml setup --remove` removes exactly what `oml setup` added. Run `oml setup` again after you move `oml.exe`, and run `oml setup --remove` before you delete it. A console window may flash for a moment when an entry starts. Each "Open in dashboard" starts a new dashboard window. Details: [commands.md](skill/reference/commands.md#explorer-right-click-entries).
 
+An agent can explain a change in a Markdown walkthrough; `oml dif specs/<name>.md` shows it in the dashboard with call stacks, links to the elements, the review of the staged module, and comments you copy back to the agent. The idea comes from [diffmap](https://github.com/tanishqkancharla/diffmap) (MIT), rebuilt for OutSystems. Details: [commands.md](skill/reference/commands.md#dif).
+
 Using Claude Code? Run `oml hooks install` in the project folder once. The hook stops agents from reading the large skill references whole and from editing `.oml` files; it costs no tokens. Details: [commands.md](skill/reference/commands.md#agent-hooks).
 
 ## What it covers

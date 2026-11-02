@@ -2,6 +2,12 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## Unreleased
+
+### Added
+- `oml dif <file.md> [--port N] [--no-open]`: the dashboard's new Dif page shows a change walkthrough an agent wrote in Markdown. Element links (`[[Orders.oml#MainFlow/Orders/LoadData]]`) open `oml describe`, `callstack` fences mark new and removed rows, and a `review` fence runs `oml review` of a module and its staged copy. Comments stay in the browser and copy as a numbered list for the agent. The page follows the file as the agent edits it. The idea comes from diffmap (MIT), rebuilt in the dashboard with no Node or npm.
+- The review result card is shared by the Review and Dif pages (`core/review-view.js`).
+
 ## 1.12.0
 
 ### Added

@@ -149,6 +149,10 @@ export const cookbook = [
     ['oml library update', 'Fetch again only the sources OutSystems changed.'],
     ['oml doc --search "service action unable to connect" --library', 'Search the OutSystems 11 docs for platform questions: servers, Service Center, LifeTime, errors.'],
   ] },
+  { group: 'Change walkthroughs', items: [
+    ['oml dif specs\\orders-export.md', 'Read the walkthrough an agent wrote: call stacks, element links, the review of the staged module. Comment and copy your notes back.'],
+    ['oml dif specs\\orders-export.md --port 5050 --no-open', 'The same on port 5050, without opening the browser.'],
+  ] },
   { group: 'Company skills', items: [
     ['oml skills add C:\\Team\\acme-naming.md', 'Install your team rules (Markdown with name and description frontmatter). They override OutSystems best practices, never the production rules.'],
     ['oml skills', 'List the installed company skills.'],

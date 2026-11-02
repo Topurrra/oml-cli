@@ -1077,6 +1077,35 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 
 **oml memory bench** `<new folder> --records N [--runs R]` is for maintainers (`tests/memory-check.ps1` runs it at 1k and 10k records, and at 100k with `-Speed`): it writes a synthetic store of N records into a new folder and prints the timings above as JSON. `bench --quality <fixture.json>` scores recall on a fixture in memory and writes no store; a fixture record over the limits of `add` or with a secret is refused. Neither is listed in `oml --help`.
 
+## Dif
+
+`oml dif <file.md> [--port N] [--no-open]` starts the dashboard on its Dif page for one Markdown file: a change walkthrough an agent writes for a person, such as `specs/orders-export.md`. The person reads what changes and why, opens the elements it names, sees the review of the staged module, and sends comments back. The idea comes from diffmap (MIT); oml rebuilds it for OutSystems modules, inside the dashboard, with no Node or npm.
+
+The page shows normal Markdown (headings, lists, tables, code) and three oml parts. Relative paths are read from the Markdown file's folder.
+
+- **Element links.** `[[Orders.staged.oml#MainFlow/Orders/LoadData]]` shows the element name as a button; a click shows `oml describe` of it under the paragraph. `[[Orders.oml]]` names the module. Paths are the ones `describe`, `tree` and `find --text` print.
+- **Call stacks.** A `callstack` fence: one row per line, the first character marks it (`+` new, `-` removed, a space unchanged). Nest with tree marks such as `|--` and `\--` (box-drawing characters work too). A row can end with element links and a `# note`.
+- **Review.** A `review` fence with `before: <module.oml>` and `after: <staged.oml>` (and an optional `title:`) runs `oml review` of the two and shows the risks, changes and new check findings, from the model, not from the agent's text.
+
+The rows of a `callstack` fence:
+
+```text
+ Customer_Save(Name) [[Orders.staged.oml#Customer_Save]]
++|-- if Trim(Name) = "": raise InvalidName   # the new check
+ \-- CreateCustomer(record)
+```
+
+The lines of a `review` fence:
+
+```text
+before: Orders.oml
+after: Orders.staged.oml
+```
+
+**Comments.** Select text and press **Comment** (Ctrl+Enter saves, Esc cancels). Comments stay in this browser, per file. **Copy comments** copies them as a numbered list (`1. In "<section>", on "<quoted text>": <comment>`) for the agent.
+
+**Updates.** The page checks the file every 2 seconds and shows a new version when the agent saves it; **Reload** reads it at once. `#/dif?file=<path>` in the dashboard address opens another file. The dashboard only reads the file: at most 2 MB, `.md` only.
+
 ## Agent hooks
 
 `oml hooks install` adds a Claude Code PreToolUse hook to the project, so two skill instructions become checks the agent cannot skip. A hook costs no tokens; a refused call costs one short message.

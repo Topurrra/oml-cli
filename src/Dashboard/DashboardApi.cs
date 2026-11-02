@@ -56,6 +56,8 @@ static partial class Dashboard
                 (false, "test/scaffold") => await ScaffoldTests(Body()),
                 (true, "spec/schema") => Wrap(await Oml("spec", "schema")),
                 (true, "recipes") => Recipes(),
+                (true, "dif") => DifRead(null),
+                (false, "dif") => DifRead(Str(Body(), "path") ?? throw new BadInput("Type the path of a Markdown (.md) file.")),
                 (true, "doc/rules") => Doc("rules.md"),
                 (true, "doc/checklist") => Doc("doc.ui-checklist.md"),
                 (true, "doc/best-practices") => Doc("doc.best-practices.md"),

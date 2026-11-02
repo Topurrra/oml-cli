@@ -330,6 +330,19 @@ try {
     Require ([Text.Encoding]::UTF8.GetString((Invoke-WebRequest "$base/download/$($review.markdownDownload)?key=$key" -UseBasicParsing).RawContentStream.ToArray()) -match 'Logic bugs are not covered') 'review Markdown download'
     Refused 'review' @{ before = $module; after = $module } 'review of a file with itself'
 
+    # Dif (oml dif): a walkthrough Markdown file is read as it is; only an existing .md of at most 2 MB.
+    $difFile = Join-Path $Tmp "dash-$id-walkthrough.md"
+    Set-Content $difFile -Encoding utf8 ("# Walkthrough`n`nThe card block [[" + (Split-Path $module -Leaf) + "#PvCard]] is new; this sentence is long enough to comment on.`n`n" +
+        "``````callstack`n Render() [[" + (Split-Path $module -Leaf) + "#PvCard]]`n+" + [char]0x2514 + "-- ShowCard(item)   # new`n```````n`n" +
+        "``````review`nbefore: " + (Split-Path $blank -Leaf) + "`nafter: " + (Split-Path $module -Leaf) + "`n```````n")
+    $dif = Api 'dif'
+    Require ($null -eq $dif.file -and $dif.hint -match 'oml dif') "dif without a file: $($dif | ConvertTo-Json -Compress)"
+    $dif = Api 'dif' @{ path = $difFile }
+    Require ($dif.file -eq $difFile -and $dif.folder -eq (Split-Path $difFile) -and $dif.markdown -match 'callstack' -and $dif.modified) "dif endpoint: $($dif | ConvertTo-Json -Compress)"
+    Refused 'dif' @{ path = $module } 'dif of a file that is not Markdown'
+    Refused 'dif' @{ path = (Join-Path $Tmp 'missing.md') } 'dif of a missing file'
+    Refused 'dif' @{} 'dif without a path'
+
     # Search and Docs: doc --search, spec --search, warn, and opening a hit. Only doc, spec, warn, --help and recipes open.
     $search = Api 'search' @{ q = 'confirm popup before delete' }
     Require ($search.code -eq 0 -and @($search.output.hits).Count -ge 1 -and $search.cli -like 'oml doc --search *') 'search endpoint'
@@ -407,6 +420,7 @@ try {
             @{ page = 'review'; hash = "#/review?before=$([uri]::EscapeDataString($blank))&after=$m"; expect = 'PvCard' },
             @{ page = 'docs'; hash = '#/docs?q=confirm%20popup%20before%20delete&open=oml%20doc%20rules'; expect = 'block-popup-event' },
             @{ page = 'previews'; hash = "#/previews?module=$m"; expect = 'Inputs and interaction steps' },
+            @{ page = 'dif'; hash = "#/dif?file=$([uri]::EscapeDataString($difFile))&selftest=1"; expect = 'ShowCard' },
             @{ page = 'modules'; hash = '#/modules' }, @{ page = 'prompt'; hash = '#/prompt?selftest=1' }, @{ page = 'architecture'; hash = '#/architecture' }, @{ page = 'lifetime'; hash = '#/lifetime' }) +
             @('recipes', 'assets', 'openapi', 'activity', 'cookbook', 'rules' | ForEach-Object { @{ page = $_; hash = "#/$_"; themes = @('light') } })
         foreach ($target in $targets) {
@@ -440,6 +454,12 @@ try {
             }
         }
         Require ((Get-Content (Join-Path $Tmp 'dashboard-explorer-light.html') -Raw) -match 'PvCard') 'Explorer screenshot did not load the module'
+        # Dif: an element link opens describe, a selection gets a comment that copies as a numbered list, the review fence runs.
+        foreach ($theme in 'light', 'dark') {
+            $difDom = Get-Content (Join-Path $Tmp "dashboard-dif-$theme.html") -Raw
+            Require ($difDom -match 'data-selftest="ok"') "Dif self-test ($theme): $([regex]::Match($difDom, 'data-selftest="[^"]*"').Value)"
+            Require ($difDom -match 'class="dif-row add"' -and $difDom -match 'Review: ' -and $difDom -match 'PvCard') "Dif page ($theme): call stack, review or element link missing"
+        }
         # The sidebar order on screen equals nav.js (the single place that defines it).
         $navJs = Get-Content (Join-Path $web 'nav.js') -Raw
         $expectedNav = @([regex]::Matches($navJs, "ids: \[([^\]]*)\]") | ForEach-Object {
@@ -458,7 +478,7 @@ try {
             Require ($promptDom -match 'data-selftest="ok"') "Prompt self-test (working set API and prompt text) did not pass ($theme): $([regex]::Match($promptDom, 'Prompt self-test[^<]*').Value)"
             Require ((Get-Content (Join-Path $Tmp "dashboard-modules-$theme.html") -Raw) -match 'Working set') "Get modules page ($theme)"
         }
-        Write-Host "ok   dashboard pages (home, explorer, tools, check, review, docs, previews, modules, prompt, architecture, lifetime; the rest in light): no JavaScript errors, screenshots $($shots -join ', ')"
+        Write-Host "ok   dashboard pages (home, explorer, tools, check, review, docs, previews, dif, modules, prompt, architecture, lifetime; the rest in light): no JavaScript errors, screenshots $($shots -join ', ')"
     } else { Write-Host 'skip dashboard screenshots: no Edge or Chrome' }
 
     Require ((Token-State) -eq $tokensBefore) 'The dashboard created or changed a Service Studio session token without a click'
