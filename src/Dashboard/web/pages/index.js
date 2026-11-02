@@ -5,6 +5,7 @@ import explorer from './explorer.js';
 import previews from './previews.js';
 import prompt from './prompt.js';
 import recipes from './recipes.js';
+import dif from './dif.js';
 import assets from './assets.js';
 import openapi from './openapi.js';
 import architecture from './architecture.js';
@@ -18,6 +19,6 @@ import rules from './rules.js';
 import tools from './tools.js';
 
 export const PAGES = [
-  home, modules, explorer, previews, prompt, recipes, assets, openapi, architecture, check, review,
+  home, modules, explorer, previews, prompt, recipes, dif, assets, openapi, architecture, check, review,
   lifetime, activity, cookbook, docs, rules, tools,
 ];

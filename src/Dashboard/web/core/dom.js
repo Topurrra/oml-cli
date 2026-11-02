@@ -16,6 +16,7 @@ export const ICONS = {
   tools: 'M14 6a4 4 0 0 0-5 5l-6 6 3 3 6-6a4 4 0 0 0 5-5l-2 2-3-3z',
   check: 'M4 4h16v16H4zM8 12l3 3 5-6',
   review: 'M4 5h7v14H4zM13 5h7v14h-7zM6 9h3M15 9h3M6 13h3M15 13h3',
+  dif: 'M6 4h9l4 4v12H6zM10 11h5M12.5 8.5v5M10 17h5',
   docs: 'M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM20 20l-4.8-4.8',
   copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
   download: 'M12 4v11M7 10l5 5 5-5M5 20h14',

@@ -34,6 +34,7 @@ static class CliUsage
         oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
         oml preview <module.oml> <Block|Screen|Email> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>] [--wait <ms>] [--click <selector>] [--type <selector>=<text>] [--eval <js>] [--serve [--no-open]]
         oml test scaffold <module.oml> <ServerAction>... --bdd <BDDFramework.oml> [--out <spec.json>] [--module-name <TestModule>] [--producer <path>]   (spec for BDD test screens in a separate test module)
+        oml flow <module.oml> <Action>   (one flow as a graph: nodes with their positions and what they do, and the connectors; the Dif page draws it)
         oml tree <module.oml> <ElementName> [--depth N]   (object tree of one action, screen, entity, ...; at most 250 parts)
         oml validate <module.oml> [--warnings]
         oml apply <source.oml> <spec.json>... <staged-out.oml> [--describe A,B,...] [--describe-created] [--report <report.json>]
@@ -89,6 +90,7 @@ static class CliUsage
         oml widgets             (registered widget descriptors)
         oml selftest   (build check; also runs by itself on a Service Studio build not seen before)
         oml doctor [--text] [--selftest]   (checks the setup and says what to fix)
+        oml dif <file.md> [--port N] [--no-open]   (show an agent's change walkthrough in the dashboard: Markdown, call stacks, element links, review of the staged module, comments to copy back)
         oml dashboard [--port N] [--no-open] [--module <file.oml>]   (local web dashboard for developers; reads only, on 127.0.0.1)
         oml hooks [status|install|remove] [--dir <project>]   (Claude Code hooks for this project: refuse reading the large skill references whole and changing .oml files)
         oml setup [--remove | --status]   (Explorer right-click entries for the current user: fonts, images, .oml files, folders)

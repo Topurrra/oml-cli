@@ -330,6 +330,66 @@ try {
     Require ([Text.Encoding]::UTF8.GetString((Invoke-WebRequest "$base/download/$($review.markdownDownload)?key=$key" -UseBasicParsing).RawContentStream.ToArray()) -match 'Logic bugs are not covered') 'review Markdown download'
     Refused 'review' @{ before = $module; after = $module } 'review of a file with itself'
 
+    # Dif (oml dif): a walkthrough Markdown file is read as it is; only an existing .md of at most 2 MB.
+    $difFile = Join-Path $Tmp "dash-$id-walkthrough.md"
+    Set-Content $difFile -Encoding utf8 ("# Walkthrough`n`nThe card block [[" + (Split-Path $module -Leaf) + "#PvCard]] is new; this sentence is long enough to comment on.`n`n" +
+        "``````callstack`n Render() [[" + (Split-Path $module -Leaf) + "#PvCard]]`n+" + [char]0x2514 + "-- ShowCard(item)   # new`n```````n`n" +
+        "``````review`nbefore: " + (Split-Path $blank -Leaf) + "`nafter: " + (Split-Path $module -Leaf) + "`n```````n`n" +
+        "``````flow diff`nbefore: " + (Split-Path $blank -Leaf) + "`nafter: " + (Split-Path $module -Leaf) + "`naction: PvCard/RenderCard`n```````n" +
+        "Today and proposed, as images:`n`n:::gallery side-by-side`n![Today](media/save-today.png)`n![Proposed](media/save-proposed.png)`n:::`n`n" +
+        "A single image: ![Same](./media/save-today.png)`n`n![Gone](media/missing.png)`n")
+    # Two tiny valid PNGs next to the walkthrough, a file outside its folder and a junction that leads there.
+    $png1 = [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==')
+    $mediaFolder = Join-Path $Tmp 'media'
+    New-Item -ItemType Directory -Force $mediaFolder | Out-Null
+    [IO.File]::WriteAllBytes((Join-Path $mediaFolder 'save-today.png'), $png1)
+    [IO.File]::WriteAllBytes((Join-Path $mediaFolder 'save-proposed.png'), $png1)
+    Set-Content (Join-Path $mediaFolder 'notes.txt') 'not media'
+    Set-Content (Join-Path $mediaFolder 'evil.svg') '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+    $outside = Join-Path $Tmp "dash-$id-outside"; New-Item -ItemType Directory -Force $outside | Out-Null
+    [IO.File]::WriteAllBytes((Join-Path $outside 'secret.png'), $png1)
+    New-Item -ItemType Junction -Path (Join-Path $mediaFolder 'jump') -Target $outside | Out-Null
+    [IO.File]::WriteAllBytes((Join-Path $Tmp 'above.png'), $png1)
+    $dif = Api 'dif'
+    Require ($null -eq $dif.file -and $dif.hint -match 'oml dif') "dif without a file: $($dif | ConvertTo-Json -Compress)"
+    $dif = Api 'dif' @{ path = $difFile }
+    Require ($dif.file -eq $difFile -and $dif.folder -eq (Split-Path $difFile) -and $dif.markdown -match 'callstack' -and $dif.modified) "dif endpoint: $($dif | ConvertTo-Json -Compress)"
+    Refused 'dif' @{ path = $module } 'dif of a file that is not Markdown'
+    Refused 'dif' @{ path = (Join-Path $Tmp 'missing.md') } 'dif of a missing file'
+    Refused 'dif' @{} 'dif without a path'
+    # oml flow (the flow fences): nodes with positions, connectors; an element without a flow is an error, not a crash.
+    $flow = Api 'flow' @{ path = $module; name = 'PvCard/RenderCard' }
+    Require ($flow.code -eq 0 -and $flow.output.element -like '*PvCard/RenderCard' -and @($flow.output.nodes).Count -ge 2 -and @($flow.output.edges).Count -ge 1 -and $null -ne $flow.output.nodes[0].x -and $flow.cli -like 'oml flow *') "flow endpoint: $($flow | ConvertTo-Json -Depth 6 -Compress)"
+    $noFlow = Api 'flow' @{ path = $module; name = 'PvCard' }
+    Require ($noFlow.code -ne 0 -and ($noFlow.output.error -match 'has no flow')) "flow of a block: $($noFlow | ConvertTo-Json -Depth 6 -Compress)"
+    $cliFlow = & $Oml flow $module 'PvCard/RenderCard' | ConvertFrom-Json
+    Require ($LASTEXITCODE -eq 0 -and @($cliFlow.nodes | Where-Object kind -eq 'Start').Count -eq 1) "oml flow: $($cliFlow | ConvertTo-Json -Depth 6 -Compress)"
+    # /dif-media serves a media file below the walkthrough's folder, with the key in the query, and nothing else.
+    function Media([string]$Rel, [string]$Md = $difFile, [string]$K = $key) {
+        Invoke-WebRequest ("$base/dif-media?key=" + [uri]::EscapeDataString($K) + '&md=' + [uri]::EscapeDataString($Md) + '&path=' + [uri]::EscapeDataString($Rel)) -UseBasicParsing -SkipHttpErrorCheck
+    }
+    $ok = Media 'media/save-today.png'
+    Require ($ok.StatusCode -eq 200 -and $ok.Headers['Content-Type'] -eq 'image/png' -and $ok.Content[1] -eq 0x50 -and $ok.Headers['Content-Security-Policy'] -match 'sandbox') "dif-media png: $($ok.StatusCode) $($ok.Headers['Content-Type'])"
+    Require ((Media './media/save-today.png').StatusCode -eq 200 -and (Media 'media\save-today.png').StatusCode -eq 200) 'dif-media: ./ and backslash paths'
+    $svg = Media 'media/evil.svg'
+    Require ($svg.StatusCode -eq 200 -and $svg.Headers['Content-Type'] -eq 'image/svg+xml' -and $svg.Headers['Content-Security-Policy'] -match "default-src 'none'" -and $svg.Headers['Content-Security-Policy'] -match 'sandbox') 'dif-media svg must carry a sandbox CSP'
+    Require ((Media 'media/save-today.png' $difFile 'wrong').StatusCode -eq 403) 'dif-media with a wrong key must be 403'
+    Require ((Raw $port '/dif-media?path=media%2Fsave-today.png' @{ Host = $hostHeader }) -eq 403) 'dif-media without a key must be 403'
+    foreach ($bad in '../above.png', '..\above.png', 'media/../../above.png', 'media/%2e%2e/above.png', $outside, "$Tmp\above.png", '\\localhost\c$\x.png', '//localhost/x.png', 'C:above.png', 'media/save-today.png:stream', 'media/jump/secret.png') {
+        $r = Media $bad
+        Require ($r.StatusCode -in 403, 404 -and $r.Headers['Content-Type'] -notmatch 'image') "dif-media must refuse '$bad': $($r.StatusCode)"
+    }
+    Require ((Media '../above.png').StatusCode -eq 403 -and (Media 'media/jump/secret.png').StatusCode -eq 403) 'dif-media escape must be 403'
+    Require ((Media 'media/notes.txt').StatusCode -eq 403) 'dif-media of a non-media extension must be 403'
+    Require ((Media 'media/missing.png').StatusCode -eq 404) 'dif-media of a missing file must be 404'
+    Require ((Media 'media/save-today.png' $module).StatusCode -eq 404) 'dif-media with an md that is not Markdown must be 404'
+    Require ((Media 'media/save-today.png' (Join-Path $Tmp 'missing.md')).StatusCode -eq 404) 'dif-media with a missing md must be 404'
+    $unopened = Join-Path $Tmp "dash-$id-other.md"; Set-Content $unopened '# Not opened'
+    Require ((Media 'media/save-today.png' $unopened).StatusCode -eq 404) 'dif-media next to a walkthrough the dashboard never opened must be 404'
+    Require ((Media '').StatusCode -eq 400) 'dif-media without a path must be 400'
+    $range = Invoke-WebRequest ("$base/dif-media?key=$key&md=" + [uri]::EscapeDataString($difFile) + '&path=media%2Fsave-today.png') -Headers @{ Range = 'bytes=0-9' } -UseBasicParsing -SkipHttpErrorCheck
+    Require ($range.StatusCode -eq 206 -and $range.Content.Length -eq 10 -and $range.Headers['Content-Range'] -match '^bytes 0-9/') 'dif-media byte range'
+
     # Search and Docs: doc --search, spec --search, warn, and opening a hit. Only doc, spec, warn, --help and recipes open.
     $search = Api 'search' @{ q = 'confirm popup before delete' }
     Require ($search.code -eq 0 -and @($search.output.hits).Count -ge 1 -and $search.cli -like 'oml doc --search *') 'search endpoint'
@@ -407,6 +467,7 @@ try {
             @{ page = 'review'; hash = "#/review?before=$([uri]::EscapeDataString($blank))&after=$m"; expect = 'PvCard' },
             @{ page = 'docs'; hash = '#/docs?q=confirm%20popup%20before%20delete&open=oml%20doc%20rules'; expect = 'block-popup-event' },
             @{ page = 'previews'; hash = "#/previews?module=$m"; expect = 'Inputs and interaction steps' },
+            @{ page = 'dif'; hash = "#/dif?file=$([uri]::EscapeDataString($difFile))&selftest=1"; expect = 'ShowCard' },
             @{ page = 'modules'; hash = '#/modules' }, @{ page = 'prompt'; hash = '#/prompt?selftest=1' }, @{ page = 'architecture'; hash = '#/architecture' }, @{ page = 'lifetime'; hash = '#/lifetime' }) +
             @('recipes', 'assets', 'openapi', 'activity', 'cookbook', 'rules' | ForEach-Object { @{ page = $_; hash = "#/$_"; themes = @('light') } })
         foreach ($target in $targets) {
@@ -440,6 +501,14 @@ try {
             }
         }
         Require ((Get-Content (Join-Path $Tmp 'dashboard-explorer-light.html') -Raw) -match 'PvCard') 'Explorer screenshot did not load the module'
+        # Dif: an element link opens describe, a selection gets a comment that copies as a numbered list, the review fence runs.
+        foreach ($theme in 'light', 'dark') {
+            $difDom = Get-Content (Join-Path $Tmp "dashboard-dif-$theme.html") -Raw
+            Require ($difDom -match 'data-selftest="ok"') "Dif self-test ($theme): $([regex]::Match($difDom, 'data-selftest="[^"]*"').Value)"
+            Require ($difDom -match 'class="dif-gallery side-by-side"' -and $difDom -match 'data-selftest-media="loaded=3 missing=1"' -and $difDom -match 'dif-missing') "Dif page ($theme): gallery images did not load ($([regex]::Match($difDom, 'data-selftest-media="[^"]*"').Value))"
+            Require ($difDom -match 'class="dif-row add"' -and $difDom -match 'Review: ' -and $difDom -match 'PvCard') "Dif page ($theme): call stack, review or element link missing"
+            Require ($difDom -match 'class="flow-svg"' -and $difDom -match 'flow-node add') "Dif page ($theme): flow diff diagram missing"
+        }
         # The sidebar order on screen equals nav.js (the single place that defines it).
         $navJs = Get-Content (Join-Path $web 'nav.js') -Raw
         $expectedNav = @([regex]::Matches($navJs, "ids: \[([^\]]*)\]") | ForEach-Object {
@@ -458,7 +527,7 @@ try {
             Require ($promptDom -match 'data-selftest="ok"') "Prompt self-test (working set API and prompt text) did not pass ($theme): $([regex]::Match($promptDom, 'Prompt self-test[^<]*').Value)"
             Require ((Get-Content (Join-Path $Tmp "dashboard-modules-$theme.html") -Raw) -match 'Working set') "Get modules page ($theme)"
         }
-        Write-Host "ok   dashboard pages (home, explorer, tools, check, review, docs, previews, modules, prompt, architecture, lifetime; the rest in light): no JavaScript errors, screenshots $($shots -join ', ')"
+        Write-Host "ok   dashboard pages (home, explorer, tools, check, review, docs, previews, dif, modules, prompt, architecture, lifetime; the rest in light): no JavaScript errors, screenshots $($shots -join ', ')"
     } else { Write-Host 'skip dashboard screenshots: no Edge or Chrome' }
 
     Require ((Token-State) -eq $tokensBefore) 'The dashboard created or changed a Service Studio session token without a click'

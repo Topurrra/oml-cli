@@ -25,7 +25,7 @@ $budget = [ordered]@{
   'ui-reactive' = 1500; 'osui-patterns' = 2000; 'data-rules' = 1250; 'logic-rules' = 1200; 'security' = 800
   'rest' = 950; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2000
   'traditional-to-reactive' = 900; 'troubleshooting' = 2100; 'ui-checklist' = 700; 'testing' = 2000
-  'best-practices' = 1300; 'rules' = 900; 'memory' = 1100
+  'best-practices' = 1300; 'rules' = 900; 'memory' = 1100; 'dif' = 800
 }
 # Where a topic's file is: skill/reference/<topic>.md, except rules (skill/rules.md; SKILL.md holds the same 11 rules).
 function TopicFile($t) { if ($t -eq 'rules') { Join-Path $repo 'skill/rules.md' } else { Join-Path $ref "$t.md" } }
@@ -164,9 +164,9 @@ foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Include *.md, *
 $help = [math]::Ceiling((Run '--help').Text.Length / 4)
 if ($help -gt 2400 * 1.15) { Fail "oml --help is $help tokens; budget 2400 (+15%)" }
 
-# 8. every relative link in skill/ resolves
+# 8. every relative link in skill/ resolves (examples in code fences and code spans, such as the image links of a gallery, are not links)
 foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Filter *.md) {
-  foreach ($m in [regex]::Matches((Get-Content -Raw $f.FullName), '\]\(([^)\s#]+)(#[^)\s]*)?\)')) {
+  foreach ($m in [regex]::Matches([regex]::Replace([regex]::Replace((Get-Content -Raw $f.FullName), '(?ms)^```.*?^```', ''), '`[^`\r\n]*`', ''), '\]\(([^)\s#]+)(#[^)\s]*)?\)')) {
     $target = $m.Groups[1].Value
     if ($target -match '^[a-z]+:') { continue }
     if (-not (Test-Path (Join-Path $f.DirectoryName $target))) { Fail "$($f.Name): broken link $target" }

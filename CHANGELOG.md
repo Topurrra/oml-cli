@@ -15,6 +15,15 @@ Keep a Changelog style: one section per release, newest first.
 - Ready waits for the OutSystems screen transition to end (one `active-screen` in `#transitionContainer`). Before, a step could act while the old and new screens were both on the page.
 - UI Automation engine: the ready wait listens for structure, name and value change events instead of reading the page every 80 ms, and reuses one read of the page until it changes. A click step costs about the app's own transition time; checks after it take 20 to 50 ms instead of about 700.
 
+## 1.13.0
+
+### Added
+- `oml dif <file.md> [--port N] [--no-open]`: the dashboard's new Dif page shows a change walkthrough an agent wrote in Markdown. Element links (`[[Orders.oml#MainFlow/Orders/LoadData]]`) open `oml describe`, `callstack` fences mark new and removed rows, and a `review` fence runs `oml review` of a module and its staged copy. Comments stay in the browser and copy as a numbered list for the agent. The page follows the file as the agent edits it. The idea comes from diffmap (MIT), rebuilt in the dashboard with no Node or npm.
+- Dif page: images and galleries. `![Label](media/x.png)` shows an image (a `.mp4` or `.webm` path a video), and `:::gallery side-by-side|grid|carousel [Title]` groups them, for example `oml preview --screenshot` before and after. The files are served by `GET /dif-media` only from the walkthrough's folder, with a media extension, at most 50 MB, and an SVG cannot run scripts.
+- `oml doc dif`: how an agent writes and runs a change walkthrough.
+- The review result card is shared by the Review and Dif pages (`core/review-view.js`).
+- `oml flow <module.oml> <Action>`: one flow as a graph (nodes with Service Studio positions and a one-line detail, connectors). The Dif page draws it: a `flow` fence shows an action, a `flow diff` fence shows a module and its staged copy in one diagram, with new nodes green, removed red and dashed, changed amber. Connectors that would cross other nodes run beside the column. Select a node to see `oml describe` of it.
+
 ## 1.12.0
 
 ### Added

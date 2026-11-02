@@ -1165,6 +1165,59 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 
 **oml memory bench** `<new folder> --records N [--runs R]` is for maintainers (`tests/memory-check.ps1` runs it at 1k and 10k records, and at 100k with `-Speed`): it writes a synthetic store of N records into a new folder and prints the timings above as JSON. `bench --quality <fixture.json>` scores recall on a fixture in memory and writes no store; a fixture record over the limits of `add` or with a secret is refused. Neither is listed in `oml --help`.
 
+## Flow
+
+`oml flow <module.oml> <Action>` prints one flow (an action, a screen action, a data action or a preparation) as a graph, for the Dif page's flow diagrams and for scripts: `{element, kind, nodes: [{id, name, kind, x, y, detail}], edges: [{from, to, kind}]}`. `x` and `y` are Service Studio positions in model units (one grid step is 2660). A node's `id` is its path under the flow (its name, or `Kind[index]` when it has none), so the same node has the same id in a module and its staged copy. `detail` says in one line what the node does (`if N = 1`, `call Customer_Save`, `Total = 0`). Edge kinds are the connector types: `Sequence`, `True`, `False`, `Cycle`, `Otherwise` and so on. An element without a flow (an entity, a block) is an error with exit 2.
+
+## Dif
+
+`oml dif <file.md> [--port N] [--no-open]` starts the dashboard on its Dif page for one Markdown file: a change walkthrough an agent writes for a person, such as `specs/orders-export.md`. The person reads what changes and why, opens the elements it names, sees the review of the staged module, and sends comments back. The idea comes from diffmap (MIT); oml rebuilds it for OutSystems modules, inside the dashboard, with no Node or npm.
+
+The page shows normal Markdown (headings, lists, tables, code), and these oml parts. Relative paths are read from the Markdown file's folder.
+
+- **Element links.** `[[Orders.staged.oml#MainFlow/Orders/LoadData]]` shows the element name as a button; a click shows `oml describe` of it under the paragraph. `[[Orders.oml]]` names the module. Paths are the ones `describe`, `tree` and `find --text` print.
+- **Call stacks.** A `callstack` fence: one row per line, the first character marks it (`+` new, `-` removed, a space unchanged). Nest with tree marks such as `|--` and `\--` (box-drawing characters work too). A row can end with element links and a `# note`.
+- **Review.** A `review` fence with `before: <module.oml>` and `after: <staged.oml>` (and an optional `title:`) runs `oml review` of the two and shows the risks, changes and new check findings, from the model, not from the agent's text.
+- **Flows.** A `flow` fence with `module:` and `action:` draws the action's flow as Service Studio lays it out (`oml flow`). A `flow diff` fence with `before:`, `after:` and `action:` draws both versions in one diagram: new nodes and connectors green, removed ones red and dashed, changed nodes (another kind or what they do) amber. An action only one side has is all new or all removed. Select a node to see `oml describe` of it. `action:` takes an element path, such as `Customer_Save` or `MainFlow/Orders/OnSave`; an optional `title:` names the diagram.
+
+The rows of a `callstack` fence:
+
+```text
+ Customer_Save(Name) [[Orders.staged.oml#Customer_Save]]
++|-- if Trim(Name) = "": raise InvalidName   # the new check
+ \-- CreateCustomer(record)
+```
+
+The lines of a `review` fence:
+
+```text
+before: Orders.oml
+after: Orders.staged.oml
+```
+
+- **Images and video.** `![Today](media/save-today.png)` shows the image under the paragraph, with its label as a caption. A `.mp4` or `.webm` path shows a video with controls. The path is relative to the Markdown file's folder and must stay below it. Typical source: `oml preview <staged.oml> <Screen> --screenshot media/save-proposed.png`. A file that is missing or refused shows a red message with the reason, not a broken image.
+- **Galleries.** A `:::gallery` block groups images: `side-by-side` (a row that wraps on a narrow window), `grid` (small tiles) or `carousel` (one at a time, **Previous** and **Next** buttons, "n of m"). An optional title goes last in square brackets.
+
+The lines of a gallery (the block ends with a line that holds only `:::`):
+
+```text
+:::gallery side-by-side
+![Today](media/save-today.png)
+![Proposed](media/save-proposed.png)
+:::
+
+:::gallery carousel [Saving a record]
+![Step 1](media/step1.png)
+![Step 2](media/step2.png)
+:::
+```
+
+**Media route.** The page reads files through `GET /dif-media?key=<key>&md=<full path of the .md file>&path=<relative path>`. The key is in the query because an image or video element cannot send the `X-Oml-Key` header (as for `/download/`). The dashboard refuses (403 for a wrong key or path, 404 for a missing file, 413 for a large one): a wrong key, an `md` that is not an existing `.md` file, an absolute path, a drive letter or `:`, a UNC path, `..`, a path that leaves the `.md` file's folder, a link or junction on the way, an extension other than `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.mp4` and `.webm`, and a file over 50 MB. The answer has the right `Content-Type`, supports one byte range (video seeking) and carries `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox`, so a script inside an SVG never runs. The page policy allows `media-src 'self'`.
+
+**Comments.** Select text and press **Comment** (Ctrl+Enter saves, Esc cancels). Comments stay in this browser, per file. **Copy comments** copies them as a numbered list (`1. In "<section>", on "<quoted text>": <comment>`) for the agent.
+
+**Updates.** The page checks the file every 2 seconds and shows a new version when the agent saves it; **Reload** reads it at once. `#/dif?file=<path>` in the dashboard address opens another file. The dashboard only reads the file: at most 2 MB, `.md` only.
+
 ## Agent hooks
 
 `oml hooks install` adds a Claude Code PreToolUse hook to the project, so two skill instructions become checks the agent cannot skip. A hook costs no tokens; a refused call costs one short message.

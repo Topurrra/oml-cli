@@ -15,7 +15,7 @@ public static partial class Cli
     {
         // Commands.Read.cs
         ["version"] = CmdVersion, ["selftest"] = CmdSelfTest, ["api"] = CmdApi, ["widgets"] = CmdWidgets,
-        ["find"] = CmdFind, ["inspect"] = CmdInspect, ["describe"] = CmdDescribe, ["tree"] = CmdTree,
+        ["find"] = CmdFind, ["inspect"] = CmdInspect, ["describe"] = CmdDescribe, ["tree"] = CmdTree, ["flow"] = CmdFlow,
         ["census"] = CmdCensus, ["validate"] = CmdValidate, ["openapi"] = CmdOpenApi, ["preview"] = CmdPreview,
         ["meta"] = CmdMeta, ["expr"] = CmdExpr,
         ["architecture"] = CmdArchitecture, ["architecture-render"] = CmdArchitectureRender, ["check"] = CmdCheck, ["review"] = CmdReview,
