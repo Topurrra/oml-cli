@@ -7,6 +7,7 @@ import { reviewResult } from '../core/review-view.js';
 import { flowView, mergeFlows } from '../core/dif-flow.js';
 import { onLeave } from '../core/lifecycle.js';
 import { hashParams } from '../core/state.js';
+import { gallery, stash, placeMedia, settled } from '../core/dif-media.js';
 
 // The Dif page (oml dif <file.md>): an agent's change walkthrough. Plain Markdown plus three oml parts:
 //   ```callstack    rows "+" new, "-" removed, " " unchanged; [[...]] links and "# note" at the end of a row
@@ -14,6 +15,7 @@ import { hashParams } from '../core/state.js';
 //   ```flow         "module:" and "action:": the action's flow as a diagram (oml flow)
 //   ```flow diff    "before:", "after:" and "action:": both flows in one diagram, new green, removed red, changed amber
 //   [[Orders.oml#MainFlow/Orders/LoadData]]   opens oml describe of that element under the paragraph
+//   ![Label](media/x.png), :::gallery side-by-side|grid|carousel [Title] ... :::   images and video (core/dif-media.js)
 // Relative paths are read from the Markdown file's folder. Comments stay in this browser, per file, and copy as a
 // numbered list for the agent.
 const REF = /\[\[([^\]#]+\.oml)(?:#([^\]]+))?\]\]/gi;
@@ -82,8 +84,19 @@ export default {
       const lines = String(text).replace(/\r/g, '').split('\n');
       const out = [];
       let plain = [];
-      const flush = () => { if (plain.join('').trim()) out.push(links(markdown(plain.join('\n')), folder)); plain = []; };
+      const found = []; // ![label](path) in plain text, set aside while markdown() runs (core/dif-media.js)
+      const flush = () => { if (plain.join('').trim()) out.push(placeMedia(links(markdown(stash(plain.join('\n'), found)), folder), current.file, found)); plain = []; found.length = 0; };
+      let code = false;
       for (let i = 0; i < lines.length; i++) {
+        const open = /^:::\s*gallery\b(.*)$/.exec(lines[i]);
+        if (open && !code) {
+          const body = [];
+          for (i++; i < lines.length && !/^:::\s*$/.test(lines[i]); i++) body.push(lines[i]);
+          flush();
+          out.push(gallery(current.file, open[1], body));
+          continue;
+        }
+        if (/^```/.test(lines[i]) && !/^```\s*(callstack|review|flow)\b/.test(lines[i])) code = !code;
         const fence = /^```\s*(callstack|review|flow)\b(.*)$/.exec(lines[i]);
         if (!fence) { plain.push(lines[i]); continue; }
         const body = [];
@@ -304,6 +317,13 @@ export default {
           if (!await wait(() => doc.querySelector('.dif-flow .dif-panel .code-view, .dif-flow .dif-panel .message'))) throw new Error('flow node opened nothing');
           if (doc.querySelector('.dif-flow .dif-panel .message.error')) throw new Error('flow node: ' + doc.querySelector('.dif-flow .dif-panel .message').textContent);
         }
+        // Images: every figure shows its file or says why not; a gallery image must really have loaded.
+        if (doc.querySelector('.dif-figure')) {
+          if (!await settled(doc)) throw new Error('media did not finish loading');
+          const loaded = [...doc.querySelectorAll('.dif-figure img')].filter(i => i.complete && i.naturalWidth > 0).length;
+          if (doc.querySelector('.dif-gallery') && ![...doc.querySelectorAll('.dif-gallery img')].some(i => i.complete && i.naturalWidth > 0)) throw new Error('no gallery image loaded');
+          root.dataset.selftestMedia = `loaded=${loaded} missing=${doc.querySelectorAll('.dif-figure.missing').length}`;
+        }
         const para = [...doc.querySelectorAll('.doc p')].find(p => p.textContent.trim().length > 10);
         const range = document.createRange();
         range.selectNodeContents(para);
@@ -320,6 +340,7 @@ export default {
         if (!/Comments \(1\)/.test(notes.textContent)) throw new Error('comment list not shown');
         keep([]);
         document.getSelection().removeAllRanges();
+        window.scrollTo(0, 0); // the comment box scrolled the page; the test's screenshot shows the top
         root.dataset.selftest = 'ok';
       } catch (e) { root.dataset.selftest = 'fail: ' + e.message; }
     }

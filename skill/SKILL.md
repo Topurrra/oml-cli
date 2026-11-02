@@ -62,7 +62,7 @@ Several commands = ONE tool call: chain with `;` or use an `oml run` file.
    **A good apply means `saved: true`, no `newErrors`, and no `newWarnings`.** Every new warning is a defect until you prove otherwise. Entries have a `hint` when the fix is known; otherwise `oml warn <id>`. Fix each one or explain it to the user.
 4. **Fix (only if needed, 1 call per attempt).** Change only what the report names, then repeat step 3 with a NEW staged path. Never retry an unchanged spec.
 5. **UI work: preview (1 call).** Per screen, two `preview.json` steps: `["preview","<staged.oml>","<Screen>","--width","1366","--out","<Screen>.1366.html","--screenshot","<Screen>.1366.png"]` and the same with `1920`. Add `"--theme","dark"` (theme work) or `"--width","390"` (mobile work) only if the task needs it. Run it, look at each PNG and the `checklist`, and follow `oml doc ui-checklist`. Preview again only if you changed the UI.
-6. **Report.** Add `["review","<source.oml>","<staged.oml>","--md","<new path>.md"]` to `preview.json` (or run it alone), then show the staged path, what was built and the .md. 0 findings does not mean the code is correct. Ask before `install` or `publish`; run `oml validate <staged.oml> --warnings` right before `install`.
+6. **Report.** Add `["review","<source.oml>","<staged.oml>","--md","<new path>.md"]` to `preview.json` (or run it alone), then show the staged path, what was built and the .md. 0 findings does not mean the code is correct. Ask before `install` or `publish`; run `oml validate <staged.oml> --warnings` right before `install`. A change the user should read first (several parts, a UI): `oml doc dif`.
 
 Expressions use OutSystems syntax; text literals need escaped quotes (`"\"Text\""`). Parts: `oml apply <source.oml> <part1.json> <part2.json> <new-staged.oml>`.
 
@@ -78,7 +78,7 @@ After the loop: install after a yes (zero validation errors needed; report the b
 | Fix of an error or warning | `oml warn <id or title words>` |
 | Any failure, also platform | `oml doc troubleshooting` |
 
-Topics: `best-practices`, `ui-reactive`, `osui-patterns`, `ui-checklist`, `data-rules`, `logic-rules`, `security`, `rest`, `processes-timers-email`, `architecture-rules`, `traditional-to-reactive`, `warnings`, `testing`, `troubleshooting`.
+Topics: `best-practices`, `ui-reactive`, `osui-patterns`, `ui-checklist`, `data-rules`, `logic-rules`, `security`, `rest`, `processes-timers-email`, `architecture-rules`, `traditional-to-reactive`, `warnings`, `testing`, `troubleshooting`, `dif`.
 
 ## Recipes
 
