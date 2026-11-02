@@ -6,11 +6,13 @@ import { markdown, colorCode } from '../core/markdown.js';
 import { reviewResult } from '../core/review-view.js';
 import { onLeave } from '../core/lifecycle.js';
 import { hashParams } from '../core/state.js';
+import { gallery, stash, placeMedia, settled } from '../core/dif-media.js';
 
 // The Dif page (oml dif <file.md>): an agent's change walkthrough. Plain Markdown plus three oml parts:
 //   ```callstack    rows "+" new, "-" removed, " " unchanged; [[...]] links and "# note" at the end of a row
 //   ```review       "before: Orders.oml" and "after: Orders.staged.oml": oml review of the two, from the model
 //   [[Orders.oml#MainFlow/Orders/LoadData]]   opens oml describe of that element under the paragraph
+//   ![Label](media/x.png), :::gallery side-by-side|grid|carousel [Title] ... :::   images and video (core/dif-media.js)
 // Relative paths are read from the Markdown file's folder. Comments stay in this browser, per file, and copy as a
 // numbered list for the agent.
 const REF = /\[\[([^\]#]+\.oml)(?:#([^\]]+))?\]\]/gi;
@@ -79,8 +81,19 @@ export default {
       const lines = String(text).replace(/\r/g, '').split('\n');
       const out = [];
       let plain = [];
-      const flush = () => { if (plain.join('').trim()) out.push(links(markdown(plain.join('\n')), folder)); plain = []; };
+      const found = []; // ![label](path) in plain text, set aside while markdown() runs (core/dif-media.js)
+      const flush = () => { if (plain.join('').trim()) out.push(placeMedia(links(markdown(stash(plain.join('\n'), found)), folder), current.file, found)); plain = []; found.length = 0; };
+      let code = false;
       for (let i = 0; i < lines.length; i++) {
+        const open = /^:::\s*gallery\b(.*)$/.exec(lines[i]);
+        if (open && !code) {
+          const body = [];
+          for (i++; i < lines.length && !/^:::\s*$/.test(lines[i]); i++) body.push(lines[i]);
+          flush();
+          out.push(gallery(current.file, open[1], body));
+          continue;
+        }
+        if (/^```/.test(lines[i]) && !/^```\s*(callstack|review)\b/.test(lines[i])) code = !code;
         const fence = /^```\s*(callstack|review)\b(.*)$/.exec(lines[i]);
         if (!fence) { plain.push(lines[i]); continue; }
         const body = [];
@@ -254,6 +267,13 @@ export default {
         link.click();
         if (!await wait(() => doc.querySelector('.dif-panel .code-view, .dif-panel .message'))) throw new Error('element link opened nothing');
         if (doc.querySelector('.dif-panel .message.error')) throw new Error('element link: ' + doc.querySelector('.dif-panel .message').textContent);
+        // Images: every figure shows its file or says why not; a gallery image must really have loaded.
+        if (doc.querySelector('.dif-figure')) {
+          if (!await settled(doc)) throw new Error('media did not finish loading');
+          const loaded = [...doc.querySelectorAll('.dif-figure img')].filter(i => i.complete && i.naturalWidth > 0).length;
+          if (doc.querySelector('.dif-gallery') && ![...doc.querySelectorAll('.dif-gallery img')].some(i => i.complete && i.naturalWidth > 0)) throw new Error('no gallery image loaded');
+          root.dataset.selftestMedia = `loaded=${loaded} missing=${doc.querySelectorAll('.dif-figure.missing').length}`;
+        }
         const para = [...doc.querySelectorAll('.doc p')].find(p => p.textContent.trim().length > 10);
         const range = document.createRange();
         range.selectNodeContents(para);

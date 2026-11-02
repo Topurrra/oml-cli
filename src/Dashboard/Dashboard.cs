@@ -151,6 +151,13 @@ static partial class Dashboard
                 await SendDownload(response, path[10..]);
                 return;
             }
+            if (path == "/dif-media" && request.HttpMethod == "GET")
+            {
+                // An <img> or <video> cannot send a header either: the key comes in the query (see DashboardDif.cs).
+                if (!KeyMatches(request.QueryString["key"])) { await Text(response, 403, "Missing or wrong dashboard key."); return; }
+                await SendDifMedia(response, request.QueryString["md"], request.QueryString["path"], request.Headers["Range"]);
+                return;
+            }
             if (path == "/" && request.HttpMethod == "GET")
             {
                 if (!KeyMatches(request.QueryString["key"]))
@@ -246,7 +253,7 @@ static partial class Dashboard
         using var stream = typeof(Dashboard).Assembly.GetManifestResourceStream("OmlCli.web." + name);
         if (stream is null || !Types.TryGetValue(Path.GetExtension(name), out var type)) { await Text(response, 404, "Not found."); return; }
         response.ContentType = type;
-        response.Headers["Content-Security-Policy"] = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; " +
+        response.Headers["Content-Security-Policy"] = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self'; " +
             "connect-src 'self'; frame-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
         response.Headers["X-Frame-Options"] = "DENY";
         await stream.CopyToAsync(response.OutputStream);

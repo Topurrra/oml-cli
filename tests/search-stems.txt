@@ -168,6 +168,7 @@ signatur: signature, signatures
 skill: skill, skills
 sort: sort, sorting, sorts
 sourc: source, sources
+spec: spec, specs
 start: start, started, starting, starts
 stay: stay, stays
 step: step, steps
@@ -197,6 +198,7 @@ validation: validation, validations
 valu: value, values
 vari: variable, variables
 version: version, versions
+walkthrough: walkthrough, walkthroughs
 warn: warn, warning, warnings, warns
 widget: widget, widgets
 work: work, working, works
