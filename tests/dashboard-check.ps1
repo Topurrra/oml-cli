@@ -334,7 +334,8 @@ try {
     $difFile = Join-Path $Tmp "dash-$id-walkthrough.md"
     Set-Content $difFile -Encoding utf8 ("# Walkthrough`n`nThe card block [[" + (Split-Path $module -Leaf) + "#PvCard]] is new; this sentence is long enough to comment on.`n`n" +
         "``````callstack`n Render() [[" + (Split-Path $module -Leaf) + "#PvCard]]`n+" + [char]0x2514 + "-- ShowCard(item)   # new`n```````n`n" +
-        "``````review`nbefore: " + (Split-Path $blank -Leaf) + "`nafter: " + (Split-Path $module -Leaf) + "`n```````n")
+        "``````review`nbefore: " + (Split-Path $blank -Leaf) + "`nafter: " + (Split-Path $module -Leaf) + "`n```````n`n" +
+        "``````flow diff`nbefore: " + (Split-Path $blank -Leaf) + "`nafter: " + (Split-Path $module -Leaf) + "`naction: PvCard/RenderCard`n```````n")
     $dif = Api 'dif'
     Require ($null -eq $dif.file -and $dif.hint -match 'oml dif') "dif without a file: $($dif | ConvertTo-Json -Compress)"
     $dif = Api 'dif' @{ path = $difFile }
@@ -342,6 +343,13 @@ try {
     Refused 'dif' @{ path = $module } 'dif of a file that is not Markdown'
     Refused 'dif' @{ path = (Join-Path $Tmp 'missing.md') } 'dif of a missing file'
     Refused 'dif' @{} 'dif without a path'
+    # oml flow (the flow fences): nodes with positions, connectors; an element without a flow is an error, not a crash.
+    $flow = Api 'flow' @{ path = $module; name = 'PvCard/RenderCard' }
+    Require ($flow.code -eq 0 -and $flow.output.element -eq 'PvCard/RenderCard' -and @($flow.output.nodes).Count -ge 2 -and @($flow.output.edges).Count -ge 1 -and $null -ne $flow.output.nodes[0].x -and $flow.cli -like 'oml flow *') "flow endpoint: $($flow | ConvertTo-Json -Depth 6 -Compress)"
+    $noFlow = Api 'flow' @{ path = $module; name = 'PvCard' }
+    Require ($noFlow.code -ne 0 -and ($noFlow.output.error -match 'has no flow')) "flow of a block: $($noFlow | ConvertTo-Json -Depth 6 -Compress)"
+    $cliFlow = & $Oml flow $module 'PvCard/RenderCard' | ConvertFrom-Json
+    Require ($LASTEXITCODE -eq 0 -and @($cliFlow.nodes | Where-Object kind -eq 'Start').Count -eq 1) "oml flow: $($cliFlow | ConvertTo-Json -Depth 6 -Compress)"
 
     # Search and Docs: doc --search, spec --search, warn, and opening a hit. Only doc, spec, warn, --help and recipes open.
     $search = Api 'search' @{ q = 'confirm popup before delete' }
@@ -459,6 +467,7 @@ try {
             $difDom = Get-Content (Join-Path $Tmp "dashboard-dif-$theme.html") -Raw
             Require ($difDom -match 'data-selftest="ok"') "Dif self-test ($theme): $([regex]::Match($difDom, 'data-selftest="[^"]*"').Value)"
             Require ($difDom -match 'class="dif-row add"' -and $difDom -match 'Review: ' -and $difDom -match 'PvCard') "Dif page ($theme): call stack, review or element link missing"
+            Require ($difDom -match 'class="flow-svg"' -and $difDom -match 'flow-node add') "Dif page ($theme): flow diff diagram missing"
         }
         # The sidebar order on screen equals nav.js (the single place that defines it).
         $navJs = Get-Content (Join-Path $web 'nav.js') -Raw

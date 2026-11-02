@@ -162,6 +162,13 @@ public static partial class Cli
         return Emit(Inspect.Tree(open.Module, args[2], depth));
     }
 
+    static int? CmdFlow(List<string> args)
+    {
+        if (args.Count != 3) return null;
+        using var open = Open(args[1]);
+        return Emit(FlowGraph.Read(open.Module, args[2]));
+    }
+
     static int? CmdCensus(List<string> args)
     {
         if (args.Count != 2) return null;

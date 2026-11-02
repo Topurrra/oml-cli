@@ -4,12 +4,15 @@ import { api, need } from '../core/api.js';
 import { task, cli, copy, pathField, toast, errorBox } from '../core/ui.js';
 import { markdown, colorCode } from '../core/markdown.js';
 import { reviewResult } from '../core/review-view.js';
+import { flowView, mergeFlows } from '../core/dif-flow.js';
 import { onLeave } from '../core/lifecycle.js';
 import { hashParams } from '../core/state.js';
 
 // The Dif page (oml dif <file.md>): an agent's change walkthrough. Plain Markdown plus three oml parts:
 //   ```callstack    rows "+" new, "-" removed, " " unchanged; [[...]] links and "# note" at the end of a row
 //   ```review       "before: Orders.oml" and "after: Orders.staged.oml": oml review of the two, from the model
+//   ```flow         "module:" and "action:": the action's flow as a diagram (oml flow)
+//   ```flow diff    "before:", "after:" and "action:": both flows in one diagram, new green, removed red, changed amber
 //   [[Orders.oml#MainFlow/Orders/LoadData]]   opens oml describe of that element under the paragraph
 // Relative paths are read from the Markdown file's folder. Comments stay in this browser, per file, and copy as a
 // numbered list for the agent.
@@ -81,12 +84,12 @@ export default {
       let plain = [];
       const flush = () => { if (plain.join('').trim()) out.push(links(markdown(plain.join('\n')), folder)); plain = []; };
       for (let i = 0; i < lines.length; i++) {
-        const fence = /^```\s*(callstack|review)\b(.*)$/.exec(lines[i]);
+        const fence = /^```\s*(callstack|review|flow)\b(.*)$/.exec(lines[i]);
         if (!fence) { plain.push(lines[i]); continue; }
         const body = [];
         for (i++; i < lines.length && !/^```\s*$/.test(lines[i]); i++) body.push(lines[i]);
         flush();
-        out.push(fence[1] === 'callstack' ? callstack(body, folder) : review(body, folder));
+        out.push(fence[1] === 'callstack' ? callstack(body, folder) : fence[1] === 'flow' ? flow(body, folder, /^\s*diff\b/.test(fence[2])) : review(body, folder));
       }
       flush();
       return out;
@@ -122,13 +125,52 @@ export default {
         anchor.after(panel);
         b.setAttribute('aria-expanded', 'true');
         if (!element) { add(panel, h('p', { class: 'muted' }, 'Module ', h('code', { text: path })), cli('oml inspect "' + path + '" --own')); return; }
-        const data = await task(null, panel, 'Reading the element…', async () => need(await api('describe', { path, name: element.trim() })));
-        if (!data) return;
-        const d = Array.isArray(data.output) ? data.output[0] : data.output || {};
-        add(panel, h('div', { class: 'row small' }, h('strong', {}, d.element || element), d.kind ? h('span', { class: 'badge accent' }, d.kind) : null),
-          d.text ? colorCode(d.text, 'describe') : colorCode(JSON.stringify(d, null, 2), 'json'), cli(data.cli));
+        await describe(panel, path, element.trim());
       });
       return b;
+    }
+
+    // oml describe of one element, into a panel.
+    async function describe(panel, path, element) {
+      const data = await task(null, panel, 'Reading the element…', async () => need(await api('describe', { path, name: element })));
+      if (!data) return;
+      const d = Array.isArray(data.output) ? data.output[0] : data.output || {};
+      add(panel, h('div', { class: 'row small' }, h('strong', {}, d.element || element), d.kind ? h('span', { class: 'badge accent' }, d.kind) : null),
+        d.text ? colorCode(d.text, 'describe') : colorCode(JSON.stringify(d, null, 2), 'json'), cli(data.cli));
+    }
+
+    // ```flow ("module:", "action:") and ```flow diff ("before:", "after:", "action:"): oml flow of the action, drawn.
+    // In a diff an action that one side does not have is all new or all removed. A node opens describe under the diagram.
+    function flow(body, folder, diff) {
+      const v = Object.fromEntries(body.map(l => /^\s*(module|before|after|action|title)\s*:\s*(.+?)\s*$/i.exec(l)).filter(Boolean).map(m => [m[1].toLowerCase(), m[2]]));
+      const box = h('div', { class: 'dif-flow' });
+      const need2 = diff ? ['before', 'after', 'action'] : ['module', 'action'];
+      if (need2.some(k => !v[k])) { add(box, h('div', { class: 'message error', role: 'alert' }, `A ${diff ? 'flow diff' : 'flow'} fence needs ${need2.map(k => '"' + k + ': ..."').join(', ')} lines.`)); return box; }
+      const read = async file => {
+        const data = await api('flow', { path: join(folder, file), name: v.action });
+        if (data.code === 0) return data;
+        if (diff && /no element|has no flow/i.test(JSON.stringify(data.output || ''))) return null; // the action is new or removed
+        throw new Error((data.output && data.output.error) || data.stderr || 'oml flow failed');
+      };
+      task(null, box, `Reading the flow of ${v.action}…`, async () => diff ? [await read(v.before), await read(v.after)] : [null, await read(v.module)])
+        .then(result => {
+          if (!result) return;
+          const [b, a] = result;
+          if (diff && !a && !b) { add(box, h('div', { class: 'message error', role: 'alert' }, `Neither ${v.before} nor ${v.after} has a flow named ${v.action}.`)); return; }
+          const graph = diff ? mergeFlows(b && b.output, a && a.output) : a.output;
+          const panel = h('div', { class: 'dif-panel', hidden: true });
+          let open = null;
+          const onNode = async n => {
+            const where = n.status === 'del' ? v.before : (diff ? v.after : v.module);
+            const key = n.id + '|' + n.status;
+            if (open === key) { panel.hidden = true; open = null; return; }
+            open = key; panel.hidden = false;
+            await describe(panel, join(folder, where), graph.element + '/' + n.id);
+          };
+          const caption = v.title || (diff ? `${v.action}: ${v.before} \u2192 ${v.after}` : `${v.action} in ${v.module}`);
+          add(box, flowView(graph, { title: caption, onNode, diff }), panel, cli(diff ? `oml flow "${join(folder, v.after)}" ${graph.element}` : (a && a.cli)));
+        });
+      return box;
     }
 
     // ```callstack: one row per line; the first character marks it (+ new, - removed, space unchanged).
@@ -254,6 +296,14 @@ export default {
         link.click();
         if (!await wait(() => doc.querySelector('.dif-panel .code-view, .dif-panel .message'))) throw new Error('element link opened nothing');
         if (doc.querySelector('.dif-panel .message.error')) throw new Error('element link: ' + doc.querySelector('.dif-panel .message').textContent);
+        // A flow diagram: a node opens describe under it.
+        if (doc.querySelector('.dif-flow')) {
+          if (!await wait(() => doc.querySelector('.dif-flow .flow-node[role="button"]') || doc.querySelector('.dif-flow .message.error'))) throw new Error('flow diagram not drawn');
+          if (doc.querySelector('.dif-flow .message.error')) throw new Error('flow: ' + doc.querySelector('.dif-flow .message.error').textContent);
+          doc.querySelector('.dif-flow .flow-node[role="button"]').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+          if (!await wait(() => doc.querySelector('.dif-flow .dif-panel .code-view, .dif-flow .dif-panel .message'))) throw new Error('flow node opened nothing');
+          if (doc.querySelector('.dif-flow .dif-panel .message.error')) throw new Error('flow node: ' + doc.querySelector('.dif-flow .dif-panel .message').textContent);
+        }
         const para = [...doc.querySelectorAll('.doc p')].find(p => p.textContent.trim().length > 10);
         const range = document.createRange();
         range.selectNodeContents(para);

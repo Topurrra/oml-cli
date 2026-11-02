@@ -1077,6 +1077,10 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 
 **oml memory bench** `<new folder> --records N [--runs R]` is for maintainers (`tests/memory-check.ps1` runs it at 1k and 10k records, and at 100k with `-Speed`): it writes a synthetic store of N records into a new folder and prints the timings above as JSON. `bench --quality <fixture.json>` scores recall on a fixture in memory and writes no store; a fixture record over the limits of `add` or with a secret is refused. Neither is listed in `oml --help`.
 
+## Flow
+
+`oml flow <module.oml> <Action>` prints one flow (an action, a screen action, a data action or a preparation) as a graph, for the Dif page's flow diagrams and for scripts: `{element, kind, nodes: [{id, name, kind, x, y, detail}], edges: [{from, to, kind}]}`. `x` and `y` are Service Studio positions in model units (one grid step is 2660). A node's `id` is its path under the flow (its name, or `Kind[index]` when it has none), so the same node has the same id in a module and its staged copy. `detail` says in one line what the node does (`if N = 1`, `call Customer_Save`, `Total = 0`). Edge kinds are the connector types: `Sequence`, `True`, `False`, `Cycle`, `Otherwise` and so on. An element without a flow (an entity, a block) is an error with exit 2.
+
 ## Dif
 
 `oml dif <file.md> [--port N] [--no-open]` starts the dashboard on its Dif page for one Markdown file: a change walkthrough an agent writes for a person, such as `specs/orders-export.md`. The person reads what changes and why, opens the elements it names, sees the review of the staged module, and sends comments back. The idea comes from diffmap (MIT); oml rebuilds it for OutSystems modules, inside the dashboard, with no Node or npm.
@@ -1086,6 +1090,7 @@ The page shows normal Markdown (headings, lists, tables, code) and three oml par
 - **Element links.** `[[Orders.staged.oml#MainFlow/Orders/LoadData]]` shows the element name as a button; a click shows `oml describe` of it under the paragraph. `[[Orders.oml]]` names the module. Paths are the ones `describe`, `tree` and `find --text` print.
 - **Call stacks.** A `callstack` fence: one row per line, the first character marks it (`+` new, `-` removed, a space unchanged). Nest with tree marks such as `|--` and `\--` (box-drawing characters work too). A row can end with element links and a `# note`.
 - **Review.** A `review` fence with `before: <module.oml>` and `after: <staged.oml>` (and an optional `title:`) runs `oml review` of the two and shows the risks, changes and new check findings, from the model, not from the agent's text.
+- **Flows.** A `flow` fence with `module:` and `action:` draws the action's flow as Service Studio lays it out (`oml flow`). A `flow diff` fence with `before:`, `after:` and `action:` draws both versions in one diagram: new nodes and connectors green, removed ones red and dashed, changed nodes (another kind or what they do) amber. An action only one side has is all new or all removed. Select a node to see `oml describe` of it. `action:` takes an element path, such as `Customer_Save` or `MainFlow/Orders/OnSave`; an optional `title:` names the diagram.
 
 The rows of a `callstack` fence:
 

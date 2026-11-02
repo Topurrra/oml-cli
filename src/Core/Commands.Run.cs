@@ -18,7 +18,7 @@ public static partial class Cli
     static readonly string[] MemoryReads = ["recall", "list", "show", "history", "handoff", "traps"];
 
     static readonly string[] RunAllowed =
-        ["apply", "architecture", "census", "check", "describe", "doc", "find", "inspect", "memory", "openapi", "preview", "review", "spec", "test", "tree", "validate", "warn"];
+        ["apply", "architecture", "census", "check", "describe", "doc", "find", "flow", "inspect", "memory", "openapi", "preview", "review", "spec", "test", "tree", "validate", "warn"];
 
     static readonly Dictionary<string, string> RunRefused = new()
     {
@@ -132,7 +132,7 @@ public static partial class Cli
     // Modules it only reads stay open for the next call, as in a run. Not logged: these are a person's clicks, not agent turns.
     // The launcher allows only read commands; this refusal is the second lock on the same door.
     // `check` and `architecture` with --team arrive here already rewritten by the launcher (no --team left).
-    static readonly string[] DashboardAllowed = ["describe", "find", "image", "inspect", "openapi", "preview", "architecture", "check", "studio", "pull", "version",
+    static readonly string[] DashboardAllowed = ["describe", "find", "flow", "image", "inspect", "openapi", "preview", "architecture", "check", "studio", "pull", "version",
         "review", "tree", "validate", "test scaffold", "app list", "app extract", "extension inspect", "templates", "translations export"];
     // A command with subcommands is allowed per subcommand: `app list` yes, `app pack` no; `test scaffold` only.
     static bool DashboardAllows(string[] s) => s[0] is "app" or "extension" or "translations" or "test"

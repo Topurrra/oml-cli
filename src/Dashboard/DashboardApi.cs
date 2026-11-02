@@ -52,6 +52,7 @@ static partial class Dashboard
                 (false, "doc/open") => await OpenDoc(Body()),
                 (false, "find/text") => await FindText(Body()),
                 (false, "tree") => await TreeElement(Body()),
+                (false, "flow") => await FlowElement(Body()),
                 (false, "validate") => await ValidateModule(Body()),
                 (false, "test/scaffold") => await ScaffoldTests(Body()),
                 (true, "spec/schema") => Wrap(await Oml("spec", "schema")),
@@ -220,6 +221,9 @@ static partial class Dashboard
         }
         return Wrap(await Oml([.. Timed(body, args)]));
     }
+
+    // The Dif page's flow fences: one flow as nodes and connectors (oml flow).
+    static async Task<Reply> FlowElement(JsonObject body) => Wrap(await Oml("flow", ModuleFile(body), ElementPath(Str(body, "name"))));
 
     static async Task<Reply> FindElements(JsonObject body)
     {

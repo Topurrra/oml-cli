@@ -150,6 +150,7 @@ export const cookbook = [
     ['oml doc --search "service action unable to connect" --library', 'Search the OutSystems 11 docs for platform questions: servers, Service Center, LifeTime, errors.'],
   ] },
   { group: 'Change walkthroughs', items: [
+    ['oml flow C:\\Work\\Orders.oml Customer_Save', 'One action\'s flow as nodes and connectors, with positions: what the Dif page draws.'],
     ['oml dif specs\\orders-export.md', 'Read the walkthrough an agent wrote: call stacks, element links, the review of the staged module. Comment and copy your notes back.'],
     ['oml dif specs\\orders-export.md --port 5050 --no-open', 'The same on port 5050, without opening the browser.'],
   ] },

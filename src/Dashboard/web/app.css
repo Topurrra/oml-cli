@@ -366,3 +366,30 @@ td > .button:last-child { margin-top: 8px; }
 .dif-form { border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 14px; display: grid; gap: 8px; background: var(--card); }
 .dif-form textarea { width: 100%; font: inherit; }
 .dif-comment-button { position: absolute; z-index: 30; box-shadow: var(--shadow); }
+
+/* Dif page: flow diagrams (oml flow), new / removed / changed in a flow diff */
+.dif-flow { margin: 0 0 14px; }
+.flow-figure { margin: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--sunken); padding: 10px 12px; }
+.flow-figure figcaption { font-weight: 600; margin: 0 0 6px; }
+.flow-scroll { overflow: auto; max-height: 720px; }
+.flow-svg { display: block; font-family: inherit; }
+.flow-edge path { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+.flow-edge text { fill: var(--muted); font-size: 10px; }
+.flow-edge.add path { stroke: var(--add); stroke-width: 2; }
+.flow-edge.add text { fill: var(--add); }
+.flow-edge.del path { stroke: var(--del); stroke-dasharray: 5 4; }
+.flow-edge.del text { fill: var(--del); }
+.flow-arrow path { fill: var(--muted); }
+.flow-arrow.add path { fill: var(--add); }
+.flow-arrow.del path { fill: var(--del); }
+.flow-node rect, .flow-node polygon { fill: var(--card); stroke: var(--line-strong); stroke-width: 1.4; }
+.flow-node .flow-name { fill: var(--text); font-size: 12px; font-weight: 600; }
+.flow-node .flow-kind { fill: var(--muted); font-size: 9.5px; font-family: var(--mono); }
+.flow-node.add rect, .flow-node.add polygon { fill: var(--add-bg); stroke: var(--add); stroke-width: 2; }
+.flow-node.del rect, .flow-node.del polygon { fill: var(--del-bg); stroke: var(--del); stroke-dasharray: 5 4; }
+.flow-node.del .flow-name { fill: var(--del); text-decoration: line-through; }
+.flow-node.chg rect, .flow-node.chg polygon { fill: var(--warn-bg); stroke: var(--warn); stroke-width: 2; }
+.flow-node[role="button"] { cursor: pointer; }
+.flow-node[role="button"]:hover rect, .flow-node[role="button"]:hover polygon, .flow-node:focus-visible rect, .flow-node:focus-visible polygon { stroke: var(--accent); stroke-width: 2.4; }
+.flow-node:focus { outline: none; }
+.flow-legend { margin-top: 8px; align-items: center; }
