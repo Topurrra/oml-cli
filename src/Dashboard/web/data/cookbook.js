@@ -166,6 +166,9 @@ export const cookbook = [
   ] },
   { group: 'Diagnostics', items: [
     ['oml log summary', 'Show which commands agents use and where they fail. Needs OML_LOG=1.'],
+    ['oml evolve report --md learned.md', 'Where agents lose turns: failures that repeat, retries and what fixed them, searches that found nothing. Changes nothing.'],
+    ['oml evolve propose', 'Proposals with evidence: trap records and a draft company skill per command. Nothing is applied.'],
+    ['oml evolve show', 'The open proposals with their evidence and diff. Accept one with oml evolve accept <id>; undo it with oml evolve undo <id>.'],
     ['oml api IEntity', 'Show the members of a model type on this Service Studio build.'],
     ['oml widgets', 'List the registered widget types.'],
   ] },

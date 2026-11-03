@@ -329,7 +329,7 @@ static partial class Dashboard
 
     internal sealed record Result(int Code, JsonNode? Output, string Stderr, string Cli);
 
-    static readonly string[] LauncherCommands = ["doctor", "spec", "doc", "warn", "font", "lt", "log"];
+    static readonly string[] LauncherCommands = ["doctor", "spec", "doc", "warn", "font", "lt", "log", "evolve"];
 
     // The only way the dashboard runs oml. The arguments are built by DashboardApi.cs, never taken from the page as they are.
     internal static Task<Result> Oml(params string[] args)
@@ -393,6 +393,8 @@ static partial class Dashboard
                     "lt" => LifeTime.Run(rest, CoreRun),
                     "architecture" or "check" when args[0] == "check" && Program.CheckPreflight(args) is { } refused => Refuse(refused),
                     "architecture" or "check" => LifeTime.Architecture(args, CoreRun),
+                    "evolve" when EvolveCommand.ReadSubcommands.Contains(args[1]) => EvolveCommand.Run(rest),
+                    "evolve" => Refuse("The dashboard only reads: run oml evolve accept, reject and undo yourself."),
                     _ => UsageLog.Summary(rest),
                 };
             }

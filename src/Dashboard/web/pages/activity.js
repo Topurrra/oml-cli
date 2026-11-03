@@ -47,6 +47,9 @@ export default {
     };
     draw(first);
     await loadSummary();
+    add(out, h('section', { class: 'card' }, h('h2', {}, 'What agents learned'),
+      h('p', {}, 'oml evolve reads this log and the project memory. It shows where agents lose turns and proposes trap records, company skills and doc edits, each with its evidence. A person accepts or rejects each one; every accepted change can be undone.'),
+      h('p', {}, h('a', { href: '#/learned' }, 'Open What agents learned')), cli('oml evolve report')));
     const timer = setInterval(async () => {
       if (!live.checked) return;
       try { draw(await api('log')); } catch { /* the next tick tries again */ }

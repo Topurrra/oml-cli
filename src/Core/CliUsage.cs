@@ -55,12 +55,12 @@ static class CliUsage
         oml warn --catalog [<prefix>]      (list the verification ids oml knows; a prefix narrows, such as Entity_)
         oml memory init [--module <file.oml> | --dir <folder>] [--force]   (create the project's memory store: .oml/memory/memory.log in the project root folder (the current folder); the only command that creates one)
         oml memory add "<one fact>" [--kind fact|decision|pref|trap|log|glossary|answer] [--module <Name>] [--elements A,B] [--why "<reason>"] [--tags a,b] [--supersedes <id>] [--conf 0-100] [--src <agent>] [--valid-from <date>] [--valid-until <date>]   (write one record of at most 300 bytes; secrets are refused)
-        oml memory recall "<question>" [--module <Name>] [--kind K] [--top N]   (the best records for a question, at most 20; read only)
+        oml memory recall "<question>" [--module <Name>] [--kind K] [--top N] [--include-stale]   (the best records for a question, at most 20, ranked with how they helped; read only)
         oml memory list [--module <Name>] [--kind K] [--top N] [--all]   (records, newest first; --all adds replaced and retracted ones; read only)
         oml memory show <id>   (one record in full, with its status; read only)
         oml memory history <id>   (what replaced what; read only)
         oml memory retract <id> --why "<reason>"   (mark a record as no longer true; it stays in the file)
-        oml memory doctor [--module <file.oml>]   (check the hash chain, the file end and the index; with a module, check that the elements still exist)
+        oml memory doctor [--module <file.oml>] [--file <usage.jsonl>]   (check the hash chain, the file end and the index; with a module, that the elements still exist; traps that repeat in the log)
         oml memory handoff [--module <Name>] [--top N]   (a short brief for the next agent from the newest records; read only)
         oml memory traps [--command "<command>"] [--module <Name>] [--top N]   (live trap records; with --command, those the command may run into, by words; read only, never blocks)
         oml run <steps.json> [--continue]   (several commands in one process, so Service Studio loads once; "-" reads the steps from stdin)
@@ -95,6 +95,9 @@ static class CliUsage
         oml hooks [status|install|remove] [--dir <project>]   (Claude Code hooks for this project: refuse reading the large skill references whole and changing .oml files)
         oml setup [--remove | --status]   (Explorer right-click entries for the current user: fonts, images, .oml files, folders)
         oml log summary [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; set OML_LOG=1 to write the log)
+        oml evolve report [--since <date>] [--file <usage.jsonl>]... [--check <report.json>]... [--md <file.md>]   (where agents lose turns, from the local log and memory; changes nothing)
+        oml evolve propose [--maintainer [--repo <folder>]] [report options]   (proposals with evidence: trap records, a draft company skill, doc patches; nothing applied)
+        oml evolve show [<id>] | accept <id> | reject <id> [--why <text>] | history | undo <id>   (a person accepts; each accepted change can be undone)
         Output is compact JSON on stdout. Global --pretty includes empty fields and indents. Exit 0 ok, 1 model/validation failure, 2 usage/environment.
         --timings on a command that loads a module (apply, inspect, describe, validate, install, run, ...) adds "timings": milliseconds per phase.
         """;

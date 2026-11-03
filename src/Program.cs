@@ -28,7 +28,7 @@ public static class Program
         return UsageLog.Enabled ? UsageLog.Measure(filtered, () => Dispatch(args, filtered)) : Dispatch(args, filtered);
     }
 
-    internal static readonly string[] TimingsRefused = ["lt", "font", "doctor", "spec", "doc", "warn", "dashboard", "setup", "log", "image", "memory", "library", "skills", "qa", "hooks", "dif"];
+    internal static readonly string[] TimingsRefused = ["lt", "font", "doctor", "spec", "doc", "warn", "dashboard", "setup", "log", "image", "memory", "library", "skills", "qa", "hooks", "dif", "evolve"];
     internal static string TimingsRefusal(string command) => $"--timings is not available for {command}.";
     // Output encoding (commands.md, "Output encoding"). A console window gets UTF-16 through WriteConsoleW: every
     // character shows, and the console code page is not changed (.NET never sets code page 1200 on the console).
@@ -68,6 +68,7 @@ public static class Program
         if (filtered.FirstOrDefault() == "doc") return DocCommand.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "warn") return DocCommand.Warn(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "memory") return MemoryCommand.Run(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "evolve") return EvolveCommand.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "library") return Library.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "skills") return CompanySkills.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "dashboard") return Dashboard.Run(filtered.Skip(1).ToArray());

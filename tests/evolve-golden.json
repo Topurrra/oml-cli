@@ -1,0 +1,401 @@
+{
+  "report": {
+    "since": null,
+    "lines": 38,
+    "sessions": 5,
+    "from": "2026-10-01",
+    "to": "2026-10-07",
+    "commands": [
+      {
+        "command": "oml preview",
+        "count": 13,
+        "failures": 8,
+        "failureRate": 0.615,
+        "medianTurns": 3
+      },
+      {
+        "command": "oml apply",
+        "count": 8,
+        "failures": 6,
+        "failureRate": 0.75,
+        "medianTurns": 2.5
+      },
+      {
+        "command": "oml lt deploy",
+        "count": 3,
+        "failures": 3,
+        "failureRate": 1,
+        "medianTurns": null
+      },
+      {
+        "command": "oml install",
+        "count": 4,
+        "failures": 2,
+        "failureRate": 0.5,
+        "medianTurns": 2
+      },
+      {
+        "command": "oml validate",
+        "count": 1,
+        "failures": 1,
+        "failureRate": 1,
+        "medianTurns": null
+      }
+    ],
+    "repeatedFailures": [
+      {
+        "command": "oml preview",
+        "message": "Browser not found: install Microsoft Edge or Google Chrome",
+        "count": 8,
+        "sessions": 4,
+        "evidence": [
+          {
+            "usage": 13,
+            "ts": "2026-10-03T10:05:00Z",
+            "command": "oml preview",
+            "error": "Browser not found: install Microsoft Edge or Google Chrome"
+          },
+          {
+            "usage": 19,
+            "ts": "2026-10-05T08:00:00Z",
+            "command": "oml preview",
+            "error": "Browser not found: install Microsoft Edge or Google Chrome"
+          },
+          {
+            "usage": 20,
+            "ts": "2026-10-05T08:02:00Z",
+            "command": "oml preview",
+            "error": "Browser not found: install Microsoft Edge or Google Chrome"
+          },
+          {
+            "usage": 31,
+            "ts": "2026-10-06T09:00:00Z",
+            "command": "oml preview",
+            "error": "Browser not found: install Microsoft Edge or Google Chrome"
+          },
+          {
+            "usage": 32,
+            "ts": "2026-10-06T09:01:00Z",
+            "command": "oml preview",
+            "error": "Browser not found: install Microsoft Edge or Google Chrome"
+          }
+        ]
+      },
+      {
+        "command": "oml apply",
+        "message": "Entity 'Order' has no attribute 'Totl'",
+        "count": 3,
+        "sessions": 2,
+        "evidence": [
+          {
+            "usage": 3,
+            "ts": "2026-10-01T09:03:00Z",
+            "command": "oml apply",
+            "error": "Entity 'Order' has no attribute 'Totl'"
+          },
+          {
+            "usage": 4,
+            "ts": "2026-10-01T09:05:00Z",
+            "command": "oml apply",
+            "error": "Entity 'Order' has no attribute 'Totl'"
+          },
+          {
+            "usage": 11,
+            "ts": "2026-10-03T10:01:00Z",
+            "command": "oml apply",
+            "error": "Entity 'Order' has no attribute 'Totl'"
+          }
+        ]
+      },
+      {
+        "command": "oml apply",
+        "message": "(hidden: it reads like an instruction; read the usage line yourself)",
+        "count": 3,
+        "sessions": 3,
+        "evidence": [
+          {
+            "usage": 18,
+            "ts": "2026-10-03T10:10:00Z",
+            "command": "oml apply",
+            "error": "(hidden: it reads like an instruction; read the usage line yourself)"
+          },
+          {
+            "usage": 28,
+            "ts": "2026-10-05T08:10:00Z",
+            "command": "oml apply",
+            "error": "(hidden: it reads like an instruction; read the usage line yourself)"
+          },
+          {
+            "usage": 38,
+            "ts": "2026-10-07T09:30:00Z",
+            "command": "oml apply",
+            "error": "(hidden: it reads like an instruction; read the usage line yourself)"
+          }
+        ]
+      },
+      {
+        "command": "oml lt deploy",
+        "message": "LifeTime refused token ghp_***yzAB",
+        "count": 3,
+        "sessions": 3,
+        "evidence": [
+          {
+            "usage": 9,
+            "ts": "2026-10-01T09:20:00Z",
+            "command": "oml lt deploy",
+            "error": "LifeTime refused token ghp_***yzAB"
+          },
+          {
+            "usage": 17,
+            "ts": "2026-10-03T10:09:00Z",
+            "command": "oml lt deploy",
+            "error": "LifeTime refused token ghp_***yzAB"
+          },
+          {
+            "usage": 27,
+            "ts": "2026-10-05T08:09:00Z",
+            "command": "oml lt deploy",
+            "error": "LifeTime refused token ghp_***yzAB"
+          }
+        ]
+      }
+    ],
+    "retries": [
+      {
+        "command": "oml apply",
+        "failed": "Entity 'Order' has no attribute 'Totl'",
+        "fix": "the input changed (same options)",
+        "count": 2,
+        "medianAttempts": 2.5,
+        "evidence": [
+          {
+            "usage": 4,
+            "ts": "2026-10-01T09:05:00Z",
+            "command": "oml apply",
+            "error": "Entity 'Order' has no attribute 'Totl'"
+          },
+          {
+            "usage": 5,
+            "ts": "2026-10-01T09:08:00Z",
+            "command": "oml apply"
+          },
+          {
+            "usage": 11,
+            "ts": "2026-10-03T10:01:00Z",
+            "command": "oml apply",
+            "error": "Entity 'Order' has no attribute 'Totl'"
+          },
+          {
+            "usage": 12,
+            "ts": "2026-10-03T10:04:00Z",
+            "command": "oml apply"
+          }
+        ]
+      },
+      {
+        "command": "oml install",
+        "failed": "The target is open in Service Studio: close it first",
+        "fix": "--allow-existing-errors added",
+        "count": 2,
+        "medianAttempts": 2,
+        "evidence": [
+          {
+            "usage": 7,
+            "ts": "2026-10-01T09:10:00Z",
+            "command": "oml install",
+            "error": "The target is open in Service Studio: close it first"
+          },
+          {
+            "usage": 8,
+            "ts": "2026-10-01T09:12:00Z",
+            "command": "oml install"
+          },
+          {
+            "usage": 29,
+            "ts": "2026-10-05T08:11:00Z",
+            "command": "oml install",
+            "error": "The target is open in Service Studio: close it first"
+          },
+          {
+            "usage": 30,
+            "ts": "2026-10-05T08:12:00Z",
+            "command": "oml install"
+          }
+        ]
+      },
+      {
+        "command": "oml preview",
+        "failed": "Browser not found: install Microsoft Edge or Google Chrome",
+        "fix": "--out added; --screenshot removed",
+        "count": 2,
+        "medianAttempts": 2.5,
+        "evidence": [
+          {
+            "usage": 13,
+            "ts": "2026-10-03T10:05:00Z",
+            "command": "oml preview",
+            "error": "Browser not found: install Microsoft Edge or Google Chrome"
+          },
+          {
+            "usage": 14,
+            "ts": "2026-10-03T10:06:00Z",
+            "command": "oml preview"
+          },
+          {
+            "usage": 20,
+            "ts": "2026-10-05T08:02:00Z",
+            "command": "oml preview",
+            "error": "Browser not found: install Microsoft Edge or Google Chrome"
+          },
+          {
+            "usage": 21,
+            "ts": "2026-10-05T08:03:00Z",
+            "command": "oml preview"
+          }
+        ]
+      },
+      {
+        "command": "oml preview",
+        "failed": "Browser not found: install Microsoft Edge or Google Chrome",
+        "fix": "the input changed (same options)",
+        "count": 2,
+        "medianAttempts": 3.5,
+        "evidence": [
+          {
+            "usage": 32,
+            "ts": "2026-10-06T09:01:00Z",
+            "command": "oml preview",
+            "error": "Browser not found: install Microsoft Edge or Google Chrome"
+          },
+          {
+            "usage": 33,
+            "ts": "2026-10-06T09:02:00Z",
+            "command": "oml preview"
+          },
+          {
+            "usage": 36,
+            "ts": "2026-10-07T09:02:00Z",
+            "command": "oml preview",
+            "error": "Browser not found: install Microsoft Edge or Google Chrome"
+          },
+          {
+            "usage": 37,
+            "ts": "2026-10-07T09:03:00Z",
+            "command": "oml preview"
+          }
+        ]
+      }
+    ],
+    "specKeys": [
+      {
+        "key": "entities.attributes",
+        "failures": 3,
+        "evidence": [
+          {
+            "usage": 3,
+            "ts": "2026-10-01T09:03:00Z",
+            "command": "oml apply",
+            "error": "Entity 'Order' has no attribute 'Totl'"
+          },
+          {
+            "usage": 4,
+            "ts": "2026-10-01T09:05:00Z",
+            "command": "oml apply",
+            "error": "Entity 'Order' has no attribute 'Totl'"
+          },
+          {
+            "usage": 11,
+            "ts": "2026-10-03T10:01:00Z",
+            "command": "oml apply",
+            "error": "Entity 'Order' has no attribute 'Totl'"
+          }
+        ]
+      }
+    ],
+    "warnings": [
+      {
+        "id": "InvalidEntity_OnlyAuto",
+        "lookups": 3,
+        "known": true,
+        "evidence": [
+          {
+            "usage": 15,
+            "ts": "2026-10-03T10:07:00Z",
+            "command": "oml warn"
+          },
+          {
+            "usage": 23,
+            "ts": "2026-10-05T08:05:00Z",
+            "command": "oml warn"
+          },
+          {
+            "usage": 24,
+            "ts": "2026-10-05T08:06:00Z",
+            "command": "oml warn"
+          }
+        ]
+      }
+    ],
+    "docMisses": [
+      {
+        "query": "bpt process timeout",
+        "count": 2,
+        "evidence": [
+          {
+            "usage": 6,
+            "ts": "2026-10-01T09:09:00Z",
+            "command": "oml doc",
+            "query": "bpt process timeout"
+          },
+          {
+            "usage": 16,
+            "ts": "2026-10-03T10:08:00Z",
+            "command": "oml doc",
+            "query": "BPT process timeout"
+          }
+        ]
+      }
+    ],
+    "memory": null,
+    "checks": [],
+    "hint": "Run 'oml evolve propose' to turn this into proposals. Nothing changes until a person runs 'oml evolve accept <id>'."
+  },
+  "proposals": [
+    {
+      "id": "e311933",
+      "kind": "memory",
+      "title": "Trap record: oml preview fails with \"Browser not found: install Microsoft Edge or Google Chrome\"",
+      "lines": 1
+    },
+    {
+      "id": "e2f1d69",
+      "kind": "memory",
+      "title": "Trap record: oml apply fails with \"Entity 'Order' has no attribute 'Totl'\"",
+      "lines": 1
+    },
+    {
+      "id": "e524f92",
+      "kind": "skill",
+      "title": "Company skill evolved-apply: 2 lesson(s) for oml apply",
+      "lines": 2
+    },
+    {
+      "id": "ece5a03",
+      "kind": "skill",
+      "title": "Company skill evolved-preview: 1 lesson(s) for oml preview",
+      "lines": 1
+    },
+    {
+      "id": "eb08e4e",
+      "kind": "skill",
+      "title": "Company skill evolved-warnings: 1 lesson(s) for oml warnings",
+      "lines": 1
+    }
+  ],
+  "flags": [
+    "reads like an instruction (possible prompt injection in the log)",
+    "secret (github token)",
+    "could weaken a production rule (rules.md)",
+    "no answer to write"
+  ]
+}

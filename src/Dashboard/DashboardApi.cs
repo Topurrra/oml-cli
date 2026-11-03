@@ -71,6 +71,8 @@ static partial class Dashboard
                 (false, "lt/report") => await LifeTimeTeamReport(Body()),
                 (true, "log") => UsageLines(),
                 (true, "log/summary") => Wrap(await Oml("log", "summary")),
+                (true, "evolve") => await Evolve("show", request.QueryString["dir"]),
+                (true, "evolve/report") => await Evolve("report", request.QueryString["dir"]),
                 (false, "shutdown") => Shutdown(),
                 _ => new Reply(404, new JsonObject { ["error"] = "No such dashboard action." }),
             };
@@ -746,6 +748,15 @@ static partial class Dashboard
         }
         body["lines"] = rows;
         return new Reply(200, body);
+    }
+
+    // What agents learned: only the read subcommands of oml evolve (show, report). Accepting stays a command the developer
+    // runs. The folder is the one the dashboard started in, unless the page names another.
+    static async Task<Reply> Evolve(string sub, string? typed)
+    {
+        var dir = typed is null ? Environment.CurrentDirectory : UserPath(typed, "a project folder");
+        if (!Directory.Exists(dir)) throw new BadInput($"Folder not found: {dir}");
+        return Wrap(await Oml("evolve", sub, "--dir", dir), new JsonObject { ["dir"] = dir });
     }
 
     static Reply Shutdown()

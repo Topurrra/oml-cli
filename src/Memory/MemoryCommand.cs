@@ -359,28 +359,78 @@ static class MemoryCommand
     // The search options of recall: those of `oml doc --search`, with the weak flag set for records.
     internal static readonly SearchOptions RecallOptions = new();
 
+    // What the usage log says about the records: use per id, and the time of its first line. Empty without a log.
+    static (Dictionary<int, Evidence.Use> Use, DateTime? LogStart) Usage()
+    {
+        if (Evidence.DefaultFile() is not { } file) return ([], null);
+        var rows = Evidence.Load([file], null);
+        return (Evidence.Usefulness(rows), rows.Count > 0 ? rows[0].Ts : null);
+    }
+
+    // Two records about the same scope: the same module, or one of them repo-wide.
+    static bool SameScope(MemRecord a, MemRecord b) => a.Module.Length == 0 || b.Module.Length == 0 || string.Equals(a.Module, b.Module, StringComparison.OrdinalIgnoreCase);
+
+    // The search hits, ranked again with what the log says: the score times the record's usefulness factor, stale records
+    // left out, and of two live records that contradict each other only the newer one (the older one is named in
+    // `overrides`). Nothing is written: the old record stays live until someone retracts it.
+    internal static (List<(MemRecord Record, double Score, int[] Overrides)> Hits, int Stale) Learned(List<(MemRecord Record, double Score)> hits,
+        Dictionary<int, Evidence.Use> use, DateTime? logStart, bool includeStale, int top)
+    {
+        var now = Evidence.Now;
+        var stale = 0;
+        var ranked = new List<(MemRecord Record, double Score)>();
+        foreach (var (record, score) in hits)
+        {
+            var u = use.GetValueOrDefault(record.Seq);
+            if (!includeStale && Evidence.Stale(record, u, logStart, now)) { stale++; continue; }
+            ranked.Add((record, score * Evidence.Factor(u)));
+        }
+        var kept = new List<(MemRecord Record, double Score, List<int> Overrides)>();
+        foreach (var h in ranked.OrderByDescending(x => x.Record.Seq))
+        {
+            var newer = kept.FirstOrDefault(k => SameScope(k.Record, h.Record) && MemoryContradiction.WindowsOverlap(k.Record.From, k.Record.Until, h.Record.From, h.Record.Until)
+                && MemoryContradiction.Classify(k.Record.Text, h.Record.Text) == MemoryContradiction.Relation.Contradiction);
+            if (newer.Record is not null) { newer.Overrides.Add(h.Record.Seq); continue; }
+            kept.Add((h.Record, h.Score, []));
+        }
+        return (kept.OrderByDescending(k => k.Score).ThenByDescending(k => k.Record.Seq).Take(top).Select(k => (k.Record, k.Score, k.Overrides.ToArray())).ToList(), stale);
+    }
+
     static int Recall(string[] args)
     {
-        var o = Parse(args, ["--module", "--kind", "--top", "--dir"], ["--no-index"]);
+        var o = Parse(args, ["--module", "--kind", "--top", "--dir"], ["--no-index", "--include-stale"]);
         var query = o.Text;
         if (query.Length == 0) throw new MemoryException("Give the question in words.", 2, "Usage: oml memory recall \"<question>\" [--module <Name>] [--top N]");
         var (folder, module) = Where(o);
         var kind = CheckKind(o);
         var top = ParseTop(o, DefaultTop, MaxTop);
         var state = OpenStore(folder).Load(useIndex: !o.Flags.Contains("--no-index"));
-        var (hits, weak, searched) = RecallRaw(state, module, kind, query, top);
+        // A wider pool than asked, so usefulness and newer records can change the order.
+        var (raw, weak, searched) = RecallRaw(state, module, kind, query, Math.Min(top * 3, 60));
+        var (use, logStart) = Usage();
+        var includeStale = o.Flags.Contains("--include-stale");
+        var (hits, stale) = Learned(raw, use, logStart, includeStale, top);
         var result = new Dictionary<string, object?> { ["notice"] = Notice, ["query"] = query, ["searched"] = searched };
         if (module is not null) result["module"] = module;
-        result["hits"] = hits.Select(h => Brief(h.Record)).ToArray();
+        result["hits"] = hits.Select(h => h.Overrides.Length == 0 ? Brief(h.Record) : (object)new
+        {
+            id = h.Record.Seq, kind = h.Record.Kind, module = Opt(M(h.Record.Module)), elements = MA(h.Record.Elements), date = MemStore.Date(h.Record.Ts),
+            text = MemorySecrets.Mask(h.Record.Text), why = Opt(Clip(MemorySecrets.Mask(h.Record.Why), 100)), overrides = h.Overrides,
+        }).ToArray();
         // Known traps come back on every recall, even when the question does not match them: the newest few of the module.
         if (kind is null or "trap")
         {
-            var shown = hits.Select(h => h.Record.Seq).ToHashSet();
-            var traps = Filtered(state.LiveNow(), module, "trap").Where(t => !shown.Contains(t.Seq)).OrderByDescending(t => t.Seq).Take(TrapsShown).ToList();
+            var shown = hits.Select(h => h.Record.Seq).Concat(hits.SelectMany(h => h.Overrides)).ToHashSet();
+            var traps = Filtered(state.LiveNow(), module, "trap").Where(t => !shown.Contains(t.Seq) && (includeStale || !Evidence.Stale(t, use.GetValueOrDefault(t.Seq), logStart, Evidence.Now)))
+                .OrderByDescending(t => t.Seq).Take(TrapsShown).ToList();
             if (traps.Count > 0) result["traps"] = traps.Select(t => Brief(t)).ToArray();
         }
         result["write"] = Write;
-        if (hits.Count == 0) result["hint"] = searched == 0 ? "No live record" + (module is null ? "." : $" for {module}. Try without --module.") : "No record matches. Do not assume the project has no rule on this; ask the user.";
+        if (stale > 0) result["stale"] = stale;
+        if (hits.Any(h => h.Overrides.Length > 0))
+            result["overrides"] = $"A newer record contradicts an older one, so only the newer is shown. If the older is no longer true, retract it: oml memory retract {hits.First(h => h.Overrides.Length > 0).Overrides[0]} --why \"replaced by {hits.First(h => h.Overrides.Length > 0).Record.Seq}\"";
+        if (hits.Count == 0) result["hint"] = stale > 0 ? $"Only records nobody recalled for {Evidence.StaleDays} days match. Add --include-stale to see them."
+            : searched == 0 ? "No live record" + (module is null ? "." : $" for {module}. Try without --module.") : "No record matches. Do not assume the project has no rule on this; ask the user.";
         else if (weak)
         {
             result["weak"] = true;
@@ -425,9 +475,13 @@ static class MemoryCommand
         }
         var shown = pool.OrderByDescending(r => r.Seq).Take(top).ToList();
         result["total"] = pool.Count;
+        // From the usage log: how often recall returned the record and how the next commands went, and stale records.
+        var (use, logStart) = Usage();
+        object? Use(MemRecord r) => use.GetValueOrDefault(r.Seq) is { } u ? new { recalled = u.Recalled, helped = u.Helped, failed = u.Failed, neverHelped = u.Recalled >= 5 && u.Helped == 0 ? true : (bool?)null } : null;
+        bool? IsStale(MemRecord r) => Evidence.Stale(r, use.GetValueOrDefault(r.Seq), logStart, Evidence.Now) ? true : null;
         result["records"] = shown.Select(r => o.Flags.Contains("--all")
-            ? (object)new { id = r.Seq, kind = r.Kind, module = Opt(M(r.Module)), date = MemStore.Date(r.Ts), status = Status(r, state), text = MemorySecrets.Mask(r.Text) }
-            : new { id = r.Seq, kind = r.Kind, module = Opt(M(r.Module)), date = MemStore.Date(r.Ts), status = (string?)null, text = MemorySecrets.Mask(r.Text) }).ToArray();
+            ? (object)new { id = r.Seq, kind = r.Kind, module = Opt(M(r.Module)), date = MemStore.Date(r.Ts), status = Status(r, state), text = MemorySecrets.Mask(r.Text), use = Use(r), stale = IsStale(r) }
+            : new { id = r.Seq, kind = r.Kind, module = Opt(M(r.Module)), date = MemStore.Date(r.Ts), status = (string?)null, text = MemorySecrets.Mask(r.Text), use = Use(r), stale = IsStale(r) }).ToArray();
         if (pool.Count > shown.Count) result["hint"] = $"{pool.Count - shown.Count} more. Use --top N, or --module and --kind to narrow the list.";
         if (TamperWarning(state) is { } warning) result["warning"] = warning;
         Print(result);
@@ -530,8 +584,8 @@ static class MemoryCommand
 
     static int Doctor(string[] args)
     {
-        var o = Parse(args, ["--module", "--dir"], []);
-        if (o.Words.Count > 0) throw new MemoryException($"Unexpected '{o.Words[0]}'.", 2, "Usage: oml memory doctor [--module <file.oml>]");
+        var o = Parse(args, ["--module", "--dir", "--file"], []);
+        if (o.Words.Count > 0) throw new MemoryException($"Unexpected '{o.Words[0]}'.", 2, "Usage: oml memory doctor [--module <file.oml>] [--file <usage.jsonl>]");
         var module = o.Get("--module");
         if (module is not null && !module.EndsWith(".oml", StringComparison.OrdinalIgnoreCase)) throw new MemoryException("--module for doctor takes a module file (Orders.oml).", 2);
         if (module is not null && !File.Exists(Path.GetFullPath(module))) throw new MemoryException($"Module file not found: {Path.GetFullPath(module)}", 2);
@@ -570,13 +624,21 @@ static class MemoryCommand
             warnings.Add($"memory.log has {total} records, but the index remembers {remembered.Peak}. The last {remembered.Peak - total} record(s) were removed outside oml, or an older copy of the log was put back. Delete memory.idx to accept the file as it is.");
         var torn = store.TornFiles();
         var ok = problems.Count == 0 && missing.Count == 0 && warnings.Count == 0;
+        // Traps that repeat: the same failure 3 times or more, in 2 sessions or more, with no live trap record. Only the
+        // command to add one is printed; nothing is written.
+        var usage = o.Get("--file") is { } usageFile ? Path.GetFullPath(usageFile) : Evidence.DefaultFile();
+        if (usage is not null && !File.Exists(usage)) throw new MemoryException($"No usage log at {usage}.", 2);
+        var suggested = usage is null ? [] : Evidence.TrapSuggestions(Evidence.Load([usage], null), state.LiveNow().Where(r => r.Kind == "trap"))
+            .Select(t => (object)new { command = "oml " + t.Failure.Cmd, message = t.Failure.Message, seen = t.Failure.Rows.Count, sessions = t.Failure.Sessions, passedWith = t.PassedWith, add = t.Command }).ToList();
         var index = !File.Exists(store.IndexPath) ? "missing: the next recall builds it" : MemoryIndex.TryRead(store) is null ? "old or unreadable: the next recall rebuilds it" : "ok";
         Print(new
         {
             ok, store = store.LogPath, records = total, live = state.LiveNow().Count, bytes = store.Length,
             chain = problems.Count == 0 ? "ok" : "broken", firstProblem = problems.Count > 0 ? problems[0].Id : (int?)null,
             problems = findings, moreProblems = problems.Count > 20 ? problems.Count - 20 : (int?)null, elements, index, notes, warnings, tornFiles = torn,
-            hint = problems.Count > 0 || warnings.Count > 0 ? "Tell the user once what doctor found. recall already hides a bad record. If it matters, add a corrected record. Do not run doctor again." : null,
+            suggestedTraps = suggested.Count > 0 ? suggested : null,
+            hint = problems.Count > 0 || warnings.Count > 0 ? "Tell the user once what doctor found. recall already hides a bad record. If it matters, add a corrected record. Do not run doctor again."
+                : suggested.Count > 0 ? "suggestedTraps: failures that repeat with no trap record. Show them to the user; run an add command only when the user agrees." : null,
         });
         return ok ? 0 : 1;
     }

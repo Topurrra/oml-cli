@@ -357,6 +357,13 @@ try {
     Refused 'dif' @{ path = $module } 'dif of a file that is not Markdown'
     Refused 'dif' @{ path = (Join-Path $Tmp 'missing.md') } 'dif of a missing file'
     Refused 'dif' @{} 'dif without a path'
+    # What agents learned: oml evolve show and report for a folder; the page never accepts (that stays a command).
+    $evo = Join-Path $Tmp ('dash-evolve-' + [guid]::NewGuid().ToString('N').Substring(0, 8)); New-Item -ItemType Directory $evo | Out-Null
+    & $Oml evolve propose --file (Join-Path $PSScriptRoot 'evolve-sample.jsonl') --dir $evo | Out-Null
+    $learned = Api "evolve?dir=$([uri]::EscapeDataString($evo))"
+    Require ($learned.code -eq 0 -and @($learned.output.proposals).Count -ge 1 -and $learned.output.proposals[0].lines[0].evidence -and $learned.cli -like 'oml evolve show --dir *') "evolve endpoint: $($learned | ConvertTo-Json -Compress -Depth 4)"
+    Require ((Api "evolve/report?dir=$([uri]::EscapeDataString($evo))").code -in 0, 1) 'evolve report endpoint'
+    Refused "evolve?dir=$([uri]::EscapeDataString((Join-Path $Tmp 'no-such-folder')))" $null 'evolve of a missing folder'
     # oml flow (the flow fences): nodes with positions, connectors; an element without a flow is an error, not a crash.
     $flow = Api 'flow' @{ path = $module; name = 'PvCard/RenderCard' }
     Require ($flow.code -eq 0 -and $flow.output.element -like '*PvCard/RenderCard' -and @($flow.output.nodes).Count -ge 2 -and @($flow.output.edges).Count -ge 1 -and $null -ne $flow.output.nodes[0].x -and $flow.cli -like 'oml flow *') "flow endpoint: $($flow | ConvertTo-Json -Depth 6 -Compress)"
@@ -469,7 +476,7 @@ try {
             @{ page = 'previews'; hash = "#/previews?module=$m"; expect = 'Inputs and interaction steps' },
             @{ page = 'dif'; hash = "#/dif?file=$([uri]::EscapeDataString($difFile))&selftest=1"; expect = 'ShowCard' },
             @{ page = 'modules'; hash = '#/modules' }, @{ page = 'prompt'; hash = '#/prompt?selftest=1' }, @{ page = 'architecture'; hash = '#/architecture' }, @{ page = 'lifetime'; hash = '#/lifetime' }) +
-            @('recipes', 'assets', 'openapi', 'activity', 'cookbook', 'rules' | ForEach-Object { @{ page = $_; hash = "#/$_"; themes = @('light') } })
+            @('recipes', 'assets', 'openapi', 'activity', 'learned', 'cookbook', 'rules' | ForEach-Object { @{ page = $_; hash = "#/$_"; themes = @('light') } })
         foreach ($target in $targets) {
             foreach ($theme in $(if ($target.themes) { $target.themes } else { 'light', 'dark' })) {
                 $png = Join-Path $Tmp "dashboard-$($target.page)-$theme.png"

@@ -175,6 +175,7 @@ start: start, started, starting, starts
 stay: stay, stays
 step: step, steps
 stop: stop, stops
+stor: store, stored
 structur: structure, structures
 styl: style, styling
 support: support, supported, supports

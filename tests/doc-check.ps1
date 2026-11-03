@@ -20,12 +20,13 @@ function Run([string[]]$a) {
 function Tokens($path) { [math]::Ceiling((Get-Content -Raw $path).Replace("`r`n", "`n").Length / 4) } # same count on LF and CRLF checkouts
 
 # Size budget per topic in tokens (characters / 4). A file may be at most 15% over its budget. data-rules, rest and
-# troubleshooting were raised by 50-100 for the SQL column order, CrossSiteRequests and same-name publish notes.
+# troubleshooting were raised by 50-100 for the SQL column order, CrossSiteRequests and same-name publish notes. memory
+# was raised by 200 for "What recall learns" (usefulness, newest wins, stale records, suggested traps, oml evolve).
 $budget = [ordered]@{
   'ui-reactive' = 1500; 'osui-patterns' = 2000; 'data-rules' = 1250; 'logic-rules' = 1200; 'security' = 800
   'rest' = 950; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2000
   'traditional-to-reactive' = 900; 'troubleshooting' = 2100; 'ui-checklist' = 700; 'testing' = 2000
-  'best-practices' = 1300; 'rules' = 900; 'memory' = 1100; 'dif' = 800
+  'best-practices' = 1300; 'rules' = 900; 'memory' = 1300; 'dif' = 800
 }
 # Where a topic's file is: skill/reference/<topic>.md, except rules (skill/rules.md; SKILL.md holds the same 11 rules).
 function TopicFile($t) { if ($t -eq 'rules') { Join-Path $repo 'skill/rules.md' } else { Join-Path $ref "$t.md" } }
@@ -162,7 +163,8 @@ foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Include *.md, *
   }
 }
 $help = [math]::Ceiling((Run '--help').Text.Length / 4)
-if ($help -gt 2400 * 1.15) { Fail "oml --help is $help tokens; budget 2400 (+15%)" }
+# 2550: raised from 2400 for the three oml evolve lines (and the qa lines of the test branch).
+if ($help -gt 2550 * 1.15) { Fail "oml --help is $help tokens; budget 2550 (+15%)" }
 
 # 8. every relative link in skill/ resolves (examples in code fences and code spans, such as the image links of a gallery, are not links)
 foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Filter *.md) {
