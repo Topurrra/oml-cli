@@ -95,7 +95,7 @@ static class CliUsage
         oml hooks [status|install|remove] [--dir <project>]   (Claude Code hooks for this project: refuse reading the large skill references whole and changing .oml files)
         oml setup [--remove | --status]   (Explorer right-click entries for the current user: fonts, images, .oml files, folders)
         oml log summary [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; set OML_LOG=1 to write the log)
-        oml evolve report [--since <date>] [--file <usage.jsonl>]... [--check <report.json>]... [--md <file.md>]   (where agents lose turns, from the local log and memory; changes nothing)
+        oml evolve report [--since <date>] [--file <usage.jsonl>]... [--check <report.json>]... [--md <file.md>]   (where agents fail and retry, from the local log and memory; changes nothing)
         oml evolve propose [--maintainer [--repo <folder>]] [report options]   (proposals with evidence: trap records, a draft company skill, doc patches; nothing applied)
         oml evolve show [<id>] | accept <id> | reject <id> [--why <text>] | history | undo <id>   (a person accepts; each accepted change can be undone)
         Output is compact JSON on stdout. Global --pretty includes empty fields and indents. Exit 0 ok, 1 model/validation failure, 2 usage/environment.
