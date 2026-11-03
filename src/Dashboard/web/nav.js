@@ -6,7 +6,7 @@ export const NAV = [
   { group: 'Module', title: 'Your module', ids: ['explorer', 'previews', 'openapi', 'architecture', 'check', 'review'] },
   { group: 'Agents', title: 'Work with agents', ids: ['prompt', 'recipes', 'dif'] },
   { group: 'Assets', title: 'Assets', ids: ['assets'] },
-  { group: 'Team', title: 'Team and agents', ids: ['lifetime', 'activity'] },
+  { group: 'Team', title: 'Team and agents', ids: ['lifetime', 'activity', 'learned'] },
   { group: 'Learn', title: 'Learn', ids: ['cookbook', 'docs', 'rules'] },
   { group: 'Tools', title: 'Tools', ids: ['tools'] },
 ];

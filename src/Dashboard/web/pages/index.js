@@ -13,6 +13,7 @@ import check from './check.js';
 import review from './review.js';
 import lifetime from './lifetime.js';
 import activity from './activity.js';
+import learned from './learned.js';
 import cookbook from './cookbook.js';
 import docs from './docs.js';
 import rules from './rules.js';
@@ -20,5 +21,5 @@ import tools from './tools.js';
 
 export const PAGES = [
   home, modules, explorer, previews, prompt, recipes, dif, assets, openapi, architecture, check, review,
-  lifetime, activity, cookbook, docs, rules, tools,
+  lifetime, activity, learned, cookbook, docs, rules, tools,
 ];

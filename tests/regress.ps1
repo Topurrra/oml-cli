@@ -289,6 +289,10 @@ Unit 'memory-check' {
   try { & (Join-Path $tests 'memory-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL memory checks: $_" }
 }
+Unit 'evolve-check' {
+  try { & (Join-Path $tests 'evolve-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL evolve checks: $_" }
+}
 Unit 'library-check' {
   try { & (Join-Path $tests 'library-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL library checks: $_" }

@@ -16,6 +16,7 @@
     <Compile Include="..\AssetFiles.cs" Link="AssetFiles.cs" />
     <Compile Include="..\Locations.cs" Link="Locations.cs" />
     <Compile Include="..\UsageLog.cs" Link="UsageLog.cs" />
+    <Compile Include="..\Memory\MemorySecrets.cs" Link="MemorySecrets.cs" />
     <!-- The human terminal view: compiled into Core too, so every command's output can use it. -->
     <Compile Include="..\Terminal\*.cs" Link="Terminal\%(Filename)%(Extension)" />
     <!-- Validation message hints in apply and validate reports; the same file `oml warn` prints. -->
