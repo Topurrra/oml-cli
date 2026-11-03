@@ -2,7 +2,7 @@
 
 Keep a Changelog style: one section per release, newest first.
 
-## Unreleased
+## 1.14.0
 
 ### Added
 - `oml qa page <url>` and `oml qa run <qa.json>` test the published app like a manual tester, in a browser with its own throwaway profile. Targets are widget Names (the last part of the DOM id), `text:<label>` or `css:<selector>`. Steps: `open`, `click`, `fill`, `select`, `press`, `wait`, `screenshot`, each with optional `expect` (`screen`, `text`, `visible`, `value`, `feedback`, `call` with `rows`, `table` with column patterns, `count`, `invalid`). Every step also fails on a JavaScript error, a failed request to the app's server, a server exception or an error message. A click on Delete or Remove needs `allowDestructive`. `"$env:NAME"` keeps secrets out of the file and the report. Exit 0 all passed, 1 a step failed, 2 usage.
