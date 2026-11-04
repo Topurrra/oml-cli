@@ -43,7 +43,12 @@ Write-Host "ok   search: $($r.Text)"
 # release number. Do not tune on blind4.
 # commands: 40 plain requests a command answers ("deploy to production" -> oml lt). Measured before the command words in
 # src/DocSearch.cs: 0.361/0.556/0.484; after: 0.778/0.972/0.870 (tune MRR -0.001, held 0, blind2 0, blind3 -0.003, blind4
-# +0.003) on the first 36; with the 4 oml qa requests 0.750/0.925/0.847. It was tuned on, so it is not blind. Plain BM25 routes these better (MRR 0.968): the full engine's synonyms
+# +0.003) on the first 36; with the 4 oml qa requests 0.750/0.925/0.847. It was tuned on, so it is not blind.
+# Scoring a command on its name and its curated words only (the usage line's description is shown, not scored, so a
+# word in it cannot pull the command into an unrelated query): commands 0.725/0.950/0.840 after adding words to 3
+# commands (describe: server; openapi: generate file rest api service; qa: test, screen, record, clicking, through);
+# MRR tune 0.917 -> 0.916, held 0.924 -> 0.936, blind2 0.865 -> 0.865, blind3 0.812 -> 0.800; blind4 0.651 -> 0.662,
+# measured once, not tuned on. Plain BM25 routes these better (MRR 0.968): the full engine's synonyms
 # and glossary pull doc sections ahead of the command, so the baseline rule below skips this set.
 $min = @{
   'tune' = @{ top1 = 0.83; top3 = 0.94; mrr = 0.89 }
@@ -173,6 +178,13 @@ foreach ($q in 'convert png to svg', 'make a favicon ico', 'optimize svg file si
 }
 $r = Run 'image', '--help'
 if ($r.Exit -ne 0 -or $r.Text -notmatch '--to ico' -or $r.Text -notmatch '--mode trace') { Fail "oml image --help: exit $($r.Exit), $($r.Text)" }
+# A command entry is scored on its name and the curated words in src/DocSearch.cs only, never on the free text of its
+# usage line: 'canonical' is only in the description of oml expr, and the words of an unrelated question must not
+# bring a command into the top 3 ('turns' once put oml evolve third for this one).
+$h = @((Search 'canonical').hits)
+if ($h.Count -gt 0 -and $h[0].open -eq 'oml expr --help') { Fail "a word only in a command's description ranks it first: $($h[0] | ConvertTo-Json -Compress)" }
+$h = @((Search 'turn the string 42 into a number').hits | Select-Object -First 3)
+if (@($h | Where-Object kind -eq 'command').Count -gt 0) { Fail "'turn the string 42 into a number' returns a command in the top 3: $(($h | ForEach-Object open) -join ', ')" }
 Write-Host 'ok   search normalization: camel/snake/hyphen split, joined form, stemming, stop words, synonyms, typo fix, exact boost, command entries'
 
 # 4. output: kind, title, open, snippet (at most about 160 characters), score; 3 hits by default; about 400 tokens at most

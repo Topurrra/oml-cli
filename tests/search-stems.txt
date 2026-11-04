@@ -206,3 +206,6 @@ warn: warn, warning, warnings, warns
 widget: widget, widgets
 work: work, working, works
 writ: write, writes
+click: click, clicking
+replac: replace, replaces
+compress: compress, compressed

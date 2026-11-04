@@ -2,6 +2,11 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## Unreleased
+
+### Changed
+- `oml doc --search` scores a command entry on its name and a curated word list only; the description in the usage line is shown as the snippet but no longer scored, so a new command cannot pull itself into unrelated queries through a word in its description.
+
 ## 1.14.0
 
 ### Added
