@@ -1,6 +1,13 @@
 # Readers (inspect, describe, tree, find, census) on parts whose model getters throw: each one used to end the command.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'readers'
+Require-TestFile (Join-Path $Fixtures 'r0.oml') 'fixture module r0.oml'
+Require-TestFile (Join-Path $Fixtures 'references-producer.oml') 'fixture module references-producer.oml'
+Require-TestFile (Join-Path $Fixtures 's0.oml') 'fixture module s0.oml'
+try {
 function Require($ok, $message) { if (-not $ok) { throw $message } }
 function Oml([string[]]$cliArgs) {
   $text = & $Oml @cliArgs 2>&1
@@ -11,7 +18,7 @@ function Clean($r, $what) {
   Require ($r.Code -eq 0 -and $r.Json) "$what failed (exit $($r.Code)): $($r.Text.Substring(0, [Math]::Min(400, $r.Text.Length)))"
   Require (-not ($r.Text -match '"unreadable"')) "$what listed unreadable parts: $($r.Text.Substring(0, [Math]::Min(400, $r.Text.Length)))"
 }
-$reactive = Join-Path $Tmp 'r0.oml'; $service = Join-Path $Tmp 's0.oml'
+$reactive = Join-Path $Fixtures 'r0.oml'; $service = Join-Path $Fixtures 's0.oml'
 
 # A Service module has no JavaScript: its getter throws (NullReferenceException).
 Clean (Oml @('inspect', $service)) 'inspect of a Service module'
@@ -27,7 +34,7 @@ Clean (Oml @('census', $service)) 'census of a Service module'
 # A referenced block is a proxy: its Widgets getter throws NotSupportedException.
 $consumer = Join-Path $Tmp 'readers-consumer.oml'
 $spec = Join-Path $Tmp 'readers-spec.json'
-@{ references = @(@{ producer = (Join-Path $Tmp 'references-producer.oml'); elements = @('CustomerCard', 'Customer', 'GetCustomerById') })
+@{ references = @(@{ producer = (Join-Path $Fixtures 'references-producer.oml'); elements = @('CustomerCard', 'Customer', 'GetCustomerById') })
    screens = @(@{ name = 'Cards'; widgets = @(@{ type = 'BlockInstance'; sourceBlock = 'CustomerCard' }) }) } | ConvertTo-Json -Depth 8 | Set-Content $spec
 $r = & $Oml apply $reactive $spec $consumer 2>$null | ConvertFrom-Json
 Require $r.saved 'consumer with a referenced block'
@@ -56,3 +63,4 @@ $x = Oml @('run', $steps)
 $step = @($x.Json.results)[0]
 Require ($step.exitCode -eq 2 -and $step.output.error -match 'not a valid \.oml module' -and $step.output.error.Contains($bad)) "oml run inspect of a file that is not a module: $($x.Text.Substring(0, [Math]::Min(400, $x.Text.Length)))"
 Write-Host 'ok   readers: Service module, system history, referenced blocks, a file that is not a module (also install and oml run)'
+} finally { Remove-TestWorkFolder $Tmp }

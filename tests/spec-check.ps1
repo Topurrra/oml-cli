@@ -1,6 +1,10 @@
 # oml spec: key lookup, shape check and JSON Schema. None of it needs Service Studio. Throws on the first failure.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'spec'
+try {
 $repo = Split-Path $PSScriptRoot -Parent
 $work = Join-Path $Tmp 'spec-check'; New-Item -ItemType Directory -Force $work | Out-Null
 
@@ -201,3 +205,4 @@ $notes = Join-Path $Tmp 'spec-notes.json'
 $r = & $Oml spec check $notes | ConvertFrom-Json
 if (-not $r.ok) { Fail "spec check refused note keys: $($r.problems | ConvertTo-Json -Compress)" }
 Write-Host 'ok   oml spec: key lookup, check, schema'
+} finally { Remove-TestWorkFolder $Tmp }

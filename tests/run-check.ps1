@@ -2,6 +2,10 @@
 # stopping on exit code 2, --continue, stdin input, and the time of 5 separate processes against one run.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'run'
+try {
 function Require($condition, $message) { if (-not $condition) { throw $message } }
 function Same($a, $b) { ($a | ConvertTo-Json -Depth 50 -Compress) -ceq ($b | ConvertTo-Json -Depth 50 -Compress) }
 function Run-Steps($steps, [string[]]$Options = @(), $Stdin = $false) {
@@ -110,3 +114,4 @@ foreach ($bad in @('{}', '{ "steps": [] }', '{ "steps": [ "inspect" ] }', '{ "st
 }
 $text = & $Oml run (Join-Path $dir 'missing.json'); Require ($LASTEXITCODE -eq 2 -and ($text -join '') -match 'Cannot read') 'run: missing steps file'
 Write-Host 'ok   run: bad steps files refused with exit code 2'
+} finally { Remove-TestWorkFolder $Tmp }

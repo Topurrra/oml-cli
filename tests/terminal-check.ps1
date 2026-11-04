@@ -3,6 +3,11 @@
 # sequences. The renderer's unit-style self-tests (`oml terminal-test`) need no console.
 param($Oml, $Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'terminal'
+Require-TestFile (Join-Path $Fixtures 'r0.oml') 'fixture module r0.oml'
+try {
 $tests = $PSScriptRoot
 $golden = Join-Path $tests 'terminal-golden'
 
@@ -11,7 +16,7 @@ $st = & $Oml terminal-test
 if ($LASTEXITCODE -ne 0 -or $st -ne 'ok') { throw "terminal renderer self-test failed:`n$st" }
 Write-Host 'ok   terminal renderer self-test'
 
-$reactive = Join-Path $Tmp 'r0.oml'
+$reactive = Join-Path $Fixtures 'r0.oml'
 
 # --- 1. Redirected output is byte-identical JSON, as in 1.8.0. ---
 $cases = @(
@@ -85,3 +90,4 @@ $nc = (& $Oml meta $reactive) -join "`n"
 Remove-Item Env:OML_OUTPUT, Env:NO_COLOR
 if ($nc -match '\x1b\[') { throw 'NO_COLOR gave escape sequences' }
 Write-Host 'ok   NO_COLOR gives no escape sequences'
+} finally { Remove-TestWorkFolder $Tmp }

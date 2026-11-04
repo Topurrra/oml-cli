@@ -5,6 +5,10 @@
 # -Update rewrites the golden file after a reviewed change.
 param([string]$Oml, [string]$Tmp, [switch]$Update)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'evolve'
+try {
 function Require($condition, $message) { if (-not $condition) { throw $message } }
 function Json { param([Parameter(ValueFromRemainingArguments)]$a) $out = & $Oml @a; ($out -join "`n") | ConvertFrom-Json }
 $sample = Join-Path $PSScriptRoot 'evolve-sample.jsonl'
@@ -192,3 +196,4 @@ try {
 } finally {
   foreach ($n in $saved.Keys) { [Environment]::SetEnvironmentVariable($n, $saved[$n]) }
 }
+} finally { Remove-TestWorkFolder $Tmp }

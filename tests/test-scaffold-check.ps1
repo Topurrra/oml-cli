@@ -6,6 +6,10 @@
 # and AssertTrue(Condition, FailureMessage) are assumptions.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'test-scaffold'
+try {
 $repo = Split-Path $PSScriptRoot -Parent
 $work = Join-Path $Tmp ('test-scaffold-' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Force $work | Out-Null
 function Fail($m) { throw "test scaffold: $m" }
@@ -155,3 +159,4 @@ function Normal($path) {
 }
 if ((Normal $one) -ne (Normal (Join-Path $repo 'skill/recipes/bdd-test-screen.jsonc'))) { Fail "skill/recipes/bdd-test-screen.jsonc differs from the scaffold output: regenerate it from $one" }
 Write-Host 'ok   test scaffold: spec, clean apply and re-apply, describe, preview, refusals, read-only, recipe'
+} finally { Remove-TestWorkFolder $Tmp }

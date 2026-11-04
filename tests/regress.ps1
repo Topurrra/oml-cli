@@ -24,14 +24,18 @@
 #      Processes are already separate, so most would be safe in parallel; they stay alone for load and shared-state reasons.
 # Output is printed per unit in the order of the list below (the order of the old script), not in finish order.
 # To add a check: see CONTRIBUTING.md ("Adding a regression check").
-param([int]$Throttle = 4)
+# -Smoke runs only the quick units (see $smokeUnits below), about 3 minutes instead of about 20. release.ps1 always runs the full suite.
+param([int]$Throttle = 4, [switch]$Smoke)
 $ErrorActionPreference = "Stop"
 $watch = [Diagnostics.Stopwatch]::StartNew()
 $tests = $PSScriptRoot
 $oml = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\src\bin\Release\net10.0\oml.exe"))
 $tmp = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\tmp"))
+. (Join-Path $tests 'lib.ps1')
 New-Item -ItemType Directory -Force $tmp | Out-Null
-Get-ChildItem $tmp -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+# Start from nothing: a leftover from an earlier or interrupted run (a junction, an old r0.oml) must not matter. Links are
+# removed as links. release.ps1 keeps its own tmp\release-* folder while this runs, so that one stays.
+foreach ($child in @(Get-ChildItem -LiteralPath $tmp -Force | Where-Object { $_.Name -notlike 'release-*' })) { Remove-TestFolder $child.FullName }
 $base = Join-Path $tmp "base"; New-Item -ItemType Directory -Force $base | Out-Null
 $env:TEMP = $tmp; $env:TMP = $tmp
 $env:OML_LOG = '0' # the suite must not write to a person's usage log (it is on by default)
@@ -45,6 +49,10 @@ $fail = 0
 & $oml apply (Join-Path $base "references-producer-blank.oml") (Join-Path $tests 'references-producer.json') (Join-Path $base "references-producer.oml") | Out-Null
 # references.json names this producer as tmp/references-producer.oml, relative to the repo root.
 Copy-Item (Join-Path $base "references-producer.oml") $tmp
+# Every fixture the units copy must exist now; a failed `oml new` or `apply` stops here with a clear message.
+foreach ($fixture in 'r0.oml', 's0.oml', 'w0.oml', 'references-producer-blank.oml', 'references-producer.oml') {
+  if (-not (Test-Path -LiteralPath (Join-Path $base $fixture) -PathType Leaf)) { throw "Setup did not build fixture $fixture in $base (oml new / apply failed). Build first: dotnet build src/OmlCli.csproj -c Release" }
+}
 & $oml --help | Out-Null; if ($LASTEXITCODE -ne 0) { $fail++; Write-Host "FAIL --help exit $LASTEXITCODE" } else { Write-Host "ok   --help" }
 # `oml <command> --help` prints that command's usage, not the whole list.
 $helpBad = @(foreach ($c in 'check', 'doc', 'warn', 'apply', 'lt', 'font', 'doctor', 'setup', 'image', 'dashboard') { $h = (& $oml $c --help) -join "`n"; if ($LASTEXITCODE -ne 0 -or $h -notmatch "oml $c" -or $h -match 'oml new ') { $c } })
@@ -74,7 +82,8 @@ $runner = {
   param($name, $oml, $tests, $base, $work, $preamble, $bodyText, $publish)
   $ErrorActionPreference = 'Stop'
   Set-Location (Split-Path $tests -Parent)
-  Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
+  . (Join-Path $tests 'lib.ps1')
+  Remove-TestFolder $work
   New-Item -ItemType Directory -Force $work | Out-Null
   Copy-Item (Join-Path $base '*.oml') $work
   $env:TEMP = $work; $env:TMP = $work
@@ -366,6 +375,18 @@ Unit 'selftest' -Alone {
   & $oml selftest | ConvertFrom-Json | ForEach-Object { if (-not $_.passed) { $global:fail++; Write-Host "FAIL selftest"; Write-Host ($_ | ConvertTo-Json -Depth 8) } else { Write-Host "ok   selftest" } }
 }
 
+# --- Smoke tier: -Smoke keeps only the quick units. The fixtures (tmp\base) are built once above, as for the full run. ---
+# Chosen for speed and breadth: text and parser checks, the spec and doc tooling, hooks, the usage log, encoding, and a few apply fixtures.
+$smokeUnits = 'logic.json', 'service.json', 'web.json', 'datamodel.json', 'edits.json', 'edits-check', 'names-check', 'validate-check', 'parsers-check', 'encoding-check',
+  'hooks-check', 'spec-check', 'doc-check', 'evolve-check', 'inspect-check', 'turns-check', 'log-check'
+if ($Smoke) {
+  $unknown = @($smokeUnits | Where-Object { $n = $_; -not ($units | Where-Object { $_.Name -eq $n }) })
+  if ($unknown) { throw "-Smoke names units that do not exist: $($unknown -join ', ')" }
+  $units = [System.Collections.Generic.List[object]]@($units | Where-Object { $smokeUnits -contains $_.Name })
+  $missing = @($units | ForEach-Object { $_.After } | Where-Object { $_ } | Where-Object { $a = $_; -not ($units | Where-Object { $_.Name -eq $a }) } | Select-Object -Unique)
+  if ($missing) { throw "-Smoke units wait for units that are not in the smoke tier: $($missing -join ', ')" }
+  Write-Host ("smoke tier: {0} of the units" -f $units.Count)
+}
 # --- Scheduler. ---
 $done = @{}
 $nextPrint = 0
@@ -408,5 +429,5 @@ function Run-Lane($lane, [int]$limit) {
 Run-Lane @($units | Where-Object { -not $_.Alone }) $Throttle
 Run-Lane @($units | Where-Object { $_.Alone }) 1
 Flush-Output
-Write-Host ("total {0:N0}s, {1} failures" -f $watch.Elapsed.TotalSeconds, $fail)
+Write-Host ("{0}total {1:N0}s ({2:N1} min), {3} failures" -f $(if ($Smoke) { 'smoke tier: ' } else { '' }), $watch.Elapsed.TotalSeconds, $watch.Elapsed.TotalMinutes, $fail)
 exit $fail

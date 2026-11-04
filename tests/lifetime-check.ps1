@@ -1,5 +1,9 @@
 param([string]$Oml = (Join-Path $PSScriptRoot '..\src\bin\Release\net10.0\oml.exe'), [string]$Tmp = (Join-Path $PSScriptRoot '..\tmp'))
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'lifetime'
+try {
 $names = @('OML_LIFETIME_HOST','OML_LIFETIME_TOKEN','OML_LIFETIME_INSECURE_LOCALHOST','OML_SERVICE_STUDIO','OML_DEBUG_ARGS','TEMP','TMP')
 $saved = @{}; foreach ($name in $names) { $saved[$name] = [Environment]::GetEnvironmentVariable($name) }
 $job = $null; $packages = $null
@@ -262,3 +266,4 @@ try {
         else { [Environment]::SetEnvironmentVariable($name, $saved[$name]) }
     }
 }
+} finally { Remove-TestWorkFolder $Tmp }

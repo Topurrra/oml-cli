@@ -1,8 +1,13 @@
 # Entity options and indexes, aggregate options, group-by aliases, and the aggregate edit ops, end to end through the CLI.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'data'
+Require-TestFile (Join-Path $Fixtures 'r0.oml') 'fixture module r0.oml'
+try {
 function Require($condition, $message) { if (-not $condition) { throw $message } }
-$blank = Join-Path $Tmp 'r0.oml'
+$blank = Join-Path $Fixtures 'r0.oml'
 $fixture = Join-Path $PSScriptRoot 'data.json'
 function Apply-Spec($name, $source, $json) {
   $spec = Join-Path $Tmp "$name.json"; $out = Join-Path $Tmp "$name.oml"
@@ -153,3 +158,4 @@ Require ($query.Contains('query ByCountry: Person where Person.Salary > 0 group 
 $crash = Apply-Spec 'data-delete-crash' $built '{ "edits": [ { "op": "delete", "element": "PeopleByYear/ByYear/GroupBy[0]/People" } ] }'
 Require ($crash.Exit -eq 1 -and $crash.Report -and -not (Test-Path -LiteralPath $crash.Out)) "delete of a used aggregate attribute: exit $($crash.Exit) $($crash.Text)"
 Write-Host 'ok   data aggregate edits'
+} finally { Remove-TestWorkFolder $Tmp }

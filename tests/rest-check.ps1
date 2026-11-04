@@ -1,5 +1,7 @@
 param([string]$Oml, [string]$Module)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+Require-TestFile $Module 'module for rest-check'
 function Descendants($node) {
   $node
   foreach ($child in $node.children) { Descendants $child }

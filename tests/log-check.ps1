@@ -2,6 +2,10 @@
 # command and per run step with it, no folder, token or argument contents in the file, and the summary numbers.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'log'
+try {
 function Require($condition, $message) { if (-not $condition) { throw $message } }
 $dir = Join-Path $Tmp ('log-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $dir | Out-Null
@@ -116,3 +120,4 @@ try {
 } finally {
   foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, $saved[$name]) }
 }
+} finally { Remove-TestWorkFolder $Tmp }

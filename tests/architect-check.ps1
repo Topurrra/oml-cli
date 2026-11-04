@@ -5,6 +5,10 @@
 # Throws on the first failure.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'architect'
+try {
 $repo = Split-Path $PSScriptRoot -Parent
 $work = Join-Path $Tmp 'architect-check'; Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force $work | Out-Null
 function Fail($m) { throw "architect: $m" }
@@ -127,3 +131,4 @@ $r = Run 'apply', $shop, $partA, $partA, (Join-Path $work 'dup.oml')
 if ($r.Exit -eq 0 -or $r.Text -notmatch '"saved":false') { Fail "a repeated part was not refused: $($r.Text)" }
 Write-Host 'ok   architect: a repeated part gives saved=false'
 } finally { $env:TEMP = $oldTemp; $env:TMP = $oldTmp }
+} finally { Remove-TestWorkFolder $Tmp }

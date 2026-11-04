@@ -4,6 +4,11 @@
 # -RealModule <file.oml>: also run the module benchmark on a copy of a real module (not part of the suite).
 param([string]$Oml, [string]$Tmp, [string]$Module, [string]$RealModule)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+Require-TestFile $Module 'module for search-check'
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'search'
+try {
 $work = Join-Path $Tmp 'search-check'; New-Item -ItemType Directory -Force $work | Out-Null
 $bench = Join-Path $PSScriptRoot 'search-bench.json'
 
@@ -334,3 +339,4 @@ if ($RealModule) {
   $m = ModuleBench $copy $real
   Write-Host ("ok   find --text: real module {0} queries, top1 {1:P0}, top3 {2:P0}, {3} elements, {4} ms per search in oml run" -f $real.Count, $m.top1, $m.top3, $m.searched, $m.ms)
 }
+} finally { Remove-TestWorkFolder $Tmp }

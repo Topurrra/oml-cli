@@ -1,5 +1,7 @@
 param([string]$Oml, [string]$Module)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+Require-TestFile $Module 'module for openapi-check'
 function Assert($Condition, $Message) { if (!$Condition) { throw $Message } }
 $folder = Join-Path (Split-Path $Module) ('openapi-' + [guid]::NewGuid().ToString('N'))
 $hash = (Get-FileHash $Module).Hash

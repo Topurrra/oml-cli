@@ -1,5 +1,9 @@
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'flowlayout'
+try {
 $work = Join-Path $Tmp ('flowlayout-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $work | Out-Null
 function RunJson([string[]]$CliArgs) {
@@ -59,3 +63,4 @@ $bad = Join-Path $work 'bad.oml'
 $r = & $Oml apply $built $spec $bad | ConvertFrom-Json
 Require ($LASTEXITCODE -eq 1 -and -not $r.saved -and -not (Test-Path $bad)) 'Unmatched tidyFlows pattern was accepted'
 Write-Host 'ok   flow layout: action kinds, preparation, BPT and nested flows, sizes, selection'
+} finally { Remove-TestWorkFolder $Tmp }

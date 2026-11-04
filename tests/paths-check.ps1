@@ -3,6 +3,10 @@
 # referenced element, and index paths name the same element on every load.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'paths'
+try {
 function Require($ok, $message) { if (-not $ok) { throw $message } }
 function Oml([string[]]$cliArgs) {
   $text = & $Oml @cliArgs 2>$null
@@ -190,3 +194,4 @@ foreach ($name in 'Response', 'Seed') { Require ((Oml @('tree', $same, "Pick/$na
 $e = Apply $same '{ "edits": [{ "op": "rename", "element": "Pick/Assign:Response", "to": "SetResponse" }] }' (Join-Path $Tmp 'paths-same-out.oml')
 Require $e.saved "rename through the typed form: $($e | ConvertTo-Json -Depth 6 -Compress)"
 Write-Host 'ok   element paths: top-level wins, no fall-through, no edits of references, ambiguous candidates work everywhere, stable index paths'
+} finally { Remove-TestWorkFolder $Tmp }

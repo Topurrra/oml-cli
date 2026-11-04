@@ -1,5 +1,9 @@
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'packages'
+try {
 $env:TEMP = $Tmp; $env:TMP = $Tmp
 $dir = Join-Path $Tmp ('packages-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $dir | Out-Null
@@ -73,3 +77,4 @@ foreach ($invalid in @('{"module":{"name":"Oops"}}', '{"module":{"defaultTheme":
 }
 Check ((Get-FileHash $source).Hash -eq $hash) 'source changed'
 Write-Host 'ok   packages, template factory, extensions, module settings'
+} finally { Remove-TestWorkFolder $Tmp }

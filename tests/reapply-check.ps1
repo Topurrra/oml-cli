@@ -3,6 +3,10 @@
 # operations, not desired state: in the specs that hold them, only their problems are accepted (listed below).
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'reapply'
+try {
 $repo = Split-Path $PSScriptRoot -Parent
 $work = Join-Path $Tmp ('reapply-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $work, (Join-Path $work 'tmp/recipes') | Out-Null
@@ -77,3 +81,4 @@ try {
 finally { Pop-Location }
 if ($failures.Count) { throw "re-apply: $($failures -join "`n")" }
 Write-Host 'ok   re-apply: every fixture and recipe applied twice saves; only edits problems are accepted'
+} finally { Remove-TestWorkFolder $Tmp }

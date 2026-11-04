@@ -165,7 +165,8 @@ finally {
         if (-not ([IO.Path]::GetFullPath($work).StartsWith($tempRoot, [StringComparison]::OrdinalIgnoreCase))) {
             throw "Refusing to remove temporary folder outside $tempRoot"
         }
-        Remove-Item -LiteralPath $work -Recurse -Force
+        . (Join-Path $PSScriptRoot 'tests/lib.ps1')
+        Remove-TestFolder $work
     }
     Pop-Location
 }

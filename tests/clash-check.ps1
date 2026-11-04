@@ -2,6 +2,10 @@
 # the path works with describe. The user's case: a local named like an input of the same block.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'clash'
+try {
 $dir = Join-Path $Tmp ('clash-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $dir -Force | Out-Null
 function Require($condition, $message) { if (-not $condition) { throw "clash: $message" } }
@@ -51,3 +55,4 @@ foreach ($p in 'MainFlow/LatticeLoader/Status', 'Order/CreateOrder', 'Mgr/CheckM
   Require ($LASTEXITCODE -eq 0) "describe '$p' failed"
 }
 Write-Host 'ok   clash: taken names name the holder (kind, owner, path); the user case of a local named like a block input'
+} finally { Remove-TestWorkFolder $Tmp }

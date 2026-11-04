@@ -1,6 +1,10 @@
 param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
 # The oml check HTML report: offline, data escaped, and in headless Edge/Chrome the filters work in both themes without script errors.
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'check-page'
+try {
 $dir = Join-Path $Tmp ('check-page-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $dir | Out-Null
 $inputs = Join-Path $dir 'input'; New-Item -ItemType Directory -Force $inputs | Out-Null
@@ -80,3 +84,4 @@ foreach ($theme in @('light','dark')) {
     if ($checks.errors.Count -gt 0) { throw "Check page browser errors ($theme): $($checks.errors -join '; ')" }
     Write-Host "ok   check page browser $theme`: $($checks.checks.Count) checks, no script errors ($screenshot)"
 }
+} finally { Remove-TestWorkFolder $Tmp }

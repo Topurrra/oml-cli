@@ -1,5 +1,9 @@
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'describe'
+try {
 function Require($condition, $message) { if (!$condition) { throw $message } }
 function Read-Oml([string[]]$cliArgs) {
     $text = & $Oml @cliArgs
@@ -76,3 +80,4 @@ Require (!$without.text.Contains('if Total >= 0:')) 'reference proxy treated as 
 $with = Read-Oml @('describe',$consumer,'Use','--depth','1','--in',$out)
 Require ($with.text.Contains('if Total >= 0:')) 'producer body not expanded'
 Write-Host 'ok   describe, public flags, filters, compact and pretty JSON'
+} finally { Remove-TestWorkFolder $Tmp }

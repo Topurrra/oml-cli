@@ -1,5 +1,9 @@
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'logic'
+try {
 $Tmp = Join-Path $Tmp ('logic-check-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $Tmp | Out-Null
 $env:TEMP = $Tmp; $env:TMP = $Tmp
@@ -64,3 +68,4 @@ Reject $web '{"serverActions":[{"name":"Bad","flow":[{"kind":"sendEmail"}]}]}' '
 Reject $source '{"clientActions":[{"name":"Bad","flow":[{"kind":"assign","name":"First","next":"Handler"},{"kind":"exceptionHandler","name":"Handler","exception":"AllExceptions"}]}]}' 'cannot connect'
 Reject $source '{"clientActions":[{"name":"Init"}],"systemEvents":{"onMadeUp":"Init"}}' 'unknown system event'
 Write-Host 'ok   exception paths, variables, events, Excel, messages, comments, download, refusals'
+} finally { Remove-TestWorkFolder $Tmp }

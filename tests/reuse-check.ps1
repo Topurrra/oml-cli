@@ -4,6 +4,10 @@
 # addVariables and addParts.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'reuse'
+try {
 $dir = Join-Path $Tmp ('reuse-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $dir -Force | Out-Null
 function Require($condition, $message) { if (-not $condition) { throw "reuse: $message" } }
@@ -178,4 +182,4 @@ Require ($webBlock.Exit -eq 0) "web block: $($webBlock.Text)"
 Refused $webBlock.Out '{ "blocks": [{ "name": "WB", "onParametersChanged": "Nope" }] }' @('block WB: events and onParametersChanged are supported for Reactive and Mobile blocks only') 'web block: onParametersChanged'
 Refused $webBlock.Out '{ "blocks": [{ "name": "WB", "onReady": "Nope" }] }' @('block WB: Traditional Web uses preparation instead of Reactive lifecycle events') 'web block: onReady'
 Write-Host 'ok   reuse: a new screen action on an existing block; onParametersChanged through creation list (in changed), addParts and the spec.md example; refused on Traditional Web'
-
+} finally { Remove-TestWorkFolder $Tmp }

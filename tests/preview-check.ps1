@@ -4,6 +4,10 @@
 # data-oml-errors and the attribute the fixture's JavaScript set on its root (proof that $parameters.RootId was right).
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'preview'
+try {
 $Tmp = [IO.Path]::GetFullPath($Tmp)
 function Require($condition, $message) { if (!$condition) { throw $message } }
 # A raw request, so the Host header and the method are exactly what the test says (copied from dashboard-check).
@@ -275,3 +279,4 @@ if ($browser) {
 }
 Require ((Get-FileHash $module).Hash -eq $hash) 'preview changed the module'
 Write-Host "ok   preview: report, HTML, nested blocks, CSS, JavaScript call, checklist, overwrite refused, scripts, $note"
+} finally { Remove-TestWorkFolder $Tmp }

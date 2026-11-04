@@ -1,6 +1,10 @@
 # Checks inspect: parameter and input descriptions, --only aliases, and --in <folder> (one process, a broken file gives an error entry).
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'inspect'
+try {
 function Require($condition, $message) { if (-not $condition) { throw $message } }
 $dir = Join-Path $Tmp ('inspect-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $dir | Out-Null
@@ -78,3 +82,4 @@ Require (@($run.results[1].output.modules).Count -eq 3 -and @($run.results[2].ou
 $none = & $Oml inspect $web --own --changed-since 2999-01-01 | ConvertFrom-Json
 Require ($null -eq $none.PSObject.Properties['sessionVariables'] -or @($none.sessionVariables).Count -eq 0) '--changed-since must filter sessionVariables'
 Write-Host 'inspect-check ok'
+} finally { Remove-TestWorkFolder $Tmp }

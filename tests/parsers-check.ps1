@@ -3,6 +3,10 @@
 # saved by Service Studio, so any failure is a parser gap. Throws on the first failure.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'parsers'
+try {
 $work = Join-Path $Tmp ('parsers-' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Force $work | Out-Null
 $tests = $PSScriptRoot
 function Fail($m) { throw "parsers: $m" }
@@ -80,3 +84,4 @@ $r = Call 'app', 'extract', $pack, $out
 Require ($r.Exit -eq 0 -and (Test-Path (Join-Path $out 'ParseClean.oml'))) "app extract: $($r.Text)"
 
 Write-Host 'ok   parsers: meta (files, missing, --diff), expr and corpus (0 parse failures), spec check expressions, warn --catalog and usage, app check, list, extract'
+} finally { Remove-TestWorkFolder $Tmp }

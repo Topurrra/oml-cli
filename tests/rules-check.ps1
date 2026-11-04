@@ -1,6 +1,12 @@
 # -Part i -Parts n: run only every n-th case (i = 0..n-1), so n processes can share the cases. Cases that later cases build on always run.
 param([string]$Oml, [string]$Tmp, [int]$Part = 0, [int]$Parts = 1)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'rules'
+Require-TestFile (Join-Path $Fixtures 'r0.oml') 'fixture module r0.oml'
+Require-TestFile (Join-Path $Fixtures 's0.oml') 'fixture module s0.oml'
+try {
 function Require($ok, $message) { if (-not $ok) { throw $message } }
 $script:index = 0
 function Case($source, $spec, $allowed, $label, [switch]$Always) {
@@ -18,7 +24,7 @@ function Case($source, $spec, $allowed, $label, [switch]$Always) {
   return $out
 }
 $source = Join-Path $Tmp 'rules-source.oml'
-$r = & $Oml apply (Join-Path $Tmp 'r0.oml') (Join-Path $PSScriptRoot 'rules.json') $source | ConvertFrom-Json
+$r = & $Oml apply (Join-Path $Fixtures 'r0.oml') (Join-Path $PSScriptRoot 'rules.json') $source | ConvertFrom-Json
 Require ($LASTEXITCODE -eq 0 -and $r.saved) "rules source: $($r | ConvertTo-Json -Depth 12)"
 $before = (Get-FileHash $source).Hash
 foreach ($target in @('RuleEntity','RuleEntity/Value','RuleStatus','RuleStatus/Color','RuleDto','RuleDto/Caption',
@@ -48,9 +54,10 @@ Case $added @{edits=@(@{op='delete';element='RuleEntity/Added';allowDataLoss=$tr
 Case $source @{edits=@(@{op='set';element='RuleAction/Read';properties=@{Statement="SELECT 'DELETE '' UPDATE', 'MERGE' /* DROP /* ALTER */ TRUNCATE */ -- DELETE`n"}})} $true 'R6 SELECT with comments and strings' | Out-Null
 Case $source @{serverActions=@(@{name='InsertRows';flow=@(@{kind='sql';name='AddRow';sql="INSERT INTO {RuleEntity} ([Value]) VALUES ('UPDATE')";outputs=@('RuleDto')})})} $true 'R6 INSERT' | Out-Null
 # Service actions require a Service module.
-$service = Case (Join-Path $Tmp 's0.oml') @{serviceActions=@(@{name='RuleServiceAction';inputs=@(@{name='Input'});outputs=@(@{name='Output'})})} $true 'service seed' -Always
+$service = Case (Join-Path $Fixtures 's0.oml') @{serviceActions=@(@{name='RuleServiceAction';inputs=@(@{name='Input'});outputs=@(@{name='Output'})})} $true 'service seed' -Always
 foreach ($target in @('RuleServiceAction','RuleServiceAction/Input','RuleServiceAction/Output')) {
   foreach ($op in @('rename','delete')) { Case $service @{edits=@(@{op=$op;element=$target;to='Renamed'})} $false "service $op $target" | Out-Null }
 }
 Require ((Get-FileHash $source).Hash -eq $before) 'rules changed source'
 Write-Host "ok   R2/R3/R5/R6 refusals and allowed cases (part $Part of $Parts)"
+} finally { Remove-TestWorkFolder $Tmp }
