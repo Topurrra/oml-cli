@@ -178,6 +178,8 @@ oml install App.staged.oml App.oml
 
 A command is slow on a big module? Add `--timings` to see the milliseconds per phase (load, build, save, reopen, ...). `oml run` runs several commands in one process, so Service Studio's model starts once. See [commands.md](skill/reference/commands.md#timings---timings).
 
+`oml --help` lists the commands by area. `oml <command> --help` prints the options of one command, and `oml help --all` prints every usage line.
+
 ## Use with AI agents
 
 The skill is the `skill/` folder: instructions, rules, recipes and references.

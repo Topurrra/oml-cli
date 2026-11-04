@@ -15,7 +15,7 @@ function Run([string[]]$a) {
 
 # --- 1. Names in the docs exist. ---
 $files = 'skill/architect.md', 'skill/reference/worker-brief.md' | ForEach-Object { Join-Path $repo $_ }
-$help = (Run '--help').Text
+$help = (Run 'help', '--all').Text
 $commands = @($help -split "`n" | Where-Object { $_ -match '^oml ([a-z]+)' } | ForEach-Object { $Matches[1] } | Sort-Object -Unique)
 $allHelp = $help
 foreach ($c in $commands) { $allHelp += "`n" + (Run $c, '--help').Text }

@@ -41,10 +41,11 @@ public static partial class Cli
         {
             var command = args.FirstOrDefault();
             TerminalOutput.Command = command;
-            if (command is null or "help" || args.Contains("--help") || args.Contains("-h")) { TerminalOutput.PrintHelp(CliUsage.For(command), command); return 0; }
+            if (CliUsage.IsHelp(args.ToArray())) { TerminalOutput.PrintHelp(CliUsage.HelpText(args.ToArray()), null); return 0; }
+            if (args.Contains("--help") || args.Contains("-h")) { TerminalOutput.PrintHelp(CliUsage.For(command), command); return 0; }
             if (command is "new" or "inspect" or "census" or "validate" or "apply" or "install" or "preview")
                 Timings.Measure("selfTestCheck", SelfTest.EnsurePassed);
-            if (!Dispatch.TryGetValue(command, out var handler)) { Console.Error.WriteLine(Usage); return 2; }
+            if (command is null || !Dispatch.TryGetValue(command, out var handler)) { Console.Error.WriteLine(Usage); return 2; }
             if (handler(args) is { } code) return code;
             // Missing arguments or an unknown option: that command's lines, not the whole usage.
             Console.Error.WriteLine(CliUsage.For(command));

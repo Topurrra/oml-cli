@@ -4,7 +4,7 @@ Full usage and details for every command. [SKILL.md](../SKILL.md) has the short 
 
 #### CLI usage
 
-The following block matches the usage constant in `src/Core/Cli.cs`. `oml --help` prints all of it; `oml <command> --help` prints only that command's lines (`architecture-render`, used by the dashboard, has none and prints all).
+The following block matches the usage constant in `src/Core/Cli.cs`. `oml help --all` (also `oml --help --all`) prints all of it; `oml` alone, `oml help` and `oml --help` print the overview (`CliUsage.Overview`, grouped by area, with the commands to ask for more); `oml <command> --help` prints only that command's lines (`architecture-render`, used by the dashboard, has none and prints all).
 
 ```text
 oml version
@@ -262,13 +262,13 @@ oml spec --search "load detail on click"   the same, spec only
 - `oml warn --catalog [<prefix>]` lists the verification ids oml knows (the ids the IDE can emit: `Entity_*`, `InvalidFlow_*`, `Expression*`, `Parser*`, `Operator*`, `SQL_*`, ...). A prefix narrows the list (`oml warn --catalog SQL`). An id in the catalog but without a `warnings.md` page prints a short note instead of "no match": it is a real verification id, just one oml ships no fix text for. The catalog is built into `oml.exe`; it has no model or network.
 - `apply` and `validate` add `hint` (the Fix cell of `warnings.md`) to each entry of `newErrors`, `reopenNewErrors`, `newWarnings`, `errors` and `warnings` whose `id` the file lists (other entries have no `hint` field, also with `--pretty`), so an agent seldom needs `oml warn`. The generic plugin ids `CustomObjectWarning` and `CustomObjectError` get no hint; look up their `message`.
 
-**Search.** `oml doc --search "<words>"` lists the 3 most likely sections, each with the command that opens it. It searches every topic (split into its `##` and `###` sections; table rows and the rules of `rules.md` are entries of their own), every row of `warnings.md`, the spec sections and the spec key index, every recipe (its header comment and the keys it uses), and every usage line of `oml --help` (so "convert png to svg" finds `oml image`). The words may be one quoted argument or several. Output is compact JSON, about 200 tokens for 3 hits (here with `--top 1`):
+**Search.** `oml doc --search "<words>"` lists the 3 most likely sections, each with the command that opens it. It searches every topic (split into its `##` and `###` sections; table rows and the rules of `rules.md` are entries of their own), every row of `warnings.md`, the spec sections and the spec key index, every recipe (its header comment and the keys it uses), and every usage line of `oml help --all` (so "convert png to svg" finds `oml image`). The words may be one quoted argument or several. Output is compact JSON, about 200 tokens for 3 hits (here with `--top 1`):
 
 ```json
 {"query":"confirm popup before delete","hits":[{"kind":"recipe","title":"block-popup-event","open":"skill/recipes/block-popup-event.jsonc","snippet":"Build a reusable confirm popup block that fires events, and a screen that opens it and handles them.","score":7.2}]}
 ```
 
-- `kind` is `doc` (a topic section, table row or rule), `spec` (a spec section or its table row), `key` (a row of the spec key index), `warning` (a `warnings.md` row), `recipe` or `command` (a usage line of `oml --help`; its `title` is `oml <command>`).
+- `kind` is `doc` (a topic section, table row or rule), `spec` (a spec section or its table row), `key` (a row of the spec key index), `warning` (a `warnings.md` row), `recipe` or `command` (a usage line of `oml help --all`; its `title` is `oml <command>`).
 - `open` is the exact command that prints the whole answer (`oml doc ui-reactive#forms-and-validation`, `oml spec "Reactive UI and Mobile UI"`, `oml warn SQLInjection`, `oml image --help`) or the recipe path. A key opens the section of its own row: `screens` has one row for Reactive and Mobile and one for Traditional Web.
 - Every hit opens a different place: a hit with the same `open` as a better one (any case) is left out, so a table row and its section are not both listed.
 - `snippet` is the best matching line, at most about 160 characters.
@@ -1169,7 +1169,7 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 
 **Recall quality.** `tests/memory-bench.json` has 40 invented records and two sets of questions. The tune set (34 questions, 10 without an answer) was written first; the blind set (26 questions, 6 without an answer) was written in one go before any run against it, and nothing is tuned on it. Tune: right record first for 22 of 24 answerable questions, top 3 for 23 (MRR 0.95). Blind: first for 19 of 20, top 3 for 19 (MRR 0.96). All 16 unanswerable questions are flagged weak; so are 5 of 24 answerable tune questions and 4 of 20 blind ones, mostly short questions of which the record holds one word of two. On a real memory of another project (221 records, 53 questions with its own blind third) recall gave top 3 0.94 and MRR 0.90 on the blind third, in about 120 ms per process; a hybrid of word search and an embedding model gave 0.94 and 0.93 there, in about 1 s and 0.5 GB. The weak flag keeps the thresholds of `oml doc --search`: on both sets the scores and word coverage of unanswerable questions overlap those of answerable ones, so a stricter threshold flags more good answers about as often as it catches a bad one. `oml memory bench --quality <fixture.json> [--details]` prints these numbers per set; `--details` adds the rank, best score and coverage of each question.
 
-**oml memory bench** `<new folder> --records N [--runs R]` is for maintainers (`tests/memory-check.ps1` runs it at 1k and 10k records, and at 100k with `-Speed`): it writes a synthetic store of N records into a new folder and prints the timings above as JSON. `bench --quality <fixture.json>` scores recall on a fixture in memory and writes no store; a fixture record over the limits of `add` or with a secret is refused. Neither is listed in `oml --help`.
+**oml memory bench** `<new folder> --records N [--runs R]` is for maintainers (`tests/memory-check.ps1` runs it at 1k and 10k records, and at 100k with `-Speed`): it writes a synthetic store of N records into a new folder and prints the timings above as JSON. `bench --quality <fixture.json>` scores recall on a fixture in memory and writes no store; a fixture record over the limits of `add` or with a secret is refused. Neither is listed in `oml help --all`.
 
 ## Flow
 

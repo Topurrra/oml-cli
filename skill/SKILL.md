@@ -96,4 +96,4 @@ Copy one from `recipes/` and read its header ([README](recipes/README.md)):
 | `oml check` | AI Mentor-like findings (module, folder, `--team`). |
 | More | doctor, census, translations, app, extension, templates, font, image, api, widgets. Lead workers: [architect.md](architect.md) |
 
-Output is compact JSON. Exit 0 ok, 1 model or validation failure, 2 usage or setup. Usage of one command: `oml <command> --help`. Details: `oml doc commands#<section>` (no section lists them); never read `reference/commands.md` whole.
+Output is compact JSON. Exit 0 ok, 1 model or validation failure, 2 usage or setup. `oml --help` lists the commands by area; usage of one command: `oml <command> --help`; every usage line: `oml help --all`. Details: `oml doc commands#<section>` (no section lists them); never read `reference/commands.md` whole.

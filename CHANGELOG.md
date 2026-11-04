@@ -2,6 +2,11 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## Unreleased
+
+### Changed
+- `oml`, `oml help` and `oml --help` print a short overview grouped by area (about 600 tokens) instead of every usage line. `oml help --all` prints every line, `oml <command> --help` is unchanged, and `oml --help` works without Service Studio.
+
 ## 1.14.0
 
 ### Added

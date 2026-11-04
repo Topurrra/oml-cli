@@ -102,6 +102,33 @@ static class CliUsage
         --timings on a command that loads a module (apply, inspect, describe, validate, install, run, ...) adds "timings": milliseconds per phase.
         """;
 
+    // `oml`, `oml help` and `oml --help`: the overview, about 600 tokens. Every command word of Text appears here
+    // (tests/doc-check.ps1 checks it). `oml help --all` prints Text instead.
+    public const string Overview = """
+        Commands by area (OutSystems 11 modules; compact JSON out, a readable view in a console):
+        Read a module: inspect, describe, find, tree, flow, census, meta, expr, openapi (what a module holds, one element, search, the header, an expression, OpenAPI)
+        Change a module: new, apply, install, validate, spec, translations (new module; edit by spec into a staged copy; install after checks; spec keys; translation files)
+        Check and review: check, review, architecture (rules and findings; a change before and after; module map and publish order)
+        Preview and UI: preview (a screen or block in light and dark, screenshot, serve it)
+        Docs and search: doc, spec, warn, library, skills (OutSystems rules by topic and search; spec keys; cause and fix of a warning; the OutSystems 11 docs; company rules)
+        Memory and learning: memory, evolve (project facts, decisions and traps for agents; lessons from where agents fail and retry)
+        Agents: run, hooks, dif, dashboard (several commands in one process; Claude Code hooks; a change walkthrough; the local web dashboard)
+        Service Studio and LifeTime: studio, pull, publish, references, lt (Studio's open modules; save, publish and refresh references; the LifeTime API)
+        Testing: qa, test scaffold (test a running app in a browser; BDD test specs for server actions)
+        Assets: font, image (woff2 fonts; convert, resize, trace and ICO images)
+        Packages: app, extension, templates (.oap and .osp packages; .xif extensions; sample modules)
+        Setup: version, selftest, doctor, setup, log, api, widgets (the build and its checks; Explorer right-click entries; the usage log; OutSystems API members)
+
+        Usage of one command, with its options: oml <command> --help
+        Every usage line: oml help --all
+        Output is compact JSON on stdout. Global --pretty includes empty fields and indents. Exit 0 ok, 1 model/validation failure, 2 usage/environment.
+        --timings on a command that loads a module (apply, inspect, describe, validate, install, run, ...) adds "timings": milliseconds per phase.
+        """;
+
+    // The help request: no arguments, or help, --help or -h first. Such a request prints Overview, or Text with --all.
+    public static bool IsHelp(string[] args) => args.Length == 0 || args[0] is "help" or "--help" or "-h";
+    public static string HelpText(string[] args) => args.Contains("--all") ? Text : Overview;
+
     // `oml <command> --help`: only that command's usage lines; the whole usage when the command has none.
     public static string For(string? command)
     {

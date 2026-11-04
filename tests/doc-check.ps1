@@ -142,7 +142,7 @@ if (-not $skill.Contains('(architect.md)')) { Fail 'SKILL.md does not point to a
 
 # 7e. the command reference (commands.md, about 47k tokens) is read by section only: oml doc commands lists the
 # sections, each one prints within its budget (the largest, check with its rule table, is about 5.6k tokens), and no
-# skill file sends an agent to the whole file. oml --help: budget 2.4k tokens (+15%), the whole usage (raised from 2.3k for oml qa, library update and hooks).
+# skill file sends an agent to the whole file. oml --help is the overview (budget 700 tokens, +15%); oml help --all is the whole usage.
 $r = Run 'doc', 'commands'
 if ($r.Exit -ne 0 -or $r.Text -notmatch 'Sections: ' -or $r.Text.Length -gt 2500) { Fail "oml doc commands: exit $($r.Exit), $($r.Text.Length) characters" }
 $sections = @(($r.Text -split 'Sections: ')[1].Trim() -split ', ')
@@ -163,8 +163,17 @@ foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Include *.md, *
   }
 }
 $help = [math]::Ceiling((Run '--help').Text.Length / 4)
-# 2550: raised from 2400 for the three oml evolve lines (and the qa lines of the test branch).
-if ($help -gt 2550 * 1.15) { Fail "oml --help is $help tokens; budget 2550 (+15%)" }
+if ($help -gt 700 * 1.15) { Fail "oml --help is $help tokens; budget 700 (+15%)" }
+# oml help --all: every usage line. 2550: raised from 2400 for the three oml evolve lines (and the qa lines of the test branch).
+$helpAll = [math]::Ceiling((Run 'help', '--all').Text.Length / 4)
+if ($helpAll -gt 2550 * 1.15) { Fail "oml help --all is $helpAll tokens; budget 2550 (+15%)" }
+# every command word of the full usage is named in the overview (a word is whole: `test` is not `testing`)
+$fullUsage = (Run 'help', '--all').Text
+$overview = (Run '--help').Text
+$commandWords = @([regex]::Matches($fullUsage, '(?m)^oml ([a-z][a-z-]*)') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+if ($commandWords.Count -lt 40) { Fail "oml help --all has only $($commandWords.Count) command words" }
+$unnamed = @($commandWords | Where-Object { $overview -notmatch "(?<![\w-])$([regex]::Escape($_))(?![\w-])" })
+if ($unnamed.Count -gt 0) { Fail "oml --help does not name: $($unnamed -join ', ')" }
 
 # 8. every relative link in skill/ resolves (examples in code fences and code spans, such as the image links of a gallery, are not links)
 foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Filter *.md) {
@@ -174,7 +183,7 @@ foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Filter *.md) {
     if (-not (Test-Path (Join-Path $f.DirectoryName $target))) { Fail "$($f.Name): broken link $target" }
   }
 }
-Write-Host "ok   doc: $($budget.Count) topics, sections, unknown names, warn lookups, $($ids.Count) ids, budgets (default load $load tokens, oml --help $help, largest of $($sections.Count) command sections $biggest), links"
+Write-Host "ok   doc: $($budget.Count) topics, sections, unknown names, warn lookups, $($ids.Count) ids, budgets (default load $load tokens, oml --help $help, oml help --all $helpAll, $($commandWords.Count) command words in the overview, largest of $($sections.Count) command sections $biggest), links"
 
 # 9. apply adds the warnings.md fix as `hint` to a new warning it covers, and no hint to other ids
 $spec = Join-Path $work 'hint.json'
