@@ -14,6 +14,7 @@ sealed class SearchDoc
     public required string Id, Kind, Title, Open;
     public string Keys = "";       // second field: keys, ids, related keys (module search: the description)
     public string Body = "";       // third field: the text (module search: expressions, SQL, labels)
+    public string Shown = "";      // snippet text when set: shown to users, never scored (a command's description)
     public string[] Names = [];    // exact names: a query equal to one of them (or to the title) gets the exact boost
     public string? Parent { get; set; } // the section a table row belongs to
     public bool TitleIsName { get; set; } = true; // false: the title is not an exact name (a glossary entry)
@@ -521,7 +522,7 @@ sealed class SearchIndex
             if (shown.Count == top) break;
         }
         var matched = terms.Keys.ToHashSet(StringComparer.Ordinal);
-        return shown.Select(s => new SearchHit(s.doc, Math.Round(s.score, 2), SearchText.Snippet(s.doc.Body.Length > 0 ? s.doc.Body : s.doc.Keys, matched, options.Normalize))).ToList();
+        return shown.Select(s => new SearchHit(s.doc, Math.Round(s.score, 2), SearchText.Snippet(s.doc.Shown.Length > 0 ? s.doc.Shown : s.doc.Body.Length > 0 ? s.doc.Body : s.doc.Keys, matched, options.Normalize))).ToList();
     }
 
     // A result to treat with care: nothing found, or a best hit that holds less than WeakCoverage of the query's words with a

@@ -278,7 +278,10 @@ static class DocSearch
             return new SearchDoc
             {
                 Id = "command:" + command, Kind = "command", Title = "oml " + command, Open = $"oml {command} --help", TitleIsName = false,
-                Body = (described.Success ? described.Groups[2].Value + "\n" + described.Groups[1].Value : line) + "\n" + CommandWords.GetValueOrDefault(command, ""),
+                // Scored: the command name (title) and the curated CommandWords only. The usage line's description is shown as the
+                // snippet but never scored: a word in it ("turns") made a command outrank the doc section for unrelated queries.
+                Body = CommandWords.GetValueOrDefault(command, ""),
+                Shown = described.Success ? described.Groups[2].Value + "\n" + described.Groups[1].Value : line,
             };
         });
 
@@ -293,7 +296,7 @@ static class DocSearch
         ["review"] = "what changed difference compare two versions before after code review diff",
         ["find"] = "which module defines owns where is defined producer consumer search elements by words",
         ["inspect"] = "overview list entities screens actions blocks contents summary of a module",
-        ["describe"] = "what does an element action screen entity do details explain",
+        ["describe"] = "what does an element server action screen entity do details explain",
         ["tree"] = "object tree nodes paths of an action or screen",
         ["doctor"] = "check setup working installed diagnose health problem",
         ["studio"] = "service studio reachable connected running open modules mcp",
@@ -309,14 +312,14 @@ static class DocSearch
         ["memory"] = "remember decision notes next agent handoff brief project knowledge trap",
         ["run"] = "many several commands one process batch steps",
         ["translations"] = "translations languages excel resx",
-        ["openapi"] = "openapi swagger contract",
+        ["openapi"] = "openapi swagger contract generate file rest api service",
         ["app"] = "unpack extract list oap osp package application",
         ["setup"] = "explorer right click context menu entries",
         ["skills"] = "company coding rules standards conventions",
         ["dashboard"] = "web dashboard developers browser",
         ["font"] = "font woff2 convert",
-        ["image"] = "image resize convert optimize png jpeg webp svg ico",
-        ["qa"] = "manual qa e2e end to end the running published app in a browser click buttons what the screen shows",
+        ["image"] = "image resize convert optimize png jpeg webp svg ico favicon icon logo trace vector paths file size smaller compress",
+        ["qa"] = "manual qa e2e end to end test the running published app screen in a browser click buttons record clicking through what the screen shows",
     };
 
     // The comment lines before the JSON starts, without the slashes.
