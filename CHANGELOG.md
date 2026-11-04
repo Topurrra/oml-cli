@@ -2,7 +2,7 @@
 
 Keep a Changelog style: one section per release, newest first.
 
-## Unreleased
+## 1.15.0
 
 ### Changed
 - The usage log is on by default (was opt-in), because memory recall and `oml evolve` learn from it. It stays on your machine and keeps the same fields (no arguments, specs, tokens or folders). `OML_LOG=0` (or `off`, `false`) turns it off; `OML_LOG=<file>` writes elsewhere. At 20 MB the file moves to `usage.jsonl.1` (one older file kept). The test suite sets `OML_LOG=0`, and the Agent activity page explains how to turn the log back on.
