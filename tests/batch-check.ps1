@@ -1,6 +1,6 @@
 # Checks `oml apply --batch <index.json>` and `oml install --batch <index.json>`: all saved, one failing item,
 # an existing staged file, a bad index (exit 2, nothing written), the same fields as a single apply, a batch inside
-# `oml run` (the run keeps its module sharing), and an install batch that is all or nothing on its checks.
+# `oml batch` (the run keeps its module sharing), and an install batch that is all or nothing on its checks.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
@@ -74,14 +74,14 @@ foreach ($file in 'broken.json', 'dup.json', 'nokey.json', 'extra.json', 'empty.
 Require (@(Get-ChildItem $dir -Recurse -Filter 'D*.oml').Count -eq 0) 'batch: a bad index wrote a file'
 Write-Host 'ok   batch apply: bad index (bad JSON, duplicate staged, missing key, unknown key, empty, staged is a source, missing file) exits 2 and writes nothing'
 
-# 5. Inside `oml run`: allowed, and the run keeps working (sharing is not ended by the batch).
+# 5. Inside `oml batch`: allowed, and the run keeps working (sharing is not ended by the batch).
 Write-Index 'run.json' @((Item 'A' 'out/A5.oml'), (Item 'B' 'out/B5.oml'))
 $stepsFile = Join-Path $dir 'steps.json'
 Set-Content $stepsFile (@{ steps = @(@('inspect', (Join-Path $dir 'A.oml'), '--only', 'entities'), @('apply', '--batch', (Join-Path $dir 'run.json')), @('inspect', (Join-Path $dir 'out/A5.oml'), '--only', 'entities'), @('inspect', (Join-Path $dir 'A.oml'), '--only', 'entities')) } | ConvertTo-Json -Depth 5) -Encoding utf8
-$run = Oml-Json @('run', $stepsFile)
+$run = Oml-Json @('batch', $stepsFile)
 $res = $run.Json.results
-Require ($run.Code -eq 0 -and $res.Count -eq 4 -and $res[1].exitCode -eq 0 -and $res[1].output.summary.saved -eq 2 -and $res[2].exitCode -eq 0 -and $res[3].exitCode -eq 0) "batch: in oml run: exit $($run.Code) $((($res | ForEach-Object exitCode) -join ','))"
-Write-Host 'ok   batch apply: allowed in oml run, later steps still work'
+Require ($run.Code -eq 0 -and $res.Count -eq 4 -and $res[1].exitCode -eq 0 -and $res[1].output.summary.saved -eq 2 -and $res[2].exitCode -eq 0 -and $res[3].exitCode -eq 0) "batch: in oml batch: exit $($run.Code) $((($res | ForEach-Object exitCode) -join ','))"
+Write-Host 'ok   batch apply: allowed in oml batch, later steps still work'
 
 # 6. Install batch. Targets are copies inside this folder; nothing outside -Tmp is touched.
 foreach ($n in $names) { Copy-Item (Join-Path $dir "$n.oml") (Join-Path $dir "T$n.oml") }

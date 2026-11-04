@@ -316,7 +316,7 @@ sealed class SpecChecker
             if (!n.TryGetProperty("kind", out var k)) Add(at, "missing required key 'kind'");
             else if (k.ValueKind != JsonValueKind.String) Expect(Key(at, "kind"), "a string", k);
             else if (!kinds.Contains(kind = k.GetString()!, StringComparer.OrdinalIgnoreCase))
-                Add(Key(at, "kind"), $"unknown node kind '{kind}'{Suggest(kind, kinds)}. Other kinds resolve as I<Kind>Node; see 'oml api \"OutSystems.Model.Logic.Nodes.I*Node\"'.");
+                Add(Key(at, "kind"), $"unknown node kind '{kind}'{Suggest(kind, kinds)}. Other kinds resolve as I<Kind>Node; see 'oml model-types \"OutSystems.Model.Logic.Nodes.I*Node\"'.");
             if (kind is not null && SpecShapes.NodeRequired.TryGetValue(kind, out var required) && !process)
                 foreach (var key in required.Where(r => !n.TryGetProperty(r, out _))) Add(at, $"missing required key '{key}' for kind '{kind}'");
             if (n.TryGetProperty("name", out var nm) && nm.ValueKind != JsonValueKind.String) Expect(Key(at, "name"), "a string", nm);

@@ -1,4 +1,4 @@
-# oml test scaffold: builds a stand-in BDDFramework (tests/bdd-standin.json, unverified against the real Forge component)
+# oml test bdd: builds a stand-in BDDFramework (tests/bdd-standin.json, unverified against the real Forge component)
 # and a module under test (tests/bdd-producer.json), writes the spec, applies it to a new test module with no errors and
 # no new warnings, applies it again, describes and previews the test screen, checks the refusals, that the read modules
 # did not change, and that skill/recipes/bdd-test-screen.jsonc is the scaffold output for PlaceOrder. Throws on failure.
@@ -12,7 +12,7 @@ $Tmp = New-TestFolder $Tmp 'test-scaffold'
 try {
 $repo = Split-Path $PSScriptRoot -Parent
 $work = Join-Path $Tmp ('test-scaffold-' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Force $work | Out-Null
-function Fail($m) { throw "test scaffold: $m" }
+function Fail($m) { throw "test bdd: $m" }
 function Build($name, $fixture) {
   $blank = Join-Path $work "$name-blank.oml"; $out = Join-Path $work "$name.oml"
   & $Oml new $blank --name $name --kind CrossDevice | Out-Null
@@ -21,7 +21,7 @@ function Build($name, $fixture) {
   $out
 }
 function Scaffold([string[]]$a) {
-  $out = & $Oml test scaffold @a 2>&1
+  $out = & $Oml test bdd @a 2>&1
   [pscustomobject]@{ Exit = $LASTEXITCODE; Text = ($out | ForEach-Object { "$_" }) -join "`n" }
 }
 function Assert-Describe($module, $element, [string[]]$patterns) {
@@ -91,13 +91,13 @@ foreach ($case in @(
   @{ a = @($producer, 'PlaceOrder', 'PlaceOrder', '--bdd', $bdd, '--out', $refused); exit = 2; text = 'listed twice' },
   @{ a = @($producer, 'PlaceOrder', '--bdd', $bdd, '--module-name', 'Bad Name', '--out', $refused); exit = 2; text = 'must be a plain name' },
   @{ a = @($producer, 'PlaceOrder', '--bdd', $bdd, '--out', $spec); exit = 2; text = 'Output already exists' },
-  @{ a = @($producer, 'PlaceOrder', '--bdd', $bdd, '--colour', 'x'); exit = 2; text = 'test scaffold accepts' })) {
+  @{ a = @($producer, 'PlaceOrder', '--bdd', $bdd, '--colour', 'x'); exit = 2; text = 'test bdd accepts' })) {
   $r = Scaffold $case.a
   if ($r.Exit -ne $case.exit -or $r.Text -notmatch [regex]::Escape($case.text)) { Fail "refusal '$($case.text)': exit $($r.Exit), $($r.Text)" }
 }
 if (Test-Path $refused) { Fail 'a refused scaffold wrote a spec' }
 $r = Scaffold @()
-if ($r.Exit -ne 2 -or $r.Text -notmatch 'oml test scaffold <module.oml>') { Fail "no arguments: exit $($r.Exit), $($r.Text)" }
+if ($r.Exit -ne 2 -or $r.Text -notmatch 'oml test bdd <module.oml>') { Fail "no arguments: exit $($r.Exit), $($r.Text)" }
 
 # 6. The framework names come from the --bdd file: variants of the stand-in that do not fit are refused with what was
 #    found; a renamed step event is used as it is.
@@ -158,5 +158,5 @@ function Normal($path) {
   $j | ConvertTo-Json -Depth 64 -Compress
 }
 if ((Normal $one) -ne (Normal (Join-Path $repo 'skill/recipes/bdd-test-screen.jsonc'))) { Fail "skill/recipes/bdd-test-screen.jsonc differs from the scaffold output: regenerate it from $one" }
-Write-Host 'ok   test scaffold: spec, clean apply and re-apply, describe, preview, refusals, read-only, recipe'
+Write-Host 'ok   test bdd: spec, clean apply and re-apply, describe, preview, refusals, read-only, recipe'
 } finally { Remove-TestWorkFolder $Tmp }

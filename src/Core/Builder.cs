@@ -150,7 +150,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         Reflect.Types(typeof(OutSystems.Model.Logic.Nodes.IActionNode).Assembly).FirstOrDefault(t =>
             t.IsInterface && t.Namespace == "OutSystems.Model.Logic.Nodes"
             && t.Name.Equals($"I{kind}Node", StringComparison.OrdinalIgnoreCase))
-        ?? throw new ModelError($"unknown node kind '{kind}' (see 'oml api \"OutSystems.Model.Logic.Nodes.I*Node\"'){SpecHelp.Hint(kind, NodeKinds())}");
+        ?? throw new ModelError($"unknown node kind '{kind}' (see 'oml model-types \"OutSystems.Model.Logic.Nodes.I*Node\"'){SpecHelp.Hint(kind, NodeKinds())}");
 
     static IEnumerable<string> NodeKinds() => Reflect.Types(typeof(OutSystems.Model.Logic.Nodes.IActionNode).Assembly)
         .Where(t => t.IsInterface && t.Namespace == "OutSystems.Model.Logic.Nodes" && t.Name.StartsWith("I") && t.Name.EndsWith("Node"))
@@ -493,7 +493,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 var descriptor = ServiceStudio.PluginAPI.PluginProvider.Implementations.FirstOrDefault(d =>
                     d.GetType().Name.Equals(type + "Descriptor", StringComparison.OrdinalIgnoreCase)
                     && d.GetType().Assembly == typeof(ServiceStudio.Plugin.NRWidgets.IExpression).Assembly)
-                    ?? throw new ModelError($"unknown widget type '{type}' (see 'oml widgets')");
+                    ?? throw new ModelError($"unknown widget type '{type}' (see 'oml widget-types')");
                 widget = Reflect.Call(parent, "CreateWidget", descriptor)!;
                 if (name is not null) Reflect.Property(widget, "Name", writable: true)!.SetValue(widget, name);
                 // Like Service Studio's toolbox, a descriptor seeds default content (a Link gets a Text "link").

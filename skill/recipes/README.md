@@ -24,7 +24,7 @@ Use a new staged output path for each apply. Do not edit the source module.
 | [role-protected-screen.jsonc](role-protected-screen.jsonc) | Role-only screen, server role check, role-only link | UI base |
 | [block-popup-event.jsonc](block-popup-event.jsonc) | Confirm popup block with events, screen handlers, delete | UI base |
 | [send-email.jsonc](send-email.jsonc) | Reactive email, server action that loads data and sends it | Fresh CrossDevice |
-| [bdd-test-screen.jsonc](bdd-test-screen.jsonc) | BDD test screen for a public server action; output of `oml test scaffold`, unverified against the real BDDFramework | New CrossDevice test module, BDDFramework and producer exports |
+| [bdd-test-screen.jsonc](bdd-test-screen.jsonc) | BDD test screen for a public server action; output of `oml test bdd`, unverified against the real BDDFramework | New CrossDevice test module, BDDFramework and producer exports |
 
 Create a blank base with `oml new tmp/base.oml --kind CrossDevice` (or `WebResponsive`).
 Then run `oml apply tmp/base.oml skill/recipes/sql-query.jsonc tmp/sql.staged.oml`.

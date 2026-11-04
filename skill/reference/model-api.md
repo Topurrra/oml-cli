@@ -846,7 +846,7 @@ V1 on Service Studio 11.55.92 has no `ResolveModuleSignature` event.
 Inspect its members and events:
 
 ```powershell
-oml api "OutSystems.Model.IModelServices"
+oml model-types "OutSystems.Model.IModelServices"
 ```
 
 V1 also has no global-key `AddDependency` overload.

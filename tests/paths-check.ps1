@@ -20,7 +20,7 @@ function Apply($source, $json, $out) {
 function Run([string[][]]$steps) {
   $file = Join-Path $Tmp 'paths-steps.json'
   @{ steps = $steps } | ConvertTo-Json -Depth 6 | Set-Content $file
-  ((& $Oml run $file --continue) -join "`n" | ConvertFrom-Json).results
+  ((& $Oml batch $file --continue) -join "`n" | ConvertFrom-Json).results
 }
 
 foreach ($p in 'PathsProd', 'PathsTest') { & $Oml new (Join-Path $Tmp "$p-blank.oml") --name $p --kind CrossDevice | Out-Null }

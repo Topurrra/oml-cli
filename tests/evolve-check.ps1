@@ -1,5 +1,5 @@
 # Checks the learning loop: the new usage-log fields, memory recall with usefulness, newest-wins and decay, trap
-# suggestions in memory doctor, and oml evolve report / propose / show / accept / reject / undo / history, with the
+# suggestions in memory doctor, and oml learn report / propose / show / accept / reject / undo / history, with the
 # safety rules (no secret and no injected text in a proposal, rules.md never patched). The report and the proposals on
 # tests/evolve-sample.jsonl are compared with tests/evolve-golden.json (OML_TEST_NOW fixes the clock).
 # -Update rewrites the golden file after a reviewed change.
@@ -34,7 +34,7 @@ try {
   & $Oml memory add "Orders total uses the Sum aggregate" --kind decision --module Orders --dir $p | Out-Null
   & $Oml memory recall "orders total" --module Orders --dir $p | Out-Null
   & $Oml doc --search "zzqxv qqvvk" | Out-Null
-  & $Oml warn InvalidEntity_OnlyAuto | Out-Null
+  & $Oml explain-warning InvalidEntity_OnlyAuto | Out-Null
   $bad = Join-Path $root 'bad.json'; Set-Content $bad '{"bogusKey":1}'
   & $Oml spec check $bad | Out-Null
   $rows = @(Get-Content $log | ForEach-Object { $_ | ConvertFrom-Json })
@@ -42,7 +42,7 @@ try {
   Require ($recall.recalled -contains 0 -and $recall.session -match '^[0-9a-f]{16}$' -and $recall.opts -contains '--module') "log: recall line $($recall | ConvertTo-Json -Compress)"
   $search = $rows | Where-Object cmd -eq 'doc'
   Require ($search.query -eq 'zzqxv qqvvk' -and $search.found -eq $false) "log: unfound search $($search | ConvertTo-Json -Compress)"
-  Require (($rows | Where-Object cmd -eq 'warn').topic -eq 'InvalidEntity_OnlyAuto') 'log: warn id'
+  Require (($rows | Where-Object cmd -eq 'explain-warning').topic -eq 'InvalidEntity_OnlyAuto') 'log: warn id'
   Require (($rows | Where-Object cmd -eq 'spec check').specKey -eq 'bogusKey') 'log: spec key'
   $text = Get-Content $log -Raw
   Require (-not $text.Contains('session-one') -and -not $text.Contains($p) -and -not $text.Contains('bad.json')) 'log: raw session id, folder or argument in the file'
@@ -103,7 +103,7 @@ try {
   $before = (Get-Item (Join-Path $p '.oml\memory\memory.log')).Length
   $doc = Json memory doctor --dir $p --file $sample
   $cmds = @($doc.suggestedTraps | ForEach-Object command)
-  Require ($cmds -contains 'oml preview' -and $cmds -contains 'oml apply' -and $cmds -notcontains 'oml lt deploy') "doctor: suggestions $($cmds -join ',')"
+  Require ($cmds -contains 'oml preview' -and $cmds -contains 'oml apply' -and $cmds -notcontains 'oml lifetime deploy') "doctor: suggestions $($cmds -join ',')"
   Require (-not (($doc | ConvertTo-Json -Depth 6) -match 'ghp_1234|Ignore previous')) 'doctor: a secret or injected text in a suggestion'
   $preview = $doc.suggestedTraps | Where-Object command -eq 'oml preview'
   Require ($preview.add -like 'oml memory add "oml preview fails with: *--kind trap*' -and $preview.passedWith -like 'oml preview*--out*') "doctor: add command $($preview | ConvertTo-Json -Compress)"
@@ -153,7 +153,7 @@ try {
   $trap = (Json memory list --kind trap --dir $p).records | Where-Object id -eq $a.records[0]
   Require ($trap.text -like 'oml *fails with:*') 'accept memory: the trap record'
   $a = Json evolve accept $skill --dir $p; Require ($LASTEXITCODE -eq 0 -and $a.skill -eq 'evolved-preview') "accept skill: $($a | ConvertTo-Json -Compress)"
-  Require (((Json skills).skills | Where-Object name -eq 'evolved-preview')) 'accept skill: not installed'
+  Require (((Json team-rules).skills | Where-Object name -eq 'evolved-preview')) 'accept skill: not installed'
   $again = Json evolve accept $skill --dir $p; Require ($LASTEXITCODE -eq 1) 'accept: twice'
   Json evolve reject $rej --why "known already" --dir $p | Out-Null
   $env:OML_TEST_NOW = '2026-10-08T00:00:00Z'
@@ -162,11 +162,11 @@ try {
   # Measuring: preview failed more after the skill was accepted (2026-10-05T12:00Z): "worse", with the undo command.
   $rep = Json evolve report --file $sample --dir $p
   $effect = $rep.accepted | Where-Object id -eq $skill
-  Require ($effect.verdict -eq 'worse' -and $effect.hint -like "*oml evolve undo $skill*") "effect: $($effect | ConvertTo-Json -Compress -Depth 4)"
+  Require ($effect.verdict -eq 'worse' -and $effect.hint -like "*oml learn undo $skill*") "effect: $($effect | ConvertTo-Json -Compress -Depth 4)"
   $h = Json evolve history --file $sample --dir $p
   Require (@($h.accepted).Count -eq 2 -and $h.rejected -ge 1) 'history'
   Json evolve undo $skill --dir $p | Out-Null; Json evolve undo $mem --dir $p | Out-Null
-  Require (-not ((Json skills).skills | Where-Object name -eq 'evolved-preview')) 'undo skill'
+  Require (-not ((Json team-rules).skills | Where-Object name -eq 'evolved-preview')) 'undo skill'
   Require (((Json memory list --all --dir $p).records | Where-Object id -eq $a.records).status -ne 'live') 'undo memory'
   Require ((Json evolve history --dir $p --file $sample).accepted.undoneAt.Count -eq 2) 'undo: history'
   Write-Host 'ok   evolve: accept installs and writes, reject is remembered, report marks a worse change, undo takes it back'

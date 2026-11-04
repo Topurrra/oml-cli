@@ -86,9 +86,9 @@ static class Doctor
         var hasHost = !string.IsNullOrWhiteSpace(host);
         var hasToken = !string.IsNullOrWhiteSpace(token);
         checks.Add(hasHost && hasToken ? new Check("lifeTime", "ok", "LifeTime host and token are set.")
-            : !hasHost && !hasToken ? new Check("lifeTime", "skip", "not configured, only needed for oml lt")
+            : !hasHost && !hasToken ? new Check("lifeTime", "skip", "not configured, only needed for oml lifetime")
             : hasHost ? new Check("lifeTime", "warn", "OML_LIFETIME_HOST is set, but OML_LIFETIME_TOKEN is not.",
-                "Set OML_LIFETIME_TOKEN, or clear OML_LIFETIME_HOST if you do not use oml lt.")
+                "Set OML_LIFETIME_TOKEN, or clear OML_LIFETIME_HOST if you do not use oml lifetime.")
             : new Check("lifeTime", "warn", "OML_LIFETIME_TOKEN is set, but OML_LIFETIME_HOST is not.",
                 "Set OML_LIFETIME_HOST to the LifeTime hostname without a scheme, or clear OML_LIFETIME_TOKEN."));
 

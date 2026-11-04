@@ -10,24 +10,24 @@ function Require($condition, $message) { if (-not $condition) { throw $message }
 # Not run, and why: these start a server, open a window, or reach the network, Service Studio's MCP server or LifeTime.
 $skip = [ordered]@{
   'dashboard'      = 'starts a web server'
-  'dif'            = 'starts a web server'
-  'setup'          = 'writes Explorer registry entries'
-  'lt'             = 'reaches the LifeTime server'
+  'show-change'    = 'starts a web server'
+  'explorer-menu'  = 'writes Explorer registry entries'
+  'lifetime'       = 'reaches the LifeTime server'
   'publish'        = 'publishes through Service Studio'
   'references'     = 'refreshes references through Service Studio'
   'pull'           = 'reads a module from Service Studio'
   'studio'         = 'reaches Service Studio''s MCP server'
   'qa'             = 'qa start/record/run/page start a browser and reach a running app; qa stop only closes one'
-  'library'        = 'library fetch/update download from GitHub (library status takes no path)'
+  'outsystems-docs' = 'outsystems-docs fetch/update download from GitHub (outsystems-docs status takes no path)'
   'hooks'          = 'hooks install/remove change the project''s Claude settings'
   'version'        = 'takes no path'
   'templates'      = 'takes no path'
-  'expr'           = 'takes no path'
-  'api'            = 'takes no path'
-  'widgets'        = 'takes no path'
+  'expression'     = 'takes no path'
+  'model-types'    = 'takes no path'
+  'widget-types'   = 'takes no path'
   'selftest'       = 'takes no path and runs for minutes'
   'doctor'         = 'takes no path'
-  'warn'           = 'takes no path'
+  'explain-warning' = 'takes no path'
   # map build is tested below; the map queries (overview, uses, impact, data, api, list) take names, not paths.
 }
 # A template that starts with ! writes to {p}: there a missing file or a wrong extension may simply succeed (exit 0), and
@@ -36,7 +36,7 @@ $skip = [ordered]@{
 # and a path with spaces are valid input there, so exit 0 is right; a missing file or folder must still fail.
 # command key (first word, or first two for these) -> argument lists. {p} is the path under test, with the extension
 # named in $ext for the key; {o} is an output path in an existing folder. One list per argument shape worth trying.
-$two = 'app', 'extension', 'test', 'translations', 'font', 'skills', 'memory', 'spec', 'evolve'
+$two = 'app', 'extension', 'test', 'translations', 'font', 'team-rules', 'memory', 'spec', 'learn'
 $shapes = [ordered]@{
   'new'                    = @('!new {p}', 'new {p} --template {p}', 'new {o} --from-template {p}')
   'app list'               = @('app list {p}')
@@ -48,14 +48,14 @@ $shapes = [ordered]@{
   'inspect'                = @('inspect {p} --own', 'inspect --in {p}')
   'describe'               = @('describe {p} Foo', 'describe {o} Foo --in {p}')
   'find'                   = @('find Foo {p}', 'find {p} --text hello', 'find Foo --in {p}')
-  'census'                 = @('census {p}')
-  'meta'                   = @('meta {p}', 'meta --diff {p} {p}')
+  'stats'                  = @('stats {p}')
+  'header'                 = @('header {p}', 'header --diff {p} {p}')
   'architecture'           = @('architecture --in {p}', 'architecture --in {p} --out {p}', 'architecture --in {p} --publish-order')
   'check'                  = @('check {p}', 'check --in {p}', 'check --diff {p} {p}', '!check --init-rules --out {p}')
   'review'                 = @('review {p} {p}')
   'openapi'                = @('openapi {p}')
   'preview'                = @('preview {p} Foo')
-  'test scaffold'          = @('test scaffold {p} Foo --bdd {p}')
+  'test bdd'               = @('test bdd {p} Foo --bdd {p}')
   'test scenarios'         = @('test scenarios {p} {p}', 'test scenarios {p} {o}')
   'flow'                   = @('flow {p} Foo')
   'tree'                   = @('tree {p} Foo')
@@ -63,22 +63,22 @@ $shapes = [ordered]@{
   'apply'                  = @('apply {p} {p} {o}', 'apply --batch {p}')
   'spec'                   = @('spec check {p}', 'spec check {p} --module {p}', '!spec schema --out {p}')
   'doc'                    = @('doc --search hello --in {p}')
-  'skills'                 = @('skills add {p}', 'skills remove {p}')
+  'team-rules'             = @('team-rules add {p}', 'team-rules remove {p}')
   'memory'                 = @('~memory init --module {p}', 'memory init --dir {p}', 'memory doctor --module {p}', 'memory doctor --file {p}')
-  'run'                    = @('run {p}')
+  'batch'                  = @('batch {p}')
   'translations export'    = @('translations export {p} {o}')
   'install'                = @('install {p} {p}', 'install --batch {p}')
   'font woff2'             = @('font woff2 {p}')
   'font batch'             = @('font batch {p}')
   'image'                  = @('image {p}', 'image batch {p}', 'image {p} --to svg')
   'log'                    = @('~log summary --file {p}')
-  'evolve'                 = @('~evolve report --file {p}', 'evolve report --check {p}', '~evolve propose --file {p}')
+  'learn'                  = @('~learn report --file {p}', 'learn report --check {p}', '~learn propose --file {p}')
   'map'                    = @('map build badinput --in {p}')
   'mock'                   = @('mock --all --personas {p}')
 }
 # The extension a path argument should have, by the first word of the shape (default .oml).
-$ext = @{ 'app' = '.oap'; 'extension' = '.xif'; 'spec' = '.json'; 'run' = '.json'; 'apply' = '.json'; 'log' = '.jsonl'; 'evolve' = '.jsonl'; 'mock' = '.json';
-          'font' = '.ttf'; 'image' = '.png'; 'skills' = '.md'; 'translations' = '.oml'; 'architecture' = '.oml' }
+$ext = @{ 'app' = '.oap'; 'extension' = '.xif'; 'spec' = '.json'; 'batch' = '.json'; 'apply' = '.json'; 'log' = '.jsonl'; 'learn' = '.jsonl'; 'mock' = '.json';
+          'font' = '.ttf'; 'image' = '.png'; 'team-rules' = '.md'; 'translations' = '.oml'; 'architecture' = '.oml' }
 
 # 1. Every command of `oml help --all` is tested or skipped on purpose.
 $helpLines = @(& $Oml help --all | Where-Object { $_ -match '^oml ' })

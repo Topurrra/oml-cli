@@ -3,13 +3,13 @@ using System.Text.RegularExpressions;
 
 namespace OmlCli;
 
-// `oml skills`: the user's own company skills (team rules, naming, Confluence pages saved as Markdown). Each one is a
+// `oml team-rules`: the user's own company skills (team rules, naming, Confluence pages saved as Markdown). Each one is a
 // Markdown file with `name` and `description` frontmatter, as SKILL.md has. `add` checks it and copies it into
 // %LOCALAPPDATA%\oml-cli\skills (OML_SKILLS overrides it, for tests). Then `oml doc <name>` prints it, `oml doc` lists it,
 // and `oml doc --search` ranks it before oml's own docs: company rules override OutSystems best practices, never rules.md.
 static class CompanySkills
 {
-    const string Usage = "Usage: oml skills [list]\n       oml skills add <file.md> [--force]\n       oml skills remove <name>";
+    const string Usage = "Usage: oml team-rules [list]\n       oml team-rules add <file.md> [--force]\n       oml team-rules remove <name>";
     const int WarnTokens = 2000, MaxTokens = 8000, LongSentence = 25;
     internal const string Kind = "company";
 
@@ -57,7 +57,7 @@ static class CompanySkills
             skills.Add(new JsonObject { ["name"] = name, ["description"] = Header(text)!.Value.Description, ["tokens"] = Tokens(text), ["open"] = $"oml doc {name}" });
         }
         var output = new JsonObject { ["folder"] = Root, ["skills"] = skills };
-        if (skills.Count == 0) output["hint"] = "No company skills yet. Write a .md file with name and description frontmatter, then: oml skills add <file.md>";
+        if (skills.Count == 0) output["hint"] = "No company skills yet. Write a .md file with name and description frontmatter, then: oml team-rules add <file.md>";
         TerminalOutput.PrintNode(output);
         return 0;
     }
@@ -94,7 +94,7 @@ static class CompanySkills
 
     static int Remove(string name)
     {
-        if (!Installed().TryGetValue(name, out var file)) return Fail($"No company skill named '{name}'. Run 'oml skills' for the list.", 1);
+        if (!Installed().TryGetValue(name, out var file)) return Fail($"No company skill named '{name}'. Run 'oml team-rules' for the list.", 1);
         File.Delete(file);
         TerminalOutput.PrintObject(new { removed = name });
         return 0;

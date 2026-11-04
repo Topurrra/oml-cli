@@ -304,11 +304,11 @@ $mo = Join-Path $dir 'multi.oml'
 $mr = & $Oml apply $blank (Join-Path $dir 'a/a.json') (Join-Path $dir 'b/b.json') $mo | ConvertFrom-Json
 Require ($LASTEXITCODE -eq 0 -and $mr.saved) "multi-spec apply with file values: $($mr | ConvertTo-Json -Compress -Depth 10)"
 Require ((Css $mo PartA).Contains('/* a */ .a { color: red; }') -and (Css $mo PartB).Contains('/* b */ .b { color: red; }')) 'multi-spec: each spec must read its own file (comments in a file stay)'
-# oml run: the step's spec reads its files relative to that spec, not to the steps file or the working folder.
+# oml batch: the step's spec reads its files relative to that spec, not to the steps file or the working folder.
 $steps = Join-Path $dir 'steps.json'; $ro = Join-Path $dir 'run.oml'
 Set-Content $steps (ConvertTo-Json @{ steps = @(, @('apply', $blank, $fileSpec, $ro)) } -Depth 4)
-$run = & $Oml run $steps | ConvertFrom-Json
-Require ($LASTEXITCODE -eq 0 -and $run.results[0].output.saved) "oml run with file values: $($run | ConvertTo-Json -Compress -Depth 10)"
-Require ((& $Oml inspect $ro | ConvertFrom-Json).module.javaScript -ceq $js) 'oml run: module JavaScript from a file is not byte-identical'
+$run = & $Oml batch $steps | ConvertFrom-Json
+Require ($LASTEXITCODE -eq 0 -and $run.results[0].output.saved) "oml batch with file values: $($run | ConvertTo-Json -Compress -Depth 10)"
+Require ((& $Oml inspect $ro | ConvertFrom-Json).module.javaScript -ceq $js) 'oml batch: module JavaScript from a file is not byte-identical'
 Write-Host 'ok   ui-update: styleSheet, title and requiredScripts on existing UI in "changed"; replaceWidgets with usage refusal; {"file"} values'
 } finally { Remove-TestWorkFolder $Tmp }

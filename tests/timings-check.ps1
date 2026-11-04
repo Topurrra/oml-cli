@@ -1,5 +1,5 @@
 # Checks --timings (phases per command, output otherwise unchanged), the skipped scratch reload for a spec with only
-# logic keys, install (hash check against the validated bytes, backup), and an `oml run` apply that takes the module
+# logic keys, install (hash check against the validated bytes, backup), and an `oml batch` apply that takes the module
 # a read step left open (same report as a separate apply; a later read of the source sees the file, not the change).
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
@@ -110,13 +110,13 @@ finally { $held.Dispose() }
 Require ($busyCode -eq 2 -and $busy.error -match '^Nothing installed: .* The target is unchanged; backup kept at .*\.bak\.$' -and (Hash $locked) -eq $lockedHash) "install: a target held open was not reported as unchanged: $($busy | ConvertTo-Json -Compress)"
 Write-Host 'ok   install: target equals the validated staged bytes, backup equals the old target; read-only and locked targets refused'
 
-# oml run: apply takes the module a read step left open. Its report equals a separate apply, and a later read of
+# oml batch: apply takes the module a read step left open. Its report equals a separate apply, and a later read of
 # the source loads the file again, so it does not see the change.
 $steps = Join-Path $dir 'steps.json'
 $runOut = Join-Path $dir 'run.oml'
 @{ steps = @(@('inspect', $mod, '--own'), @('apply', $mod, $logic, $runOut, '--timings'), @('describe', $mod, 'AddCustomer'), @('describe', $runOut, 'AddCustomer')) } |
   ConvertTo-Json -Depth 5 | Set-Content $steps -Encoding utf8
-$run = (& $Oml run $steps --continue) | ConvertFrom-Json
+$run = (& $Oml batch $steps --continue) | ConvertFrom-Json
 $r = $run.results
 Require ($r[1].exitCode -eq 0 -and $r[1].output.saved) 'run: apply step failed'
 Require ($null -ne $r[1].output.timings -and $null -eq $r[1].output.timings.load -and $null -ne $r[1].output.timings.reopen) "run: the apply step loaded its source again instead of taking the open module: $($r[1].output.timings | ConvertTo-Json -Compress)"
@@ -125,10 +125,10 @@ foreach ($key in 'created', 'existing', 'warnings', 'newWarnings', 'reopenNewErr
   Require (Same $r[1].output.$key $alone.$key) "run: '$key' of the apply step differs from a separate apply"
 }
 Require ($r[2].exitCode -ne 0 -and $r[3].exitCode -eq 0 -and $r[3].output.text -match 'CreateCustomer') 'run: a read of the source after apply saw the change, or the output did not load'
-# oml run --timings: every step but spec reports its phases; the args stay as written.
-$timedRun = (& $Oml run $steps --continue --timings) | ConvertFrom-Json
+# oml batch --timings: every step but spec reports its phases; the args stay as written.
+$timedRun = (& $Oml batch $steps --continue --timings) | ConvertFrom-Json
 Require ($null -ne $timedRun.results[0].output.timings.load -and $null -ne $timedRun.results[3].output.timings -and $timedRun.results[0].args.Count -eq 3) 'run --timings: steps have no timings, or their args changed'
-foreach ($c in @(@('spec', 'check', $logic), @('doc'), @('doctor'), @('warn', 'x'), @('lt', 'environments'))) {
+foreach ($c in @(@('spec', 'check', $logic), @('doc'), @('doctor'), @('explain-warning', 'x'), @('lifetime', 'environments'))) {
   $refusal = & $Oml @c --timings 2>$null | ConvertFrom-Json
   Require ($LASTEXITCODE -eq 2 -and $refusal.error -eq "--timings is not available for $($c[0]).") "timings: '$($c[0]) --timings' was not refused: $($refusal | ConvertTo-Json -Compress)"
 }

@@ -13,7 +13,7 @@ export default {
     if (!first) return;
     if (!first.enabled) {
       add(out, h('section', { class: 'card' }, h('h2', {}, 'The usage log is off'),
-        h('p', {}, 'OML_LOG is set to 0, so oml writes no log, and memory recall and oml evolve have nothing to learn from. The log stays on this computer, is never sent, and never holds arguments, specs, tokens or folders.'),
+        h('p', {}, 'OML_LOG is set to 0, so oml writes no log, and memory recall and oml learn have nothing to learn from. The log stays on this computer, is never sent, and never holds arguments, specs, tokens or folders.'),
         h('p', {}, 'To turn it on again for the current PowerShell window (start your agent and this dashboard from it):'), cli('Remove-Item Env:OML_LOG'),
         h('p', {}, 'For every new window:'), cli('reg delete HKCU\\Environment /v OML_LOG /f'),
         h('p', { class: 'hint' }, 'Then start the dashboard again. The log is ', h('code', { text: first.file }), '.')));
@@ -48,8 +48,8 @@ export default {
     draw(first);
     await loadSummary();
     add(out, h('section', { class: 'card' }, h('h2', {}, 'What agents learned'),
-      h('p', {}, 'oml evolve reads this log and the project memory. It shows where agents lose turns and proposes trap records, company skills and doc edits, each with its evidence. A person accepts or rejects each one; every accepted change can be undone.'),
-      h('p', {}, h('a', { href: '#/learned' }, 'Open What agents learned')), cli('oml evolve report')));
+      h('p', {}, 'oml learn reads this log and the project memory. It shows where agents lose turns and proposes trap records, company skills and doc edits, each with its evidence. A person accepts or rejects each one; every accepted change can be undone.'),
+      h('p', {}, h('a', { href: '#/learned' }, 'Open What agents learned')), cli('oml learn report')));
     const timer = setInterval(async () => {
       if (!live.checked) return;
       try { draw(await api('log')); } catch { /* the next tick tries again */ }

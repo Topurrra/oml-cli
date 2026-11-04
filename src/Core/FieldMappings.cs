@@ -52,7 +52,7 @@ static class FieldMappings
             ? " { " + string.Join(", ", set.Select(m => Field(m) + " = " + Text(m)).Order(StringComparer.Ordinal)) + " }" : "";
 
     // Every expression under `root`, through the model: children (field mappings included) and the expression
-    // properties that are not children. Same walk as `oml expr --corpus`. `owner` is the part that holds it.
+    // properties that are not children. Same walk as `oml expression --corpus`. `owner` is the part that holds it.
     public static IEnumerable<(IObjectSignature owner, string text)> Expressions(IObjectSignature root)
     {
         var seen = new HashSet<IObjectSignature>();

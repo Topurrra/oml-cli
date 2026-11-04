@@ -56,7 +56,7 @@ foreach ($f in $files) {
     }
   }
 }
-foreach ($c in 'run', 'inspect', 'describe', 'apply', 'review', 'check', 'preview', 'spec', 'doc', 'validate', 'install', 'publish') {
+foreach ($c in 'batch', 'inspect', 'describe', 'apply', 'review', 'check', 'preview', 'spec', 'doc', 'validate', 'install', 'publish') {
   if (-not $seenCmd.ContainsKey($c)) { Fail "docs no longer name 'oml $c'; update this check" }
 }
 Write-Host "ok   architect docs: $($seenCmd.Count) commands, $($seenFlag.Count) options, doc topics, recipes and spec keys exist"
@@ -122,7 +122,7 @@ if ($LASTEXITCODE -ne 0 -or $null -eq $ck.summary) { Fail 'check did not report'
 $pv = Join-Path $work 'preview.json'
 $steps = foreach ($th in 'light', 'dark') { , @('preview', $staged, 'Orders', '--theme', $th, '--out', (Join-Path $work "Orders.$th.html")) }
 Set-Content $pv -Encoding utf8 (@{ steps = @($steps) } | ConvertTo-Json -Depth 5)
-$pr = & $Oml run $pv | ConvertFrom-Json
+$pr = & $Oml batch $pv | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0 -or @($pr.results | Where-Object exitCode -ne 0).Count -or @($pr.results).Count -ne 2) { Fail 'preview of Orders (light and dark) failed' }
 Write-Host "ok   architect example: 2 parts, one apply (saved, 0 newErrors, only UnusedUserAction), review --md ($($rv.summary.added) added, 0 risks), check, preview light and dark"
 

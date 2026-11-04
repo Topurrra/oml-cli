@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 
 namespace OmlCli;
 
-// The message rows of skill/reference/warnings.md: | `Id`, `Id2` | Title | Cause | Fix |. `oml warn` prints them,
+// The message rows of skill/reference/warnings.md: | `Id`, `Id2` | Title | Cause | Fix |. `oml explain-warning` prints them,
 // and the apply and validate reports add the Fix cell as `hint` to a message id the file covers. The file is
 // embedded in both oml.exe and OmlCli.Core.dll (this source is compiled into both), so the hints and the doc
 // can never disagree.

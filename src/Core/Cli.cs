@@ -14,16 +14,16 @@ public static partial class Cli
     static readonly Dictionary<string, Handler> Dispatch = new()
     {
         // Commands.Read.cs
-        ["version"] = CmdVersion, ["selftest"] = CmdSelfTest, ["api"] = CmdApi, ["widgets"] = CmdWidgets,
+        ["version"] = CmdVersion, ["selftest"] = CmdSelfTest, ["model-types"] = CmdApi, ["widget-types"] = CmdWidgets,
         ["find"] = CmdFind, ["inspect"] = CmdInspect, ["describe"] = CmdDescribe, ["tree"] = CmdTree, ["flow"] = CmdFlow, ["map"] = CmdMap,
-        ["census"] = CmdCensus, ["validate"] = CmdValidate, ["openapi"] = CmdOpenApi, ["preview"] = CmdPreview,
-        ["meta"] = CmdMeta, ["expr"] = CmdExpr,
+        ["stats"] = CmdCensus, ["validate"] = CmdValidate, ["openapi"] = CmdOpenApi, ["preview"] = CmdPreview,
+        ["header"] = CmdMeta, ["expression"] = CmdExpr,
         ["architecture"] = CmdArchitecture, ["architecture-render"] = CmdArchitectureRender, ["check"] = CmdCheck, ["review"] = CmdReview,
         ["test"] = CmdTest,
         // Commands.Change.cs
         ["new"] = CmdNew, ["apply"] = CmdApply, ["install"] = CmdInstall,
         // Commands.Run.cs
-        ["run"] = CmdRun,
+        ["batch"] = CmdRun,
         // Commands.Studio.cs
         ["studio"] = CmdStudio, ["pull"] = CmdPull, ["publish"] = CmdPublish, ["references"] = CmdReferences,
         // Commands.Assets.cs
@@ -35,7 +35,7 @@ public static partial class Cli
         Model.ServiceStudioDir = serviceStudioDir;
         JsonOutput.Pretty = argv.Contains("--pretty");
         Timings.Start(argv.Contains("--timings"));
-        var args = argv.Where(a => a is not ("--pretty" or "--timings")).ToList();
+        var args = CliUsage.Normalize(argv.Where(a => a is not ("--pretty" or "--timings")).ToArray()).ToList(); // an old name (census, run, ...) becomes the new one here
         if (TerminalOutput.ForceJsonFlag(args.ToArray())) { TerminalOutput.ForceJson = true; args = TerminalOutput.StripJson(args.ToArray()).ToList(); }
         try
         {
@@ -43,7 +43,7 @@ public static partial class Cli
             TerminalOutput.Command = command;
             if (CliUsage.IsHelp(args.ToArray())) { TerminalOutput.PrintHelp(CliUsage.HelpText(args.ToArray()), null); return 0; }
             if (args.Contains("--help") || args.Contains("-h")) { TerminalOutput.PrintHelp(CliUsage.For(command), command); return 0; }
-            if (command is "new" or "inspect" or "census" or "validate" or "apply" or "install" or "preview")
+            if (command is "new" or "inspect" or "stats" or "validate" or "apply" or "install" or "preview")
                 Timings.Measure("selfTestCheck", SelfTest.EnsurePassed);
             if (command is null || !Dispatch.TryGetValue(command, out var handler)) { Console.Error.WriteLine(Usage); return 2; }
             if (handler(args) is { } code) return code;
@@ -89,6 +89,6 @@ public static partial class Cli
         return i >= 0 && i + 1 < args.Count ? args[i + 1] : null;
     }
 
-    // For commands that only read the module: an `oml run` may keep it open for the next command (see Model.Borrow).
+    // For commands that only read the module: an `oml batch` may keep it open for the next command (see Model.Borrow).
     static Borrowed Open(string path) => Model.Borrow(Path.GetFullPath(path));
 }

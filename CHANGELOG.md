@@ -10,6 +10,9 @@ Keep a Changelog style: one section per release, newest first.
 - `oml qa run --save <new.json>`: a passing run becomes a QA file to replay without an agent, with `maxMs` time limits (three times what each action took, at least 2 seconds) and screen and call checks where a step had none. `maxMs` in any step fails it when it takes longer. A failing run saves nothing; no file is overwritten.
 - `oml test scenarios <source.oml> <staged.oml>`: what to test after a change, from the model. BDD Given/When/Then per new or changed public action (main path, If branches, Switch cases, raised and handled exceptions, empty mandatory inputs, entity writes) and QA scenarios per new or changed screen (one per path through each button's action, with its messages and screens), plus a runnable qa.json skeleton per screen. `<FILL>` marks the values and results for the user to give.
 
+### Changed
+- Commands are renamed to say what they do: `census` -> `stats`, `meta` -> `header`, `expr` -> `expression`, `api` -> `model-types`, `widgets` -> `widget-types`, `setup` -> `explorer-menu`, `run` -> `batch`, `evolve` -> `learn`, `skills` -> `team-rules`, `library` -> `outsystems-docs`, `warn` -> `explain-warning`, `lt` -> `lifetime`, `dif` -> `show-change`, `test scaffold` -> `test bdd`. Help, search, messages, docs and the dashboard use the new names. The old names keep working as hidden aliases (also in `oml batch` steps and in Explorer entries made earlier), with the same output; the usage log records the new name, and `oml learn` reads older log lines under the new names. JSON output fields are unchanged.
+
 ## 1.15.0
 
 ### Changed

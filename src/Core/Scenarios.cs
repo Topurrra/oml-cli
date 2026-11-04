@@ -11,7 +11,7 @@ namespace OmlCli;
 // person knows what to test and an agent knows what to automate. Two kinds:
 //   - BDD (Given/When/Then) for every public server or service action the change created or changed: the main path, each
 //     If branch, each exception it raises or handles, each mandatory input left empty, each entity it writes. These become
-//     BDDFramework tests with `oml test scaffold` (server logic is what BDD tests; screens are not).
+//     BDDFramework tests with `oml test bdd` (server logic is what BDD tests; screens are not).
 //   - QA for every screen the change created or changed: open it, fill its named fields, click each button or link with an
 //     action, and expect the messages and screens that action leads to; an empty-list scenario per screen aggregate. Each
 //     screen also gets a runnable qa.json skeleton (baseUrl to fill in) for `oml qa run`.
@@ -60,7 +60,7 @@ static class Scenarios
         md.Append("The list comes from the flows; fill in the values and the results the model cannot know.\n");
         if (actions.Count > 0)
         {
-            md.Append("\n## Server logic (BDD)\n\nBuild the tests with: `oml test scaffold <staged.oml> <Action>... --bdd <BDDFramework.oml>`\n");
+            md.Append("\n## Server logic (BDD)\n\nBuild the tests with: `oml test bdd <staged.oml> <Action>... --bdd <BDDFramework.oml>`\n");
             foreach (var (name, scenarios, status) in actions) Section(md, $"{name} ({status})", scenarios);
         }
         var qaFiles = new List<string>();
@@ -85,7 +85,7 @@ static class Scenarios
             actions = actions.Select(a => new { name = a.name, status = a.status, scenarios = a.scenarios.Count }).ToArray(),
             screens = screens.Select(s => new { name = s.name, status = s.status, scenarios = s.scenarios.Count }).ToArray(),
             qa = qaFiles,
-            bdd = actions.Count == 0 ? null : $"oml test scaffold {staged} {string.Join(" ", actions.Select(a => a.name))} --bdd <BDDFramework.oml>",
+            bdd = actions.Count == 0 ? null : $"oml test bdd {staged} {string.Join(" ", actions.Select(a => a.name))} --bdd <BDDFramework.oml>",
             next = "Show scenarios.md to the user: it is what to test. Fill in values and expected results with them, then automate: BDD for the actions, the qa files for the screens.",
         });
     }

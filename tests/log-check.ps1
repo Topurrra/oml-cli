@@ -38,15 +38,15 @@ try {
   & $Oml describe $mod 'NoSuchThing' | Out-Null; Require ($LASTEXITCODE -eq 2) 'log-check: describe should fail'
   & $Oml inspect (Join-Path $secretFolder 'Missing.oml') | Out-Null
   & $Oml spec check (Join-Path $PSScriptRoot 'datamodel.json') | Out-Null
-  & $Oml lt environments | Out-Null; Require ($LASTEXITCODE -eq 2) 'log-check: lt should fail without a host'
+  & $Oml lifetime environments | Out-Null; Require ($LASTEXITCODE -eq 2) 'log-check: lt should fail without a host'
   & $Oml bogus-command 2>$null | Out-Null
   $steps = Join-Path $dir 'steps.json'
   Set-Content $steps (@{ steps = @(@('inspect', $mod, '--own'), @('install', 'a.oml', 'b.oml'), @('validate', $mod)) } | ConvertTo-Json -Depth 5 -Compress) -Encoding utf8
-  & $Oml run $steps --continue | Out-Null
+  & $Oml batch $steps --continue | Out-Null
   $rows = Lines $log
   # version, inspect, describe, inspect (missing), spec check, lt environments, bogus-command, run + 3 steps = 11
   Require ($rows.Count -eq 11) "log: expected 11 lines, got $($rows.Count): $(($rows.cmd) -join ', ')"
-  Require ((($rows.cmd) -join ',') -ceq 'version,inspect,describe,inspect,spec check,lt environments,bogus-command,inspect,install,validate,run') `
+  Require ((($rows.cmd) -join ',') -ceq 'version,inspect,describe,inspect,spec check,lifetime environments,bogus-command,inspect,install,validate,batch') `
     "log: command names are $(($rows.cmd) -join ',')"
   foreach ($row in $rows) {
     Require ($row.ts -and $row.exit -ge 0 -and $row.ms -ge 0 -and $row.bytes -ge 0) "log: line shape: $($row | ConvertTo-Json -Compress)"

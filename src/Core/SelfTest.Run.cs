@@ -4,7 +4,7 @@ namespace OmlCli;
 
 static partial class SelfTest
 {
-    // `oml run`: a module is loaded once while its file is unchanged and again when the file changes;
+    // `oml batch`: a module is loaded once while its file is unchanged and again when the file changes;
     // a refused command stops the run; --continue goes on; exit code is the highest step code.
     static void RunCommandTest(string blank, string dir, List<string> failures)
     {
@@ -36,7 +36,7 @@ static partial class SelfTest
             failures.Add("run: --continue did not go on after a refused step");
     }
 
-    // Runs `oml run` in this process and returns its exit code and printed JSON.
+    // Runs `oml batch` in this process and returns its exit code and printed JSON.
     static (int code, JsonNode? json) RunSteps(string steps, params string[] extra)
     {
         var (previous, writer) = (Console.Out, new StringWriter());

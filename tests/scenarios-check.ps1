@@ -20,7 +20,7 @@ try {
   $out = Join-Path $Tmp 'out'
   $s = Json test scenarios $blank $staged --out $out
   Require ($LASTEXITCODE -eq 0 -and $s.actions.Count -eq 1 -and $s.actions[0].name -eq 'SaveContact' -and $s.actions[0].status -eq 'new' -and $s.screens[0].name -eq 'ContactForm') "result: $($s | ConvertTo-Json -Compress -Depth 5)"
-  Require ($s.bdd -like 'oml test scaffold *SaveContact --bdd*') 'bdd command'
+  Require ($s.bdd -like 'oml test bdd *SaveContact --bdd*') 'bdd command'
   $md = Get-Content (Join-Path $out 'scenarios.md') -Raw
   foreach ($title in 'Main path', 'Raises NameRequired', 'Name <> "" is true', 'Name <> "" is false', 'Name is empty', 'Click SaveButton: NewName <> "" is true', 'Click SaveButton: NewName <> "" is false') {
     Require ($md.Contains("**Scenario: $title**")) "missing scenario: $title"

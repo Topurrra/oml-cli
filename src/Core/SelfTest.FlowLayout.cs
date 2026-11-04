@@ -35,7 +35,7 @@ static partial class SelfTest
             var nodes = FlowLayout.Nodes(owner).Where(n => !FlowLayout.IsComment(n)).ToList();
             for (var i = 0; i < nodes.Count; i++)
             for (var j = i + 1; j < nodes.Count; j++)
-                // Actual Studio default node bounds, independently measured with oml api NodeSizes.
+                // Actual Studio default node bounds, independently measured with oml model-types NodeSizes.
                 Require(Math.Abs(nodes[i].HorizontalPosition - nodes[j].HorizontalPosition) >= 914
                     || Math.Abs(nodes[i].VerticalPosition - nodes[j].VerticalPosition) >= 928,
                     $"overlap in {Model.NameOf(owner)}: {Model.NameOf(nodes[i])}, {Model.NameOf(nodes[j])}");

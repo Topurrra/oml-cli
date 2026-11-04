@@ -11,7 +11,7 @@
 
 .PARAMETER Task
     Task file, for example tests/bench/tasks/showcase-24.md. A line that starts with "Expect:" is not sent to
-    the agents; verify.ps1 checks those rules after an oml run.
+    the agents; verify.ps1 checks those rules after an oml batch.
 
 .PARAMETER Side
     mcp   = OutSystems MCP server (Service Studio, module open) + the servicestudio-mcp-oml skill.

@@ -405,14 +405,14 @@ internal static class TerminalRender
 
     static readonly (string area, string[] commands)[] HelpAreas =
     [
-        ("Read", ["inspect", "describe", "find", "census", "meta", "expr", "tree", "openapi", "validate"]),
+        ("Read", ["inspect", "describe", "find", "stats", "header", "expression", "tree", "openapi", "validate"]),
         ("Change", ["new", "apply", "install", "test"]),
         ("Preview", ["preview", "architecture", "check", "review"]),
         ("Service Studio", ["studio", "pull", "publish", "references"]),
-        ("LifeTime", ["lt"]),
-        ("Knowledge", ["spec", "doc", "warn", "memory", "library", "skills"]),
+        ("LifeTime", ["lifetime"]),
+        ("Knowledge", ["spec", "doc", "explain-warning", "memory", "outsystems-docs", "team-rules"]),
         ("Assets", ["app", "extension", "templates", "translations", "font", "image"]),
-        ("Maintenance", ["version", "api", "widgets", "selftest", "doctor", "dashboard", "setup", "log", "run"]),
+        ("Maintenance", ["version", "model-types", "widget-types", "selftest", "doctor", "dashboard", "explorer-menu", "log", "batch"]),
     ];
 
     public static string Help(string usage, string? command)
@@ -461,14 +461,14 @@ internal static class TerminalRender
         ["check"] = CheckView,
         ["review"] = ReviewView,
         ["doctor"] = DoctorView,
-        ["meta"] = MetaView,
-        ["expr"] = ExprView,
+        ["header"] = MetaView,
+        ["expression"] = ExprView,
         ["find"] = FindView,
         ["doc"] = DocView,
-        ["census"] = CensusView,
+        ["stats"] = CensusView,
         ["version"] = VersionView,
-        ["library"] = LibraryView,
-        ["skills"] = SkillsView,
+        ["outsystems-docs"] = LibraryView,
+        ["team-rules"] = SkillsView,
     };
 
     static string Text(JsonObject o, string key) => o.TryGetPropertyValue(key, out var v) ? Scalar(v) : "";
@@ -761,7 +761,7 @@ internal static class TerminalRender
             return error >= 0 && hint > error && name > hint;
         });
         Check("agent-loop commands stay JSON in a console", () =>
-            !TerminalOutput.ForDevelopers("inspect") && !TerminalOutput.ForDevelopers("apply") && !TerminalOutput.ForDevelopers("run")
+            !TerminalOutput.ForDevelopers("inspect") && !TerminalOutput.ForDevelopers("apply") && !TerminalOutput.ForDevelopers("batch")
             && TerminalOutput.ForDevelopers("doctor") && TerminalOutput.ForDevelopers(null));
         Check("a table that would cut a cell becomes stacked blocks", () =>
             Human("""{"items":[{"name":"a","path":"C:\\a\\very\\long\\path\\that\\does\\not\\fit\\in\\any\\column\\of\\a\\console\\table\\at\\all\\because\\it\\is\\long\\really\\long.oml"}]}""")

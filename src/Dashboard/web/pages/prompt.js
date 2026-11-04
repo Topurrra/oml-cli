@@ -78,7 +78,7 @@ export default {
       return lines.join('\n').replace(/\n{3,}/g, '\n\n');
     }
 
-    // The same task as `oml run` steps: read the modules, then (after the agent wrote spec.json) apply, validate and review.
+    // The same task as `oml batch` steps: read the modules, then (after the agent wrote spec.json) apply, validate and review.
     function steps() {
       const { change, read } = modules();
       const ins = read.flatMap(m => ['--in', m.path]);
@@ -90,11 +90,11 @@ export default {
         if (boxes.validate.checked) list.push(['validate', staged(m.path), '--warnings']);
         if (boxes.review.checked) list.push(['review', m.path, staged(m.path), '--md', m.path.replace(/\.oml$/i, '') + '.review.md']);
       }
-      return `// Write ${change.map(specFile).join(', ')} first, then: oml run steps.json --continue. Install and publish are not run steps: they need your OK.\n` +
+      return `// Write ${change.map(specFile).join(', ')} first, then: oml batch steps.json --continue. Install and publish are not run steps: they need your OK.\n` +
         JSON.stringify({ steps: list }, null, 2) + '\n';
     }
 
-    const stepsButton = copyButton(() => steps(), 'Copy as oml run steps', 'Steps');
+    const stepsButton = copyButton(() => steps(), 'Copy as oml batch steps', 'Steps');
     const stepsHint = h('p', { class: 'hint', 'aria-live': 'polite' });
     function build() {
       output.value = text();
@@ -161,7 +161,7 @@ export default {
           h('div', { class: 'row' }, copyButton(() => output.value, 'Copy task', 'Task'), stepsButton)), stepsHint,
         h('label', { for: 'p-out', class: 'sr-only' }, 'Task text'), output,
         h('p', { class: 'hint' }, 'Paste it into your agent. Agents ask you before anything that changes a real module or an environment.'),
-        cli('oml run steps.json --continue'))));
+        cli('oml batch steps.json --continue'))));
     build();
 
     // tests/dashboard-check.ps1 opens #/prompt?selftest=1: the working set API and the prompt text are checked in the
@@ -196,7 +196,7 @@ export default {
         has(t, 'Module: C:\\T\\Orders.oml.');
         has(t, 'Read only (producers; read them with --in, never change them): C:\\T\\Shop.oml.');
         has(t, '- Orders.oml: copied from the module Orders open in Service Studio (oml pull). This is a copy; do not install over the open module without asking.');
-        has(t, '- Shop.oml: downloaded from LifeTime: application Shop, as it runs in Development (oml lt download).');
+        has(t, '- Shop.oml: downloaded from LifeTime: application Shop, as it runs in Development (oml lifetime download).');
         has(t, 'Then run oml review C:\\T\\Orders.oml C:\\T\\Orders.staged.oml --md C:\\T\\Orders.review.md and show me the Markdown.');
         has(t, 'Use these elements from other modules: Shop.Customer_Get.');
         boxes.preview.checked = true;

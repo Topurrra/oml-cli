@@ -141,11 +141,11 @@ The `web/` folder:
 
 Keep every file under 400 lines. Embedded files must be plain ASCII (`encoding-check`). A new subfolder needs its own `EmbeddedResource` line in `src/OmlCli.csproj`.
 
-How a command runs: `Oml(...)` queues it on one worker thread. Launcher commands (`doctor`, `spec`, `font`, `lt`, `log`) run with `Console.Out` captured; model commands go through `Cli.Capture` in Core (`src/Core/Commands.Run.cs`), which is `oml run`'s step runner with modules kept open between calls. Core refuses any command that is not on its `DashboardAllowed` list, as a second lock behind the API.
+How a command runs: `Oml(...)` queues it on one worker thread. Launcher commands (`doctor`, `spec`, `font`, `lifetime`, `log`) run with `Console.Out` captured; model commands go through `Cli.Capture` in Core (`src/Core/Commands.Run.cs`), which is `oml batch`'s step runner with modules kept open between calls. Core refuses any command that is not on its `DashboardAllowed` list, as a second lock behind the API.
 
 To add a page:
 
-1. If it needs the server, add a case to the `switch` in `DashboardApi.Api` and a handler that checks its input (`ModuleFile`, `UserPath`, `ElementName`) and calls `Oml(...)`. Only read commands; never add `install`, `publish`, `references`, `apply`, `run` or a LifeTime write. Outputs a person keeps go to `NewWorkFolder(...)`; intermediate files go to a temporary folder that the handler deletes.
+1. If it needs the server, add a case to the `switch` in `DashboardApi.Api` and a handler that checks its input (`ModuleFile`, `UserPath`, `ElementName`) and calls `Oml(...)`. Only read commands; never add `install`, `publish`, `references`, `apply`, `batch` or a LifeTime write. Outputs a person keeps go to `NewWorkFolder(...)`; intermediate files go to a temporary folder that the handler deletes.
 2. Add `web/pages/<id>.js` that exports the page object, and register it in `web/pages/index.js`. Build elements with `h()`, run actions with `task(...)`, and show each command with `cli(data.cli)`. Show every image and `/view/` page with `viewer({...})`.
 3. Add the id to a group in `web/nav.js`, and an icon path under the same id in `ICONS` (`web/core/dom.js`).
 4. Add a check to `tests/dashboard-check.ps1`, build, run `$env:OML_KEEP_TEST_TMP = 1; tests/dashboard-check.ps1` and look at the screenshots in the `tmp/dashboard-<id>/` folder it keeps, and run the suite.

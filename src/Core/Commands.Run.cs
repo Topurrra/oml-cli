@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 
 namespace OmlCli;
 
-// `oml run <steps.json>`: several read/change commands in one process. Service Studio's model loads once, and a
+// `oml batch <steps.json>`: several read/change commands in one process. Service Studio's model loads once, and a
 // module that a step only reads stays open for the next step (see Model.Borrow). Every step is the argument list
 // of a normal `oml` command and prints through its own writer, so its JSON comes back inside the result.
 public static partial class Cli
@@ -13,12 +13,12 @@ public static partial class Cli
     // Set by the launcher: the commands that live there and need no Service Studio (`spec`, `doc`, `warn`). It takes
     // the whole step, command name first.
     public static Func<string[], int>? LauncherRun;
-    static readonly string[] LauncherCommands = ["spec", "doc", "warn", "memory"];
+    static readonly string[] LauncherCommands = ["spec", "doc", "explain-warning", "memory"];
     // `oml memory` in a run reads only: the other subcommands write the project's memory file and need the agent to decide, outside a batch.
     static readonly string[] MemoryReads = ["recall", "list", "show", "history", "handoff", "traps"];
 
     static readonly string[] RunAllowed =
-        ["apply", "architecture", "census", "check", "describe", "doc", "find", "flow", "inspect", "memory", "openapi", "preview", "review", "spec", "test", "tree", "validate", "warn"];
+        ["apply", "architecture", "check", "describe", "doc", "explain-warning", "find", "flow", "inspect", "memory", "openapi", "preview", "review", "spec", "stats", "test", "tree", "validate"];
 
     static readonly Dictionary<string, string> RunRefused = new()
     {
@@ -26,8 +26,8 @@ public static partial class Cli
         ["publish"] = "it changes the tenant and needs a person's confirmation",
         ["references"] = "it changes the module in Service Studio and needs a person's confirmation",
         ["pull"] = "it needs a person to approve it in Service Studio",
-        ["lt"] = "it changes or reads LifeTime and needs a person's confirmation",
-        ["run"] = "runs cannot be nested",
+        ["lifetime"] = "it changes or reads LifeTime and needs a person's confirmation",
+        ["batch"] = "batches cannot be nested",
     };
 
     static int? CmdRun(List<string> args)
@@ -37,7 +37,7 @@ public static partial class Cli
         if (rest.Count != 1) return null;
 
         var steps = ReadSteps(rest[0]);
-        var timings = Timings.Enabled; // `oml run --timings`: each step reports its own phases
+        var timings = Timings.Enabled; // `oml batch --timings`: each step reports its own phases
         var total = Stopwatch.StartNew();
         var pretty = JsonOutput.Pretty;
         var results = new JsonArray();
@@ -93,7 +93,7 @@ public static partial class Cli
         for (var i = 0; i < array.Count; i++)
         {
             if (array[i] is JsonArray step && step.Count > 0 && step.All(a => a is JsonValue v && v.TryGetValue<string>(out _)))
-                steps.Add(step.Select(a => a!.GetValue<string>()).ToArray());
+                steps.Add(CliUsage.Normalize(step.Select(a => a!.GetValue<string>()).ToArray())); // a step may use an old command name
             else throw new CliError($"Step {i + 1} must be a non-empty list of strings: the arguments of an oml command, such as [\"describe\", \"App.oml\", \"Order\"].", 2);
         }
         return steps;
@@ -102,6 +102,7 @@ public static partial class Cli
     // One step with its own stdout and stderr writers. A step cannot take the run down: a crash becomes exit code 2.
     static (int code, string stdout, string stderr, long ms) RunStep(string[] step, Func<string[], int>? command = null)
     {
+        step = CliUsage.Normalize(step);
         var (output, error) = (new StringWriter(), new StringWriter());
         var (previousOut, previousError) = (Console.Out, Console.Error);
         Console.SetOut(output);
@@ -133,8 +134,8 @@ public static partial class Cli
     // The launcher allows only read commands; this refusal is the second lock on the same door.
     // `check` and `architecture` with --team arrive here already rewritten by the launcher (no --team left).
     static readonly string[] DashboardAllowed = ["describe", "find", "flow", "image", "inspect", "openapi", "preview", "architecture", "check", "studio", "pull", "version",
-        "review", "tree", "validate", "test scaffold", "app list", "app extract", "extension inspect", "templates", "translations export"];
-    // A command with subcommands is allowed per subcommand: `app list` yes, `app pack` no; `test scaffold` only.
+        "review", "tree", "validate", "test bdd", "app list", "app extract", "extension inspect", "templates", "translations export"];
+    // A command with subcommands is allowed per subcommand: `app list` yes, `app pack` no; `test bdd` only.
     static bool DashboardAllows(string[] s) => s[0] is "app" or "extension" or "translations" or "test"
         ? s.Length > 1 && DashboardAllowed.Contains(s[0] + " " + s[1])
         : DashboardAllowed.Contains(s[0]);
@@ -162,15 +163,15 @@ public static partial class Cli
     {
         var command = step[0];
         if (RunRefused.TryGetValue(command, out var reason))
-            return Refuse($"'{command}' is not allowed inside 'oml run': {reason}. Run it as its own command.");
+            return Refuse($"'{command}' is not allowed inside 'oml batch': {reason}. Run it as its own command.");
         if (!RunAllowed.Contains(command))
-            return Refuse($"'{command}' is not supported inside 'oml run'. Use one of: {string.Join(", ", RunAllowed)}.");
+            return Refuse($"'{command}' is not supported inside 'oml batch'. Use one of: {string.Join(", ", RunAllowed)}.");
         if (command == "preview" && step.Contains("--serve"))
-            return Refuse("'preview --serve' is not allowed inside 'oml run': it keeps running until Ctrl+C. Run it as its own command.");
+            return Refuse("'preview --serve' is not allowed inside 'oml batch': it keeps running until Ctrl+C. Run it as its own command.");
         if (command is "architecture" or "check" && step.Contains("--team"))
-            return Refuse($"'{command} --team' is not allowed inside 'oml run': it reads LifeTime and needs a person's confirmation. Run it as its own command.");
+            return Refuse($"'{command} --team' is not allowed inside 'oml batch': it reads LifeTime and needs a person's confirmation. Run it as its own command.");
         if (command == "memory" && (step.Length < 2 || !MemoryReads.Contains(step[1])))
-            return Refuse($"'memory {(step.Length > 1 ? step[1] : "")}' is not allowed inside 'oml run': a run may only read memory ({string.Join(", ", MemoryReads)}). Run it as its own command.");
+            return Refuse($"'memory {(step.Length > 1 ? step[1] : "")}' is not allowed inside 'oml batch': a run may only read memory ({string.Join(", ", MemoryReads)}). Run it as its own command.");
         if (LauncherCommands.Contains(command))
         {
             if (step.Contains("--timings")) return Refuse($"--timings is not available for {command}.");

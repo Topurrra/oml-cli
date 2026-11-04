@@ -6,7 +6,7 @@ using System.Text.Json.Nodes;
 
 namespace OmlCli;
 
-// `oml evolve`: oml learns from what happened, and a person decides. `report` reads local evidence and changes nothing;
+// `oml learn`: oml learns from what happened, and a person decides. `report` reads local evidence and changes nothing;
 // `propose` writes proposals (files under .oml/evolve and draft skills under .oml/skills), never a change; only
 // `accept <id>` applies one (installs the skill, writes the memory records, or applies the patch), and `undo <id>`
 // takes it back. `reject <id>` is remembered, so the same lines are not proposed again. No network, no model: the
@@ -34,7 +34,7 @@ static class EvolveCommand
                 "reject" => Reject(o),
                 "history" => History(o),
                 "undo" => Undo(o),
-                _ => throw new EvolveException($"Unknown evolve command '{args[0]}'.", 2, "Run 'oml evolve --help'."),
+                _ => throw new EvolveException($"Unknown evolve command '{args[0]}'.", 2, "Run 'oml learn --help'."),
             };
         }
         catch (EvolveException e)
@@ -67,14 +67,14 @@ static class EvolveCommand
                 if (a == "--maintainer") { o.Maintainer = true; continue; }
                 if (a is "--file" or "--check" or "--review" or "--dir" or "--since" or "--md" or "--repo" or "--why")
                 {
-                    if (i + 1 >= args.Length) throw new EvolveException($"{a} needs a value.", 2, "Run 'oml evolve --help'.");
+                    if (i + 1 >= args.Length) throw new EvolveException($"{a} needs a value.", 2, "Run 'oml learn --help'.");
                     var v = args[++i];
                     if (a == "--file") o.Files.Add(Path.GetFullPath(v));
                     else if (a is "--check" or "--review") o.Checks.Add(Path.GetFullPath(v));
                     else o.Values[a] = v;
                     continue;
                 }
-                if (a.StartsWith("--", StringComparison.Ordinal)) throw new EvolveException($"Unknown option {a}.", 2, "Run 'oml evolve --help'.");
+                if (a.StartsWith("--", StringComparison.Ordinal)) throw new EvolveException($"Unknown option {a}.", 2, "Run 'oml learn --help'.");
                 o.Words.Add(a);
             }
             return o;
@@ -112,8 +112,8 @@ static class EvolveCommand
 
     static JsonObject Find(JsonObject state, string? id)
     {
-        if (string.IsNullOrWhiteSpace(id)) throw new EvolveException("Give one proposal id, such as e3fa2c1.", 2, "List them with: oml evolve show");
-        return Proposals(state)[id] as JsonObject ?? throw new EvolveException($"No proposal {id}.", 1, "List them with: oml evolve show");
+        if (string.IsNullOrWhiteSpace(id)) throw new EvolveException("Give one proposal id, such as e3fa2c1.", 2, "List them with: oml learn show");
+        return Proposals(state)[id] as JsonObject ?? throw new EvolveException($"No proposal {id}.", 1, "List them with: oml learn show");
     }
 
     static string Now() => Evidence.Now.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
@@ -141,7 +141,7 @@ static class EvolveCommand
 
     static int Report(Opts o)
     {
-        if (o.Words.Count > 0) throw new EvolveException($"Unexpected '{o.Words[0]}'.", 2, "Usage: oml evolve report [--since <date>] [--file <usage.jsonl>]");
+        if (o.Words.Count > 0) throw new EvolveException($"Unexpected '{o.Words[0]}'.", 2, "Usage: oml learn report [--since <date>] [--file <usage.jsonl>]");
         var (_, report) = Analyze(o, LoadState(o.Folder));
         if (o.Get("--md") is { } md)
         {
@@ -164,7 +164,7 @@ static class EvolveCommand
 
     static int Propose(Opts o)
     {
-        if (o.Words.Count > 0) throw new EvolveException($"Unexpected '{o.Words[0]}'.", 2, "Usage: oml evolve propose [--maintainer] [--since <date>] [--file <usage.jsonl>]...");
+        if (o.Words.Count > 0) throw new EvolveException($"Unexpected '{o.Words[0]}'.", 2, "Usage: oml learn propose [--maintainer] [--since <date>] [--file <usage.jsonl>]...");
         var folder = o.Folder;
         var state = LoadState(folder);
         var (analysis, report) = Analyze(o, state);
@@ -204,7 +204,7 @@ static class EvolveCommand
             ["proposals"] = new JsonArray(made.Proposals.OfType<JsonObject>().Select(Summary).ToArray()),
             ["flags"] = made.Flags.DeepClone(),
             ["md"] = Path.Combine(runDir, "report.md"),
-            ["hint"] = made.Proposals.Count == 0 ? "Nothing to propose from this evidence." : "Proposals only. A person reads each one (oml evolve show <id>) and runs oml evolve accept <id> or reject <id>. An agent never accepts on the user's behalf.",
+            ["hint"] = made.Proposals.Count == 0 ? "Nothing to propose from this evidence." : "Proposals only. A person reads each one (oml learn show <id>) and runs oml learn accept <id> or reject <id>. An agent never accepts on the user's behalf.",
         });
         return 0;
     }
@@ -225,14 +225,14 @@ static class EvolveCommand
             TerminalOutput.PrintNode(Find(state, o.Words[0]).DeepClone());
             return 0;
         }
-        if (o.Words.Count > 1) throw new EvolveException("Give at most one proposal id.", 2, "Usage: oml evolve show [<id>]");
+        if (o.Words.Count > 1) throw new EvolveException("Give at most one proposal id.", 2, "Usage: oml learn show [<id>]");
         var open = Proposals(state).Select(kv => kv.Value as JsonObject).Where(p => p?["status"]?.GetValue<string>() == "open").ToList();
         TerminalOutput.PrintNode(new JsonObject
         {
             ["folder"] = EvolveDir(o.Folder),
             // Full proposals, so the dashboard can show the evidence and the diff without another call.
             ["proposals"] = new JsonArray(open.Select(p => (JsonNode)p!.DeepClone()).ToArray()),
-            ["hint"] = open.Count == 0 ? "No open proposals. Run 'oml evolve propose'." : "A person accepts: oml evolve accept <id>, or rejects: oml evolve reject <id> --why \"<reason>\".",
+            ["hint"] = open.Count == 0 ? "No open proposals. Run 'oml learn propose'." : "A person accepts: oml learn accept <id>, or rejects: oml learn reject <id> --why \"<reason>\".",
         });
         return 0;
     }
@@ -241,11 +241,11 @@ static class EvolveCommand
 
     static int Reject(Opts o)
     {
-        if (o.Words.Count != 1) throw new EvolveException("Give one proposal id.", 2, "Usage: oml evolve reject <id> [--why <text>]");
+        if (o.Words.Count != 1) throw new EvolveException("Give one proposal id.", 2, "Usage: oml learn reject <id> [--why <text>]");
         var folder = o.Folder;
         var state = LoadState(folder);
         var p = Find(state, o.Words[0]);
-        if (p["status"]?.GetValue<string>() is "accepted") throw new EvolveException($"Proposal {o.Words[0]} is accepted. Undo it first: oml evolve undo {o.Words[0]}", 1);
+        if (p["status"]?.GetValue<string>() is "accepted") throw new EvolveException($"Proposal {o.Words[0]} is accepted. Undo it first: oml learn undo {o.Words[0]}", 1);
         var why = MemoryFormat.Sanitize(o.Get("--why") ?? "");
         if (MemorySecrets.Find(why) is { } secret) throw new EvolveException($"--why holds what looks like a {secret}. Nothing was written.", 2);
         var rejected = (JsonObject)state["rejected"]!;
@@ -261,13 +261,13 @@ static class EvolveCommand
 
     static int Accept(Opts o)
     {
-        if (o.Words.Count != 1) throw new EvolveException("Give one proposal id.", 2, "Usage: oml evolve accept <id>");
+        if (o.Words.Count != 1) throw new EvolveException("Give one proposal id.", 2, "Usage: oml learn accept <id>");
         var folder = o.Folder;
         var id = o.Words[0];
         var state = LoadState(folder);
         var p = Find(state, id);
         var status = p["status"]?.GetValue<string>();
-        if (status != "open") throw new EvolveException($"Proposal {id} is {status}; only an open proposal can be accepted.", 1, "Run 'oml evolve propose' for current proposals.");
+        if (status != "open") throw new EvolveException($"Proposal {id} is {status}; only an open proposal can be accepted.", 1, "Run 'oml learn propose' for current proposals.");
         var apply = (JsonObject)p["apply"]!;
         var undo = new JsonObject();
         object result;
@@ -292,7 +292,7 @@ static class EvolveCommand
             {
                 var name = apply["skill"]!.GetValue<string>();
                 var draft = apply["draft"]!.GetValue<string>();
-                if (!File.Exists(draft)) throw new EvolveException($"The draft {draft} is gone. Run 'oml evolve propose' again.", 1);
+                if (!File.Exists(draft)) throw new EvolveException($"The draft {draft} is gone. Run 'oml learn propose' again.", 1);
                 string? backup = null;
                 if (CompanySkills.Installed().TryGetValue(name, out var installed))
                 {
@@ -301,7 +301,7 @@ static class EvolveCommand
                     File.Copy(installed, backup, overwrite: true);
                 }
                 var (code, output) = Captured(() => CompanySkills.Run(["add", draft, "--force"]));
-                if (code != 0) throw new EvolveException("oml skills add refused the draft: " + (output?["error"]?.GetValue<string>() ?? "no output"), 1, "Fix the draft file, then accept again.");
+                if (code != 0) throw new EvolveException("oml team-rules add refused the draft: " + (output?["error"]?.GetValue<string>() ?? "no output"), 1, "Fix the draft file, then accept again.");
                 undo["skill"] = name;
                 undo["backup"] = backup;
                 result = new { accepted = id, skill = name, file = output?["file"]?.GetValue<string>(), open = $"oml doc {name}" };
@@ -345,12 +345,12 @@ static class EvolveCommand
 
     static int Undo(Opts o)
     {
-        if (o.Words.Count != 1) throw new EvolveException("Give one proposal id.", 2, "Usage: oml evolve undo <id>");
+        if (o.Words.Count != 1) throw new EvolveException("Give one proposal id.", 2, "Usage: oml learn undo <id>");
         var folder = o.Folder;
         var id = o.Words[0];
         var state = LoadState(folder);
         var entry = Accepted(state).OfType<JsonObject>().LastOrDefault(a => a["id"]?.GetValue<string>() == id && a["undoneAt"] is null)
-            ?? throw new EvolveException($"Proposal {id} is not accepted, or was undone already.", 1, "See: oml evolve history");
+            ?? throw new EvolveException($"Proposal {id} is not accepted, or was undone already.", 1, "See: oml learn history");
         var undo = (JsonObject)entry["undo"]!;
         object result;
         switch (entry["kind"]!.GetValue<string>())
@@ -360,7 +360,7 @@ static class EvolveCommand
                 var retracted = new List<int>();
                 foreach (var rid in (JsonArray)undo["records"]!)
                 {
-                    var (code, output) = Captured(() => MemoryCommand.Run(["retract", rid!.GetValue<int>().ToString(CultureInfo.InvariantCulture), "--why", $"undone with oml evolve undo {id}", "--src", "evolve", "--dir", folder]));
+                    var (code, output) = Captured(() => MemoryCommand.Run(["retract", rid!.GetValue<int>().ToString(CultureInfo.InvariantCulture), "--why", $"undone with oml learn undo {id}", "--src", "evolve", "--dir", folder]));
                     if (code != 0 && output?["error"]?.GetValue<string>() is { } error && !error.Contains("already", StringComparison.Ordinal)) throw new EvolveException("oml memory retract failed: " + error, 1);
                     retracted.Add(rid.GetValue<int>());
                 }
@@ -414,7 +414,7 @@ static class EvolveCommand
                 ["id"] = a["id"]!.DeepClone(), ["title"] = a["title"]!.DeepClone(), ["kind"] = a["kind"]!.DeepClone(), ["at"] = a["at"]!.DeepClone(),
                 ["undoneAt"] = a["undoneAt"]?.DeepClone(),
                 ["effect"] = effects?.OfType<JsonObject>().FirstOrDefault(e => e["id"]?.GetValue<string>() == a["id"]!.GetValue<string>())?.DeepClone(),
-                ["undo"] = a["undoneAt"] is null ? $"oml evolve undo {a["id"]}" : null,
+                ["undo"] = a["undoneAt"] is null ? $"oml learn undo {a["id"]}" : null,
             }).ToArray()),
             ["rejected"] = ((JsonObject)state["rejected"]!).Count,
         });

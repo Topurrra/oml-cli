@@ -224,7 +224,7 @@ Refused or silently renamed aliases become problems.
   "blocks": [{ "name": "Chart", "styleSheet": { "file": "code/chart.css" } }] }
 ```
 
-- The path is relative to the spec file's folder. With several specs (`oml apply` with more spec files, or `oml run`), each spec reads its own files.
+- The path is relative to the spec file's folder. With several specs (`oml apply` with more spec files, or `oml batch`), each spec reads its own files.
 - The file must be inside the spec's folder or below it. An absolute path, a drive, a `:`, a `..` that leaves the folder, and a symbolic link or junction on the way to the file are refused. A hard link cannot be told from a normal file and is not detected.
 - Refused too: a folder, a Windows device name as the base name before the first dot (`NUL`, `nul.js`, `CON`, ...), a file over 2 MB, text that is not valid UTF-8 or UTF-16, and a NUL character (U+0000).
 - Keys that start with `_` or `$` are notes; a file value there is not read.
@@ -391,7 +391,7 @@ Other installed kinds resolve as `I<Kind>Node`. Other node keys use installed se
 Check them before use:
 
 ```powershell
-oml api "OutSystems.Model.Logic.Nodes.I*Node"
+oml model-types "OutSystems.Model.Logic.Nodes.I*Node"
 ```
 
 Start and End are created when needed. An End named `End` reuses the implicit End.
@@ -665,7 +665,7 @@ Label, Image, Icon, List, ListItem, TableRecords, HeaderCell, RowCell, Popup, an
 Discover available types with:
 
 ```powershell
-oml widgets
+oml widget-types
 ```
 
 Children use the widget or its first content placeholder.
@@ -754,7 +754,7 @@ ListRecords, EditRecord, and BlockInstance.
 Widget interfaces resolve under `OutSystems.Model.UI.Web.Widgets`:
 
 ```powershell
-oml api "OutSystems.Model.UI.Web.Widgets.I*"
+oml model-types "OutSystems.Model.UI.Web.Widgets.I*"
 ```
 
 ```json
@@ -963,7 +963,7 @@ Locales, translation imports, translation writes, and folders run after logic an
 | `scripts` | `name`, `file`, optional `public` (false). Sets `JavaScript` to the file text. Screens and blocks accept `requiredScripts`, an array of script names. |
 | `themes` | `name`, optional `styleSheet` and `baseTheme`. `styleSheet` is CSS text, an existing file path, or `{ "file": ... }`; a value that looks like a path (`theme.css`, `css/app.css`) but names no file is refused. A new theme without `styleSheet` starts empty. Creates a Web theme in Traditional Web modules, otherwise a Mobile theme. Does not select the module default theme. |
 | `resources` | `name`, `file`, optional `public` (false). Stores the exact file bytes. |
-| `folders` | `name`, `area`, `elements` paths. Reuses folders with the same area and name. Moves elements by their typed `Folder` property. `entities` is an alias for `ServerEntities`. Other areas match installed `ESpaceTreeFolder` names without case sensitivity: `serverActions`, `clientActions`, `serviceActions`, `structures`, `images`, `resources`, `scripts`, `themes`, `siteProperties`, `timers`, `roles`, `processes`, and others listed by `oml api ESpaceTreeFolder`. Rejects elements outside the requested area. |
+| `folders` | `name`, `area`, `elements` paths. Reuses folders with the same area and name. Moves elements by their typed `Folder` property. `entities` is an alias for `ServerEntities`. Other areas match installed `ESpaceTreeFolder` names without case sensitivity: `serverActions`, `clientActions`, `serviceActions`, `structures`, `images`, `resources`, `scripts`, `themes`, `siteProperties`, `timers`, `roles`, `processes`, and others listed by `oml model-types ESpaceTreeFolder`. Rejects elements outside the requested area. |
 
 Image, script and resource creation lists reuse existing names without updating their content. An existing theme takes a different `styleSheet` and `baseTheme` (UI, rule 3); the report's `changed` lists `styleSheet of theme <name>` and `baseTheme of theme <name>`. Left out, they keep the theme's values. A module has no style sheet of its own: put module-wide CSS in a theme.
 `inspect.content` lists content, locales, module translations, and folder entries. `tree` shows `folder`, `requiredScripts`, and image `ref` values.

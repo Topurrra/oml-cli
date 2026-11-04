@@ -1,5 +1,5 @@
 // Build BDD test screens that call a public server action and assert its result, in a separate test module.
-// Output of: oml test scaffold OrderCore.oml PlaceOrder --bdd BDDFramework.oml --producer tmp/recipes/OrderCore.oml
+// Output of: oml test bdd OrderCore.oml PlaceOrder --bdd BDDFramework.oml --producer tmp/recipes/OrderCore.oml
 // Base: a test module made from the BDD Framework Client Side app type (saved with oml pull), or a NEW CrossDevice module
 // (oml new OrderCore_Tests.oml --kind CrossDevice). Never the module under test.
 // Needs BDDFramework Client Side (Forge) and the module under test as producer .oml files; replace both paths.

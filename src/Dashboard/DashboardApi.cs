@@ -674,7 +674,7 @@ static partial class Dashboard
     {
         if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OML_LIFETIME_HOST")) || string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OML_LIFETIME_TOKEN")))
             return new Reply(200, new JsonObject { ["configured"] = false });
-        var args = new List<string> { "lt", verb };
+        var args = new List<string> { "lifetime", verb };
         if (verb == "apps" && !string.IsNullOrWhiteSpace(value))
         {
             if (value.Length > 100 || value.StartsWith('-')) throw new BadInput("Not an environment name.");
@@ -699,7 +699,7 @@ static partial class Dashboard
         var app = LifeTimeName(Str(body, "app"), "an application");
         var env = LifeTimeName(Str(body, "env"), "an environment");
         var folder = NewWorkFolder("lifetime");
-        var args = new List<string> { "lt", "download", app, "--env", env, "--out", folder };
+        var args = new List<string> { "lifetime", "download", app, "--env", env, "--out", folder };
         if (body["extract"] is JsonValue e && e.TryGetValue<bool>(out var extract) && extract) args.Add("--extract");
         var r = await Oml([.. args]);
         var extra = new JsonObject { ["configured"] = true, ["folder"] = folder };
@@ -750,13 +750,13 @@ static partial class Dashboard
         return new Reply(200, body);
     }
 
-    // What agents learned: only the read subcommands of oml evolve (show, report). Accepting stays a command the developer
+    // What agents learned: only the read subcommands of oml learn (show, report). Accepting stays a command the developer
     // runs. The folder is the one the dashboard started in, unless the page names another.
     static async Task<Reply> Evolve(string sub, string? typed)
     {
         var dir = typed is null ? Environment.CurrentDirectory : UserPath(typed, "a project folder");
         if (!Directory.Exists(dir)) throw new BadInput($"Folder not found: {dir}");
-        return Wrap(await Oml("evolve", sub, "--dir", dir), new JsonObject { ["dir"] = dir });
+        return Wrap(await Oml("learn", sub, "--dir", dir), new JsonObject { ["dir"] = dir });
     }
 
     static Reply Shutdown()

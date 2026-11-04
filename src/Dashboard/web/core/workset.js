@@ -46,7 +46,7 @@ export const workset = (() => {
         case 'folder': return `from the folder ${s.folder}.`;
         case 'package': return `extracted from the application package ${s.file}.`;
         case 'drop': return `uploaded from this computer (${s.file || fileName(m.path)}).`;
-        case 'lifetime': return `downloaded from LifeTime: application ${s.app}, as it runs in ${s.env} (oml lt download).`;
+        case 'lifetime': return `downloaded from LifeTime: application ${s.app}, as it runs in ${s.env} (oml lifetime download).`;
         default: return 'a file chosen by path.';
       }
     },

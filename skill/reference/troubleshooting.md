@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Symptoms of oml itself (apply, install, publish, LifeTime, fonts and images), then of the published app. Validation messages: `oml warn <id>`. Model API host failures: [model-api.md](model-api.md) section 17.
+Symptoms of oml itself (apply, install, publish, LifeTime, fonts and images), then of the published app. Validation messages: `oml explain-warning <id>`. Model API host failures: [model-api.md](model-api.md) section 17.
 
 ## Apply and install
 
@@ -81,7 +81,7 @@ Failures of the published app. First find where the code runs: browser or server
 | The screen flickers or freezes | OnRender, OnAfterFetch | OnRender changes screen data, or OnAfterFetch refreshes its own source (`oml check` rules `render-assign`, `self-refreshing-aggregate`). |
 ## Platform problems
 
-Servers, Service Center, LifeTime, network: run `oml library fetch` once, then `oml doc --search "<words>" --library` (OutSystems 11 docs).
+Servers, Service Center, LifeTime, network: run `oml outsystems-docs fetch` once, then `oml doc --search "<words>" --library` (OutSystems 11 docs).
 
 | Symptom | Likely cause | Check |
 |---|---|---|

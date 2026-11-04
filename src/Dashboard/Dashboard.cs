@@ -329,7 +329,7 @@ static partial class Dashboard
 
     internal sealed record Result(int Code, JsonNode? Output, string Stderr, string Cli);
 
-    static readonly string[] LauncherCommands = ["doctor", "spec", "doc", "warn", "font", "lt", "log", "evolve"];
+    static readonly string[] LauncherCommands = ["doctor", "spec", "doc", "explain-warning", "font", "lifetime", "log", "learn"];
 
     // The only way the dashboard runs oml. The arguments are built by DashboardApi.cs, never taken from the page as they are.
     internal static Task<Result> Oml(params string[] args)
@@ -361,9 +361,10 @@ static partial class Dashboard
         });
     }
 
-    // Also `oml setup run`, which runs one command the same way outside the dashboard.
+    // Also `oml explorer-menu run`, which runs one command the same way outside the dashboard.
     internal static Result Execute(string[] args)
     {
+        args = CliUsage.Normalize(args);
         string stdout, stderr;
         int code;
         // After a self-test past its limit (Core), every command is refused with its message; see Cli.SelfTestAbandoned.
@@ -388,13 +389,13 @@ static partial class Dashboard
                     "doctor" => Doctor.Run(rest),
                     "spec" => SpecCommand.Run(rest),
                     "doc" => DocCommand.Run(rest),
-                    "warn" => DocCommand.Warn(rest),
+                    "explain-warning" => DocCommand.Warn(rest),
                     "font" => FontAssets.Run(rest),
-                    "lt" => LifeTime.Run(rest, CoreRun),
+                    "lifetime" => LifeTime.Run(rest, CoreRun),
                     "architecture" or "check" when args[0] == "check" && Program.CheckPreflight(args) is { } refused => Refuse(refused),
                     "architecture" or "check" => LifeTime.Architecture(args, CoreRun),
-                    "evolve" when EvolveCommand.ReadSubcommands.Contains(args[1]) => EvolveCommand.Run(rest),
-                    "evolve" => Refuse("The dashboard only reads: run oml evolve accept, reject and undo yourself."),
+                    "learn" when EvolveCommand.ReadSubcommands.Contains(args[1]) => EvolveCommand.Run(rest),
+                    "learn" => Refuse("The dashboard only reads: run oml learn accept, reject and undo yourself."),
                     _ => UsageLog.Summary(rest),
                 };
             }

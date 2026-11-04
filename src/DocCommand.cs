@@ -3,13 +3,13 @@ using System.Text.RegularExpressions;
 
 namespace OmlCli;
 
-// `oml doc [<topic>[#section]]` and `oml warn <id | title words>`: the knowledge files in skill/reference, embedded
+// `oml doc [<topic>[#section]]` and `oml explain-warning <id | title words>`: the knowledge files in skill/reference, embedded
 // at build time as OmlCli.doc.<topic>.md. Runs in the launcher, so it works without Service Studio.
 static class DocCommand
 {
     const string Prefix = "OmlCli.doc.";
     const string DocUsage = "Usage: oml doc [<topic>[#section]]   (no topic lists the topics)\n       oml doc commands[#<section>]   (the command reference: its sections, or one section)\n       oml doc --search \"<words>\" [--top N] [--in <folder> | --library]   (ranked search of the topics, spec keys, recipes, warnings and commands; --library: the OutSystems 11 docs)";
-    const string WarnUsage = "Usage: oml warn <id | title words>   (for example: oml warn NoErrorHandlingInFlow, oml warn security warning)";
+    const string WarnUsage = "Usage: oml explain-warning <id | title words>   (for example: oml explain-warning NoErrorHandlingInFlow, oml explain-warning security warning)";
 
     // The knowledge files, plus `rules`: skill/rules.md, embedded once as OmlCli.rules.md (the dashboard shows it too).
     internal static List<string> Topics() => typeof(DocCommand).Assembly.GetManifestResourceNames()
@@ -42,13 +42,13 @@ static class DocCommand
         if (company.Count > 0)
         {
             Console.WriteLine();
-            Console.WriteLine("Company skills (oml skills; they override OutSystems best practices, never rules):");
+            Console.WriteLine("Company skills (oml team-rules; they override OutSystems best practices, never rules):");
             foreach (var (name, file) in company) Console.WriteLine($"{name}  -  {CompanySkills.Header(File.ReadAllText(file))!.Value.Description}");
         }
         Console.WriteLine();
         Console.WriteLine("oml doc <topic> prints one topic; oml doc <topic>#<section> prints one section (oml doc ui-reactive#forms).");
         Console.WriteLine("oml doc commands lists the sections of the command reference; oml doc commands#<section> prints one (oml doc commands#memory).");
-        Console.WriteLine("oml warn <id> prints the cause and fix of one validation message.");
+        Console.WriteLine("oml explain-warning <id> prints the cause and fix of one validation message.");
         Console.WriteLine("oml doc --search \"<words>\" finds the section, spec key, recipe or warning that answers a question.");
         return 0;
     }
@@ -67,7 +67,7 @@ static class DocCommand
         var (name, section) = hash < 0 ? (query, null) : (query[..hash], query[(hash + 1)..]);
         if (name.EndsWith(".md", StringComparison.OrdinalIgnoreCase)) name = name[..^3];
         if (name.Equals(Commands, StringComparison.OrdinalIgnoreCase)) return ShowCommands(section);
-        // A company skill (oml skills): its names never clash with a topic.
+        // A company skill (oml team-rules): its names never clash with a topic.
         if (CompanySkills.Installed().TryGetValue(name, out var skill))
         {
             var body = CompanySkills.Text(skill);
@@ -149,7 +149,7 @@ static class DocCommand
             var prefix = args.Length > 1 ? args[1] : null;
             var real = VerifyCatalog.Matching(prefix);
             if (real.Length == 0) { Console.Error.WriteLine("No verification ids match."); return 2; }
-            Console.WriteLine($"Verification ids ({real.Length}); a prefix narrows the list (oml warn --catalog Entity_):");
+            Console.WriteLine($"Verification ids ({real.Length}); a prefix narrows the list (oml explain-warning --catalog Entity_):");
             foreach (var id in real) Console.WriteLine(id);
             return 0;
         }
@@ -170,7 +170,7 @@ static class DocCommand
                 Console.WriteLine($"## {query}");
                 Console.WriteLine();
                 Console.WriteLine("This is a verification message id the IDE can emit. oml ships no fix text for it: the message text lives in the platform's resources. " +
-                                  "It is in oml's catalog of real ids, so you can rely on it being one the IDE can emit. See `oml warn --catalog` for the list.");
+                                  "It is in oml's catalog of real ids, so you can rely on it being one the IDE can emit. See `oml explain-warning --catalog` for the list.");
                 return 0;
             }
 

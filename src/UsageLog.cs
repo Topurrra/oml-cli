@@ -6,15 +6,15 @@ using System.Text.RegularExpressions;
 
 namespace OmlCli;
 
-// Local usage log, on by default since 1.15 (oml evolve and memory recall learn from it): without OML_LOG, or with "1",
+// Local usage log, on by default since 1.15 (oml learn and memory recall learn from it): without OML_LOG, or with "1",
 // it writes %LOCALAPPDATA%\oml-cli\usage.jsonl; "0" turns it off; any other value is the file to append to. At 20 MB
 // the file moves to usage.jsonl.1 (one older file is kept), so it never grows without end. One JSON line per command,
-// and per step inside `oml run`:
+// and per step inside `oml batch`:
 // UTC time, command name, exit code, duration, output size, the module file NAME (no folder) and, for a failure,
-// the first problem message cut to 200 characters with folders and secrets removed. For `oml evolve` and memory
+// the first problem message cut to 200 characters with folders and secrets removed. For `oml learn` and memory
 // usefulness it also keeps: a hashed session id (OML_SESSION or the agent's session variable), the option NAMES
 // (--module, never their values), the record ids a memory recall returned, the spec key of a failed spec, the id of
-// `oml warn <id>`, and the words of a doc or spec search that found nothing good (cut to 100 characters, secrets
+// `oml explain-warning <id>`, and the words of a doc or spec search that found nothing good (cut to 100 characters, secrets
 // masked). It never logs other arguments, spec contents, tokens, environment values or paths, and it sends nothing anywhere.
 // Linked into OmlCli.Core as well (see the Core csproj): the launcher logs whole commands, Core logs run steps.
 static class UsageLog
@@ -22,13 +22,13 @@ static class UsageLog
     const int MaxMessage = 200, MaxQuery = 100;
     const int KeepText = 64 * 1024;
     static readonly string[] ModuleExtensions = [".oml", ".oap", ".osp", ".xif"];
-    // Commands whose second word is a verb worth telling apart in the summary (`lt status` vs `lt deploy`).
+    // Commands whose second word is a verb worth telling apart in the summary (`lifetime status` vs `lifetime deploy`).
     static readonly Dictionary<string, string[]> Verbs = new()
     {
-        ["lt"] = ["environments", "apps", "teams", "team-apps", "download", "tag", "deploy", "status", "abort", "continue"],
+        ["lifetime"] = ["environments", "apps", "teams", "team-apps", "download", "tag", "deploy", "status", "abort", "continue"],
         ["app"] = ["list", "extract", "pack"], ["extension"] = ["inspect", "new"], ["font"] = ["woff2", "batch"],
-        ["image"] = ["batch"], ["spec"] = ["check", "schema"], ["translations"] = ["export"], ["test"] = ["scaffold"], ["memory"] = ["init", "add", "recall", "list", "show", "history", "retract", "doctor", "handoff", "traps"],
-        ["evolve"] = ["report", "propose", "show", "accept", "reject", "history", "undo"], ["skills"] = ["list", "add", "remove"],
+        ["image"] = ["batch"], ["spec"] = ["check", "schema"], ["translations"] = ["export"], ["test"] = ["bdd"], ["memory"] = ["init", "add", "recall", "list", "show", "history", "retract", "doctor", "handoff", "traps"],
+        ["learn"] = ["report", "propose", "show", "accept", "reject", "history", "undo"], ["team-rules"] = ["list", "add", "remove"],
     };
     // The agent's own session variables, read in this order; the value is hashed before it is written.
     static readonly string[] SessionVariables = ["OML_SESSION", "CLAUDE_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CODEX_SESSION_ID"];
@@ -81,6 +81,7 @@ static class UsageLog
     {
         var path = FilePath;
         if (path is null || args.Count == 0) return;
+        args = CliUsage.Normalize(args.ToArray()); // the log holds the new command name even when an old one was typed
         try
         {
             var line = new JsonObject
@@ -123,7 +124,7 @@ static class UsageLog
     }
 
     // The session: the first agent session variable that is set, hashed (8 bytes of SHA-256), so the log can group the
-    // commands of one session without holding the agent's id. Null without one: `oml evolve` then splits by time gaps.
+    // commands of one session without holding the agent's id. Null without one: `oml learn` then splits by time gaps.
     static string? Session()
     {
         foreach (var name in SessionVariables)
@@ -132,10 +133,10 @@ static class UsageLog
         return null;
     }
 
-    // The learning fields, read from oml's own output (never from the arguments, except the id of `oml warn`).
+    // The learning fields, read from oml's own output (never from the arguments, except the id of `oml explain-warning`).
     static IEnumerable<(string Name, JsonNode Value)> Extras(IReadOnlyList<string> args, int exitCode, string stdout)
     {
-        if (args[0] == "warn" && args.Count > 1 && Regex.IsMatch(args[1], "^[A-Za-z][A-Za-z0-9_]{1,60}$")) yield return ("topic", args[1]);
+        if (args[0] == "explain-warning" && args.Count > 1 && Regex.IsMatch(args[1], "^[A-Za-z][A-Za-z0-9_]{1,60}$")) yield return ("topic", args[1]);
         var memoryRecall = args[0] == "memory" && args.Count > 1 && args[1] == "recall";
         var search = args[0] is "doc" or "spec" && args.Contains("--search");
         if (!memoryRecall && !search && exitCode == 0) yield break;
@@ -204,7 +205,7 @@ static class UsageLog
             case JsonValue v: return v.TryGetValue<string>(out var s) ? s : null;
             case JsonArray a: return a.Select(Find).FirstOrDefault(x => x is not null);
             case JsonObject o:
-                // `oml run`: the problem of the first step that failed.
+                // `oml batch`: the problem of the first step that failed.
                 if (o["results"] is JsonArray steps)
                     return steps.OfType<JsonObject>().Where(r => r["exitCode"]?.GetValue<int>() is > 0).Select(r => Find(r["output"])).FirstOrDefault(x => x is not null);
                 foreach (var key in new[] { "error", "problems", "newErrors", "reopenNewErrors", "errors", "message", "samples" })
@@ -227,7 +228,7 @@ static class UsageLog
         return message.Length <= MaxMessage ? message : message[..MaxMessage];
     }
 
-    // ---- reading the log (log summary, memory usefulness, oml evolve) ----
+    // ---- reading the log (log summary, memory usefulness, oml learn) ----
 
     internal sealed record Row(int Line, DateTime Ts, string Cmd, int Exit, long Ms, string? Module, string? Error, bool InRun,
         string? Session, string[] Opts, int[] Recalled, string? Query, string? SpecKey, string? Topic)
@@ -252,6 +253,7 @@ static class UsageLog
             try
             {
                 if (JsonNode.Parse(text) is not JsonObject o || o["cmd"]?.GetValue<string>() is not { } cmd) continue;
+                cmd = CliUsage.NewLogName(cmd); // an older line holds an old command name
                 DateTime.TryParse(o["ts"]?.GetValue<string>(), System.Globalization.CultureInfo.InvariantCulture,
                     System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var ts);
                 string? S(string k) => o[k] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;

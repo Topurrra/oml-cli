@@ -61,14 +61,14 @@ Require (-not $i.entities[0].kind) 'inspect: a plain entity prints a kind the se
 $f = & $Oml find $core --text 'buyer record' --top 3 2>$null | ConvertFrom-Json
 Require ($f.hits[0].name -eq 'Customer' -and $f.hits[0].why -match 'description') "find --text missed a description: $($f.hits | ConvertTo-Json -Compress)"
 
-# Exit 2 (not 1) for a module that is missing or is not a module; a --module step in oml run; no leftover temp file.
+# Exit 2 (not 1) for a module that is missing or is not a module; a --module step in oml batch; no leftover temp file.
 $spec = Join-Path $Tmp 'names-check-spec.json'
 & $Oml spec check $spec --module (Join-Path $Tmp 'no-such.oml') 2>$null | Out-Null; Require ($LASTEXITCODE -eq 2) 'spec check --module: missing module is not exit 2'
 $junk = Join-Path $Tmp 'junk.oml'; Set-Content $junk 'not a module'
 & $Oml spec check $spec --module $junk 2>$null | Out-Null; Require ($LASTEXITCODE -eq 2) "spec check --module: a file that is not a module gave exit $LASTEXITCODE"
 Set-Content (Join-Path $Tmp 'names-run.json') (@{ steps = @(,@('spec', 'check', $spec, '--module', $consumer)) } | ConvertTo-Json -Depth 5) -Encoding utf8
-$run = & $Oml run (Join-Path $Tmp 'names-run.json') 2>$null | ConvertFrom-Json
-Require ($run.results[0].exitCode -eq 0 -and $run.results[0].output.ok) "spec check --module inside oml run: $($run | ConvertTo-Json -Compress -Depth 6)"
+$run = & $Oml batch (Join-Path $Tmp 'names-run.json') 2>$null | ConvertFrom-Json
+Require ($run.results[0].exitCode -eq 0 -and $run.results[0].output.ok) "spec check --module inside oml batch: $($run | ConvertTo-Json -Compress -Depth 6)"
 $temp = [IO.Path]::GetTempPath(); $left = @(Get-ChildItem $temp -Filter 'oml-*.oml' -ErrorAction SilentlyContinue).Count
 $c = SpecCheck '{ "entities": [{ "name": "Gadget", "attributes": [{ "name": "Label" }] }], "serverActions": [{ "name": "UseGadget", "flow": [{ "kind": "execute", "action": "NamesLegacy.Badge" }] }] }'
 Require ($c.Exit -eq 0 -and $c.Report.ok) "spec check --module with a data phase: $($c.Report | ConvertTo-Json -Compress -Depth 5)"

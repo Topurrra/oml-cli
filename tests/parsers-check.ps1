@@ -1,4 +1,4 @@
-# oml meta, oml expr (and its corpus check), expression problems in oml spec check, oml warn --catalog, and oml app check.
+# oml header, oml expression (and its corpus check), expression problems in oml spec check, oml explain-warning --catalog, and oml app check.
 # The corpus check parses every expression of modules built from tests/check-clean.json and check-bad.json: they were
 # saved by Service Studio, so any failure is a parser gap. Throws on the first failure.
 param([string]$Oml, [string]$Tmp)
@@ -28,26 +28,26 @@ function Fixture([string]$name, [string]$spec) {
 # ---- meta ----
 $clean = Fixture 'ParseClean' 'check-clean.json'
 $bad = Fixture 'ParseBad' 'check-bad.json'
-$r = Call 'meta', $clean[1]
+$r = Call 'header', $clean[1]
 Require ($r.Exit -eq 0 -and $r.Json.info.Name -eq 'ParseClean' -and $r.Json.info.ESpaceType -eq 'CrossDevice' -and $r.Json.info.Key.Length -gt 0) "meta: $($r.Text)"
-$r = Call 'meta', $clean[0], $clean[1], $bad[0], $bad[1]
+$r = Call 'header', $clean[0], $clean[1], $bad[0], $bad[1]
 Require ($r.Exit -eq 0 -and @($r.Json).Count -eq 4) "meta with 4 files: $($r.Text)"
-$r = Call 'meta', $clean[1], (Join-Path $work 'missing.oml')
+$r = Call 'header', $clean[1], (Join-Path $work 'missing.oml')
 Require ($r.Exit -eq 1 -and @($r.Json | Where-Object error).Count -eq 1) "meta with a missing file: $($r.Text)"
-$r = Call 'meta', '--diff', $clean[1], $clean[1]
+$r = Call 'header', '--diff', $clean[1], $clean[1]
 Require ($r.Exit -eq 0 -and $r.Json.same -eq $true) "diff of one file with itself: $($r.Text)"
-$r = Call 'meta', '--diff', $clean[0], $clean[1]
+$r = Call 'header', '--diff', $clean[0], $clean[1]
 Require ($r.Exit -eq 0 -and -not $r.Json.same -and @($r.Json.differing | Where-Object field -eq 'contentHash').Count -eq 1) "diff blank vs built: $($r.Text)"
-$r = Call 'meta', '--diff', $clean[1], (Join-Path $work 'missing.oml')
+$r = Call 'header', '--diff', $clean[1], (Join-Path $work 'missing.oml')
 Require ($r.Exit -eq 1 -and $r.Json.error) "diff with a missing file: $($r.Text)"
 
 # ---- expr ----
-$r = Call 'expr', 'NOT a AND b'
+$r = Call 'expression', 'NOT a AND b'
 Require ($r.Exit -eq 0 -and $r.Json.ok -and $r.Json.canonical -eq 'not a and b') "expr canonical: $($r.Text)"
-$r = Call 'expr', 'a +'
+$r = Call 'expression', 'a +'
 Require ($r.Exit -eq 1 -and -not $r.Json.ok -and $r.Json.error.Id) "expr invalid: $($r.Text)"
 foreach ($m in $clean[1], $bad[1]) {
-  $r = Call 'expr', '--corpus', $m
+  $r = Call 'expression', '--corpus', $m
   Require ($r.Exit -eq 0 -and $r.Json.expressions -gt 10 -and $r.Json.failed -eq 0) "corpus of $(Split-Path $m -Leaf): $($r.Text)"
 }
 
@@ -61,11 +61,11 @@ $r = Call 'spec', 'check', $spec
 Require ($r.Exit -eq 0) "spec check good expression: $($r.Text)"
 
 # ---- warn ----
-$r = Call 'warn', '--catalog', 'Entity_'
+$r = Call 'explain-warning', '--catalog', 'Entity_'
 Require ($r.Exit -eq 0 -and $r.Text -match 'Entity_' -and $r.Text -notmatch '(?m)^InvalidFlow_') "warn --catalog Entity_: $($r.Text)"
-$r = Call 'warn'
+$r = Call 'explain-warning'
 Require ($r.Exit -eq 2) "warn without arguments must be a usage error, not a crash: exit $($r.Exit)"
-$r = Call 'warn', '--nosuch'
+$r = Call 'explain-warning', '--nosuch'
 Require ($r.Exit -eq 2) "warn with an unknown option: exit $($r.Exit)"
 
 # ---- app check ----

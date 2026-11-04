@@ -1,6 +1,6 @@
-# Change walkthroughs (oml dif)
+# Change walkthroughs (oml show-change)
 
-Read this when a change is more than a small fix and the user should read it before `install`. A walkthrough is a Markdown file that explains the change. `oml dif` shows it on a dashboard page; the user reads it, opens the elements it names and sends comments back.
+Read this when a change is more than a small fix and the user should read it before `install`. A walkthrough is a Markdown file that explains the change. `oml show-change` shows it on a dashboard page; the user reads it, opens the elements it names and sends comments back.
 
 ## When to write one
 
@@ -38,7 +38,7 @@ Other kinds: `grid` and `carousel` (one at a time). A title goes last: `:::galle
 ## Run it
 
 ```powershell
-oml dif specs/orders-export.md --no-open
+oml show-change specs/orders-export.md --no-open
 ```
 
 Give the user the address it prints (the line with `url`). Leave it running: the page follows the file, so you can edit the walkthrough while the user reads. Write the file first and keep it under 2 MB.

@@ -1,4 +1,4 @@
-# oml doc --search, oml spec --search, oml warn ranking and oml find --text: the search index covers every heading
+# oml doc --search, oml spec --search, oml explain-warning ranking and oml find --text: the search index covers every heading
 # and recipe, the benchmark (tests/search-bench.json) meets its thresholds against the baselines, normalization,
 # edge cases, output size, speed, and module search on a fixture module. Throws on the first failure.
 # -RealModule <file.oml>: also run the module benchmark on a copy of a real module (not part of the suite).
@@ -46,7 +46,7 @@ Write-Host "ok   search: $($r.Text)"
 # to confirm, dropped to 0.536/0.732/0.648 (BM25F 0.411/0.643/0.542, BM25 0.286/0.482/0.420, grep 0.268/0.482/0.390):
 # a command entry is first in 1 of the 7 changed queries, the others moved with the index statistics. This is the
 # release number. Do not tune on blind4.
-# commands: 40 plain requests a command answers ("deploy to production" -> oml lt). Measured before the command words in
+# commands: 40 plain requests a command answers ("deploy to production" -> oml lifetime). Measured before the command words in
 # src/DocSearch.cs: 0.361/0.556/0.484; after: 0.778/0.972/0.870 (tune MRR -0.001, held 0, blind2 0, blind3 -0.003, blind4
 # +0.003) on the first 36; with the 4 oml qa requests 0.750/0.925/0.847. It was tuned on, so it is not blind.
 # Scoring a command on its name and its curated words only (the usage line's description is shown, not scored, so a
@@ -155,7 +155,7 @@ foreach ($pair in @('enum', 'oml doc data-rules#static-entities'), @('modal', 'o
 
 # a typo is fixed on the word as typed, before stemming: unsed -> unused
 $h = @((Search 'unsed action warning').hits)
-if (-not ($h | Where-Object open -eq 'oml warn UnusedUserAction')) { Fail "typo 'unsed': $(($h | ForEach-Object open) -join ', ')" }
+if (-not ($h | Where-Object open -eq 'oml explain-warning UnusedUserAction')) { Fail "typo 'unsed': $(($h | ForEach-Object open) -join ', ')" }
 # singular and plural of an exact key: screen and edit find the screens and edits keys first
 foreach ($q in 'screen', 'edit', 'event') {
   $h = @((Search $q).hits)
@@ -184,10 +184,10 @@ foreach ($q in 'convert png to svg', 'make a favicon ico', 'optimize svg file si
 $r = Run 'image', '--help'
 if ($r.Exit -ne 0 -or $r.Text -notmatch '--to ico' -or $r.Text -notmatch '--mode trace') { Fail "oml image --help: exit $($r.Exit), $($r.Text)" }
 # A command entry is scored on its name and the curated words in src/DocSearch.cs only, never on the free text of its
-# usage line: 'canonical' is only in the description of oml expr, and the words of an unrelated question must not
-# bring a command into the top 3 ('turns' once put oml evolve third for this one).
+# usage line: 'canonical' is only in the description of oml expression, and the words of an unrelated question must not
+# bring a command into the top 3 ('turns' once put oml learn third for this one).
 $h = @((Search 'canonical').hits)
-if ($h.Count -gt 0 -and $h[0].open -eq 'oml expr --help') { Fail "a word only in a command's description ranks it first: $($h[0] | ConvertTo-Json -Compress)" }
+if ($h.Count -gt 0 -and $h[0].open -eq 'oml expression --help') { Fail "a word only in a command's description ranks it first: $($h[0] | ConvertTo-Json -Compress)" }
 $h = @((Search 'turn the string 42 into a number').hits | Select-Object -First 3)
 if (@($h | Where-Object kind -eq 'command').Count -gt 0) { Fail "'turn the string 42 into a number' returns a command in the top 3: $(($h | ForEach-Object open) -join ', ')" }
 Write-Host 'ok   search normalization: camel/snake/hyphen split, joined form, stemming, stop words, synonyms, typo fix, exact boost, command entries'
@@ -234,11 +234,11 @@ $o = Search 'send an email from a server action'
 if ($null -ne $o.weak -or $null -ne $o.hint) { Fail "strong result flagged: $($o | ConvertTo-Json -Compress -Depth 4)" }
 Write-Host "ok   search output: fields, 3 hits by default, at most $maxTokens tokens, edge cases (empty, --top, long, non-ASCII, no match)"
 
-# 6. oml spec --search: only spec sections and keys; oml warn: closest ids ranked by the engine
+# 6. oml spec --search: only spec sections and keys; oml explain-warning: closest ids ranked by the engine
 $r = Run 'spec', '--search', 'load data only when a row is picked'
 $o = $r.Text | ConvertFrom-Json
 if ($r.Exit -ne 0 -or @($o.hits | Where-Object { $_.kind -notin 'spec', 'key' })) { Fail "spec --search kinds: $($r.Text)" }
-$r = Run 'warn', 'input', 'value', 'missing', 'from', 'mandatory', 'block', 'argument'
+$r = Run 'explain-warning', 'input', 'value', 'missing', 'from', 'mandatory', 'block', 'argument'
 if ($r.Exit -ne 2 -or $r.Text -notmatch 'Closest: [^.]*(RequiredPropertyValue_PropertyIn|InputMandatoryMismatch)') { Fail "warn ranking: $($r.Text)" }
 
 # 7. --in: a folder of the user's own markdown, read at run time
@@ -281,7 +281,7 @@ $e2e = [math]::Round(($e2e | Sort-Object)[2])
 if ($e2e -gt 2000) { Fail "end-to-end doc --search takes $e2e ms" }
 Write-Host "ok   search: spec --search, warn ranking, --in folder, end to end $e2e ms (median of 5)"
 
-# 9. module search: a fixture module, in one oml run with doc and warn steps (they run in the launcher, no model)
+# 9. module search: a fixture module, in one oml batch with doc and warn steps (they run in the launcher, no model)
 $mod = Join-Path $work 'search.oml'
 $a = & $Oml apply $Module (Join-Path $PSScriptRoot 'search-module.json') $mod | ConvertFrom-Json
 if (-not $a.saved -or $a.newErrors) { Fail "fixture apply: $($a | ConvertTo-Json -Depth 6 -Compress)" }
@@ -298,13 +298,13 @@ function ModuleBench($file, $cases) {
   $steps = Join-Path $work ("steps-" + [IO.Path]::GetFileNameWithoutExtension($file) + '.json')
   $list = @(foreach ($c in $cases) { , @('find', $file, '--text', $c.q, '--top', '3') })
   $list += , @('doc', '--search', 'block event', '--top', '1')
-  $list += , @('warn', 'NoErrorHandlingInFlow')
+  $list += , @('explain-warning', 'NoErrorHandlingInFlow')
   @{ steps = $list } | ConvertTo-Json -Depth 5 | Set-Content $steps -Encoding utf8
-  $run = (& $Oml run $steps) | ConvertFrom-Json
+  $run = (& $Oml batch $steps) | ConvertFrom-Json
   if ($LASTEXITCODE -ne 0) { Fail "module bench run exit $LASTEXITCODE" }
   $docStep = $run.results[$cases.Count]; $warnStep = $run.results[$cases.Count + 1]
-  if ($docStep.exitCode -ne 0 -or @($docStep.output.hits).Count -ne 1) { Fail "doc --search inside oml run: $($docStep | ConvertTo-Json -Depth 6 -Compress)" }
-  if ($warnStep.exitCode -ne 0 -or $warnStep.output -notmatch 'NoErrorHandlingInFlow') { Fail "warn inside oml run: $($warnStep | ConvertTo-Json -Depth 6 -Compress)" }
+  if ($docStep.exitCode -ne 0 -or @($docStep.output.hits).Count -ne 1) { Fail "doc --search inside oml batch: $($docStep | ConvertTo-Json -Depth 6 -Compress)" }
+  if ($warnStep.exitCode -ne 0 -or $warnStep.output -notmatch 'NoErrorHandlingInFlow') { Fail "warn inside oml batch: $($warnStep | ConvertTo-Json -Depth 6 -Compress)" }
   $top1 = 0; $top3 = 0; $ms = @()
   for ($i = 0; $i -lt $cases.Count; $i++) {
     $c = $cases[$i]; $res = $run.results[$i]
@@ -326,7 +326,7 @@ $d = & $Oml describe $mod 'InvoiceCard/Container[0]/Text[0]'
 if ($LASTEXITCODE -ne 0) { Fail "describe of a find --text path: $d" }
 $r = Run 'find', $mod, '--text'
 if ($r.Exit -ne 2 -or $r.Text -notmatch 'oml find <module.oml> --text') { Fail "find --text without words: $($r.Text)" }
-Write-Host ("ok   find --text: fixture {0} queries, top1 {1:P0}, top3 {2:P0}, {3} elements, {4} ms per search in oml run; doc and warn steps in oml run" -f $moduleBench.Count, $m.top1, $m.top3, $m.searched, $m.ms)
+Write-Host ("ok   find --text: fixture {0} queries, top1 {1:P0}, top3 {2:P0}, {3} elements, {4} ms per search in oml batch; doc and warn steps in oml batch" -f $moduleBench.Count, $m.top1, $m.top3, $m.searched, $m.ms)
 
 if ($RealModule) {
   $copy = Join-Path $work 'real.oml'; Copy-Item $RealModule $copy
@@ -337,6 +337,6 @@ if ($RealModule) {
     @{ q = 'Desc07'; expect = 'Desc07'; exact = $true }, @{ q = 'Card16'; expect = 'Card16'; exact = $true }
   )
   $m = ModuleBench $copy $real
-  Write-Host ("ok   find --text: real module {0} queries, top1 {1:P0}, top3 {2:P0}, {3} elements, {4} ms per search in oml run" -f $real.Count, $m.top1, $m.top3, $m.searched, $m.ms)
+  Write-Host ("ok   find --text: real module {0} queries, top1 {1:P0}, top3 {2:P0}, {3} elements, {4} ms per search in oml batch" -f $real.Count, $m.top1, $m.top3, $m.searched, $m.ms)
 }
 } finally { Remove-TestWorkFolder $Tmp }

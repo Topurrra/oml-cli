@@ -31,7 +31,7 @@ $module = Join-Path $Tmp "dash-$id.oml"
 & $Oml new $blank --name DashCheck --kind CrossDevice | Out-Null
 $applied = & $Oml apply $blank (Join-Path $PSScriptRoot 'preview.json') $module | ConvertFrom-Json
 Require ($LASTEXITCODE -eq 0 -and $applied.saved) 'Dashboard fixture did not apply'
-# Fixtures for test scaffold: a stand-in BDDFramework and a module with public server actions (as test-scaffold-check).
+# Fixtures for test bdd: a stand-in BDDFramework and a module with public server actions (as test-scaffold-check).
 function Build-Fixture($name, $fixture) {
     $b = Join-Path $Tmp "dash-$id-$name-blank.oml"; $o = Join-Path $Tmp "dash-$id-$name.oml"
     & $Oml new $b --name $name --kind CrossDevice | Out-Null
@@ -333,7 +333,7 @@ try {
     Require ([Text.Encoding]::UTF8.GetString((Invoke-WebRequest "$base/download/$($review.markdownDownload)?key=$key" -UseBasicParsing).RawContentStream.ToArray()) -match 'Logic bugs are not covered') 'review Markdown download'
     Refused 'review' @{ before = $module; after = $module } 'review of a file with itself'
 
-    # Dif (oml dif): a walkthrough Markdown file is read as it is; only an existing .md of at most 2 MB.
+    # Dif (oml show-change): a walkthrough Markdown file is read as it is; only an existing .md of at most 2 MB.
     $difFile = Join-Path $Tmp "dash-$id-walkthrough.md"
     Set-Content $difFile -Encoding utf8 ("# Walkthrough`n`nThe card block [[" + (Split-Path $module -Leaf) + "#PvCard]] is new; this sentence is long enough to comment on.`n`n" +
         "``````callstack`n Render() [[" + (Split-Path $module -Leaf) + "#PvCard]]`n+" + [char]0x2514 + "-- ShowCard(item)   # new`n```````n`n" +
@@ -356,17 +356,17 @@ try {
     New-Item -ItemType Junction -Path (Join-Path $mediaFolder 'jump') -Target $outside | Out-Null
     [IO.File]::WriteAllBytes((Join-Path $Tmp 'above.png'), $png1)
     $dif = Api 'dif'
-    Require ($null -eq $dif.file -and $dif.hint -match 'oml dif') "dif without a file: $($dif | ConvertTo-Json -Compress)"
+    Require ($null -eq $dif.file -and $dif.hint -match 'oml show-change') "dif without a file: $($dif | ConvertTo-Json -Compress)"
     $dif = Api 'dif' @{ path = $difFile }
     Require ($dif.file -eq $difFile -and $dif.folder -eq (Split-Path $difFile) -and $dif.markdown -match 'callstack' -and $dif.modified) "dif endpoint: $($dif | ConvertTo-Json -Compress)"
     Refused 'dif' @{ path = $module } 'dif of a file that is not Markdown'
     Refused 'dif' @{ path = (Join-Path $Tmp 'missing.md') } 'dif of a missing file'
     Refused 'dif' @{} 'dif without a path'
-    # What agents learned: oml evolve show and report for a folder; the page never accepts (that stays a command).
+    # What agents learned: oml learn show and report for a folder; the page never accepts (that stays a command).
     $evo = Join-Path $Tmp ('dash-evolve-' + [guid]::NewGuid().ToString('N').Substring(0, 8)); New-Item -ItemType Directory $evo | Out-Null
-    & $Oml evolve propose --file (Join-Path $PSScriptRoot 'evolve-sample.jsonl') --dir $evo | Out-Null
+    & $Oml learn propose --file (Join-Path $PSScriptRoot 'evolve-sample.jsonl') --dir $evo | Out-Null
     $learned = Api "evolve?dir=$([uri]::EscapeDataString($evo))"
-    Require ($learned.code -eq 0 -and @($learned.output.proposals).Count -ge 1 -and $learned.output.proposals[0].lines[0].evidence -and $learned.cli -like 'oml evolve show --dir *') "evolve endpoint: $($learned | ConvertTo-Json -Compress -Depth 4)"
+    Require ($learned.code -eq 0 -and @($learned.output.proposals).Count -ge 1 -and $learned.output.proposals[0].lines[0].evidence -and $learned.cli -like 'oml learn show --dir *') "evolve endpoint: $($learned | ConvertTo-Json -Compress -Depth 4)"
     Require ((Api "evolve/report?dir=$([uri]::EscapeDataString($evo))").code -in 0, 1) 'evolve report endpoint'
     Refused "evolve?dir=$([uri]::EscapeDataString((Join-Path $Tmp 'no-such-folder')))" $null 'evolve of a missing folder'
     # oml flow (the flow fences): nodes with positions, connectors; an element without a flow is an error, not a crash.
@@ -410,19 +410,19 @@ try {
     $specSearch = Api 'search' @{ q = 'load detail on click'; scope = 'spec' }
     Require ($specSearch.code -eq 0 -and @($specSearch.output.hits).Count -ge 1 -and @($specSearch.output.hits | Where-Object { $_.kind -notin 'spec', 'key' }).Count -eq 0 -and $specSearch.cli -like 'oml spec --search *') 'spec search endpoint'
     $warn = Api 'search' @{ q = 'NoErrorHandlingInFlow'; scope = 'warn' }
-    Require ($warn.code -eq 0 -and $warn.output -match 'NoErrorHandlingInFlow' -and $warn.cli -eq 'oml warn NoErrorHandlingInFlow') 'warn endpoint'
+    Require ($warn.code -eq 0 -and $warn.output -match 'NoErrorHandlingInFlow' -and $warn.cli -eq 'oml explain-warning NoErrorHandlingInFlow') 'warn endpoint'
     # Every hit of several searches opens (doc, spec, key, warning, recipe and command hits).
     $opens = foreach ($q in 'confirm popup before delete', 'convert png to svg', 'search the docs', 'validation warning cause', 'load detail on click') {
         foreach ($scope in 'all', 'spec') { (Api 'search' @{ q = $q; scope = $scope }).output.hits.open } }
     $opens = @($opens | Sort-Object -Unique)
     Require ($opens.Count -ge 10) "too few search hits to open: $($opens -join ', ')"
-    foreach ($open in $opens + @('oml warn SQLInjection', 'oml doc rules', 'oml spec entities', 'oml image --help', 'oml doc --help', 'oml spec --help', 'oml warn --help', 'skill/recipes/block-popup-event.jsonc')) {
+    foreach ($open in $opens + @('oml explain-warning SQLInjection', 'oml doc rules', 'oml spec entities', 'oml image --help', 'oml doc --help', 'oml spec --help', 'oml explain-warning --help', 'skill/recipes/block-popup-event.jsonc')) {
         $opened = Api 'doc/open' @{ open = $open }
         Require ($opened.code -eq 0 -and "$($opened.output)".Length -gt 20) "doc/open $open"
     }
     foreach ($bad in 'oml install a.oml b.oml', 'oml doc --search x', 'skill/recipes/../x.jsonc', 'C:\Windows\win.ini') { Refused 'doc/open' @{ open = $bad } "doc/open '$bad'" }
 
-    # Explorer: find --text, tree, history, describe --css, validate, test scaffold.
+    # Explorer: find --text, tree, history, describe --css, validate, test bdd.
     $text = Api 'find/text' @{ path = $module; text = 'card'; top = 5 }
     Require ($text.code -eq 0 -and $text.output.hits.name -contains 'PvCard' -and $text.cli -like 'oml find * --text card --top 5') 'find/text endpoint'
     Refused 'find/text' @{ path = $module; text = '--help' } 'find --text with an option as the words'
@@ -442,9 +442,9 @@ try {
     $noHandler = @($validate.output.warnings | Where-Object id -eq 'NoErrorHandlingInFlow')
     Require ($validate.code -in 0, 1 -and $noHandler.Count -eq 1 -and $noHandler[0].hint -and $validate.cli -like 'oml validate * --warnings') 'validate endpoint'
     $scaffold = Api 'test/scaffold' @{ path = $producer; actions = @('PlaceOrder'); bdd = $bdd }
-    Require ($scaffold.code -eq 0 -and (Test-Path $scaffold.path) -and $scaffold.spec -match 'PlaceOrder_Tests' -and @($scaffold.output.next).Count -ge 2 -and $scaffold.cli -like 'oml test scaffold * PlaceOrder --bdd *') "test scaffold endpoint: $($scaffold | ConvertTo-Json -Depth 8 -Compress)"
-    Refused 'test/scaffold' @{ path = $producer; actions = @('PlaceOrder') } 'test scaffold without --bdd'
-    Refused 'test/scaffold' @{ path = $producer; actions = @(); bdd = $bdd } 'test scaffold without an action'
+    Require ($scaffold.code -eq 0 -and (Test-Path $scaffold.path) -and $scaffold.spec -match 'PlaceOrder_Tests' -and @($scaffold.output.next).Count -ge 2 -and $scaffold.cli -like 'oml test bdd * PlaceOrder --bdd *') "test bdd endpoint: $($scaffold | ConvertTo-Json -Depth 8 -Compress)"
+    Refused 'test/scaffold' @{ path = $producer; actions = @('PlaceOrder') } 'test bdd without --bdd'
+    Refused 'test/scaffold' @{ path = $producer; actions = @(); bdd = $bdd } 'test bdd without an action'
 
     # Timings and the preview inputs and steps.
     $timed = Api 'inspect' @{ path = $module; timings = $true }
@@ -468,7 +468,7 @@ try {
     # The work folders this check made (one per action, under the dashboard work folder).
     foreach ($file in $check.json, $rerun.json, $ruled.json, $rulesFile.path, $scaffold.path) { if ($file) { Remove-Item (Split-Path $file) -Recurse -Force -ErrorAction SilentlyContinue } }
     if ($review.folder) { Remove-Item $review.folder -Recurse -Force -ErrorAction SilentlyContinue }
-    Write-Host 'ok   dashboard: check (baseline, rules), review, search, doc/open, warn, find --text, tree, history, css, validate, test scaffold, timings, preview steps'
+    Write-Host 'ok   dashboard: check (baseline, rules), review, search, doc/open, warn, find --text, tree, history, css, validate, test bdd, timings, preview steps'
 
     # Screenshots, when a browser exists.
     if ($browser) {

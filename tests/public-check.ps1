@@ -1,7 +1,7 @@
 # Rule 7 and the public setting, for every kind with a public setting, through the creation list and edits.set:
 # private to public is allowed; a server action that becomes public (new or existing) adds a PublicServerAction
 # new warning; a service action never does; public to private on an existing element is refused (rule 4).
-# All applies run in one `oml run`, so Service Studio loads once.
+# All applies run in one `oml batch`, so Service Studio loads once.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
@@ -66,7 +66,7 @@ $steps = @(
 $finds = @(foreach ($k in $kinds + , @('server action', 'SA')) { , @('find', $k[1], (P 'list.oml')) }) + @(foreach ($k in $kinds) { , @('find', $k[1], (P 'set.oml')) })
 $run = P 'steps.json'
 @{ steps = @($steps) + @($finds) } | ConvertTo-Json -Depth 5 | Set-Content $run -Encoding utf8
-$results = (& $Oml run $run --continue | ConvertFrom-Json).results
+$results = (& $Oml batch $run --continue | ConvertFrom-Json).results
 $byName = @{}; $i = 0
 foreach ($s in $steps) { $byName[[IO.Path]::GetFileNameWithoutExtension($s[2])] = $results[$i++] }
 

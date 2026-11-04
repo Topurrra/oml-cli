@@ -93,7 +93,7 @@ static class Model
         catch (InvalidDataException e) { throw new CliError($"Cannot read {path ?? "the module"}: it is not a valid .oml module ({e.Message}).", 2); }
     }
 
-    // `oml run` keeps the modules it only reads, keyed by full path, file write time and length, so the next
+    // `oml batch` keeps the modules it only reads, keyed by full path, file write time and length, so the next
     // command on the same file skips the load. A file that changed on disk (an `apply` output is a new file) reloads.
     // Code that changes a module must use Load or Take, never Borrow.
     public static bool ShareModules;
@@ -122,7 +122,7 @@ static class Model
         return module;
     }
 
-    // For a command that changes the module (apply). In an `oml run`, an open shared copy that still matches the
+    // For a command that changes the module (apply). In an `oml batch`, an open shared copy that still matches the
     // file (write time, length and SHA-256 of its bytes) is handed over and leaves the cache, so no later command
     // sees the changes and a later read loads the file again. The commands that share modules only read them, so
     // the copy is the same as a fresh load.
@@ -154,7 +154,7 @@ static class Model
         if (!shared.Any(s => ReferenceEquals(s.module, module))) Timings.Measure("close", module.Dispose);
     }
 
-    // Between commands of one `oml run`: close the oldest shared modules beyond the keep limit.
+    // Between commands of one `oml batch`: close the oldest shared modules beyond the keep limit.
     public static void TrimShared()
     {
         while (shared.Count > SharedKeep) { shared[0].module.Dispose(); shared.RemoveAt(0); }
@@ -295,7 +295,7 @@ class CliError(string message, int exitCode = 1) : Exception(message)
     public int ExitCode { get; } = exitCode;
 }
 
-// A module that may be shared with the next command of an `oml run`; disposing it closes it only when it is not shared.
+// A module that may be shared with the next command of an `oml batch`; disposing it closes it only when it is not shared.
 readonly struct Borrowed(IESpace module) : IDisposable
 {
     public IESpace Module => module;

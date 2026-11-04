@@ -241,11 +241,11 @@ Assert (@($r.summary.skipped).Count -eq 1) 'Skipped input with --fail-on'
 $e = Invoke-Oml @('check', $clean, '--json', (Join-Path (Join-Path $dir 'no-such-folder') 'r.json'), '--out', (Join-Path $dir 'x.html')) 2
 Assert ($e.error -like 'Output folder does not exist:*' -and -not (Test-Path (Join-Path $dir 'x.html'))) 'Missing output folder'
 
-# Inside oml run, without --team.
+# Inside oml batch, without --team.
 $steps = Join-Path $dir 'steps.json'
 [ordered]@{ steps = @(, [string[]]@('check', $clean)) + @(, [string[]]@('check', $clean, '--team', 'X')) } | ConvertTo-Json -Depth 5 | Set-Content $steps
-$run = Invoke-Oml @('run', $steps, '--continue') 2
-Assert ($run.results[0].exitCode -eq 0 -and $run.results[0].output.summary.findings -eq 0 -and $run.results[1].output.error -like "'check --team' is not allowed inside 'oml run'*") 'check inside oml run'
+$run = Invoke-Oml @('batch', $steps, '--continue') 2
+Assert ($run.results[0].exitCode -eq 0 -and $run.results[0].output.summary.findings -eq 0 -and $run.results[1].output.error -like "'check --team' is not allowed inside 'oml batch'*") 'check inside oml batch'
 
 # missing-description: every kind once without and once with a description, the well-known names, allNames and attributes.
 Copy-Item (Join-Path $tests 'check-desc.svg') $dir

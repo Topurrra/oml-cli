@@ -7,7 +7,7 @@ namespace OmlCli;
 
 // The module header, read without loading the model. A current-format module starts with the 3-byte "OML" magic,
 // then an Int32 length, then a UTF-8 pipe-separated header string. Reading it is O(header size) and never touches
-// the compressed fragments, so `oml meta`, folder scans and package checks can inspect hundreds of modules without
+// the compressed fragments, so `oml header`, folder scans and package checks can inspect hundreds of modules without
 // paying for a full model load. Old XML modules are read through the root attributes; old ZIP modules are not decoded here.
 static class ModuleHeader
 {

@@ -4,14 +4,14 @@ using System.Text.Json.Nodes;
 
 namespace OmlCli;
 
-// `oml library`: a local copy of the public OutSystems 11 docs, for `oml doc --search "<words>" --library`. Sources are the
+// `oml outsystems-docs`: a local copy of the public OutSystems 11 docs, for `oml doc --search "<words>" --library`. Sources are the
 // GitHub repositories OutSystems/docs-product, docs-support and docs-howtos. Only the Markdown under src/ and the LICENSE
 // are copied, unchanged. The docs are CC BY-NC-ND 4.0 (c) OutSystems: oml never ships them; each user downloads them for
 // their own use. The copy lives in %LOCALAPPDATA%\oml-cli\library (OML_LIBRARY overrides it, for tests).
 static class Library
 {
-    const string Usage = "Usage: oml library [status]\n       oml library fetch [--source product|support|howtos]...\n       oml library fetch --source <name> --from <folder of an unzipped repository>\n       oml library update [--check] [--source product|support|howtos]...";
-    const string ZipHint = "No access to GitHub? On a machine with access, download the repository as a ZIP (github.com/OutSystems/<repo>: Code > Download ZIP), unzip it here, then run: oml library fetch --source <name> --from <unzipped folder>";
+    const string Usage = "Usage: oml outsystems-docs [status]\n       oml outsystems-docs fetch [--source product|support|howtos]...\n       oml outsystems-docs fetch --source <name> --from <folder of an unzipped repository>\n       oml outsystems-docs update [--check] [--source product|support|howtos]...";
+    const string ZipHint = "No access to GitHub? On a machine with access, download the repository as a ZIP (github.com/OutSystems/<repo>: Code > Download ZIP), unzip it here, then run: oml outsystems-docs fetch --source <name> --from <unzipped folder>";
     internal static readonly (string Name, string Repo)[] Sources = [("product", "docs-product"), ("support", "docs-support"), ("howtos", "docs-howtos")];
     const string Owner = "OutSystems";
     const int Parallel = 8;
@@ -100,7 +100,7 @@ static class Library
         finally { if (Directory.Exists(temp)) Directory.Delete(temp, recursive: true); }
     }
 
-    // `oml library update [--check] [--source <name>]...`: a fetched source whose repository has a newer commit is fetched
+    // `oml outsystems-docs update [--check] [--source <name>]...`: a fetched source whose repository has a newer commit is fetched
     // again; the others stay as they are (one GitHub call each). --check only reports. A source imported with --from has
     // no commit to compare, so it counts as outdated.
     static int Update(string[] args)
@@ -116,8 +116,8 @@ static class Library
         var unknown = names.FirstOrDefault(n => !Sources.Any(s => s.Name == n));
         if (unknown is not null) return Fail($"Unknown source '{unknown}'. Sources: {string.Join(", ", Sources.Select(s => s.Name))}.");
         var fetched = Sources.Where(s => File.Exists(Path.Combine(Root, s.Repo, "source.json"))).ToArray();
-        if (fetched.Length == 0) return Fail("No library yet. Run: oml library fetch");
-        if (names.FirstOrDefault(n => !fetched.Any(s => s.Name == n)) is { } missing) return Fail($"Source '{missing}' was never fetched. Run: oml library fetch --source {missing}");
+        if (fetched.Length == 0) return Fail("No library yet. Run: oml outsystems-docs fetch");
+        if (names.FirstOrDefault(n => !fetched.Any(s => s.Name == n)) is { } missing) return Fail($"Source '{missing}' was never fetched. Run: oml outsystems-docs fetch --source {missing}");
         var chosen = names.Count == 0 ? fetched : fetched.Where(s => names.Contains(s.Name)).ToArray();
 
         var results = new JsonArray();
@@ -154,7 +154,7 @@ static class Library
 
         var output = new JsonObject { ["library"] = Root, ["sources"] = results };
         if (!check && changed && Folders() is { Count: > 0 } folders) output["indexed"] = DocSearch.LibraryIndex(folders, []).Count;
-        if (check && changed) output["next"] = "oml library update";
+        if (check && changed) output["next"] = "oml outsystems-docs update";
         if (failed) output["hint"] = ZipHint;
         TerminalOutput.PrintNode(output);
         return failed ? 2 : 0;
@@ -195,7 +195,7 @@ static class Library
         foreach (var folder in Folders())
             sources.Add(JsonNode.Parse(File.ReadAllText(Path.Combine(folder, "source.json"))));
         var output = new JsonObject { ["library"] = Root, ["sources"] = sources };
-        if (sources.Count == 0) output["hint"] = "No library yet. Run: oml library fetch";
+        if (sources.Count == 0) output["hint"] = "No library yet. Run: oml outsystems-docs fetch";
         TerminalOutput.PrintNode(output);
         return 0;
     }
