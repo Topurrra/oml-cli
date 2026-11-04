@@ -4,6 +4,10 @@ param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string
 # and the outputs (JSON, --md, --notes, --out) and input errors behave. -Page: the HTML page in headless Edge/Chrome instead.
 # The risks that oml apply refuses (deletes, entity renames, type changes, data-changing SQL, ...) are in the self-test.
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'review'
+try {
 $dir = Join-Path $Tmp ('review-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $dir | Out-Null
 function Assert($Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
@@ -318,3 +322,4 @@ Assert ($e.error -like 'review accepts*') "Unknown option: $($e.error)"
 $help = Invoke-Oml @('review', '--help')
 Assert ($help -match '^oml review ') "review --help: $help"
 Write-Host 'ok   review: --rules, same file, oml run step, input errors'
+} finally { Remove-TestWorkFolder $Tmp }

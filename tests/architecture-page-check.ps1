@@ -1,5 +1,9 @@
 param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'architecture-page'
+try {
 $dir = Join-Path $Tmp 'architecture-page'
 New-Item -ItemType Directory -Force $dir | Out-Null
 # A unique output also lets this check run twice without deleting user files.
@@ -349,3 +353,4 @@ function Invoke-Narrow($label, $htmlPath) {
 }
 Invoke-Narrow 'sample' $html
 Invoke-Narrow 'synthetic' $syntheticHtml
+} finally { Remove-TestWorkFolder $Tmp }

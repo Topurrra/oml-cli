@@ -2,6 +2,10 @@ param([string]$Oml, [string]$Tmp)
 # oml check: every rule fires exactly once on tests/check-bad.json and never on tests/check-clean.json,
 # then the rules file, ignore globs, baseline, --fail-on, several modules, input errors and timing.
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'check'
+try {
 $tests = $PSScriptRoot
 $dir = Join-Path $Tmp ('check-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $dir -Force | Out-Null
@@ -318,3 +322,4 @@ Invoke-Oml @('check', (Join-Path $dir 'missing.oml')) 2 | Out-Null
 Invoke-Oml @('check', $bad, '--bogus', 'x') 2 | Out-Null
 foreach ($f in $hashes.Keys) { Assert ((Get-FileHash $f).Hash -eq $hashes[$f]) "Input changed: $f" }
 Write-Host ("ok   check: {0} rules once on the bad fixture, none on the clean ones, rules file, ignore, baseline, --fail-on, two modules in {1:N1}s ({2}s and {3}s per module)" -f $once.Count, $seconds, $team.modules[0].seconds, $team.modules[1].seconds)
+} finally { Remove-TestWorkFolder $Tmp }

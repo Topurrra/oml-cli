@@ -1,5 +1,9 @@
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'turns'
+try {
 function Require($condition, $message) { if (!$condition) { throw $message } }
 # Runs the CLI and returns the parsed JSON plus the exit code.
 function Run-Oml([string[]]$cliArgs) {
@@ -52,3 +56,4 @@ Require ($scalar.Code -eq 1 -and $scalar.Json.problems[0].Contains('turns-k1.jso
 $plain = Run-Oml @('apply', $blank, $data, (Join-Path $Tmp 'turns-plain.oml'))
 Require ($plain.Code -eq 0 -and $plain.Json.saved -and -not $plain.Json.specs -and -not $plain.Json.describe) 'single-spec report changed'
 Write-Host 'ok   turns: apply --describe, multi describe, teaching spec errors, multi-spec apply'
+} finally { Remove-TestWorkFolder $Tmp }

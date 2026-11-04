@@ -1,6 +1,12 @@
 # Semantic checks for saved edits, ordered applies, paths and refusal behavior.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'edits'
+Require-TestFile (Join-Path $Fixtures 'out-logic.json.oml') 'fixture module out-logic.json.oml'
+Require-TestFile (Join-Path $Fixtures 'r0.oml') 'fixture module r0.oml'
+try {
 function Nodes($node) { $node; foreach ($child in $node.children) { Nodes $child } }
 function Tree($source, $path) {
   $result = & $Oml tree $source $path | ConvertFrom-Json
@@ -8,7 +14,7 @@ function Tree($source, $path) {
   return $result
 }
 function Require($ok, $message) { if (-not $ok) { throw $message } }
-$built = Join-Path $Tmp 'out-edits.json.oml'
+$built = Join-Path $Fixtures 'out-edits.json.oml'; Require-TestFile $built 'fixture module out-edits.json.oml'
 $action = @(Nodes (Tree $built 'CreateOrderFor'))
 Require (@($action | Where-Object { $_.source -eq 'Prepare' -and $_.target -eq 'RememberTotal' }).Count -eq 1) 'insert predecessor lost'
 Require (@($action | Where-Object { $_.source -eq 'RememberTotal' -and $_.target -eq 'CreateOrder' }).Count -eq 1) 'insert successor lost'
@@ -25,7 +31,7 @@ Require (@(Nodes $header | Where-Object { $_.text -eq '"Total orders: " + GetOrd
 $unnamed = @(Nodes $header | Where-Object { $_.kind -eq 'Text' -and -not $_.name })[0]
 Require ((Tree $built $unnamed.path).kind -eq 'Text') 'unnamed widget path failed'
 # Each edit must also save and reopen independently, targeting the previous output.
-$source = Join-Path $Tmp 'out-logic.json.oml'
+$source = Join-Path $Fixtures 'out-logic.json.oml'
 $edits = (Get-Content (Join-Path $PSScriptRoot 'edits.json') -Raw | ConvertFrom-Json).edits
 for ($i = 0; $i -lt $edits.Count; $i++) {
   $spec = Join-Path $Tmp "edit-step-$i.json"
@@ -53,14 +59,14 @@ for ($i = 0; $i -lt $refusals.Count; $i++) {
   $spec = Join-Path $Tmp "edit-refusal-$i.json"
   '{"edits":[' + $refusals[$i][0] + ']}' | Set-Content $spec
   $out = Join-Path $Tmp "edit-refusal-$i.oml"
-  $r = & $Oml apply (Join-Path $Tmp 'out-logic.json.oml') $spec $out | ConvertFrom-Json
+  $r = & $Oml apply (Join-Path $Fixtures 'out-logic.json.oml') $spec $out | ConvertFrom-Json
   Require ($LASTEXITCODE -eq 1 -and -not $r.saved -and -not (Test-Path $out) -and ($r.problems -join ' ') -match $refusals[$i][1]) "refusal $i failed: $($r | ConvertTo-Json -Depth 10)"
 }
 
 $spec = Join-Path $Tmp 'edit-ambiguous.json'
 '{"edits":[{"op":"set","element":"Total","properties":{"description":"Ambiguous"}}]}' | Set-Content $spec
 $out = Join-Path $Tmp 'edit-ambiguous.oml'
-$r = & $Oml apply (Join-Path $Tmp 'out-logic.json.oml') $spec $out | ConvertFrom-Json
+$r = & $Oml apply (Join-Path $Fixtures 'out-logic.json.oml') $spec $out | ConvertFrom-Json
 Require ($LASTEXITCODE -eq 1 -and -not $r.saved -and -not (Test-Path $out) -and ($r.problems -join ' ') -match 'ambiguous') 'ambiguous path was not refused'
 Write-Host 'ok   edits topology, widget order, paths, sequential saves and refusals'
 
@@ -73,7 +79,7 @@ function Edit($source, $name, $edits) {
   [pscustomobject]@{ Result = $r; Out = $out; Code = $LASTEXITCODE }
 }
 $mapBuilt = Join-Path $Tmp 'mappings.oml'
-$r = & $Oml apply (Join-Path $Tmp 'r0.oml') (Join-Path $PSScriptRoot 'mappings.json') $mapBuilt | ConvertFrom-Json
+$r = & $Oml apply (Join-Path $Fixtures 'r0.oml') (Join-Path $PSScriptRoot 'mappings.json') $mapBuilt | ConvertFrom-Json
 Require ($r.saved) "mappings.json did not save: $($r | ConvertTo-Json -Depth 6 -Compress)"
 $field = @(Nodes (Tree $mapBuilt 'ServerAction:Collect/Add') | Where-Object { $_.kind -eq 'FieldMapping' })
 Require ($field.Count -eq 1 -and $field[0].name -eq 'LastCode' -and $field[0].ref -eq 'LastCode' -and $field[0].path -eq 'ServerAction:Collect/Add/Argument[0]/LastCode') "unmapped field is not a FieldMapping child: $($field | ConvertTo-Json -Compress)"
@@ -104,8 +110,9 @@ Write-Host 'ok   field mappings: tree, describe, set, delete refusal, review'
 $sharedSpec = Join-Path $Tmp 'delete-shared-spec.json'
 Set-Content $sharedSpec '{ "entities": [{ "name": "Applicant", "attributes": [{ "name": "Code", "type": "Long Integer" }] }], "serverActions": [{ "name": "Pick", "inputs": [{ "name": "Item", "type": "Applicant" }], "outputs": [{ "name": "Out", "type": "Long Integer" }], "flow": [{ "kind": "assign", "name": "Item", "assign": { "Out": "1" } }, { "kind": "assign", "name": "Use", "assign": { "Out": "Item.Code" } }] }] }'
 $shared = Join-Path $Tmp 'delete-shared.oml'
-$r = & $Oml apply (Join-Path $Tmp 'r0.oml') $sharedSpec $shared | ConvertFrom-Json
+$r = & $Oml apply (Join-Path $Fixtures 'r0.oml') $sharedSpec $shared | ConvertFrom-Json
 Require $r.saved "shared-name fixture did not save: $($r | ConvertTo-Json -Depth 6 -Compress)"
 $e = Edit $shared 'delete-shared-out' @(@{ op = 'delete'; element = 'Pick/Assign:Item' })
 Require ($e.Code -eq 0 -and $e.Result.saved) "delete of an Assign node that shares a parameter's name was refused: $($e.Result | ConvertTo-Json -Depth 6 -Compress)"
 Write-Host 'ok   delete of a node without outputs ignores a parameter of the same name'
+} finally { Remove-TestWorkFolder $Tmp }

@@ -1,5 +1,9 @@
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'architecture'
+try {
 $dir = Join-Path $Tmp ('architecture-' + [guid]::NewGuid().ToString('N'))
 $inputs = Join-Path $dir 'input'
 New-Item -ItemType Directory $inputs -Force | Out-Null
@@ -178,3 +182,4 @@ foreach ($bad in @(@('--publish-order','--out',(Join-Path $dir 'po.html')), @('-
 }
 Check-Architecture (-not (Test-Path (Join-Path $dir 'po.html')) -and -not (Test-Path (Join-Path $dir 'po.json'))) 'A refused publish order must write nothing'
 Write-Host "ok   architecture: layers, grouping, edges, eight findings, filtering, overrides, schema, overwrite, publish order; $($report.elapsedSeconds)s for seven modules"
+} finally { Remove-TestWorkFolder $Tmp }

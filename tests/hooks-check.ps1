@@ -3,6 +3,10 @@
 # settings and hooks. No Claude Code session is started. Throws on the first failure.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'hooks'
+try {
 $work = Join-Path $Tmp ('hooks-' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Force $work | Out-Null
 function Fail($m) { throw "hooks: $m" }
 function Require($condition, $message) { if (-not $condition) { Fail $message } }
@@ -94,3 +98,4 @@ $r = Call 'hooks', '--help'
 Require ($r.Exit -eq 0 -and $r.Text -match 'oml hooks') "help: $($r.Text)"
 
 Write-Host "ok   hooks: $($cases.Count) decisions (large references, .oml writes by tool and shell), unreadable input allowed, install/status/remove keep the user's settings, refusals"
+} finally { Remove-TestWorkFolder $Tmp }

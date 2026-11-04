@@ -6,6 +6,10 @@
 # Throws on the first failure. -Speed also runs the 100,000-record speed run (about a minute more; regress.ps1 does not).
 param([string]$Oml, [string]$Tmp, [switch]$Speed)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'memory'
+try {
 $work = Join-Path $Tmp ('memory-' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Force $work | Out-Null
 function Fail($m) { throw "memory: $m" }
 function Require($condition, $message) { if (-not $condition) { Fail $message } }
@@ -714,3 +718,4 @@ foreach ($f in $files) {
   }
 }
 Write-Host "ok   memory: no secret-shaped text in $($files.Count) test files ($($patterns.Count) patterns)"
+} finally { Remove-TestWorkFolder $Tmp }

@@ -1,6 +1,10 @@
 # Qualified Module.Element names: ambiguity refused with candidates, qualified names resolve, oml find lists both.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'names'
+try {
 function Require($ok, $message) { if (-not $ok) { throw $message } }
 function Apply($source, $json, $out) {
   $spec = Join-Path $Tmp 'names-spec.json'; Set-Content -Path $spec -Value $json -Encoding utf8
@@ -69,3 +73,4 @@ $temp = [IO.Path]::GetTempPath(); $left = @(Get-ChildItem $temp -Filter 'oml-*.o
 $c = SpecCheck '{ "entities": [{ "name": "Gadget", "attributes": [{ "name": "Label" }] }], "serverActions": [{ "name": "UseGadget", "flow": [{ "kind": "execute", "action": "NamesLegacy.Badge" }] }] }'
 Require ($c.Exit -eq 0 -and $c.Report.ok) "spec check --module with a data phase: $($c.Report | ConvertTo-Json -Compress -Depth 5)"
 Require (@(Get-ChildItem $temp -Filter 'oml-*.oml' -ErrorAction SilentlyContinue).Count -eq $left) 'spec check --module left an oml-*.oml file in TEMP'
+} finally { Remove-TestWorkFolder $Tmp }

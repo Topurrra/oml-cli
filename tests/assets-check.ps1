@@ -1,5 +1,9 @@
 param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'assets'
+try {
 $assetDir = Join-Path $Tmp 'assets'
 New-Item -ItemType Directory -Force $assetDir | Out-Null
 $env:TEMP = $Tmp; $env:TMP = $Tmp
@@ -105,3 +109,4 @@ $reports | ConvertTo-Json -Depth 10 | Set-Content "$assetDir\report.json"
 $reports | Select-Object @{n='input';e={Split-Path $_.input -Leaf}},inputBytes,outputBytes,ratio | Format-Table | Out-Host
 if (-not $otf) { Write-Host 'No OTF font installed in Windows Fonts; verified two TTF fonts plus generated WOFF1.' }
 Write-Host 'ok   assets: font table round trips, sfnt checksums, image decodes, SVG parsing, batch and refusals'
+} finally { Remove-TestWorkFolder $Tmp }

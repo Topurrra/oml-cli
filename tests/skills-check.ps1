@@ -4,6 +4,10 @@
 # Throws on the first failure.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'skills'
+try {
 $work = Join-Path $Tmp ('skills-' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Force $work | Out-Null
 function Fail($m) { throw "skills: $m" }
 function Require($condition, $message) { if (-not $condition) { Fail $message } }
@@ -69,3 +73,4 @@ try {
   Write-Host 'ok   skills: add, list, doc <name> and #section, doc list, company hits first, 8 refusals, warnings, --force, remove'
 }
 finally { if ($null -eq $saved) { Remove-Item env:OML_SKILLS -ErrorAction SilentlyContinue } else { $env:OML_SKILLS = $saved } }
+} finally { Remove-TestWorkFolder $Tmp }

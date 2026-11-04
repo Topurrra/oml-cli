@@ -3,6 +3,10 @@
 # development environment. Throws on the first failure.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'qa'
+try {
 $work = Join-Path $Tmp ('qa-' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Force $work | Out-Null
 function Fail($m) { throw "qa: $m" }
 function Require($condition, $message) { if (-not $condition) { Fail $message } }
@@ -53,3 +57,4 @@ $r = Call 'qa', 'run', $good, '--frobnicate'
 Require ($r.Exit -eq 2 -and $r.Json.error -match 'Unknown or incomplete option') "unknown option: $($r.Text)"
 $r = Call 'qa', 'run', $good, '--base-url', 'relative/path'
 Require ($r.Exit -eq 2 -and $r.Json.error -match 'not an absolute URL') "relative base URL: $($r.Text)"
+} finally { Remove-TestWorkFolder $Tmp }

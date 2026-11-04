@@ -1,5 +1,11 @@
 param($Oml, $Tmp, $Source)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+Require-TestFile $Source 'module for content-check'
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'content'
+Require-TestFile (Join-Path $Fixtures 'references-producer.oml') 'fixture module references-producer.oml'
+try {
 $dir = Join-Path $Tmp ('content-check-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $dir | Out-Null
 $spec = Join-Path $dir 'spec.json'
@@ -84,7 +90,7 @@ $badImport = Join-Path $dir 'invalid.resx'
 '<root />' | Set-Content $badImport
 $null = Apply-Content $built @{translations=@{import=$badImport}} 'import-refusal' -Refuse
 # Copy must report required producer signatures instead of adding them silently.
-$dependency = Join-Path $Tmp 'references-producer.oml'
+$dependency = Join-Path $Fixtures 'references-producer.oml'
 if (Test-Path $dependency) {
   $dependent = Apply-Content $Source @{
     references=@(@{producer=$dependency;elements=@('ClientHello','Customer')})
@@ -101,3 +107,4 @@ if (Test-Path $dependency) {
 }
 if ((Get-FileHash $producer).Hash -ne $hash -or (Get-FileHash $Source).Hash -ne $sourceHash) { throw 'Source changed' }
 Write-Host 'ok   clipboard, locales/translations, content, script/image binding, folders, refusals, source hashes'
+} finally { Remove-TestWorkFolder $Tmp }

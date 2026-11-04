@@ -4,6 +4,10 @@
 # All applies run in one `oml run`, so Service Studio loads once.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'public'
+try {
 $dir = Join-Path $Tmp ('public-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $dir -Force | Out-Null
 function Require($condition, $message) { if (-not $condition) { throw "public: $message" } }
@@ -110,3 +114,4 @@ Write-Host "ok   public: private to public for $($kinds.Count) kinds and server 
 Saved 'svcBase' @(); Saved 'svcList' @('Helper'); Saved 'svcSet' @()
 Refused 'svcPriv' @("refused: 'SvP' is an existing public element. oml never makes it private")
 Write-Host 'ok   public: service actions get no PublicServerAction warning'
+} finally { Remove-TestWorkFolder $Tmp }

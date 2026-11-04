@@ -3,6 +3,10 @@
 # `oml run` (the run keeps its module sharing), and an install batch that is all or nothing on its checks.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'batch'
+try {
 function Require($condition, $message) { if (-not $condition) { throw $message } }
 function Hash($path) { (Get-FileHash $path -Algorithm SHA256).Hash }
 function Oml-Json([string[]]$Arguments) {
@@ -121,3 +125,4 @@ Write-Host 'ok   batch install: a failed write stops the batch, the rest are ski
 $one = Oml-Json @('install', (Join-Path $dir 'out/A1.oml'), (Join-Path $dir 'TX.oml'))
 Require ($one.Code -eq 0 -and $one.Json.installed -eq (Join-Path $dir 'TX.oml') -and $one.Json.backup -and $null -eq $one.Json.items) 'install: single form changed'
 Write-Host 'ok   batch: single install unchanged'
+} finally { Remove-TestWorkFolder $Tmp }

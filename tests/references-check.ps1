@@ -1,6 +1,12 @@
 param($Oml, $Tmp, $Source)
 $ErrorActionPreference = 'Stop'
-$producer = Join-Path $Tmp 'references-producer.oml'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+Require-TestFile $Source 'module for references-check'
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'references'
+Require-TestFile (Join-Path $Fixtures 'references-producer.oml') 'fixture module references-producer.oml'
+try {
+$producer = Join-Path $Fixtures 'references-producer.oml'
 $hash = (Get-FileHash $producer).Hash
 $spec = Join-Path $Tmp 'references-check.json'
 @{ references = @(@{ producer = $producer; elements = @('Customer') }) } | ConvertTo-Json -Depth 8 | Set-Content $spec
@@ -111,3 +117,4 @@ foreach ($same in @($Source, $spec)) {
   if ($LASTEXITCODE -ne 2) { throw "--report $same was accepted" }
 }
 Write-Host 'ok   reference extension, wiring, repeat, refusal, changes to referenced elements refused, producer hash'
+} finally { Remove-TestWorkFolder $Tmp }

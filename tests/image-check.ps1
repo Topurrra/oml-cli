@@ -2,6 +2,10 @@ param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string
 # oml image: ICO write and read, PNG to SVG tracing (quality against the source), embed mode, the SVG optimizer and its
 # pixel gate, batches and refusals. Fixtures are written here; raster inputs are drawn from them by oml itself.
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'image'
+try {
 $Oml = (Resolve-Path -LiteralPath $Oml).Path
 $dir = Join-Path $Tmp 'image-check'
 if (Test-Path -LiteralPath $dir) { Remove-Item -LiteralPath $dir -Recurse -Force }
@@ -396,3 +400,4 @@ document.body.textContent='RESULT '+out.join(' ')+' END';}catch(e){document.body
         Write-Host "ok   image Chrome: ICO frames 256/48, optimized and traced SVGs draw the same ($result)"
     }
 } else { Write-Host 'Chrome check skipped: Chrome is not installed.' }
+} finally { Remove-TestWorkFolder $Tmp }

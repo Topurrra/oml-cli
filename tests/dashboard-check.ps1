@@ -4,7 +4,10 @@
 param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
 $ErrorActionPreference = 'Stop'
 $Tmp = [IO.Path]::GetFullPath($Tmp)
-New-Item -ItemType Directory -Force $Tmp | Out-Null
+. (Join-Path $PSScriptRoot 'lib.ps1')
+# Own fresh folder (the media fixture below has a junction, so nothing may be left behind for the next run).
+$Tmp = New-TestFolder $Tmp 'dashboard'
+try {
 function Require($condition, $message) { if (!$condition) { throw $message } }
 
 # A raw request, so the Host and Origin headers are exactly what the test says.
@@ -348,6 +351,8 @@ try {
     Set-Content (Join-Path $mediaFolder 'evil.svg') '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
     $outside = Join-Path $Tmp "dash-$id-outside"; New-Item -ItemType Directory -Force $outside | Out-Null
     [IO.File]::WriteAllBytes((Join-Path $outside 'secret.png'), $png1)
+    # A leftover link from an interrupted run is removed as a link first (never by recursing into its target).
+    Remove-TestFolder (Join-Path $mediaFolder 'jump')
     New-Item -ItemType Junction -Path (Join-Path $mediaFolder 'jump') -Target $outside | Out-Null
     [IO.File]::WriteAllBytes((Join-Path $Tmp 'above.png'), $png1)
     $dif = Api 'dif'
@@ -550,3 +555,7 @@ try {
     $env:OML_STUDIO_PORT = $studioPort
 }
 Write-Host 'ok   dashboard stopped cleanly'
+} finally {
+    # The junction media\jump points at dash-<id>-outside: delete the link itself, then the tree.
+    Remove-TestWorkFolder $Tmp
+}

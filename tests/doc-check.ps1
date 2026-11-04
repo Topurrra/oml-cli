@@ -3,6 +3,11 @@
 # that apply adds to a known new warning. Throws on the first failure.
 param([string]$Oml, [string]$Tmp, [string]$Module)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+Require-TestFile $Module 'module for doc-check'
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'doc'
+try {
 $repo = Split-Path $PSScriptRoot -Parent
 $ref = Join-Path $repo 'skill/reference'
 $work = Join-Path $Tmp 'doc-check'; New-Item -ItemType Directory -Force $work | Out-Null
@@ -197,3 +202,4 @@ foreach ($x in @($report.newWarnings)) {
 $pretty = (& $Oml apply $Module $spec (Join-Path $work 'hint-pretty.oml') --pretty) -join "`n"
 if ($pretty -notmatch '"hint": "Do the work' -or $pretty -match '"hint": null') { Fail "--pretty report: hint missing or null" }
 Write-Host "ok   apply hint: ConsecutiveServerInteractions -> '$($w[0].hint)'"
+} finally { Remove-TestWorkFolder $Tmp }

@@ -5,6 +5,10 @@
 # non-ASCII text in the CLI output, so the self-test checks real non-ASCII text in process.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'ui-update'
+try {
 $dir = Join-Path $Tmp ('ui-update-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $dir -Force | Out-Null
 function Require($condition, $message) { if (-not $condition) { throw "ui-update: $message" } }
@@ -307,3 +311,4 @@ $run = & $Oml run $steps | ConvertFrom-Json
 Require ($LASTEXITCODE -eq 0 -and $run.results[0].output.saved) "oml run with file values: $($run | ConvertTo-Json -Compress -Depth 10)"
 Require ((& $Oml inspect $ro | ConvertFrom-Json).module.javaScript -ceq $js) 'oml run: module JavaScript from a file is not byte-identical'
 Write-Host 'ok   ui-update: styleSheet, title and requiredScripts on existing UI in "changed"; replaceWidgets with usage refusal; {"file"} values'
+} finally { Remove-TestWorkFolder $Tmp }

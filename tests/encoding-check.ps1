@@ -4,6 +4,10 @@
 # console, never the one the suite runs in. This file stays ASCII: the test texts are \u escapes in JSON.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'encoding'
+try {
 function Require($condition, $message) { if (!$condition) { throw $message } }
 
 # A folder with non-ASCII in its name, as in C:\Users\<name>: the paths in the output must round-trip too.
@@ -158,3 +162,4 @@ Require (-not $screen.Contains('\\u00F3')) 'encoding: the human view in a consol
 Require ($screen.Contains('Active code page: 437')) 'encoding: oml changed the console code page'
 Write-Host 'ok   encoding: console window shows real characters (--pretty and the human view), keeps code page 437'
 Remove-Item Env:ENC_OML, Env:ENC_MOD, Env:ENC_DIR, Env:ENC_STEPS, Env:ENC_MISSING -ErrorAction SilentlyContinue
+} finally { Remove-TestWorkFolder $Tmp }

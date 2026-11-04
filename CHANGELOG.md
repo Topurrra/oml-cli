@@ -2,6 +2,13 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## Unreleased
+
+### Changed
+- Test suite: `tests/regress.ps1 -Smoke` runs a quick tier (about 2 minutes instead of about 20) and prints its time; `release.ps1` still runs the full suite.
+- Test suite: every check script works in its own fresh GUID-named subfolder of `-Tmp` and removes it in a `finally`, so a leftover or an interrupted run cannot break the next one. The shared helper `tests/lib.ps1` removes directory junctions and symlinks as links (never into their target); `dashboard-check.ps1` no longer fails on a stale `media\jump` junction.
+- Test suite: `regress.ps1` rebuilds all fixture modules at the start and stops with a clear message if one is missing; checks that need a module fail with a plain "missing fixture" message instead of an apply error.
+
 ## 1.14.0
 
 ### Added

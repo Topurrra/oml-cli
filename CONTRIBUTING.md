@@ -31,7 +31,16 @@ Build first, then run:
 pwsh -NoProfile -File tests/regress.ps1
 ```
 
-Exit `0` means pass. The exit code is the number of failed checks. The suite needs PowerShell 7 and clears `tmp/` when it starts.
+Exit `0` means pass. The exit code is the number of failed checks. The suite needs PowerShell 7. At the start it empties `tmp/` (a leftover directory junction is removed as a link, not followed) and rebuilds every fixture module it needs (`tmp/base`), so nothing depends on an earlier run. It stops with a clear message if a fixture cannot be built.
+
+### Smoke or full
+
+```powershell
+pwsh -NoProfile -File tests/regress.ps1 -Smoke   # quick tier, about 2 to 3 minutes
+pwsh -NoProfile -File tests/regress.ps1          # full suite, about 20 minutes
+```
+
+`-Smoke` builds the fixtures once and runs only the quick units: a few apply fixtures (`logic`, `service`, `web`, `datamodel`, `edits`), then the `names`, `edits`, `inspect`, `turns`, `validate`, `parsers`, `encoding`, `hooks`, `spec`, `doc`, `evolve` and `log` checks (the list is `$smokeUnits` in `tests/regress.ps1`). It prints its time on the last line (`smoke tier: total 132s ...`). Use it while you work; run the full suite before you commit a change to a command's output or an apply fixture. `release.ps1` always runs the full suite.
 `-Throttle N` sets how many checks run at once (default 4).
 It applies JSON fixtures, checks saved models, tests LifeTime against a local mock, and runs the self-test.
 LifeTime tests do not contact a real server.
@@ -54,6 +63,7 @@ Output is printed per unit in the order of the list in the script, with the unit
 3. The body sees `$oml`, `$tests`, `$tmp`, `$reactive`, `$service`, `$web`. Count failures with `$global:fail++`.
 4. Parallel is the default. Add `-After 'other-unit'` if you read a file another unit makes. Add `-Alone` only if the check changes machine-wide state, binds a fixed port, needs a quiet machine or is long and heavy. Put the reason in the comment at the top of `regress.ps1`.
 5. Do not write outside `$Tmp`, and do not rely on files made by another unit unless you declare it with `-After`.
+6. Isolate the script. Dot-source `tests/lib.ps1` and work in a fresh subfolder of `-Tmp`, removed in a `finally`: `$Fixtures = $Tmp; $Tmp = New-TestFolder $Tmp '<name>'; try { ... } finally { Remove-TestWorkFolder $Tmp }` (read fixture modules such as `r0.oml` from `$Fixtures`). Remove folders with `Remove-TestFolder`, never `Remove-Item -Recurse` on a tree that may hold a junction or symlink: it deletes links as links and leaves their targets. Call `Require-TestFile` for a module the check needs, so a missing file fails with a plain message. Set `OML_KEEP_TEST_TMP=1` to keep the subfolder (screenshots, reports) for a look.
 
 To run the build capability check alone:
 
@@ -138,7 +148,7 @@ To add a page:
 1. If it needs the server, add a case to the `switch` in `DashboardApi.Api` and a handler that checks its input (`ModuleFile`, `UserPath`, `ElementName`) and calls `Oml(...)`. Only read commands; never add `install`, `publish`, `references`, `apply`, `run` or a LifeTime write. Outputs a person keeps go to `NewWorkFolder(...)`; intermediate files go to a temporary folder that the handler deletes.
 2. Add `web/pages/<id>.js` that exports the page object, and register it in `web/pages/index.js`. Build elements with `h()`, run actions with `task(...)`, and show each command with `cli(data.cli)`. Show every image and `/view/` page with `viewer({...})`.
 3. Add the id to a group in `web/nav.js`, and an icon path under the same id in `ICONS` (`web/core/dom.js`).
-4. Add a check to `tests/dashboard-check.ps1`, build, look at the screenshots in `tmp/dashboard-check/`, and run the suite.
+4. Add a check to `tests/dashboard-check.ps1`, build, run `$env:OML_KEEP_TEST_TMP = 1; tests/dashboard-check.ps1` and look at the screenshots in the `tmp/dashboard-<id>/` folder it keeps, and run the suite.
 
 To change the sidebar, edit `web/nav.js` only: rename a group, move or reorder ids, or remove an id to hide a page (it stays reachable by its URL). `dashboard-check` compares the sidebar on screen with `nav.js`.
 ## Rules

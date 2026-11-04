@@ -5,6 +5,10 @@
 # %LOCALAPPDATA%\oml-cli meanwhile are not affected; it runs in the alone lane because the self-test is long and CPU heavy.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'selftest'
+try {
 function Assert($Condition, $Message) { if (!$Condition) { throw $Message } }
 $machine = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'oml-cli\selftest-passed.txt'
 $build = (& $Oml version | ConvertFrom-Json).serviceStudio
@@ -87,4 +91,4 @@ try { $own = SelfTestStatus } finally { $env:OML_SELFTEST_RECORD = $null }
 Assert ($own -eq 'warn') "oml doctor with an empty OML_SELFTEST_RECORD: selfTest $own, expected warn"
 if ($machineHad) { $normal = SelfTestStatus; Assert ($normal -eq 'ok') "oml doctor without OML_SELFTEST_RECORD: selfTest $normal, expected ok" }
 Write-Host 'ok   the check used its own self-test record; without OML_SELFTEST_RECORD the machine-wide record is read and kept'
-
+} finally { Remove-TestWorkFolder $Tmp }

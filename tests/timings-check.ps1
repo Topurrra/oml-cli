@@ -3,6 +3,10 @@
 # a read step left open (same report as a separate apply; a later read of the source sees the file, not the change).
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'timings'
+try {
 function Require($condition, $message) { if (-not $condition) { throw $message } }
 function Same($a, $b) { ($a | ConvertTo-Json -Depth 50 -Compress) -ceq ($b | ConvertTo-Json -Depth 50 -Compress) }
 function Without($o, $name) { $copy = $o | ConvertTo-Json -Depth 50 | ConvertFrom-Json; $copy.PSObject.Properties.Remove($name); $copy }
@@ -131,3 +135,4 @@ foreach ($c in @(@('spec', 'check', $logic), @('doc'), @('doctor'), @('warn', 'x
 $checked = & $Oml check $mod --timings | ConvertFrom-Json
 Require ($null -ne $checked.timings.load) 'timings: check has no timings'
 Write-Host 'ok   run: apply takes the open module (same report), a later read loads the file again; run --timings; unsupported commands refuse --timings, check has them'
+} finally { Remove-TestWorkFolder $Tmp }

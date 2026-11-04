@@ -1,5 +1,7 @@
 param([string]$oml, [string]$module, [string]$source)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+Require-TestFile $module 'module for queries-check'
 function Walk($node) {
   $node
   foreach ($child in $node.children) { Walk $child }

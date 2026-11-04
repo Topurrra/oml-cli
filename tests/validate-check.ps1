@@ -1,6 +1,10 @@
 param([string]$Oml, [string]$Tmp)
 # validate: `summary` comes first with the totals; every sample names its module and owner.
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'validate'
+try {
 $src = Join-Path $Tmp "validate-src.oml"; $out = Join-Path $Tmp "validate-out.oml"; $spec = Join-Path $Tmp "validate-spec.json"
 & $Oml new $src --name ValSummary --kind CrossDevice | Out-Null
 [IO.File]::WriteAllText($spec, '{ "serverActions": [ { "name": "NeverCalled" } ] }')
@@ -16,3 +20,4 @@ if ($samples.Where({ $_.module -ne 'ValSummary' }).Count -or -not $sample -or $s
 $plain = & $Oml validate $out | ConvertFrom-Json
 if ($plain.summary.warnings -ne $r.summary.warnings -or $null -ne $plain.warnings) { throw "validate: totals differ without --warnings" }
 Write-Host "ok   validate: summary first, module and owner in samples"
+} finally { Remove-TestWorkFolder $Tmp }

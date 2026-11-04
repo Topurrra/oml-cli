@@ -5,6 +5,10 @@
 # Setting, saving and reopening history values is in `oml selftest` (SelfTest.History.cs).
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'history'
+try {
 function Require($condition, $message) { if (-not $condition) { throw $message } }
 function Run([string[]]$cliArgs) {
     $text = & $Oml @cliArgs 2>&1
@@ -119,3 +123,4 @@ $steps = Join-Path $dir 'steps.json'
 $run = Read-Oml @('run', $steps)
 Require ($run.results.Count -eq 2 -and $run.results[0].output.text.Contains($line) -and $run.results[1].output.changedSince -eq $days[0] -and ($run.results[1].output.entities | Where-Object name -eq 'MenuItem').lastModifiedBy) 'oml run did not pass the flags on'
 Write-Host 'ok   history: values and dates on the Service Studio sample, --changed-since at every edge, nothing without the flags (also --pretty), specs cannot write history'
+} finally { Remove-TestWorkFolder $Tmp }

@@ -5,6 +5,12 @@
 # Runs in the alone lane: it writes to HKCU.
 param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'setup'
+Require-TestFile (Join-Path $Fixtures 'out-rest.json.oml') 'fixture module out-rest.json.oml'
+Require-TestFile (Join-Path $Fixtures 'r0.oml') 'fixture module r0.oml'
+try {
 $Tmp = [IO.Path]::GetFullPath($Tmp)
 New-Item -ItemType Directory -Force $Tmp | Out-Null
 function Require($condition, $message) { if (!$condition) { throw $message } }
@@ -261,12 +267,12 @@ Write-Host 'ok   setup run: folder fonts and images into new subfolders, partial
 # .oml actions.
 $modules = Join-Path $Tmp 'setup modules'
 New-Item -ItemType Directory -Force $modules | Out-Null
-Copy-Item (Join-Path $Tmp 'r0.oml') (Join-Path $modules 'Blank App.oml')
+Copy-Item (Join-Path $Fixtures 'r0.oml') (Join-Path $modules 'Blank App.oml')
 $arch = Act 'architecture' $modules
 Require ($arch.ok -and $arch.output -eq (Join-Path $modules 'architecture.html') -and $arch.open.kind -eq 'file' -and (Test-Path -LiteralPath $arch.output)) "architecture: $($arch | ConvertTo-Json -Compress)"
 $dash = Act 'dashboard' (Join-Path $modules 'Blank App.oml')
 Require ($dash.ok -and $dash.open.kind -eq 'dashboard' -and $dash.open.path -eq (Join-Path $modules 'Blank App.oml')) 'dashboard action'
-$restModule = Join-Path $Tmp 'out-rest.json.oml'
+$restModule = Join-Path $Fixtures 'out-rest.json.oml'
 if (Test-Path $restModule) {
     Copy-Item $restModule (Join-Path $modules 'Rest App.oml')
     $api = Act 'openapi' (Join-Path $modules 'Rest App.oml')
@@ -296,3 +302,4 @@ Require ($missing.log -eq $env:OML_SETUP_LOG) 'OML_SETUP_LOG not used'
 Require (@($log | Where-Object { $_ -match ' font ".*Nope\.ttf" FAILED : File not found' }).Count -eq 1) "log: $($log -join "`n")"
 Require (@($log | Where-Object { $_ -match ' font ".*My Font\.ttf" ok -> ' }).Count -eq 2) 'log must have the successful runs'
 Write-Host 'ok   setup run: failures exit 1 with a message and a log line'
+} finally { Remove-TestWorkFolder $Tmp }

@@ -4,6 +4,10 @@
 # Throws on the first failure.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'lib.ps1')
+$Fixtures = $Tmp
+$Tmp = New-TestFolder $Tmp 'library'
+try {
 $work = Join-Path $Tmp ('library-' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Force $work | Out-Null
 function Fail($m) { throw "library: $m" }
 function Require($condition, $message) { if (-not $condition) { Fail $message } }
@@ -92,3 +96,4 @@ try {
 finally {
   foreach ($k in $saved.Keys) { Set-Item "env:$k" $saved[$k] -ErrorAction SilentlyContinue; if ($null -eq $saved[$k]) { Remove-Item "env:$k" -ErrorAction SilentlyContinue } }
 }
+} finally { Remove-TestWorkFolder $Tmp }
