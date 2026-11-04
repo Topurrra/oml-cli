@@ -73,9 +73,10 @@ $shapes = [ordered]@{
   'log'                    = @('~log summary --file {p}')
   'evolve'                 = @('~evolve report --file {p}', 'evolve report --check {p}', '~evolve propose --file {p}')
   'map'                    = @('map build badinput --in {p}')
+  'mock'                   = @('mock --all --personas {p}')
 }
 # The extension a path argument should have, by the first word of the shape (default .oml).
-$ext = @{ 'app' = '.oap'; 'extension' = '.xif'; 'spec' = '.json'; 'run' = '.json'; 'apply' = '.json'; 'log' = '.jsonl'; 'evolve' = '.jsonl';
+$ext = @{ 'app' = '.oap'; 'extension' = '.xif'; 'spec' = '.json'; 'run' = '.json'; 'apply' = '.json'; 'log' = '.jsonl'; 'evolve' = '.jsonl'; 'mock' = '.json';
           'font' = '.ttf'; 'image' = '.png'; 'skills' = '.md'; 'translations' = '.oml'; 'architecture' = '.oml' }
 
 # 1. Every command of `oml help --all` is tested or skipped on purpose.

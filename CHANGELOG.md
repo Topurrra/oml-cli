@@ -6,6 +6,7 @@ Keep a Changelog style: one section per release, newest first.
 
 ### Added
 - `oml map`: an application map of a whole project. `map build <project> --in <folders or .oap files>` reads every module once into `%LOCALAPPDATA%\oml-cli\maps\<project>` and later reads only the files that changed; the folder remembers its project (`.oml/map.json`). Queries run without Service Studio: `overview`, `uses <element>`, `impact <element>`, `data <Entity>`, `api <Api.Method>`, `list`. The lineage follows what Service Studio sees: argument expressions, assignments into saved records, aggregate and entity Get results, wrapper actions in other modules, and processes started on entity events, by `Launch<Process>` or by timers; `map api` shows the chain from one API to the next. The map also keeps each REST method's sample request and response, for mocks.
+- `oml mock`: mock responses for consumed REST APIs from the application map, for mock servers such as Castlemock. Values the map links share one value per persona across the chain (GetClient's CustomerId selects GetCreditLines' answer for the same persona). Default personas `normal`, `empty`, `many`, `not-found`, `error`; `--personas <file>` for real test values. The shape follows the module's sample response, else the API's structures; output is deterministic, with a checklist per API (status, request values to match, file).
 
 ## 1.15.0
 

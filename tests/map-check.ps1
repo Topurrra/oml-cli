@@ -71,7 +71,45 @@ try {
   Require (@($l.maps).Count -eq 1 -and $l.maps[0].project -eq 'crm') 'map list'
   Write-Host 'ok   map --project, list, unknown project and bad name'
 
-  # 6. Rebuild reads only what changed; a changed file is stale until then; a removed file leaves the map.
+  # 6. Chained mocks: GetClient's CustomerId for a persona is the value that selects GetCreditLines' answer for it.
+  Push-Location $work
+  try {
+    $m = Json mock --all --out (Join-Path $Tmp 'mocks')
+    Require ($LASTEXITCODE -eq 0 -and $m.methods -eq 2 -and $m.files -eq 10) "mock: $($m | ConvertTo-Json -Compress -Depth 5)"
+    $mocks = Join-Path $Tmp 'mocks'
+    $client = Get-Content (Join-Path $mocks 'CrmApi\GetClient\normal.json') -Raw | ConvertFrom-Json
+    $list = Get-Content (Join-Path $mocks 'CrmApi\checklist.md') -Raw
+    Require ($client.CustomerId -and $list -match [regex]::Escape("CustomerId=$($client.CustomerId) (query)")) "mock chain: GetClient CustomerId $($client.CustomerId) does not select GetCreditLines`n$list"
+    $many = Get-Content (Join-Path $mocks 'CrmApi\GetClient\many.json') -Raw | ConvertFrom-Json
+    Require ($many.CustomerId -ne $client.CustomerId) 'mock: two personas share a CustomerId'
+    Require ((Get-Content (Join-Path $mocks 'CrmApi\GetClient\error.json') -Raw | ConvertFrom-Json).status -eq 500) 'mock: error persona'
+    Require ($list -match 'Id=I-1001 \(path\)') 'mock: the first API of the chain gets a request value per persona'
+    # Same input, same output.
+    $again = Json mock --all --out (Join-Path $Tmp 'mocks2')
+    Require ((Get-Content (Join-Path $Tmp 'mocks2\CrmApi\GetClient\normal.json') -Raw) -eq (Get-Content (Join-Path $mocks 'CrmApi\GetClient\normal.json') -Raw)) 'mock: not deterministic'
+    # The personas file: the developer's own test values flow through the whole chain.
+    $personas = Join-Path $Tmp 'personas.json'
+    '[{"name":"anna","items":1,"values":{"Customer.ExternalId":"C-77","Customer.Name":"Anna Smith"}},{"name":"down","status":503}]' | Set-Content $personas
+    $m = Json mock --all --personas $personas --out (Join-Path $Tmp 'mocks3')
+    $anna = Get-Content (Join-Path $Tmp 'mocks3\CrmApi\GetClient\anna.json') -Raw | ConvertFrom-Json
+    Require ($anna.CustomerId -eq 'C-77' -and $anna.FullName -eq 'Anna Smith') "mock personas: $($anna | ConvertTo-Json -Compress)"
+    Require ((Get-Content (Join-Path $Tmp 'mocks3\CrmApi\checklist.md') -Raw) -match 'CustomerId=C-77 \(query\)') 'mock personas: the chain uses the given value'
+    '[{"name":"leak","values":{"Customer.ExternalId":"ghp_1234567890abcdefghijklmnopqrstuvwxyzAB"}}]' | Set-Content $personas
+    $bad = Json mock --all --personas $personas --out (Join-Path $Tmp 'mocks4')
+    Require ($LASTEXITCODE -eq 2 -and ($bad.error -like '*secret*' -or $bad.error -like '*token*')) "mock: a secret in personas must be refused: $($bad | ConvertTo-Json -Compress)"
+    # A sample response in the module gives the shape: its extra fields stay, lists follow the persona, linked fields get the chain's value.
+    $source = Get-ChildItem (Join-Path $env:OML_MAPS 'crm\sources') -Filter *.json | Where-Object { (Get-Content $_.FullName -Raw) -match '"GetClient"' } | Select-Object -First 1
+    $doc = Get-Content $source.FullName -Raw | ConvertFrom-Json -Depth 50
+    $method = ($doc.facts[0].restConsumed[0].methods | Where-Object name -eq 'GetClient')
+    $method.sampleResponse = '{"CustomerId":"X1","FullName":"Ann","Since":"2020-01-31","Tags":[{"T":"vip"}]}'
+    $doc | ConvertTo-Json -Depth 50 -Compress | Set-Content $source.FullName
+    Json mock CrmApi.GetClient --out (Join-Path $Tmp 'mocks5') | Out-Null
+    $shaped = Get-Content (Join-Path $Tmp 'mocks5\CrmApi\GetClient\many.json') -Raw | ConvertFrom-Json
+    Require ($shaped.CustomerId -eq $many.CustomerId -and @($shaped.Tags).Count -eq 5 -and $shaped.Since -match '^\d{4}-\d\d-\d\d$') "mock sample shape: $($shaped | ConvertTo-Json -Compress -Depth 5)"
+  } finally { Pop-Location }
+  Write-Host 'ok   oml mock: chained values across APIs, request values per persona, personas file, sample shape, deterministic'
+
+  # 7. Rebuild reads only what changed; a changed file is stale until then; a removed file leaves the map.
   Push-Location $work
   try {
     $b = Json map build crm

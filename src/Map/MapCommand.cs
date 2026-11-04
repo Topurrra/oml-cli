@@ -393,6 +393,20 @@ static class MapCommand
 
     static List<Link> Links(Map map) => Links(map.Flows.Select(f => (f.Module, f.Flow)));
 
+    // For oml mock: the facts of every module and the resolved links, or why the map cannot be read.
+    internal sealed class MapLoadException(string message, int code, string? hint) : Exception(message)
+    {
+        public int Code { get; } = code;
+        public string? Hint { get; } = hint;
+    }
+    internal sealed record Facts(string Project, List<JsonObject> Modules, List<Link> Links);
+
+    internal static Facts LoadFacts(string? project)
+    {
+        try { var map = Load(project); return new Facts(map.Project, map.Facts, Links(map)); }
+        catch (MapException e) { throw new MapLoadException(e.Message, e.Code, e.Hint); }
+    }
+
     static int Data(Map map, string entity)
     {
         var writers = map.Flows.SelectMany(f => Each(f.Flow["calls"]).Where(c => S(c["type"]) == "entity" && Is(S(c["entity"]), entity) && S(c["op"]) != "get")

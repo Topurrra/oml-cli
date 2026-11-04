@@ -88,6 +88,7 @@ public static class Program
         if (filtered.FirstOrDefault() == "evolve") return EvolveCommand.Run(filtered.Skip(1).ToArray());
         // oml map: build loads modules (Core); the queries read the stored map here, without Service Studio.
         if (filtered.FirstOrDefault() == "map" && !(filtered.Length > 1 && filtered[1] == "build")) return MapCommand.Run(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "mock") return MockCommand.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "library") return Library.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "skills") return CompanySkills.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "dashboard") return Dashboard.Run(filtered.Skip(1).ToArray());

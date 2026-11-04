@@ -161,6 +161,8 @@ export const cookbook = [
     ['oml map impact CrmApi.GetCreditLines', 'Everything that runs it: callers, the processes and timers that start them.'],
     ['oml map data Customer', 'Who writes and reads an entity, the processes it launches, and which API values fill its attributes.'],
     ['oml map api CrmApi.GetClient', 'One API method: who calls it, where its inputs come from, where its outputs go, and the APIs that run after it.'],
+    ['oml mock --all --out mocks', 'Mock responses for every consumed API, chained by the map (one persona keeps its values across APIs), with a checklist for Castlemock.'],
+    ['oml mock CrmApi.GetClient --personas personas.json', 'Mocks with your own test values (dev test customers, names the developer gives).'],
     ['oml map list', 'The maps on this computer.'],
     ['oml flow C:\\Work\\Orders.oml Customer_Save', 'One action\'s flow as nodes and connectors, with positions: what the Dif page draws.'],
     ['oml dif specs\\orders-export.md', 'Read the walkthrough an agent wrote: call stacks, element links, the review of the staged module. Comment and copy your notes back.'],
