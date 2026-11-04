@@ -34,7 +34,7 @@ New-Item -ItemType Directory -Force $tmp | Out-Null
 Get-ChildItem $tmp -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 $base = Join-Path $tmp "base"; New-Item -ItemType Directory -Force $base | Out-Null
 $env:TEMP = $tmp; $env:TMP = $tmp
-$env:OML_LOG = $null # the suite must not write to a person's usage log
+$env:OML_LOG = '0' # the suite must not write to a person's usage log (it is on by default)
 $fail = 0
 
 # --- Setup: the blank modules every unit starts from. ---

@@ -12,10 +12,10 @@ export default {
     const first = await task(null, out, 'Reading the usage log…', () => api('log'));
     if (!first) return;
     if (!first.enabled) {
-      add(out, h('section', { class: 'card' }, h('h2', {}, 'Turn on the usage log'),
-        h('p', {}, 'oml can write one line per command to a file on this computer. It never sends anything, and never writes arguments, specs, tokens or folders.'),
-        h('p', {}, 'For the current PowerShell window (start your agent and this dashboard from it):'), cli('$env:OML_LOG = "1"'),
-        h('p', {}, 'For every new window:'), cli('setx OML_LOG 1'),
+      add(out, h('section', { class: 'card' }, h('h2', {}, 'The usage log is off'),
+        h('p', {}, 'OML_LOG is set to 0, so oml writes no log, and memory recall and oml evolve have nothing to learn from. The log stays on this computer, is never sent, and never holds arguments, specs, tokens or folders.'),
+        h('p', {}, 'To turn it on again for the current PowerShell window (start your agent and this dashboard from it):'), cli('Remove-Item Env:OML_LOG'),
+        h('p', {}, 'For every new window:'), cli('reg delete HKCU\\Environment /v OML_LOG /f'),
         h('p', { class: 'hint' }, 'Then start the dashboard again. The log is ', h('code', { text: first.file }), '.')));
       return;
     }

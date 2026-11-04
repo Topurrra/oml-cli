@@ -86,7 +86,7 @@ oml selftest   (build check; also runs by itself on a Service Studio build not s
 oml doctor [--text] [--selftest]   (checks the setup and says what to fix)
 oml dashboard [--port N] [--no-open] [--module <file.oml>]   (local web dashboard for developers; reads only, on 127.0.0.1)
 oml setup [--remove | --status]   (Explorer right-click entries for the current user: fonts, images, .oml files, folders)
-oml log summary [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; set OML_LOG=1 to write the log)
+oml log summary [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; OML_LOG=0 turns the log off)
 Output is compact JSON on stdout. Global --pretty includes empty fields and indents. Exit 0 ok, 1 model/validation failure, 2 usage/environment.
 --timings on a command that loads a module (apply, inspect, describe, validate, install, run, ...) adds "timings": milliseconds per phase.
 ```
@@ -179,7 +179,7 @@ The output is compact JSON: `{"results": [{"step": 1, "args": [...], "exitCode":
 
 #### Usage log
 
-Set `OML_LOG=1` to append one JSON line per command to `%LOCALAPPDATA%\oml-cli\usage.jsonl`. Set `OML_LOG=<file>` to write to that file. Without the variable (or with `0`) nothing is written. The log stays on your machine; oml sends nothing.
+oml appends one JSON line per command to `%LOCALAPPDATA%\oml-cli\usage.jsonl`, unless `OML_LOG=0` (or `off`, `false`): memory recall and `oml evolve` learn from it. Set `OML_LOG=<file>` to write to another file. At 20 MB the file moves to `<file>.1` (one older file is kept) and a new one starts; memory recall reads both, `oml evolve` the current one (add the other with `--file`). The log stays on your machine; oml sends nothing. The test suite sets `OML_LOG=0`.
 
 A line has `ts` (UTC), `cmd` (the command, with the verb for `lt`, `app`, `spec check` and similar), `exit`, `ms`, `bytes` (size of the output), `module` (the file name of the first `.oml`, `.oap`, `.osp` or `.xif` argument, no folder) and, for a failure, `error`: the first problem message, folders and secrets removed, cut to 200 characters. Steps inside `oml run` get their own lines with `run: true`. Arguments, spec contents, tokens, environment values and folders are never written. A message can repeat an element name that you typed.
 

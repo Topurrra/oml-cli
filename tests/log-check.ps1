@@ -1,4 +1,4 @@
-# Checks the opt-in usage log (OML_LOG) and `oml log summary`: nothing written without the variable, one line per
+# Checks the usage log (on by default; OML_LOG=0 turns it off) and `oml log summary`: nothing written with OML_LOG=0, one line per
 # command and per run step with it, no folder, token or argument contents in the file, and the summary numbers.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
@@ -10,21 +10,19 @@ $saved = @{}; foreach ($name in 'OML_LOG', 'OML_LIFETIME_TOKEN', 'OML_LIFETIME_H
 function Lines($file) { if (Test-Path $file) { @(Get-Content $file | Where-Object { $_ } | ForEach-Object { $_ | ConvertFrom-Json }) } else { @() } }
 try {
   $mod = Join-Path $dir 'LogApp.oml'
-  $env:OML_LOG = $null
+  $env:OML_LOG = '0'
   & $Oml new $mod --name LogApp --kind CrossDevice | Out-Null
   Require ($LASTEXITCODE -eq 0) 'log-check: could not build the test module'
 
-  # 1. No variable: nothing is written (not to the default file, not anywhere).
+  # 1. OML_LOG=0 (and off, false): nothing is written, not to the default file, not anywhere.
   $before = if (Test-Path $default) { (Get-Item $default).Length } else { -1 }
-  & $Oml version | Out-Null; & $Oml inspect $mod --own | Out-Null; & $Oml spec check (Join-Path $PSScriptRoot 'datamodel.json') | Out-Null
-  $after = if (Test-Path $default) { (Get-Item $default).Length } else { -1 }
-  Require ($before -eq $after) 'log: a file was written without OML_LOG'
-  foreach ($off in @('0', '')) {
-    $env:OML_LOG = $off; & $Oml version | Out-Null
+  foreach ($off in @('0', 'off', 'false')) {
+    $env:OML_LOG = $off
+    & $Oml version | Out-Null; & $Oml inspect $mod --own | Out-Null; & $Oml spec check (Join-Path $PSScriptRoot 'datamodel.json') | Out-Null
     $after = if (Test-Path $default) { (Get-Item $default).Length } else { -1 }
     Require ($before -eq $after) "log: OML_LOG='$off' wrote the default file"
   }
-  Write-Host 'ok   log: nothing is written without OML_LOG (unset, 0, empty)'
+  Write-Host 'ok   log: nothing is written with OML_LOG=0, off or false'
 
   # 2. A file path: one line per command, one per run step.
   $log = Join-Path $dir 'nested\folder\usage.jsonl'
@@ -74,7 +72,7 @@ try {
   Write-Host 'ok   log: an unusable log path does not break the command'
 
   # 5. Summary.
-  $env:OML_LOG = $null
+  $env:OML_LOG = '0'
   $summary = & $Oml log summary --file $log | ConvertFrom-Json
   Require ($LASTEXITCODE -eq 0 -and $summary.lines -eq 11) 'log summary: line count'
   $inspect = $summary.commands | Where-Object command -eq 'inspect'
@@ -92,18 +90,29 @@ try {
   $missing = & $Oml log summary --file (Join-Path $dir 'none.jsonl'); Require ($LASTEXITCODE -eq 2 -and ($missing -join '') -match 'No usage log') 'log summary: missing file'
   Write-Host 'ok   log summary: count, failures, median, top 5 failures'
 
-  # 6. OML_LOG=1 writes the default file. Only the line added here is removed again.
-  $env:OML_LOG = '1'
+  # 6. On by default: unset, empty and 1 write the default file. Only the lines added here are removed again.
   $length = if (Test-Path $default) { (Get-Item $default).Length } else { 0 }
   try {
-    & $Oml version | Out-Null
-    $last = Get-Content $default -Tail 1 | ConvertFrom-Json
-    Require ($last.cmd -ceq 'version' -and (Get-Item $default).Length -gt $length) 'log: OML_LOG=1 did not write the default file'
+    foreach ($on in @($null, '', '1')) {
+      $env:OML_LOG = $on
+      $was = if (Test-Path $default) { (Get-Item $default).Length } else { 0 }
+      & $Oml version | Out-Null
+      $last = Get-Content $default -Tail 1 | ConvertFrom-Json
+      Require ($last.cmd -ceq 'version' -and (Get-Item $default).Length -gt $was) "log: OML_LOG='$on' did not write the default file"
+    }
   } finally {
     if (Test-Path $default) { $stream = [IO.File]::Open($default, 'Open', 'Write', 'ReadWrite'); try { $stream.SetLength($length) } finally { $stream.Dispose() } }
     if ($length -eq 0 -and (Test-Path $default)) { Remove-Item $default }
   }
-  Write-Host 'ok   log: OML_LOG=1 writes %LOCALAPPDATA%\oml-cli\usage.jsonl'
+  Write-Host 'ok   log: on by default (unset, empty, 1) to %LOCALAPPDATA%\oml-cli\usage.jsonl'
+
+  # 7. At 20 MB the file moves to <file>.1 and a new one starts; one older file is kept.
+  $big = Join-Path $dir 'big.jsonl'
+  $f = [IO.File]::Open($big, 'Create', 'Write'); try { $f.SetLength(20MB) } finally { $f.Dispose() }
+  Set-Content "$big.1" 'old'
+  $env:OML_LOG = $big; & $Oml version | Out-Null; $env:OML_LOG = '0'
+  Require ((Get-Item "$big.1").Length -eq 20MB -and (Get-Item $big).Length -lt 1KB -and ((Get-Content $big -Tail 1 | ConvertFrom-Json).cmd -ceq 'version')) 'log: rotation at 20 MB'
+  Write-Host 'ok   log: rotates at 20 MB to <file>.1'
 } finally {
   foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, $saved[$name]) }
 }

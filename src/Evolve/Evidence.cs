@@ -23,6 +23,14 @@ static class Evidence
         return File.Exists(file) ? file : null;
     }
 
+    // The log and the older file it rotated to (<file>.1), oldest first, for memory usefulness: recalls from before a
+    // rotation still count. `oml evolve` reads only the current file, so its line numbers name one file (--file adds more).
+    public static List<string> DefaultFiles()
+    {
+        if (DefaultFile() is not { } file) return [];
+        return File.Exists(file + ".1") ? [file + ".1", file] : [file];
+    }
+
     // The rows of the files, oldest first, with sessions set; lines before `since` are dropped. Lines from `oml run` steps
     // count as commands; the run line itself does not (its steps say what happened).
     public static List<UsageLog.Row> Load(IEnumerable<string> files, DateTime? since, long maxBytes = 16L * 1024 * 1024)

@@ -110,7 +110,7 @@ try {
   Write-Host 'ok   memory doctor: suggests trap records for repeated failures, writes nothing'
 
   # 6. Golden: report and proposals on the sample log.
-  $env:OML_TEST_NOW = '2026-10-08T00:00:00Z'; $env:OML_LOG = $null
+  $env:OML_TEST_NOW = '2026-10-08T00:00:00Z'; $env:OML_LOG = '0'
   $g = Join-Path $root 'golden'; New-Item -ItemType Directory $g | Out-Null
   $report = Json evolve report --file $sample --dir $g
   $propose = Json evolve propose --file $sample --dir $g

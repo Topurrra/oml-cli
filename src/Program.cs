@@ -24,7 +24,7 @@ public static class Program
         }
         if (filtered.FirstOrDefault() == "log" && !filtered.Contains("--help") && !filtered.Contains("-h"))
             return UsageLog.Summary(filtered.Skip(1).ToArray());
-        // OML_LOG: one line per command, written after it ends. Without the variable nothing is wrapped or written.
+        // The usage log: one line per command, written after it ends (on unless OML_LOG=0; then nothing is wrapped or written).
         return UsageLog.Enabled ? UsageLog.Measure(filtered, () => Dispatch(args, filtered)) : Dispatch(args, filtered);
     }
 

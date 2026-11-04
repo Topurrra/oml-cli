@@ -156,7 +156,7 @@ sealed class EvolveAnalysis
             ["checks"] = new JsonArray(CheckRules.Select(c => (JsonNode)new JsonObject { ["rule"] = c.Rule, ["count"] = c.Count, ["files"] = new JsonArray(c.Files.Select(f => (JsonNode)JsonValue.Create(f)!).ToArray()) }).ToArray()),
         };
         if (effects is not null && effects.Count > 0) report["accepted"] = effects;
-        report["hint"] = Rows.Count == 0 ? "The log has no lines in this window. Use oml with OML_LOG=1 for a while, then run the report again."
+        report["hint"] = Rows.Count == 0 ? "The log has no lines in this window. Use oml for a while (the log is on unless OML_LOG=0), then run the report again."
             : "Run 'oml evolve propose' to turn this into proposals. Nothing changes until a person runs 'oml evolve accept <id>'.";
         return report;
     }

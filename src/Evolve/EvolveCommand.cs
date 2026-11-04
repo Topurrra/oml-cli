@@ -125,7 +125,7 @@ static class EvolveCommand
         foreach (var f in o.Files) if (!File.Exists(f)) throw new EvolveException($"No usage log at {f}.", 2);
         if (o.Files.Count > 0) return o.Files;
         return Evidence.DefaultFile() is { } file ? [file]
-            : throw new EvolveException("No usage log yet. Set OML_LOG=1 and use oml for a while; each command adds a line.", 1, "Or give a log file with --file <usage.jsonl>.");
+            : throw new EvolveException("No usage log yet. oml adds one line per command (unless OML_LOG=0); use it for a while.", 1, "Or give a log file with --file <usage.jsonl>.");
     }
 
     static DateTime? Since(Opts o) => o.Get("--since") is not { } s ? null

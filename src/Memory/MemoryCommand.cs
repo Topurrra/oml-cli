@@ -362,8 +362,9 @@ static class MemoryCommand
     // What the usage log says about the records: use per id, and the time of its first line. Empty without a log.
     static (Dictionary<int, Evidence.Use> Use, DateTime? LogStart) Usage()
     {
-        if (Evidence.DefaultFile() is not { } file) return ([], null);
-        var rows = Evidence.Load([file], null);
+        var files = Evidence.DefaultFiles();
+        if (files.Count == 0) return ([], null);
+        var rows = Evidence.Load(files, null);
         return (Evidence.Usefulness(rows), rows.Count > 0 ? rows[0].Ts : null);
     }
 

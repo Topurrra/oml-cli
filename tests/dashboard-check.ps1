@@ -42,7 +42,7 @@ $browser = @($env:OML_BROWSER, "${env:ProgramFiles(x86)}\Microsoft\Edge\Applicat
     "$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe") | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 
 # The dashboard must show "LifeTime not configured" and never reach a real LifeTime.
-$env:OML_LIFETIME_HOST = $null; $env:OML_LIFETIME_TOKEN = $null; $env:OML_LOG = $null
+$env:OML_LIFETIME_HOST = $null; $env:OML_LIFETIME_TOKEN = $null; $env:OML_LOG = '0'
 # A short download life, so the expiry of a /download id is checked without waiting 10 minutes.
 $downloadSeconds = 15; $env:OML_DASHBOARD_DOWNLOAD_SECONDS = $downloadSeconds
 $out = Join-Path $Tmp "dash-$id.out"

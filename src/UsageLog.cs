@@ -6,8 +6,10 @@ using System.Text.RegularExpressions;
 
 namespace OmlCli;
 
-// Opt-in local usage log. Off unless OML_LOG is set: "1" writes %LOCALAPPDATA%\oml-cli\usage.jsonl, any other
-// value (except "0") is the file to append to. One JSON line per command, and per step inside `oml run`:
+// Local usage log, on by default since 1.15 (oml evolve and memory recall learn from it): without OML_LOG, or with "1",
+// it writes %LOCALAPPDATA%\oml-cli\usage.jsonl; "0" turns it off; any other value is the file to append to. At 20 MB
+// the file moves to usage.jsonl.1 (one older file is kept), so it never grows without end. One JSON line per command,
+// and per step inside `oml run`:
 // UTC time, command name, exit code, duration, output size, the module file NAME (no folder) and, for a failure,
 // the first problem message cut to 200 characters with folders and secrets removed. For `oml evolve` and memory
 // usefulness it also keeps: a hashed session id (OML_SESSION or the agent's session variable), the option NAMES
@@ -41,9 +43,9 @@ static class UsageLog
     {
         get
         {
-            var value = Environment.GetEnvironmentVariable("OML_LOG");
-            if (string.IsNullOrWhiteSpace(value) || value == "0") return null;
-            try { return value == "1" ? DefaultPath : Path.GetFullPath(value); }
+            var value = Environment.GetEnvironmentVariable("OML_LOG")?.Trim();
+            if (value is "0" or "off" or "false") return null;
+            try { return string.IsNullOrEmpty(value) || value == "1" ? DefaultPath : Path.GetFullPath(value); }
             catch (ArgumentException) { return null; } // not a usable path: log nothing
         }
     }
@@ -90,6 +92,7 @@ static class UsageLog
             if (options.Length > 0) line["opts"] = new JsonArray(options.Select(o => (JsonNode)JsonValue.Create(o)!).ToArray());
             foreach (var (name, value) in Extras(args, exitCode, stdout)) line[name] = value;
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            Rotate(path);
             // Append and share, so two commands that finish together do not lose a line.
             using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
             var bytesOut = new UTF8Encoding(false).GetBytes(line.ToJsonString() + "\n");
@@ -99,6 +102,19 @@ static class UsageLog
         {
             // shortcut: a log that cannot be written is skipped silently, so logging never breaks a command; upgrade to a one-time stderr note if users ask.
         }
+    }
+
+    // At MaxBytes the log becomes <file>.1 (replacing an older one), and a new file starts. Readers (Evidence) read both.
+    // Two commands that rotate at once: the second move fails or finds the file gone, and its line goes to the new file.
+    internal const long MaxBytes = 20L * 1024 * 1024;
+
+    static void Rotate(string path)
+    {
+        try
+        {
+            if (new FileInfo(path) is { Exists: true, Length: >= MaxBytes }) File.Move(path, path + ".1", overwrite: true);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* another command rotated it, or it is open: append anyway */ }
     }
 
     // The session: the first agent session variable that is set, hashed (8 bytes of SHA-256), so the log can group the
@@ -273,7 +289,7 @@ static class UsageLog
         }
         if (args.Length == 0 || args[0] != "summary") return Fail("Usage: oml log summary [--file <usage.jsonl>]");
         file = Path.GetFullPath(file ?? FilePath ?? DefaultPath);
-        if (!File.Exists(file)) return Fail($"No usage log at {file}. Set OML_LOG=1 (or OML_LOG=<file>) and use oml; each command then adds a line.");
+        if (!File.Exists(file)) return Fail($"No usage log at {file}. oml writes one line per command unless OML_LOG=0; use oml for a while.");
 
         var rows = Read(file).Select(r => (cmd: r.Cmd, exit: r.Exit, ms: r.Ms, error: r.Error)).ToList();
         var commands = rows.GroupBy(r => r.cmd).OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal).Select(g =>
