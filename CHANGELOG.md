@@ -2,6 +2,15 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## Unreleased
+
+### Fixed
+- oml never prints a .NET stack trace: a failure that no command handled is caught at the top and printed as `{"error", "hint"}` (exit 2 for a path or argument problem, 1 otherwise).
+- `oml new` into a folder that does not exist says so (exit 2) instead of crashing in Service Studio's save.
+- `oml meta` on a file that is not a module (not even a ZIP) is refused instead of reporting an "older ZIP module".
+- The usage log (`OML_LOG`) adds `"crash": "<ExceptionTypeName>"` to a command that crashed, so `oml evolve` can count crash hotspots.
+- New check `tests/badinput-check.ps1` runs every path-taking command with a missing file, a file in a missing folder, an empty file, a wrong extension and a path with spaces.
+
 ## 1.14.0
 
 ### Added

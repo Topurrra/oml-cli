@@ -351,6 +351,7 @@ Unit 'review-page-check' -Alone {
   try { & (Join-Path $tests 'review-check.ps1') -Oml $oml -Tmp $tmp -Page }
   catch { $global:fail++; Write-Host "FAIL review page: $_" }
 }
+Unit 'badinput-check' { try { & (Join-Path $tests 'badinput-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL badinput checks: $_" } }
 Unit 'dashboard-check' -Alone {
   try { & (Join-Path $tests 'dashboard-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL dashboard checks: $_" }
