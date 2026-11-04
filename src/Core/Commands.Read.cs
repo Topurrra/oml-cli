@@ -169,6 +169,9 @@ public static partial class Cli
         return Emit(FlowGraph.Read(open.Module, args[2]));
     }
 
+    // Only `map build` loads modules; the other map commands run in the launcher.
+    static int? CmdMap(List<string> args) => args.Count >= 3 && args[1] == "build" ? MapBuild.Run(args) : null;
+
     static int? CmdCensus(List<string> args)
     {
         if (args.Count != 2) return null;

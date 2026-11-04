@@ -169,9 +169,10 @@ foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Include *.md, *
 }
 $help = [math]::Ceiling((Run '--help').Text.Length / 4)
 if ($help -gt 700 * 1.15) { Fail "oml --help is $help tokens; budget 700 (+15%)" }
-# oml help --all: every usage line. 2550: raised from 2400 for the three oml evolve lines (and the qa lines of the test branch).
+# oml help --all: every usage line. 2550: raised from 2400 for the three oml evolve lines and the qa lines; 2700 for the two oml map
+# lines. Agents read the overview (oml --help), not this.
 $helpAll = [math]::Ceiling((Run 'help', '--all').Text.Length / 4)
-if ($helpAll -gt 2550 * 1.15) { Fail "oml help --all is $helpAll tokens; budget 2550 (+15%)" }
+if ($helpAll -gt 2700 * 1.15) { Fail "oml help --all is $helpAll tokens; budget 2700 (+15%)" }
 # every command word of the full usage is named in the overview (a word is whole: `test` is not `testing`)
 $fullUsage = (Run 'help', '--all').Text
 $overview = (Run '--help').Text

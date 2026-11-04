@@ -1,0 +1,18 @@
+{
+  "references": [{ "producer": "{{PRODUCER}}", "elements": ["GetClientInfo", "GetCredits", "ClientInfo"] }],
+  "entities": [{ "name": "Customer", "attributes": [{ "name": "ExternalId" }, { "name": "Name" }] }],
+  "serverActions": [
+    { "name": "SyncCustomer", "inputs": [{ "name": "Id" }], "locals": [{ "name": "Rec", "type": "Customer" }], "flow": [
+      { "kind": "execute", "name": "Info", "action": "GetClientInfo", "args": { "ClientId": "Id" } },
+      { "kind": "assign", "name": "Keep", "assign": { "Rec.ExternalId": "Info.Info.CustomerId", "Rec.Name": "Info.Info.FullName" } },
+      { "kind": "execute", "name": "Save", "action": "CreateCustomer", "args": { "Source": "Rec" } }
+    ] },
+    { "name": "LoadCredits", "flow": [
+      { "kind": "aggregate", "name": "FindCustomers", "sources": ["Customer"], "maxRecords": 1 },
+      { "kind": "execute", "name": "Credits", "action": "GetCredits", "args": { "CustomerId": "FindCustomers.List.Current.Customer.ExternalId" } }
+    ] }
+  ],
+  "processes": [{ "name": "CustomerCredits", "launchOn": "Customer", "detail": "\"Credits\"", "flow": [
+      { "kind": "start", "name": "Start", "next": "Load" }, { "kind": "automaticActivity", "name": "Load", "action": "LoadCredits" }, { "kind": "end", "name": "Done" } ] }]
+}
+

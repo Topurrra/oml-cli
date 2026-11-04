@@ -1,0 +1,18 @@
+{
+  "structures": [{ "name": "ClientInfo", "public": true, "attributes": [{ "name": "CustomerId" }, { "name": "FullName" }] }],
+  "restClients": [{ "name": "CrmApi", "baseUrl": "https://crm.example.com", "actions": [
+    { "name": "GetClient", "method": "GET", "url": "/customers/{Id}", "inputs": [{ "name": "Id", "location": "url" }],
+      "outputs": [{ "name": "Response", "type": "ClientInfo" }] },
+    { "name": "GetCreditLines", "method": "GET", "url": "/credits", "inputs": [{ "name": "CustomerId", "location": "query" }],
+      "outputs": [{ "name": "Response", "type": "ClientInfo" }] }
+  ] }],
+  "serverActions": [
+    { "name": "GetClientInfo", "public": true, "inputs": [{ "name": "ClientId" }], "outputs": [{ "name": "Info", "type": "ClientInfo" }], "flow": [
+      { "kind": "execute", "name": "Fetch", "action": "CrmApi.GetClient", "args": { "Id": "ClientId" } },
+      { "kind": "assign", "name": "Out", "assign": { "Info": "Fetch.Response" } }
+    ] },
+    { "name": "GetCredits", "public": true, "inputs": [{ "name": "CustomerId" }], "flow": [
+      { "kind": "execute", "name": "Lines", "action": "CrmApi.GetCreditLines", "args": { "CustomerId": "CustomerId" } }
+    ] }
+  ]
+}

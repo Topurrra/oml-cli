@@ -155,6 +155,13 @@ export const cookbook = [
     ['oml doc --search "service action unable to connect" --library', 'Search the OutSystems 11 docs for platform questions: servers, Service Center, LifeTime, errors.'],
   ] },
   { group: 'Change walkthroughs', items: [
+    ['oml map build falcon --in C:\\Work\\falcon-apps', 'An application map of every module of a project (once; later builds read only the changed files).'],
+    ['oml map overview', 'The project\'s applications, modules and consumed APIs, in a few lines.'],
+    ['oml map uses GetClientInfo', 'Where an element is defined and every flow that calls or reads it, across all applications.'],
+    ['oml map impact CrmApi.GetCreditLines', 'Everything that runs it: callers, the processes and timers that start them.'],
+    ['oml map data Customer', 'Who writes and reads an entity, the processes it launches, and which API values fill its attributes.'],
+    ['oml map api CrmApi.GetClient', 'One API method: who calls it, where its inputs come from, where its outputs go, and the APIs that run after it.'],
+    ['oml map list', 'The maps on this computer.'],
     ['oml flow C:\\Work\\Orders.oml Customer_Save', 'One action\'s flow as nodes and connectors, with positions: what the Dif page draws.'],
     ['oml dif specs\\orders-export.md', 'Read the walkthrough an agent wrote: call stacks, element links, the review of the staged module. Comment and copy your notes back.'],
     ['oml dif specs\\orders-export.md --port 5050 --no-open', 'The same on port 5050, without opening the browser.'],

@@ -1171,6 +1171,23 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 
 **oml memory bench** `<new folder> --records N [--runs R]` is for maintainers (`tests/memory-check.ps1` runs it at 1k and 10k records, and at 100k with `-Speed`): it writes a synthetic store of N records into a new folder and prints the timings above as JSON. `bench --quality <fixture.json>` scores recall on a fixture in memory and writes no store; a fixture record over the limits of `add` or with a secret is refused. Neither is listed in `oml help --all`.
 
+## Map
+
+`oml map` is an application map of a whole project (for example the 24 applications of one domain), for agents that need to know what is where and what depends on what without loading modules.
+
+- `oml map build <project> --in <folder|file.oap|file.oml>... [--app <Name>]...` reads every module once (the same inputs as `oml architecture`; `oml lifetime download` fetches the `.oap` files). Project names are lower-case letters, digits and hyphens, such as `falcon`. The map lives in `%LOCALAPPDATA%\oml-cli\maps\<project>` (`OML_MAPS` overrides it) and is shared by every folder that works on the project. A later `oml map build <project>` reuses the inputs and reads only the files whose bytes changed. A file no module could be read from stays out of the map (`failed`); when no file can be read, the exit code is 1.
+- The current folder remembers its project in `.oml/map.json`, so the queries there need no `--project`. Elsewhere, add `--project <name>`. `oml map list` lists the maps.
+- Every answer says when an input file changed or is gone since the build (`stale`).
+
+| Query | Answer |
+|---|---|
+| `oml map overview` | Applications, their modules (layer, kind, what they hold), the consumed APIs with base URL and method count, totals. |
+| `oml map uses <element>` | Where it is defined and every flow that calls it (`calledBy`), reads it (`readBy`, for an entity) or references its module (`referencedBy`). `Module.Element` picks one module. |
+| `oml map impact <element>` | Every flow that runs it, up through the callers (depth 5), the processes launched on an entity, the timers that start the affected flows, and the modules involved. |
+| `oml map data <Entity>` | Who writes it (`create`, `update`, `createOrUpdate`, `delete`), who reads it, the processes it launches, and the lineage of its attributes: `valuesFrom` (an API output assigned into it) and `valuesTo` (the API inputs it feeds). |
+| `oml map api <Api.Method>` | Verb, URL, inputs (`path`, `query`, `body`, `header`), outputs, whether the module holds a sample response, the flows that call it, `inputsFrom`, `outputsTo`, and `chain`: the APIs that run after it, through entities and the processes launched on them. |
+
+**What the lineage follows.** Only what Service Studio itself sees, never field names: an argument expression that reads another call's output (`Fetch.Response.CustomerId`), an assignment into the record a Create or Update saves (`Rec.ExternalId = ...`), an aggregate or entity Get result passed to a call (`FindCustomers.List.Current.Customer.ExternalId`), and the inputs and outputs of wrapper actions in between (an integration module that calls the API inside a public server action). Processes start from an entity event (`launchOn`), an explicit `Launch<Process>` call or a timer. Screens and blocks that only show data are not traced.
 ## Flow
 
 `oml flow <module.oml> <Action>` prints one flow (an action, a screen action, a data action or a preparation) as a graph, for the Dif page's flow diagrams and for scripts: `{element, kind, nodes: [{id, name, kind, x, y, detail}], edges: [{from, to, kind}]}`. `x` and `y` are Service Studio positions in model units (one grid step is 2660). A node's `id` is its path under the flow (its name, or `Kind[index]` when it has none), so the same node has the same id in a module and its staged copy. `detail` says in one line what the node does (`if N = 1`, `call Customer_Save`, `Total = 0`). Edge kinds are the connector types: `Sequence`, `True`, `False`, `Cycle`, `Otherwise` and so on. An element without a flow (an entity, a block) is an error with exit 2.

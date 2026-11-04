@@ -28,6 +28,7 @@ $skip = [ordered]@{
   'selftest'       = 'takes no path and runs for minutes'
   'doctor'         = 'takes no path'
   'warn'           = 'takes no path'
+  # map build is tested below; the map queries (overview, uses, impact, data, api, list) take names, not paths.
 }
 # A template that starts with ! writes to {p}: there a missing file or a wrong extension may simply succeed (exit 0), and
 # only a missing folder must fail.
@@ -71,6 +72,7 @@ $shapes = [ordered]@{
   'image'                  = @('image {p}', 'image batch {p}', 'image {p} --to svg')
   'log'                    = @('~log summary --file {p}')
   'evolve'                 = @('~evolve report --file {p}', 'evolve report --check {p}', '~evolve propose --file {p}')
+  'map'                    = @('map build badinput --in {p}')
 }
 # The extension a path argument should have, by the first word of the shape (default .oml).
 $ext = @{ 'app' = '.oap'; 'extension' = '.xif'; 'spec' = '.json'; 'run' = '.json'; 'apply' = '.json'; 'log' = '.jsonl'; 'evolve' = '.jsonl';
@@ -88,6 +90,7 @@ Write-Host "ok   badinput: $($commands.Count) help commands accounted for ($($sk
 
 $dir = Join-Path $Tmp ('badinput-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $dir | Out-Null
+$env:OML_MAPS = Join-Path $dir 'maps' # map build must never write the person's maps
 
 # Runs oml with a time limit; returns the exit code and all text.
 function Invoke-Oml([string[]]$arguments, [string]$work) {

@@ -35,6 +35,8 @@ static class CliUsage
         oml preview <module.oml> <Block|Screen|Email> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>] [--wait <ms>] [--click <selector>] [--type <selector>=<text>] [--eval <js>] [--serve [--no-open]]
         oml test scaffold <module.oml> <ServerAction>... --bdd <BDDFramework.oml> [--out <spec.json>] [--module-name <TestModule>] [--producer <path>]   (spec for BDD test screens in a separate test module)
         oml flow <module.oml> <Action>   (one flow as a graph: nodes with their positions and what they do, and the connectors; the Dif page draws it)
+        oml map build <project> [--in <folder|file.oap|file.oml>]... [--app <Name>]...   (an application map of every module of a project: calls, APIs, entities, processes; rebuilds only changed files)
+        oml map overview | uses <element> | impact <element> | data <Entity> | api <Api.Method> | list [--project <name>]   (short answers from the map, without Service Studio)
         oml tree <module.oml> <ElementName> [--depth N]   (object tree of one action, screen, entity, ...; at most 250 parts)
         oml validate <module.oml> [--warnings]
         oml apply <source.oml> <spec.json>... <staged-out.oml> [--describe A,B,...] [--describe-created] [--report <report.json>]
@@ -108,6 +110,7 @@ static class CliUsage
         Commands by area (OutSystems 11 modules; compact JSON out, a readable view in a console):
         Read a module: inspect, describe, find, tree, flow, census, meta, expr, openapi (what a module holds, one element, search, the header, an expression, OpenAPI)
         Change a module: new, apply, install, validate, spec, translations (new module; edit by spec into a staged copy; install after checks; spec keys; translation files)
+        Application map: map (every app of a project: who calls what, which APIs feed which, entities and processes)
         Check and review: check, review, architecture (rules and findings; a change before and after; module map and publish order)
         Preview and UI: preview (a screen or block in light and dark, screenshot, serve it)
         Docs and search: doc, spec, warn, library, skills (OutSystems rules by topic and search; spec keys; cause and fix of a warning; the OutSystems 11 docs; company rules)
