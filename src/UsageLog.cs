@@ -50,6 +50,9 @@ static class UsageLog
         }
     }
 
+    // Set by the launcher's last guard when a command crashed with an exception it turned into a JSON error; only the type name is logged.
+    internal static string? CrashType;
+
     public static bool Enabled => FilePath is not null;
 
     // Runs one whole command with stdout and stderr copied (not held back), then logs it.
@@ -62,18 +65,19 @@ static class UsageLog
         var watch = Stopwatch.StartNew();
         var code = 1;
         string? crash = null;
+        CrashType = null;
         try { code = run(); return code; }
-        catch (Exception e) { crash = e.Message; throw; }
+        catch (Exception e) { crash = e.Message; CrashType = e.GetType().Name; throw; }
         finally
         {
             watch.Stop();
             Console.SetOut(originalOut);
             Console.SetError(originalError);
-            Record(args, code, watch.ElapsedMilliseconds, copyOut.Bytes, copyOut.Text, crash ?? copyError.Text);
+            Record(args, code, watch.ElapsedMilliseconds, copyOut.Bytes, copyOut.Text, crash ?? copyError.Text, crashType: CrashType);
         }
     }
 
-    public static void Record(IReadOnlyList<string> args, int exitCode, long ms, long bytes, string stdout, string stderr, bool inRun = false)
+    public static void Record(IReadOnlyList<string> args, int exitCode, long ms, long bytes, string stdout, string stderr, bool inRun = false, string? crashType = null)
     {
         var path = FilePath;
         if (path is null || args.Count == 0) return;
@@ -86,6 +90,7 @@ static class UsageLog
             };
             if (ModuleName(args) is { } module) line["module"] = module;
             if (exitCode != 0) line["error"] = Clean(Problem(stdout, stderr) ?? "(no message)");
+            if (crashType is not null) line["crash"] = crashType;
             if (inRun) line["run"] = true;
             if (Session() is { } session) line["session"] = session;
             var options = args.Skip(1).Where(a => OptionName.IsMatch(a)).Distinct(StringComparer.Ordinal).ToArray();

@@ -81,6 +81,7 @@ public static partial class Cli
     {
         outPath = Path.GetFullPath(outPath);
         if (File.Exists(outPath)) throw new CliError($"Output already exists: {outPath}. Use a new output path, or delete that file first.", 2);
+        if (Path.GetDirectoryName(outPath) is { Length: > 0 } folder && !Directory.Exists(folder)) throw new CliError($"The folder does not exist: {folder}. Create it first, or give an output path in an existing folder.", 2);
         var services = Model.Services();
         var segmentation = Enum.Parse<SegmentationKind>(kind ?? "WebResponsive", ignoreCase: true);
         name ??= Path.GetFileNameWithoutExtension(outPath);

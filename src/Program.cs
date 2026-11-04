@@ -43,7 +43,22 @@ public static class Program
         if (Console.IsErrorRedirected) Console.SetError(new StreamWriter(Console.OpenStandardError(), utf8) { AutoFlush = true });
     }
 
+    // The last guard: whatever a command did not handle itself becomes one JSON error, never a .NET stack trace.
+    // Core is called by reflection, so the real exception sits inside a TargetInvocationException.
     static int Dispatch(string[] args, string[] filtered)
+    {
+        try { return DispatchCommand(args, filtered); }
+        catch (Exception e)
+        {
+            while (e is TargetInvocationException { InnerException: { } inner }) e = inner;
+            UsageLog.CrashType = e.GetType().Name; // the usage log still sees a crash, though the exit code is an ordinary one
+            var path = e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException;
+            TerminalOutput.PrintObject(new { error = e.Message, hint = path ? "Check the path and the arguments of the command (oml <command> --help)." : "This is a bug in oml. Report the command and this message; the usage log notes it as a crash." });
+            return path ? 2 : 1;
+        }
+    }
+
+    static int DispatchCommand(string[] args, string[] filtered)
     {
         TerminalOutput.Command = filtered.FirstOrDefault();
         // Hidden maintainer command: the renderer's unit-style self-tests (no console, no Service Studio).

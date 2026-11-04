@@ -60,7 +60,8 @@ static class ModuleHeader
             if (got != first.Length) return null;
             if (first[0] == 79 && first[1] == 77 && first[2] == 76) return ReadNewFormat(stream);
             if (BytesStartWithXml(first)) return ReadOldXml(stream);
-            return ReadOldZipNotDecoded();
+            if (first[0] == (byte)'P' && first[1] == (byte)'K') return ReadOldZipNotDecoded(); // any other bytes are not a module, not an old ZIP one
+            return null;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException or System.Xml.XmlException)
         {
