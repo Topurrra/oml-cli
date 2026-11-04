@@ -1,0 +1,224 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using OutSystems.Model;
+using OutSystems.Model.Data;
+
+namespace OmlCli;
+
+// `oml test data module <producer.oml> --entity <Entity>:<CreateAction>:<DeleteAction>... [--read <Entity>]... [--name <Module>]
+// [--out <spec.json>]`: the spec of a separate test-data module for dev environments, so an agent can create, read and
+// clean up test data in the database through oml only (`oml test data create|check|cleanup`). It never goes in the real
+// module (rule 1: everything there reaches production), and it writes only through the producer's own public actions
+// that the user names: entities stay read-only to consumers (rule 7). Every created record goes into a ledger
+// (TestDataLedger: run, entity, id), and cleanup deletes exactly the ledger's records of a run. Every REST method first
+// checks the X-Test-Data-Key header against the TestDataKey site property, set per environment in Service Center; while
+// the property is empty every call is refused, so the module does nothing where nobody set a key.
+static class TestDataModule
+{
+    sealed record Writable(string Entity, string Create, string RecordInput, string IdOutput, string Delete, string IdInput);
+
+    public static int Run(List<string> args)
+    {
+        // args: test data module <producer.oml> ...
+        if (args.Count < 4) throw new CliError("Usage: oml test data module <producer.oml> --entity <Entity>:<CreateAction>:<DeleteAction>... [--read <Entity>]... [--name <Module>] [--out <spec.json>]", 2);
+        var producer = Path.GetFullPath(args[3]);
+        var entitySpecs = new List<string>();
+        var reads = new List<string>();
+        string? name = null, outFile = null;
+        for (var i = 4; i < args.Count; i++)
+        {
+            if (i + 1 >= args.Count) throw new CliError($"{args[i]} needs a value.", 2);
+            switch (args[i])
+            {
+                case "--entity": entitySpecs.Add(args[++i]); break;
+                case "--read": reads.Add(args[++i]); break;
+                case "--name": name = args[++i]; break;
+                case "--out": outFile = Path.GetFullPath(args[++i]); break;
+                default: throw new CliError($"Unknown option {args[i]}.", 2);
+            }
+        }
+        if (entitySpecs.Count == 0) throw new CliError("Name at least one entity with the public actions that create and delete it: --entity Customer:CreateCustomer:DeleteCustomer. Ask the user which actions; never add public actions to the real module for this without their yes.", 2);
+
+        using var open = Model.Load(producer);
+        var m = open;
+        var moduleName = Model.NameOf(m)!;
+        name ??= moduleName + "TestData";
+        outFile ??= Path.Combine(Path.GetDirectoryName(producer)!, name + ".spec.json");
+        if (File.Exists(outFile)) throw new CliError($"{outFile} exists. Give a new --out path.", 2);
+
+        var writables = new List<Writable>();
+        foreach (var spec in entitySpecs)
+        {
+            var parts = spec.Split(':');
+            if (parts.Length != 3) throw new CliError($"--entity {spec}: write Entity:CreateAction:DeleteAction.", 2);
+            var entity = PublicEntity(m, parts[0]);
+            var create = PublicAction(m, parts[1]);
+            var delete = PublicAction(m, parts[2]);
+            var recordInput = Params(create, "InputParameters").FirstOrDefault(p => Model.Describe(m, p.type) == entity.Name);
+            if (recordInput.name is null) throw new CliError($"{parts[1]} has no input of type {entity.Name} (the record to create). Name an action that takes the {entity.Name} record.", 2);
+            var idOutput = Params(create, "OutputParameters").FirstOrDefault(p => Model.Describe(m, p.type) == entity.Name + " Identifier");
+            if (idOutput.name is null) throw new CliError($"{parts[1]} has no output of type {entity.Name} Identifier, so the ledger cannot record what it created.", 2);
+            var idInput = Params(delete, "InputParameters").FirstOrDefault(p => Model.Describe(m, p.type) == entity.Name + " Identifier");
+            if (idInput.name is null) throw new CliError($"{parts[2]} has no input of type {entity.Name} Identifier (the record to delete).", 2);
+            if (Model.Describe(m, entity.IdentifierAttribute?.DataType) is not ("Long Integer" or "Integer"))
+                throw new CliError($"{entity.Name} has a {Model.Describe(m, entity.IdentifierAttribute?.DataType)} identifier; test data supports number identifiers only.", 2);
+            writables.Add(new Writable(entity.Name, parts[1], recordInput.name, idOutput.name, parts[2], idInput.name));
+        }
+        foreach (var r in reads) PublicEntity(m, r);
+        var readable = writables.Select(w => w.Entity).Concat(reads).Distinct(StringComparer.Ordinal).ToList();
+
+        var spec2 = Build(producer, writables, readable);
+        File.WriteAllText(outFile, "// Test-data module for DEV environments only. Generated by oml test data module; see oml doc commands#test-data.\n"
+            + spec2.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + "\n");
+        var blank = Path.Combine(Path.GetDirectoryName(outFile)!, name + ".blank.oml");
+        var staged = Path.Combine(Path.GetDirectoryName(outFile)!, name + ".oml");
+        return Cli.Emit(new
+        {
+            spec = outFile, module = name, writes = writables.Select(w => w.Entity).ToArray(), reads = readable,
+            next = new[]
+            {
+                $"oml new {blank} --name {name} --kind CrossDevice",
+                $"oml apply {blank} {outFile} {staged}",
+                "Ask the user before publishing it, and publish it to a DEV environment only (oml publish).",
+                "In Service Center, set the module's TestDataKey site property to a long random value (dev only).",
+                "Set OML_TESTDATA_URL to the API's URL (https://<dev>/" + name + "/rest/TestDataApi) and OML_TESTDATA_KEY to the key, then: oml test data allow <dev host>",
+            },
+        });
+    }
+
+    static IEntitySignature PublicEntity(IESpace m, string name)
+    {
+        var e = m.Entities.FirstOrDefault(x => x.Name == name) ?? throw new CliError($"No entity {name} in {Model.NameOf(m)}.", 2);
+        if (!e.Public) throw new CliError($"{name} is not public, so another module cannot read it. Ask the user whether it may be public (rule 7 applies to exposeReadOnly, not to Public).", 2);
+        return e;
+    }
+
+    static IObjectSignature PublicAction(IESpace m, string name)
+    {
+        var a = m.ServerActions.Cast<IObjectSignature>().Concat(m.ServiceActions).FirstOrDefault(x => Model.NameOf(x) == name)
+            ?? throw new CliError($"No server action {name} in {Model.NameOf(m)}.", 2);
+        if (Reflect.Get(a, "Public") is not true) throw new CliError($"{name} is not public. The test-data module calls it from another module; ask the user whether it may be public.", 2);
+        return a;
+    }
+
+    static List<(string name, OutSystems.Model.Types.ITypeSignature? type)> Params(IObjectSignature action, string key) =>
+        ((Reflect.Get(action, key) as System.Collections.IEnumerable)?.Cast<object>() ?? [])
+            .Select(p => (Model.NameOf(p)!, Reflect.Get(p, "DataType") as OutSystems.Model.Types.ITypeSignature)).ToList();
+
+    static JsonNode N(object value) => JsonSerializer.SerializeToNode(value)!;
+
+    static JsonObject Build(string producer, List<Writable> writes, List<string> reads)
+    {
+        var refs = writes.SelectMany(w => new[] { w.Entity, w.Create, w.Delete }).Concat(reads).Distinct().ToArray();
+        var actions = new JsonArray
+        {
+            N(new { name = "CheckKey", description = "Refuses the call unless X-Test-Data-Key matches the TestDataKey site property (and the property is set).",
+                inputs = new[] { new { name = "Key", mandatory = false } },
+                flow = new object[]
+                {
+                    new { kind = "if", name = "KeyMatches", condition = "Site.TestDataKey <> \"\" and Key = Site.TestDataKey", @true = "End", @false = "Refuse" },
+                    new { kind = "raiseException", name = "Refuse", exception = "TestDataRefused", message = "\"Wrong or missing X-Test-Data-Key, or the TestDataKey site property is not set\"" },
+                } }),
+        };
+        var rest = new JsonArray();
+        foreach (var w in writes)
+        {
+            actions.Add(N(new
+            {
+                name = "Create_" + w.Entity, description = $"Creates a {w.Entity} through {w.Create} and records it in the ledger of the run.",
+                inputs = new object[] { new { name = "Key", mandatory = false }, new { name = "RunId", mandatory = true }, new { name = "Record", type = w.Entity, mandatory = true } },
+                outputs = new[] { new { name = "Id", type = "Long Integer" } },
+                locals = new[] { new { name = "Entry", type = "TestDataLedger" } },
+                flow = new object[]
+                {
+                    new { kind = "execute", name = "Check", action = "CheckKey", args = new { Key = "Key" } },
+                    new { kind = "execute", name = "Save", action = w.Create, args = new Dictionary<string, string> { [w.RecordInput] = "Record" } },
+                    new { kind = "assign", name = "Fill", assign = new Dictionary<string, string>
+                    {
+                        ["Entry.RunId"] = "RunId", ["Entry.EntityName"] = $"\"{w.Entity}\"",
+                        ["Entry.RecordId"] = $"IdentifierToLongInteger(Save.{w.IdOutput})", ["Entry.CreatedOn"] = "CurrDateTime()",
+                    } },
+                    new { kind = "execute", name = "Log", action = "CreateTestDataLedger", args = new { Source = "Entry" } },
+                    new { kind = "assign", name = "Out", assign = new Dictionary<string, string> { ["Id"] = $"IdentifierToLongInteger(Save.{w.IdOutput})" } },
+                },
+            }));
+            actions.Add(N(new
+            {
+                name = "Cleanup_" + w.Entity, description = $"Deletes, through {w.Delete}, every {w.Entity} the ledger holds for the run, and their ledger rows.",
+                inputs = new object[] { new { name = "Key", mandatory = false }, new { name = "RunId", mandatory = true } },
+                outputs = new[] { new { name = "Deleted", type = "Integer" } },
+                flow = new object[]
+                {
+                    new { kind = "execute", name = "Check", action = "CheckKey", args = new { Key = "Key" } },
+                    new { kind = "aggregate", name = "Rows", sources = new[] { "TestDataLedger" }, filters = new[] { "TestDataLedger.RunId = RunId", $"TestDataLedger.EntityName = \"{w.Entity}\"" } },
+                    new { kind = "assign", name = "Count", assign = new Dictionary<string, string> { ["Deleted"] = "Rows.List.Length" } },
+                    new { kind = "forEach", name = "Each", recordList = "Rows.List", cycle = "Remove", next = "End" },
+                    new { kind = "execute", name = "Remove", action = w.Delete, args = new Dictionary<string, string> { [w.IdInput] = "LongIntegerToIdentifier(Rows.List.Current.TestDataLedger.RecordId)" } },
+                    new { kind = "execute", name = "Forget", action = "DeleteTestDataLedger", args = new { Id = "Rows.List.Current.TestDataLedger.Id" }, next = "Each" },
+                },
+            }));
+            rest.Add(N(new
+            {
+                name = "Create" + w.Entity, method = "POST", url = $"/runs/{{RunId}}/{w.Entity}",
+                inputs = new object[] { new { name = "RunId", location = "url" }, new { name = "Key", location = "header", headerName = "X-Test-Data-Key" }, new { name = "Record", type = w.Entity, location = "body", mandatory = true } },
+                outputs = new[] { new { name = "Id", type = "Long Integer" } },
+                flow = new object[]
+                {
+                    new { kind = "execute", name = "Run", action = "Create_" + w.Entity, args = new { Key = "Key", RunId = "RunId", Record = "Record" } },
+                    new { kind = "assign", name = "Out", assign = new Dictionary<string, string> { ["Id"] = "Run.Id" } },
+                },
+            }));
+            rest.Add(N(new
+            {
+                name = "Cleanup" + w.Entity, method = "DELETE", url = $"/runs/{{RunId}}/{w.Entity}",
+                inputs = new object[] { new { name = "RunId", location = "url" }, new { name = "Key", location = "header", headerName = "X-Test-Data-Key" } },
+                outputs = new[] { new { name = "Deleted", type = "Integer" } },
+                flow = new object[]
+                {
+                    new { kind = "execute", name = "Run", action = "Cleanup_" + w.Entity, args = new { Key = "Key", RunId = "RunId" } },
+                    new { kind = "assign", name = "Out", assign = new Dictionary<string, string> { ["Deleted"] = "Run.Deleted" } },
+                },
+            }));
+        }
+        foreach (var e in reads)
+        {
+            actions.Add(N(new
+            {
+                name = "Read_" + e, description = $"Reads one {e} by its id.",
+                inputs = new object[] { new { name = "Key", mandatory = false }, new { name = "Id", type = "Long Integer", mandatory = true } },
+                outputs = new object[] { new { name = "Record", type = e }, new { name = "Found", type = "Boolean" } },
+                flow = new object[]
+                {
+                    new { kind = "execute", name = "Check", action = "CheckKey", args = new { Key = "Key" } },
+                    new { kind = "aggregate", name = "Match", sources = new[] { e }, filters = new[] { $"{e}.Id = LongIntegerToIdentifier(Id)" }, maxRecords = 1 },
+                    new { kind = "assign", name = "Out", assign = new Dictionary<string, string> { ["Record"] = $"Match.List.Current.{e}", ["Found"] = "not Match.List.Empty" } },
+                },
+            }));
+            rest.Add(N(new
+            {
+                name = "Read" + e, method = "GET", url = $"/{e}/{{Id}}",
+                inputs = new object[] { new { name = "Id", type = "Long Integer", location = "url" }, new { name = "Key", location = "header", headerName = "X-Test-Data-Key" } },
+                // One body output only (an exposed REST rule): a record whose Id is 0 means not found.
+                outputs = new object[] { new { name = "Record", type = e } },
+                flow = new object[]
+                {
+                    new { kind = "execute", name = "Run", action = "Read_" + e, args = new { Key = "Key", Id = "Id" } },
+                    new { kind = "assign", name = "Out", assign = new Dictionary<string, string> { ["Record"] = "Run.Record" } },
+                },
+            }));
+        }
+        return new JsonObject
+        {
+            ["references"] = new JsonArray(N(new { producer, elements = refs })),
+            ["exceptions"] = N(new[] { "TestDataRefused" }),
+            ["siteProperties"] = N(new[] { new { name = "TestDataKey", type = "Text", @default = "\"\"", description = "Set per DEV environment in Service Center. While empty, every call is refused." } }),
+            ["entities"] = N(new[] { new { name = "TestDataLedger", description = "What oml test data created, per run, so cleanup deletes exactly that.", attributes = new object[]
+            {
+                new { name = "RunId", length = 50, mandatory = true }, new { name = "EntityName", length = 100, mandatory = true },
+                new { name = "RecordId", type = "Long Integer", mandatory = true }, new { name = "CreatedOn", type = "Date Time" },
+            } } }),
+            ["serverActions"] = actions,
+            ["restServices"] = N(new[] { new { name = "TestDataApi", actions = rest } }),
+        };
+    }
+}
