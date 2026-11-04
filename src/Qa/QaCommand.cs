@@ -57,7 +57,7 @@ static class QaCommand
         public int Int(string name, int fallback) => Get(name) is { } v ? int.TryParse(v, out var n) && n > 0 ? n : throw new QaUsage($"{name} takes a positive number.") : fallback;
     }
 
-    public static readonly string[] Valued = ["--base-url", "--width", "--height", "--timeout", "--out", "--screenshot", "--engine"];
+    public static readonly string[] Valued = ["--base-url", "--width", "--height", "--timeout", "--out", "--screenshot", "--engine", "--save"];
     static readonly string[] Flags = ["--headed", "--continue", "--no-session"];
 
     public static Settings Options(string[] args)
@@ -117,7 +117,10 @@ static class QaCommand
         var (browser, engineNote) = shared ?? await Engine(o, width, height);
         try
         {
-            var runner = new QaRunner(browser, baseUrl, timeout, outDir);
+            var save = o.Get("--save") is { } s ? Path.GetFullPath(s) : null;
+            if (save is not null && (File.Exists(save) || string.Equals(save, Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase)))
+                throw new QaUsage($"--save: {save} exists. Save to a new file; the file you ran stays as it is.");
+            var runner = new QaRunner(browser, baseUrl, timeout, outDir, capture: save is not null);
             var results = new JsonArray();
             int passed = 0, failed = 0, n = 0;
             foreach (var step in steps.EnumerateArray())
@@ -134,6 +137,16 @@ static class QaCommand
                 ["ms"] = clock.ElapsedMilliseconds, ["baseUrl"] = baseUrl?.AbsoluteUri, ["engine"] = browser.Mode, ["engineNote"] = engineNote,
                 ["session"] = shared is null ? null : true, ["steps"] = results,
             };
+            if (save is not null)
+            {
+                if (failed > 0) report["saved"] = "Nothing saved: a step failed. Fix it and run again with --save.";
+                else
+                {
+                    await File.WriteAllTextAsync(save, Saved(root, steps, results, browser.Mode, baseUrl));
+                    report["saved"] = save;
+                    report["replay"] = $"oml qa run {save}";
+                }
+            }
             if (o.Has("--out"))
             {
                 Directory.CreateDirectory(outDir);
@@ -186,6 +199,40 @@ static class QaCommand
             return (0, Prune(page));
         }
         finally { if (shared is null) browser.Dispose(); }
+    }
+
+    // A passing run as a QA file to replay without an agent: the same steps, each action with a time limit from what it took
+    // (three times as long, at least 2 seconds; never a fixed wait), and, where a step checked nothing, the screen it ended
+    // on and the calls it made (DevTools only). Secrets stay "$env:NAME" references, as the file had them.
+    static string Saved(JsonElement root, JsonElement steps, JsonArray results, string mode, Uri? baseUrl)
+    {
+        var file = JsonNode.Parse(root.GetRawText())!.AsObject();
+        if (baseUrl is not null) file["baseUrl"] = baseUrl.AbsoluteUri;
+        var saved = new JsonArray();
+        var i = 0;
+        foreach (var step in steps.EnumerateArray())
+        {
+            var s = JsonNode.Parse(step.GetRawText())!.AsObject();
+            var r = results[i++]!.AsObject();
+            var action = s.Select(p => p.Key).FirstOrDefault(k => k is "open" or "click" or "fill" or "select" or "press");
+            if (action is not null)
+            {
+                var ms = r["ms"]?.GetValue<long>() ?? 0;
+                s["maxMs"] ??= (long)Math.Ceiling(Math.Max(ms * 3, 2000) / 500.0) * 500;
+                if (s["expect"] is null && action is not "fill")
+                {
+                    var expect = new JsonObject();
+                    if (r["screen"]?.GetValue<string>() is { Length: > 0 } screen) expect["screen"] = screen;
+                    if (mode == "cdp" && r["calls"] is JsonArray calls && calls.OfType<JsonObject>().Select(c => c["name"]?.GetValue<string>()).FirstOrDefault(n => n is { Length: > 0 }) is { } call)
+                        expect["call"] = call;
+                    if (expect.Count > 0) s["expect"] = expect;
+                }
+            }
+            saved.Add(s);
+        }
+        file["steps"] = saved;
+        file["saved"] = $"oml qa run --save, {DateTime.Now:yyyy-MM-dd HH:mm}: a passing run. Replay it with oml qa run; no agent needed.";
+        return file.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + "\n";
     }
 
     // Drops empty arrays and nulls, so an agent reads only what is there.

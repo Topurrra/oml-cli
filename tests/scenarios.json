@@ -1,0 +1,23 @@
+{
+  "exceptions": ["NameRequired"],
+  "entities": [{ "name": "Contact", "attributes": [{ "name": "Name" }] }],
+  "serverActions": [
+    { "name": "SaveContact", "public": true, "inputs": [{ "name": "Name", "mandatory": true }], "locals": [{ "name": "Rec", "type": "Contact" }],
+      "flow": [
+        { "kind": "if", "name": "HasName", "condition": "Name <> \"\"", "true": "Keep", "false": "Missing" },
+        { "kind": "assign", "name": "Keep", "assign": { "Rec.Name": "Name" } },
+        { "kind": "execute", "name": "Save", "action": "CreateContact", "args": { "Source": "Rec" }, "next": "End" },
+        { "kind": "raiseException", "name": "Missing", "exception": "NameRequired", "message": "\"Name is required\"" } ] },
+    { "name": "Helper", "flow": [{ "kind": "end" }] }
+  ],
+  "screens": [{ "name": "ContactForm", "locals": [{ "name": "NewName" }],
+    "actions": [{ "name": "Save", "flow": [
+      { "kind": "if", "name": "Filled", "condition": "NewName <> \"\"", "true": "CallSave", "false": "Warn" },
+      { "kind": "execute", "name": "CallSave", "action": "SaveContact", "args": { "Name": "NewName" } },
+      { "kind": "message", "name": "Done", "message": "\"Contact saved\"", "type": "success", "next": "End" },
+      { "kind": "message", "name": "Warn", "message": "\"Type a name\"", "type": "warning", "next": "End" } ] }],
+    "widgets": [
+      { "type": "Input", "name": "NameInput", "variable": "NewName" },
+      { "type": "Button", "name": "SaveButton", "onClick": "Save", "children": [{ "type": "Text", "text": "Save" }] }
+    ] }]
+}

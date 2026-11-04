@@ -289,7 +289,8 @@ public static partial class Cli
     static int? CmdOpenApi(List<string> args) => args.Count >= 2 ? OpenApi.Run(args) : null;
 
     // Writes a spec file; reads the two modules and never saves them.
-    static int? CmdTest(List<string> args) => args.Count >= 4 && args[1] == "scaffold" ? TestScaffold.Run(args) : null;
+    static int? CmdTest(List<string> args) => args.Count >= 4 && args[1] == "scaffold" ? TestScaffold.Run(args)
+        : args.Count >= 4 && args[1] == "scenarios" ? Scenarios.Run(args) : null;
 
     static int? CmdPreview(List<string> args) => args.Count >= 3 ? Preview.Run(args) : null;
 

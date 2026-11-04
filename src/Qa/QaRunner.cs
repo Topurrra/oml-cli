@@ -8,7 +8,8 @@ namespace OmlCli.Qa;
 // Runs the steps of a QA file like a tester would: one action per step, then wait until the screen is ready, then
 // the step's expectations (retried until they hold or the timeout passes), then the checks every step gets for free:
 // no JavaScript exception, no failed request, no server exception from an OutSystems call, no error feedback message.
-sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string shotDir)
+// capture: also report the screen each step ended on, for `qa run --save`.
+sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string shotDir, bool capture = false)
 {
     static readonly string[] Actions = ["open", "click", "fill", "select", "press", "wait", "screenshot", "expect"];
     // Words that make a click destructive. Such a click needs "allowDestructive": true in its step.
@@ -42,6 +43,10 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
             }
             // Opening also covers the browser's cold start and the app's first load: at least 30 seconds.
             if (action is "open" or "click" or "fill" or "select" or "press") result["readyMs"] = await browser.WaitReady(action == "open" ? Math.Max(timeoutMs, 30_000) : timeoutMs);
+            // A time limit from a saved run: slower than it means the app got slower, not that the test should wait longer.
+            if (step.TryGetProperty("maxMs", out var max) && max.TryGetInt64(out var limit) && clock.ElapsedMilliseconds > limit)
+                throw new QaFailure($"{action} took {clock.ElapsedMilliseconds} ms; the limit is {limit} ms (maxMs). The app is slower than when the file was saved.");
+            if (capture && action is not ("wait" or "screenshot")) { var path = new Uri(await browser.Url()).AbsolutePath.TrimEnd('/'); result["screen"] = Uri.UnescapeDataString(path[(path.LastIndexOf('/') + 1)..]); }
             if (step.TryGetProperty("expect", out var expect)) await Expect(expect, seq);
             var allowErrors = step.TryGetProperty("allowErrors", out var ae) && ae.GetBoolean();
             var calls = await Calls(seq);
@@ -255,7 +260,7 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
     {
         "fill" or "select" when value.ValueKind == JsonValueKind.Object =>
             action + " " + string.Join(", ", value.EnumerateObject().Select(p => $"{p.Name}={(p.Value.ToString().StartsWith("$env:") ? p.Value.ToString() : Quote(p.Value.ToString()))}")),
-        "expect" => "expect " + value,
+        "expect" => "expect " + JsonSerializer.Serialize(value), // one line, however the file indents it
         _ => action + " " + value,
     };
 

@@ -56,6 +56,7 @@ $shapes = [ordered]@{
   'openapi'                = @('openapi {p}')
   'preview'                = @('preview {p} Foo')
   'test scaffold'          = @('test scaffold {p} Foo --bdd {p}')
+  'test scenarios'         = @('test scenarios {p} {p}', 'test scenarios {p} {o}')
   'flow'                   = @('flow {p} Foo')
   'tree'                   = @('tree {p} Foo')
   'validate'               = @('validate {p}')

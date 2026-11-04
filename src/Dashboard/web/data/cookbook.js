@@ -42,6 +42,7 @@ export const cookbook = [
     ['oml check --diff C:\\Work\\Orders.oml C:\\Work\\Orders.staged.oml', 'Which check findings the change fixed and which it introduced, per rule. Exit code 1 when one is introduced.'],
     ['oml review C:\\Work\\Orders.oml C:\\Work\\Orders.staged.oml --md C:\\Work\\Orders.review.md', 'What changed, the production-rule risks and new findings. Run it before you install.'],
     ['oml review C:\\Work\\Orders.oml C:\\Work\\Orders.staged.oml --out C:\\Work\\review.html --notes C:\\Work\\release-notes.md', 'Write the review as a web page, and short release notes for testers.'],
+    ['oml test scenarios C:\\Work\\Orders.oml C:\\Work\\Orders.staged.oml', 'What to test after a change: BDD scenarios per new or changed public action, QA scenarios and qa.json skeletons per screen.'],
     ['oml test scaffold C:\\Work\\Orders.oml Order_Save --bdd C:\\Work\\BDDFramework.oml --out C:\\Work\\orders-tests.json', 'Write a spec for BDD test screens in a separate test module.'],
   ] },
   { group: 'Rules and help', items: [
@@ -75,6 +76,7 @@ export const cookbook = [
     ['oml preview C:\\Work\\Orders.staged.oml LoginForm --type "#Username=ana" --click "#Login" --wait 500 --screenshot C:\\Work\\login.png', 'Type, click and wait before the screenshot.'],
     ['oml preview C:\\Work\\Orders.staged.oml StatusBadge --serve', 'A live preview in your browser that reloads when the file changes. Ctrl+C stops it.'],
     ['oml qa page https://dev.example.com/Orders/OrdersList', 'Test the running app: what the screen shows (actions, inputs, tables, messages, errors) in a browser of its own.'],
+    ['oml qa run login.qa.json --save login.replay.json', 'Save a passing run with time limits and screen checks, so anyone can replay it without an agent.'],
     ['oml qa run C:\\Work\\orders-qa.json --out C:\\Work\\qa', 'Run QA steps like a manual tester (open, click, fill, expect). Writes the report and screenshots of failed steps.'],
     ['oml qa record https://dev.example.com/Orders/OrdersList --out C:\\Work\\orders-qa.jsonc', 'Click through the app once; oml writes the QA file. Close the window to finish.'],
     ['oml qa start', 'Keep one browser open, so the next qa run and qa page start at once and keep your login.'],

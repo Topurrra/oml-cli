@@ -34,6 +34,7 @@ static class CliUsage
         oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
         oml preview <module.oml> <Block|Screen|Email> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>] [--wait <ms>] [--click <selector>] [--type <selector>=<text>] [--eval <js>] [--serve [--no-open]]
         oml test scaffold <module.oml> <ServerAction>... --bdd <BDDFramework.oml> [--out <spec.json>] [--module-name <TestModule>] [--producer <path>]   (spec for BDD test screens in a separate test module)
+        oml test scenarios <source.oml> <staged.oml> [--out <folder>]   (what to test after a change: BDD scenarios per new or changed public action, QA scenarios and qa.json skeletons per screen)
         oml flow <module.oml> <Action>   (one flow as a graph: nodes with their positions and what they do, and the connectors; the Dif page draws it)
         oml map build <project> [--in <folder|file.oap|file.oml>]... [--app <Name>]...   (an application map of every module of a project: calls, APIs, entities, processes; rebuilds only changed files)
         oml map overview | uses <element> | impact <element> | data <Entity> | api <Api.Method> | list [--project <name>]   (short answers from the map, without Service Studio)
@@ -78,7 +79,7 @@ static class CliUsage
         oml references <Module | file.oml>  (Refresh All references through Service Studio)
         oml lt environments|teams|team-apps|apps|download|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lt' for usage)
         oml qa page <url> [--headed] [--width N] [--height N] [--timeout <ms>] [--screenshot <file.png>] [--engine auto|cdp|uia] [--no-session]   (test a running app: what the screen shows, compactly: actions, inputs, tables, messages, layout, the OutSystems calls it made, errors)
-        oml qa run <qa.json> [--base-url <url>] [--headed] [--width N] [--height N] [--timeout <ms>] [--out <folder>] [--continue] [--engine auto|cdp|uia] [--no-session]   (run QA steps like a manual tester: open, click, fill, select, press, wait, expect; exit 1 when a step fails)
+        oml qa run <qa.json> [--save <new.json>] [--base-url <url>] [--headed] [--width N] [--height N] [--timeout <ms>] [--out <folder>] [--continue] [--engine auto|cdp|uia] [--no-session]   (run QA steps like a manual tester: open, click, fill, select, press, wait, expect; exit 1 when a step fails)
         oml qa record <url> [--out <qa.jsonc>] [--engine auto|cdp|uia] [--width N] [--height N]   (open the app in a window and write a QA file from what you click and type; close the window or press Ctrl+C to finish)
         oml qa start [--engine auto|cdp|uia] [--headed] [--width N] [--height N]   (keep one browser open: later qa run and qa page skip the browser start and keep the login)
         oml qa stop   (close the browser of oml qa start)

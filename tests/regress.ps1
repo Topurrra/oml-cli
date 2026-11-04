@@ -256,6 +256,11 @@ Unit 'content-check' {
 Unit 'lifetime-check' -Alone {
   try { & (Join-Path $tests "lifetime-check.ps1") -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL LifeTime checks: $_" }
 }
+# qa-replay-check drives a real browser window against a local page; one browser at a time.
+Unit 'qa-replay-check' -Alone {
+  try { & (Join-Path $tests 'qa-replay-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL qa replay checks: $_" }
+}
 # log-check also appends to and trims the person's default usage log (OML_LOG=1), so it runs alone.
 Unit 'log-check' -Alone {
   try { & (Join-Path $tests 'log-check.ps1') -Oml $oml -Tmp $tmp }
@@ -297,6 +302,10 @@ Unit 'hooks-check' {
 Unit 'memory-check' {
   try { & (Join-Path $tests 'memory-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL memory checks: $_" }
+}
+Unit 'scenarios-check' {
+  try { & (Join-Path $tests 'scenarios-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL scenarios checks: $_" }
 }
 Unit 'map-check' {
   try { & (Join-Path $tests 'map-check.ps1') -Oml $oml -Tmp $tmp }
@@ -381,7 +390,7 @@ Unit 'selftest' -Alone {
 
 # --- Smoke tier: -Smoke keeps only the quick units. The fixtures (tmp\base) are built once above, as for the full run. ---
 # Chosen for speed and breadth: text and parser checks, the spec and doc tooling, hooks, the usage log, encoding, and a few apply fixtures.
-$smokeUnits = 'map-check', 'logic.json', 'service.json', 'web.json', 'datamodel.json', 'edits.json', 'edits-check', 'names-check', 'validate-check', 'parsers-check', 'encoding-check',
+$smokeUnits = 'map-check', 'scenarios-check', 'logic.json', 'service.json', 'web.json', 'datamodel.json', 'edits.json', 'edits-check', 'names-check', 'validate-check', 'parsers-check', 'encoding-check',
   'hooks-check', 'spec-check', 'doc-check', 'evolve-check', 'inspect-check', 'turns-check', 'log-check'
 if ($Smoke) {
   $unknown = @($smokeUnits | Where-Object { $n = $_; -not ($units | Where-Object { $_.Name -eq $n }) })

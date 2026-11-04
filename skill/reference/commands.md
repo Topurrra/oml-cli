@@ -860,6 +860,14 @@ Repeat `--server` for environment base URLs. Otherwise the server uses `https://
 
 Exposed REST has no typed request/response format setting on this build; Text bodies use `text/plain`, other bodies use `application/json`. Success defaults to `200`, without content for no body output. Runtime status overrides and callbacks are not inferred. Error responses share `OutSystemsError`, assumed to be `{ "Errors": [string], "StatusCode": integer }`; installed documentation did not confirm the shape. `401` appears only for authenticated APIs. Static entity IDs are omitted from enums because the typed static record contract exposes symbolic identifiers and expressions, not runtime numeric IDs. Unknown types have an unconstrained schema with an OutSystems type description. Recursive example cycles use a placeholder string that needs a valid example supplied by the user.
 
+## Test scenarios
+
+`oml test scenarios <source.oml> <staged.oml> [--out <folder>]` lists what to test after a change, from the model. It compares the source module with the staged copy and covers every public server or service action and every screen the change created or changed (a change is any node, widget, name or expression under it). The output folder (default `<staged>.scenarios`) must be new or empty.
+
+- **Server logic (BDD).** Per action: the main path (valid inputs, its outputs, the entities it saves or deletes), each If branch (true and false), each Switch case and Otherwise, each exception it raises or handles, and each mandatory Text or Identifier input left empty. BDDFramework tests server logic, not screens; build the tests with the printed `oml test scaffold` command.
+- **Screens (QA).** Per screen: it opens, and per named button or link with an action, one scenario per path through that action (the If conditions on the way), with the messages and screens the user then sees. A screen aggregate adds an empty-list scenario. An unnamed button gets a scenario to name it, since a qa step needs a widget Name.
+- **qa.json skeletons.** `qa/<Screen>.qa.json` per screen: open, fill the named fields, click, and expect what the success path shows. Set `baseUrl` and the values, run it with `oml qa run ... --save <replay.json>`, and the replay needs no agent.
+- `<FILL: ...>` marks what the model cannot know: values and expected results. Show `scenarios.md` to the user and fill these in with them.
 ## Test scaffold
 
 `oml test scaffold <module.oml> <ServerAction>... --bdd <BDDFramework.oml> [--out <spec.json>] [--module-name <TestModule>] [--producer <path>]`
@@ -1027,6 +1035,8 @@ A QA file (JSONC):
 | `screenshot` | Saves the page as a PNG in the output folder. |
 
 `expect` keys: `screen`, `url`, `text`, `noText`, `visible`, `hidden`, `value` (`{ "Field": "text" }`), `feedback` (`"success"` or `{ "type", "text" }`), `call` (`"FetchOrders"` or `{ "name", "rows": ">0" }`, DevTools only), `table` (`target`, `rows`, `column`, `match`, `notMatch`), `count` (`{ "target", "is": ">=2" }`), `invalid` (`true`, `false` or a field), `inView` (a target or list, wholly in the window without scrolling), `layout` (`true`, or a list of kinds). Counts take `>`, `>=`, `<`, `<=`, `=`, `!=` or a number. Expectations are retried until they hold or the timeout passes.
+
+**Replay without an agent.** `oml qa run <qa.json> --save <new.json>` saves a passing run as a new QA file: the same steps, each action with `maxMs` (three times what it took, at least 2 seconds), and, where a step checked nothing, an `expect` of the screen it ended on and of the first call it made (DevTools only). `maxMs` is a time limit, never a wait: a step that takes longer fails, because the app got slower. A failing run saves nothing, and `--save` never overwrites a file. Anyone can replay the saved file with `oml qa run <new.json>`; an agent is needed only when a replay fails.
 
 Layout findings come from the boxes of the screen's actions and fields. Positions are for checks only; clicks always find the element first.
 
