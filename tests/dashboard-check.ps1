@@ -232,9 +232,9 @@ try {
     Require ((Raw $port '/a/b/c.js' @{ Host = $hostHeader }) -eq 404) 'web: /a/b/c.js must be 404'
     Require ((Raw $port '/core\dom.js' @{ Host = $hostHeader }) -eq 404) 'web: a backslash path must be 404'
 
-    # The cookbook lists every command of oml --help (a sub-command such as "spec check" counts on its own).
+    # The cookbook lists every command of oml help --all (a sub-command such as "spec check" counts on its own).
     $dataJs = Get-Content (Join-Path $web 'data\cookbook.js') -Raw
-    $commands = foreach ($line in (& $Oml --help) -match '^oml ') {
+    $commands = foreach ($line in (& $Oml help --all) -match '^oml ') {
         $words = $line -split '\s+'
         if ($words[2] -match '^[a-z][a-z0-9-]*(\|[a-z][a-z0-9-]*)+$') { $words[2] -split '\|' | ForEach-Object { "$($words[1]) $_" } }
         elseif ($words[2] -match '^[a-z][a-z0-9-]*$') { "$($words[1]) $($words[2])" }

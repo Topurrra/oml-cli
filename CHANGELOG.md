@@ -7,6 +7,7 @@ Keep a Changelog style: one section per release, newest first.
 ### Changed
 - The usage log is on by default (was opt-in), because memory recall and `oml evolve` learn from it. It stays on your machine and keeps the same fields (no arguments, specs, tokens or folders). `OML_LOG=0` (or `off`, `false`) turns it off; `OML_LOG=<file>` writes elsewhere. At 20 MB the file moves to `usage.jsonl.1` (one older file kept). The test suite sets `OML_LOG=0`, and the Agent activity page explains how to turn the log back on.
 - `oml doc --search` scores a command entry on its name and a curated word list only; the description in the usage line is shown as the snippet but no longer scored, so a new command cannot pull itself into unrelated queries through a word in its description.
+- `oml`, `oml help` and `oml --help` print a short overview grouped by area (about 600 tokens) instead of every usage line. `oml help --all` prints every line, `oml <command> --help` is unchanged, and `oml --help` works without Service Studio.
 
 ## 1.14.0
 

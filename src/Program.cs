@@ -53,6 +53,8 @@ public static class Program
             Console.WriteLine(result);
             return result == "ok" ? 0 : 1;
         }
+        // `oml`, `oml help`, `oml --help`: the overview, or every usage line with --all. Needs no Service Studio.
+        if (CliUsage.IsHelp(filtered)) { TerminalOutput.PrintHelp(CliUsage.HelpText(filtered), null); return 0; }
         // Commands the launcher runs itself print their usage lines here, without Service Studio.
         if (filtered.FirstOrDefault() is "lt" or "font" or "doctor" or "setup" or "image" or "dashboard" or "library" or "qa" or "hooks" or "dif" && (filtered.Contains("--help") || filtered.Contains("-h")))
         {
