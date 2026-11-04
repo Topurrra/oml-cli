@@ -1,11 +1,11 @@
 # Validation messages
 
-Common errors and warnings. Look one up with `oml warn <id or title words>`.
+Common errors and warnings. Look one up with `oml explain-warning <id or title words>`.
 
 ## Read the report
 
 - `newErrors`: not saved. `reopenNewErrors`: saved, do not install. Each of `newWarnings` is a defect: fix or explain it.
-- `CustomObjectWarning` and `CustomObjectError` are generic plugin ids: look up the `message` (`oml warn security warning`).
+- `CustomObjectWarning` and `CustomObjectError` are generic plugin ids: look up the `message` (`oml explain-warning security warning`).
 
 ## Data model
 

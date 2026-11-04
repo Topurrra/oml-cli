@@ -5,7 +5,7 @@ using OutSystems.Model.Processes.Nodes;
 
 namespace OmlCli;
 
-// Coordinates and sizes are in model units, not pixels. Measured through oml api/tree
+// Coordinates and sizes are in model units, not pixels. Measured through oml model-types/tree
 // on Studio 11: NodePositions (3196,800), displacement 2660; NodeSizes 914 x 928.
 // The typed API has no per-node rendered label bounds. Reserve an extra icon width
 // for labels, and use the Studio displacement in both directions.
@@ -73,7 +73,7 @@ static class FlowLayout
     // Flows a node was deleted from in this run: a deletion always gets a full lay-out.
     static readonly HashSet<string> deleted = new();
 
-    // The marks are per apply: a long-lived process (oml run, dashboard) runs many applies. Reset them when an apply
+    // The marks are per apply: a long-lived process (oml batch, dashboard) runs many applies. Reset them when an apply
     // starts, so a flow marked in an earlier apply never skips a later re-layout.
     internal static void BeginApply()
     {

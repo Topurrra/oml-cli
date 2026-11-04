@@ -70,11 +70,11 @@ Require ($LASTEXITCODE -eq 2) '--in with a bad --only stops with exit 2'
 $bad = & $Oml inspect --in $folder --changed-since yesterday | ConvertFrom-Json
 Require ($LASTEXITCODE -eq 2 -and $null -eq $bad.modules) '--in with a bad date stops with exit 2'
 
-# 4. --in inside oml run keeps the run's own module sharing: the later step still works and the run ends cleanly.
+# 4. --in inside oml batch keeps the run's own module sharing: the later step still works and the run ends cleanly.
 $steps = Join-Path $dir 'steps.json'
 $stepList = @{ steps = @(@('inspect', $mod, '--own', '--only', 'serverActions'), @('inspect', '--in', $folder, '--own', '--only', 'serverActions'), @('inspect', $mod, '--own', '--only', 'serverActions')) }
 $stepList | ConvertTo-Json -Depth 5 | Set-Content $steps -Encoding utf8
-$run = & $Oml run $steps --continue | ConvertFrom-Json
+$run = & $Oml batch $steps --continue | ConvertFrom-Json
 Require (@($run.results | ForEach-Object exitCode) -join ',' -eq '0,1,0') 'run with inspect --in'
 Require (@($run.results[1].output.modules).Count -eq 3 -and @($run.results[2].output.serverActions).Count -eq 1) 'run: the step after inspect --in'
 

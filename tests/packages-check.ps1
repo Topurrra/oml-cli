@@ -14,7 +14,7 @@ function Run([string[]]$Arguments) {
 }
 function Check($Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
 function Census([string]$Path) {
-    $c = Run @('census', $Path)
+    $c = Run @('stats', $Path)
     return ($c.byType.PSObject.Properties | Sort-Object Name | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ';'
 }
 $blank = Join-Path $dir 'blank.oml'

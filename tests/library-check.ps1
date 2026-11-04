@@ -1,4 +1,4 @@
-# oml library and doc --search --library, offline: no library yet, an import with --from, status, search with a hit that
+# oml outsystems-docs and doc --search --library, offline: no library yet, an import with --from, status, search with a hit that
 # opens its file and section, a "{ #anchor }" title, refused options, and a failed fetch (a proxy that refuses) that keeps
 # the last copy. OML_LIBRARY points the library at a test folder, so the user's library is never touched.
 # Throws on the first failure.
@@ -21,10 +21,10 @@ $saved = @{ OML_LIBRARY = $env:OML_LIBRARY; HTTPS_PROXY = $env:HTTPS_PROXY; HTTP
 try {
   $env:OML_LIBRARY = Join-Path $work 'lib'
 
-  $r = Call 'library'
-  Require ($r.Exit -eq 0 -and $r.Json.sources.Count -eq 0 -and $r.Json.hint -match 'library fetch') "empty status: $($r.Text)"
+  $r = Call 'outsystems-docs'
+  Require ($r.Exit -eq 0 -and $r.Json.sources.Count -eq 0 -and $r.Json.hint -match 'outsystems-docs fetch') "empty status: $($r.Text)"
   $r = Call 'doc', '--search', 'zone address', '--library'
-  Require ($r.Exit -eq 2 -and $r.Text -match 'oml library fetch') "search without a library: $($r.Text)"
+  Require ($r.Exit -eq 2 -and $r.Text -match 'oml outsystems-docs fetch') "search without a library: $($r.Text)"
 
   # A repository as GitHub's "Download ZIP" gives it: src\ with Markdown, a LICENSE, and files that are not copied.
   $repo = Join-Path $work 'docs-product-master'
@@ -34,20 +34,20 @@ try {
   Set-Content (Join-Path $repo 'README.md') "# Not under src"
   Set-Content (Join-Path $repo 'LICENSE') 'Attribution-NonCommercial-NoDerivatives 4.0 International'
 
-  $r = Call 'library', 'fetch', '--from', $repo
+  $r = Call 'outsystems-docs', 'fetch', '--from', $repo
   Require ($r.Exit -eq 2 -and $r.Text -match 'exactly one --source') "--from without --source: $($r.Text)"
-  $r = Call 'library', 'fetch', '--source', 'nosuch'
+  $r = Call 'outsystems-docs', 'fetch', '--source', 'nosuch'
   Require ($r.Exit -eq 2 -and $r.Text -match 'Unknown source') "unknown source: $($r.Text)"
-  $r = Call 'library', 'fetch', '--source', 'product', '--from', $work
+  $r = Call 'outsystems-docs', 'fetch', '--source', 'product', '--from', $work
   Require ($r.Exit -eq 2 -and $r.Text -match 'No src folder') "--from without src: $($r.Text)"
 
-  $r = Call 'library', 'fetch', '--source', 'product', '--from', $repo
+  $r = Call 'outsystems-docs', 'fetch', '--source', 'product', '--from', $repo
   Require ($r.Exit -eq 0 -and $r.Json.sources[0].files -eq 2 -and $r.Json.sources[0].commit -eq 'local copy') "import: $($r.Text)"
   $copy = Join-Path $env:OML_LIBRARY 'docs-product'
   Require (Test-Path (Join-Path $copy 'LICENSE.txt')) 'LICENSE.txt not copied'
   Require (-not (Test-Path (Join-Path $copy 'README.md'))) 'a file outside src was copied'
   Require (@(Get-ChildItem $env:OML_LIBRARY -Directory | Where-Object Name -like '*.tmp-*').Count -eq 0) 'a temp folder was left'
-  $r = Call 'library'
+  $r = Call 'outsystems-docs'
   Require ($r.Json.sources.Count -eq 1 -and $r.Json.sources[0].repo -eq 'OutSystems/docs-product') "status: $($r.Text)"
 
   $r = Call 'doc', '--search', 'zorblax zone address', '--library'
@@ -64,7 +64,7 @@ try {
   $again = Call 'doc', '--search', 'zorblax zone address', '--library'
   Require ($again.Exit -eq 0 -and $again.Json.hits[0].open -eq $hit.open -and (Get-Item $index).Length -gt 100) "damaged index: $($again.Text)"
   Add-Content (Join-Path $repo 'src\other.md') "`n## Gloopwerk`n`nA word that only the second import has.`n"
-  $r = Call 'library', 'fetch', '--source', 'product', '--from', $repo
+  $r = Call 'outsystems-docs', 'fetch', '--source', 'product', '--from', $repo
   Require ($r.Exit -eq 0 -and $r.Json.indexed -gt 0) "re-import: $($r.Text)"
   $again = Call 'doc', '--search', 'gloopwerk', '--library'
   Require ($again.Json.hits[0].title -eq 'Gloopwerk') "a changed source kept the old index: $($again.Text)"
@@ -75,22 +75,22 @@ try {
 
   # A fetch that cannot reach GitHub fails with the ZIP hint and keeps the last copy.
   $env:HTTPS_PROXY = 'http://127.0.0.1:9'; $env:HTTP_PROXY = 'http://127.0.0.1:9'; $env:NO_PROXY = ''
-  $r = Call 'library', 'fetch', '--source', 'product'
+  $r = Call 'outsystems-docs', 'fetch', '--source', 'product'
   Require ($r.Exit -eq 2 -and $r.Json.sources[0].error -and $r.Json.hint -match 'Download ZIP') "failed fetch: $($r.Text)"
   Require ((Get-Content (Join-Path $copy 'source.json') -Raw) -match 'local copy') 'a failed fetch removed the last copy'
   Require (@(Get-ChildItem $env:OML_LIBRARY -Directory | Where-Object Name -like '*.tmp-*').Count -eq 0) 'a failed fetch left a temp folder'
 
   # update: refusals offline, and a failed check keeps the last copy
-  $r = Call 'library', 'update', '--source', 'support'
+  $r = Call 'outsystems-docs', 'update', '--source', 'support'
   Require ($r.Exit -eq 2 -and $r.Json.error -match 'never fetched') "update of a source never fetched: $($r.Text)"
-  $r = Call 'library', 'update', '--bogus'
+  $r = Call 'outsystems-docs', 'update', '--bogus'
   Require ($r.Exit -eq 2 -and $r.Json.error -match 'Unknown option') "update with a bad option: $($r.Text)"
-  $r = Call 'library', 'update', '--check'
+  $r = Call 'outsystems-docs', 'update', '--check'
   Require ($r.Exit -eq 2 -and $r.Json.sources[0].commit -eq 'local copy' -and $r.Json.sources[0].error -and $r.Json.hint -match 'Download ZIP') "update without GitHub: $($r.Text)"
   Require ((Get-Content (Join-Path $copy 'source.json') -Raw) -match 'local copy') 'a failed update removed the last copy'
 
-  $r = Call 'library', '--help'
-  Require ($r.Exit -eq 0 -and $r.Text -match 'oml library fetch' -and $r.Text -match 'oml library update') "help: $($r.Text)"
+  $r = Call 'outsystems-docs', '--help'
+  Require ($r.Exit -eq 0 -and $r.Text -match 'oml outsystems-docs fetch' -and $r.Text -match 'oml outsystems-docs update') "help: $($r.Text)"
   Write-Host 'ok   library: empty status, import with --from (src only, LICENSE), status, search hit with file and section, refusals, failed fetch keeps the last copy, update refusals and a failed update'
 }
 finally {

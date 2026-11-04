@@ -13,9 +13,9 @@ static class Api
         "ServiceStudio.Plugin.Widgets", "ServiceStudio.Plugin.REST", "ServiceStudio.Plugin.RESTService", "ServiceStudio.Plugin.SOAP",
     };
 
-    // `oml api` with no name. Every name here is checked by tests/api-check.ps1 to match a type on the build.
+    // `oml model-types` with no name. Every name here is checked by tests/api-check.ps1 to match a type on the build.
     public const string Usage = """
-        oml api <TypeName>...   (members of model and plugin types on this build; '*' is a wildcard; case does not count)
+        oml model-types <TypeName>...   (members of model and plugin types on this build; '*' is a wildcard; case does not count)
         A name matches a type's short name (IServerAction) or full name (OutSystems.Model.Logic.IServerAction).
         Useful types:
           OutSystems.Model.IESpace                      the module: its lists and Create* factories
@@ -30,7 +30,7 @@ static class Api
           OutSystems.Model.UI.Mobile.Widgets.I*         Reactive and Mobile widgets
           OutSystems.Model.UI.Web.IWebScreen, OutSystems.Model.UI.Web.IWebBlock
           ServiceStudio.Plugin.REST.IRestClient, ServiceStudio.Plugin.RESTService.IRestService
-        Example: oml api OutSystems.Model.Logic.IServerAction "OutSystems.Model.Logic.Nodes.I*Node"
+        Example: oml model-types OutSystems.Model.Logic.IServerAction "OutSystems.Model.Logic.Nodes.I*Node"
 
         """;
 
@@ -57,7 +57,7 @@ static class Api
         if (unknown.Count > 0)
             throw new CliError(string.Join("\n", unknown.Select(n => $"No type matches '{n}'. "
                 + (Closest(n, all.Select(x => x.type)).ToList() is { Count: > 0 } close ? $"Closest: {string.Join(", ", close)}. " : "No close names. ")
-                + "Use '*' as a wildcard, for example 'oml api \"*ServerAction*\"', or run 'oml api' for the useful types.")), 2);
+                + "Use '*' as a wildcard, for example 'oml model-types \"*ServerAction*\"', or run 'oml model-types' for the useful types.")), 2);
         return all.Where(x => patterns.Any(p => p.IsMatch(x.type.Name) || p.IsMatch(x.type.FullName!))).Select(x => (object)new
         {
             type = x.type.FullName,

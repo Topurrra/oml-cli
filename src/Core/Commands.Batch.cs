@@ -64,7 +64,7 @@ public static partial class Cli
 
         var results = new JsonArray();
         int saved = 0, failed = 0, newErrors = 0, newWarnings = 0, created = 0, changed = 0;
-        // Inside `oml run` the sharing is already on and belongs to the caller: leave it on (as inspect --in does).
+        // Inside `oml batch` the sharing is already on and belongs to the caller: leave it on (as inspect --in does).
         var nested = Model.ShareModules;
         Model.ShareModules = true;
         try

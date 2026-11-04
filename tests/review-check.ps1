@@ -285,13 +285,13 @@ $team | ConvertTo-Json -Depth 10 | Set-Content $rules -Encoding utf8
 $r2 = Invoke-Oml @('review', $before, $after, '--rules', $rules) | ConvertFrom-Json
 Assert (-not ($r2.newFindings | Where-Object rule -eq 'missing-description') -and ($r2.newFindings | Where-Object rule -eq 'anonymous-screen-server')) '--rules turns a rule off'
 
-# The same file twice: nothing changed. In oml run, review is a step.
+# The same file twice: nothing changed. In oml batch, review is a step.
 $same = Invoke-Oml @('review', $after, $after) | ConvertFrom-Json
 Assert ($same.changes.Count -eq 0 -and $same.risks.Count -eq 0 -and $same.newFindings.Count -eq 0 -and $same.summary.changed -eq 0) "Same file: $($same | ConvertTo-Json -Depth 5 -Compress)"
 $steps = Join-Path $dir 'steps.json'
 @{ steps = @(, @('review', $before, $after)) } | ConvertTo-Json -Depth 5 | Set-Content $steps -Encoding utf8
-$run = Invoke-Oml @('run', $steps) | ConvertFrom-Json
-Assert ($run.results[0].exitCode -eq 0 -and $run.results[0].output.summary.added -eq 4) "review in oml run: $($run | ConvertTo-Json -Depth 8 -Compress)"
+$run = Invoke-Oml @('batch', $steps) | ConvertFrom-Json
+Assert ($run.results[0].exitCode -eq 0 -and $run.results[0].output.summary.added -eq 4) "review in oml batch: $($run | ConvertTo-Json -Depth 8 -Compress)"
 
 # Input errors: exit 2 and nothing written.
 $other = Join-Path $dir 'Other.oml'
@@ -321,5 +321,5 @@ $e = Invoke-Oml @('review', $before, $after, '--fail-on', 'high') 2 | ConvertFro
 Assert ($e.error -like 'review accepts*') "Unknown option: $($e.error)"
 $help = Invoke-Oml @('review', '--help')
 Assert ($help -match '^oml review ') "review --help: $help"
-Write-Host 'ok   review: --rules, same file, oml run step, input errors'
+Write-Host 'ok   review: --rules, same file, oml batch step, input errors'
 } finally { Remove-TestWorkFolder $Tmp }

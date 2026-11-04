@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace OmlCli;
 
 // The handlers of the Check, Review and Docs pages and of the Explorer additions (find --text, tree, validate,
-// test scaffold). Same rules as DashboardApi.cs: arguments are built from checked input, nothing here writes a module.
+// test bdd). Same rules as DashboardApi.cs: arguments are built from checked input, nothing here writes a module.
 static partial class Dashboard
 {
     static bool Flag(JsonObject body, string name) => body[name] is JsonValue v && v.TryGetValue<bool>(out var b) && b;
@@ -107,16 +107,16 @@ static partial class Dashboard
         return Str(body, "scope") switch
         {
             "spec" => Wrap(await Oml("spec", "--search", q, "--top", "8")),
-            "warn" => Wrap(await Oml("warn", q)),
+            "warn" => Wrap(await Oml("explain-warning", q)),
             _ => Wrap(await Oml("doc", "--search", q, "--top", "8")),
         };
     }
 
-    static readonly Regex OpenCommand = new("^oml (doc|spec|warn) \"?([^\"]+?)\"?$");
-    static readonly Regex OpenHelp = new("^oml ([a-z]+(?: [a-z]+)?) --help$");
+    static readonly Regex OpenCommand = new("^oml (doc|spec|explain-warning) \"?([^\"]+?)\"?$");
+    static readonly Regex OpenHelp = new("^oml ([a-z-]+(?: [a-z-]+)?) --help$");
     static readonly Regex OpenRecipe = new(@"^skill/recipes/([A-Za-z0-9-]+\.jsonc)$");
 
-    // Opens one search hit: its `open` value is a command (oml doc ..., oml spec ..., oml warn ..., oml <cmd> --help)
+    // Opens one search hit: its `open` value is a command (oml doc ..., oml spec ..., oml explain-warning ..., oml <cmd> --help)
     // or a recipe path. Only these forms run; the target is checked like any other input.
     static async Task<Reply> OpenDoc(JsonObject body)
     {
@@ -148,7 +148,7 @@ static partial class Dashboard
         var actions = (body["actions"] as JsonArray ?? []).Select(a => ElementName(a is JsonValue v && v.TryGetValue<string>(out var s) ? s : null, "a server action name")).ToList();
         if (actions.Count is 0 or > 20) throw new BadInput("Choose 1 to 20 public server actions.");
         var spec = Path.Combine(NewWorkFolder("tests"), Path.GetFileNameWithoutExtension(module) + "_Tests.bdd-spec.json");
-        var r = await Oml([.. Timed(body, ["test", "scaffold", module, .. actions, "--bdd", bdd, "--out", spec])]);
+        var r = await Oml([.. Timed(body, ["test", "bdd", module, .. actions, "--bdd", bdd, "--out", spec])]);
         return Wrap(r, new JsonObject { ["path"] = File.Exists(spec) ? spec : null, ["spec"] = File.Exists(spec) ? await File.ReadAllTextAsync(spec) : null });
     }
 

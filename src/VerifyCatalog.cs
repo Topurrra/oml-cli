@@ -1,7 +1,7 @@
 namespace OmlCli;
 
 // Verification message ids, embedded once as data: the ids the platform can emit (Entity_*, InvalidFlow_*, Expression*,
-// Parser*, Operator*, SQL_* ...). They are not translations and no fix text is shipped; they exist so `oml warn` can
+// Parser*, Operator*, SQL_* ...). They are not translations and no fix text is shipped; they exist so `oml explain-warning` can
 // name a message even when oml has no written page for it, and so the check and validate reports can be
 // cross-referenced with the IDE.
 static class VerifyCatalog

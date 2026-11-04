@@ -93,19 +93,19 @@ if ($bash) {
   Write-Host 'ok   encoding: Git Bash gets valid, lossless JSON'
 } else { Write-Host 'ok   encoding: Git Bash not installed, skipped' }
 
-# oml run: the envelope is ASCII JSON too, with each step's output intact; steps from a UTF-8 pipe keep their paths.
+# oml batch: the envelope is ASCII JSON too, with each step's output intact; steps from a UTF-8 pipe keep their paths.
 $steps = Join-Path $dir 'steps.json'
 @{ steps = @(@('inspect', $module, '--own'), @('describe', $module, 'Home')) } | ConvertTo-Json -Depth 5 | Set-Content $steps -Encoding utf8
 $env:ENC_STEPS = $steps
 $r = $utf8.GetString((Capture 'powershell.exe' 437 'run $env:ENC_STEPS' 'run-ps5')) | ConvertFrom-Json
-Require ($r.results.Count -eq 2 -and $r.results[0].exitCode -eq 0 -and $r.results[0].output.module.description -ceq $want.description -and $r.results[1].output.text.Contains($wantText)) 'encoding: oml run in PowerShell 5.1 lost text'
+Require ($r.results.Count -eq 2 -and $r.results[0].exitCode -eq 0 -and $r.results[0].output.module.description -ceq $want.description -and $r.results[1].output.text.Contains($wantText)) 'encoding: oml batch in PowerShell 5.1 lost text'
 $piped = Run-Ps 'pwsh' "[Console]::OutputEncoding = [Text.Encoding]::GetEncoding(437); `$x = Get-Content `$env:ENC_STEPS -Raw | & `$env:ENC_OML run -; [IO.File]::WriteAllText((Join-Path `$env:ENC_DIR 'run-stdin.out'), (`$x -join ""``n""), (New-Object Text.UTF8Encoding `$false))" 'run-stdin'
 $r = $utf8.GetString($piped) | ConvertFrom-Json
-Require ($r.results.Count -eq 2 -and $r.results[0].exitCode -eq 0 -and $r.results[0].output.module.description -ceq $want.description) "encoding: oml run - (steps on stdin, non-ASCII path) failed: $($r.results[0].output.error)"
-Write-Host 'ok   encoding: oml run (PowerShell 5.1 capture, steps from a UTF-8 pipe)'
+Require ($r.results.Count -eq 2 -and $r.results[0].exitCode -eq 0 -and $r.results[0].output.module.description -ceq $want.description) "encoding: oml batch - (steps on stdin, non-ASCII path) failed: $($r.results[0].output.error)"
+Write-Host 'ok   encoding: oml batch (PowerShell 5.1 capture, steps from a UTF-8 pipe)'
 
 # oml's own text is pure ASCII, so it reads the same in every code page: the embedded docs (oml doc, oml spec,
-# oml warn, rules, recipes) and the usage text.
+# oml explain-warning, rules, recipes) and the usage text.
 $src = Join-Path $PSScriptRoot '..\src'
 $embedded = @(foreach ($proj in (Join-Path $src 'OmlCli.csproj'), (Join-Path $src 'Core\OmlCli.Core.csproj')) {
   foreach ($m in [regex]::Matches((Get-Content $proj -Raw), '<EmbeddedResource Include="([^"]+)"')) {
@@ -115,7 +115,7 @@ $embedded = @(foreach ($proj in (Join-Path $src 'OmlCli.csproj'), (Join-Path $sr
 $bad = @($embedded | Where-Object { @([IO.File]::ReadAllBytes($_.FullName) | Where-Object { $_ -gt 0x7F }).Count -gt 0 } | ForEach-Object Name)
 Require ($embedded.Count -ge 15 -and $bad.Count -eq 0) "encoding: embedded docs with non-ASCII text: $($bad -join ', ') ($($embedded.Count) checked)"
 $usage = Join-Path $dir 'usage.out'
-foreach ($c in '--help', 'lt --help', 'spec --help', 'doc --help', 'doctor --help', 'dashboard --help', 'font --help', 'image --help', 'spec', 'doc', 'api') {
+foreach ($c in '--help', 'lifetime --help', 'spec --help', 'doc --help', 'doctor --help', 'dashboard --help', 'font --help', 'image --help', 'spec', 'doc', 'model-types') {
   cmd /c "`"%ENC_OML%`" $c > `"$usage`" 2>&1"
   Require (@([IO.File]::ReadAllBytes($usage) | Where-Object { $_ -gt 0x7F }).Count -eq 0) "encoding: 'oml $c' printed non-ASCII text"
 }

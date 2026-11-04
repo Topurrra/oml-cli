@@ -2,7 +2,7 @@ using System.Text;
 
 namespace OmlCli;
 
-// Local ranked search for `oml doc --search`, `oml spec --search`, `oml warn` and `oml find --text`: BM25F over three
+// Local ranked search for `oml doc --search`, `oml spec --search`, `oml explain-warning` and `oml find --text`: BM25F over three
 // fields (title, keys, text) with light English normalization. The query adds typo fixes against the index's own words,
 // synonyms of its rare words (a small OutSystems map), and concept links from the glossary (SearchGlossary.cs, whose
 // entries are also small documents that point at a section); an exact key or title gets a grep-like boost, and a weak
@@ -553,7 +553,7 @@ sealed class SearchIndex
     }
 
     // Share of the query's own words (or their typo fixes) that a document holds: 1 when it has them all. Synonyms do
-    // not count. `oml warn` lists a close id only when it holds at least half.
+    // not count. `oml explain-warning` lists a close id only when it holds at least half.
     public double Coverage(SearchDoc doc, string query)
     {
         var d = IndexOf(doc);

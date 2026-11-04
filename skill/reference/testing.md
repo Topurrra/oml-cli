@@ -57,11 +57,11 @@ Open the test screen in a browser: it runs and marks each step passed or failed.
 
 ## How an oml agent builds a BDD test
 
-`oml test scaffold` writes the spec. It reads the module under test and the framework module, and never changes them.
+`oml test bdd` writes the spec. It reads the module under test and the framework module, and never changes them.
 
 1. Get the files. oml cannot download Forge components: ask the user to install BDDFramework Client Side, open it in Service Studio and run `oml pull --out BDDFramework.oml`. Do the same for the module under test if you have no file.
 2. Get the test module. Best: the user creates a test app in Service Studio from the "BDD Framework Client Side" app type (it brings the references and a `TestFlow`) and you save it with `oml pull --out Orders_Tests.oml`. Fallback: `oml new Orders_Tests.oml --name Orders_Tests --kind CrossDevice`.
-3. `oml test scaffold Orders.oml PlaceOrder CancelOrder --bdd BDDFramework.oml` writes `Orders_Tests.bdd-spec.json`. Only public server actions.
+3. `oml test bdd Orders.oml PlaceOrder CancelOrder --bdd BDDFramework.oml` writes `Orders_Tests.bdd-spec.json`. Only public server actions.
 4. `oml spec check`, then `oml apply` the spec to the test module. Never apply it to the module under test.
 5. Replace every `TODO` (values, conditions, comments) with real test data and expected results; checks without a value start as `False` and fail until you write them. Ask the user before you add a `SetupOrTeardownStep` that creates or removes data. Tell the user to publish and open the screen.
 

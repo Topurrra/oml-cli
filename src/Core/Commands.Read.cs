@@ -87,7 +87,7 @@ public static partial class Cli
             .OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToList();
         var modules = new System.Text.Json.Nodes.JsonArray();
         var failed = false;
-        // Inside `oml run` or the dashboard the sharing is already on and belongs to the caller: leave it on.
+        // Inside `oml batch` or the dashboard the sharing is already on and belongs to the caller: leave it on.
         var nested = Model.ShareModules;
         Model.ShareModules = true;
         try
@@ -192,7 +192,7 @@ public static partial class Cli
         return errors.Length == 0 ? 0 : 1;
     }
 
-    // `oml meta <file.oml>...` and `oml meta --diff <a> <b>`: the module header, read without loading the model
+    // `oml header <file.oml>...` and `oml header --diff <a> <b>`: the module header, read without loading the model
     // (name, version, upgrade level, key, hashes, signature, type). Fast and never touches the module content.
     static int? CmdMeta(List<string> args)
     {
@@ -251,7 +251,7 @@ public static partial class Cli
         return new { a = Path.GetFullPath(a), b = Path.GetFullPath(b), same = differing.Count == 0, differing };
     }
 
-    // `oml expr "<text>"`: parse an expression; ok when it parses, error otherwise (exit 1).
+    // `oml expression "<text>"`: parse an expression; ok when it parses, error otherwise (exit 1).
     static int? CmdExpr(List<string> args)
     {
         if (args is [_, "--corpus", var corpus]) return ExprCorpus(corpus);
@@ -262,7 +262,7 @@ public static partial class Cli
         return 1;
     }
 
-    // Maintainer check (`oml expr --corpus <module.oml>`, not in --help): parse every expression a valid module holds.
+    // Maintainer check (`oml expression --corpus <module.oml>`, not in --help): parse every expression a valid module holds.
     // The module was saved by Service Studio, so each failure is a gap in the parser, not a bad expression.
     static int ExprCorpus(string path)
     {
@@ -286,7 +286,7 @@ public static partial class Cli
     static int? CmdOpenApi(List<string> args) => args.Count >= 2 ? OpenApi.Run(args) : null;
 
     // Writes a spec file; reads the two modules and never saves them.
-    static int? CmdTest(List<string> args) => args.Count >= 4 && args[1] == "scaffold" ? TestScaffold.Run(args) : null;
+    static int? CmdTest(List<string> args) => args.Count >= 4 && args[1] == "bdd" ? TestScaffold.Run(args) : null;
 
     static int? CmdPreview(List<string> args) => args.Count >= 3 ? Preview.Run(args) : null;
 

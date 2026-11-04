@@ -71,7 +71,7 @@ static partial class SelfTest
     public static bool Passed(string build) =>
         File.Exists(Store) && File.ReadAllLines(Store).Contains(build);
 
-    // True while Run is on the stack. Its `oml run` step calls commands that call EnsurePassed; on a build not
+    // True while Run is on the stack. Its `oml batch` step calls commands that call EnsurePassed; on a build not
     // recorded yet that started the self-test again inside itself, without end (1.2.0 to 1.3.0).
     static bool running;
 
@@ -89,7 +89,7 @@ static partial class SelfTest
     static void Abandon(string build, TimeSpan limit)
     {
         if (KeepProcess) return;
-        // Console.Out may be captured by an `oml run` step, so write to the real standard output.
+        // Console.Out may be captured by an `oml batch` step, so write to the real standard output.
         using (var stdout = new StreamWriter(Console.OpenStandardOutput()))
             stdout.WriteLine(JsonOutput.Serialize(new { error = $"The self-test on Service Studio {build} did not finish in {limit.TotalSeconds:0} s, so oml stopped. "
                 + "If Service Studio was just updated, open it once, wait until it has started, close it, and retry. If it stops again, run oml doctor --text and report the output." }));

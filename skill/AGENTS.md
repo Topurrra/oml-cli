@@ -1,6 +1,6 @@
 # oml for OutSystems 11
 
-## Rules (full text: `skill/rules.md`; this is the full list, do not invent others. Company skills from `oml skills` override best practices, never these rules.)
+## Rules (full text: `skill/rules.md`; this is the full list, do not invent others. Company skills from `oml team-rules` override best practices, never these rules.)
 
 1. Everything in the module also exists in production, with data and consumers.
 2. Never delete an existing entity (regular or static). Tell the user to delete it manually.
@@ -22,7 +22,7 @@ Edit O11 `.oml` modules with `<repo>/src/bin/Release/net10.0/oml.exe`, or `oml` 
 
 - Keep extra files to a minimum: one change spec and one staged output. Do not leave copies of modules behind.
 - Never overwrite the source. Run `apply` to a separate, new staged file for each attempt.
-- Ask the user before `install`, `publish`, `references`, `lt deploy|tag|abort|continue`, or data deletion.
+- Ask the user before `install`, `publish`, `references`, `lifetime deploy|tag|abort|continue`, or data deletion.
 - Before using another module's element, run `oml find <Name> <module.oml> --in <folder|file.oml>`. Show candidates and parameters. Ask the user which to use, even for one match. Use its approved `Module.Name`.
 - Read `saved`, `problems`, `newErrors`, `reopenNewErrors`, `warnings`, and `newWarnings`. Warnings can mean a wrong model. Each entry may carry a `hint`: the fix. Never install a failed result.
 - Do not retry an unchanged spec. Use the reported failure to change it first.
@@ -41,14 +41,14 @@ Plain technical English (ISO 24495-1; ASD-STE100 style):
 
 ## Standard loop (follow it exactly; every tool call costs a full turn)
 
-Put several commands in ONE tool call: chain them with `;` in one shell command, or list them in one `oml run` file. One call that runs 3 commands costs 1 turn; 3 calls cost 3 turns.
+Put several commands in ONE tool call: chain them with `;` in one shell command, or list them in one `oml batch` file. One call that runs 3 commands costs 1 turn; 3 calls cost 3 turns.
 
 0. No `.oml` file? Ask the user to open the module in Service Studio, then `oml pull --out <Module>.oml`. If pull reports `attention`, follow it.
 1. **Read (1 call).** Write `read.json` and run it:
    `{ "steps": [ ["inspect","<module.oml>","--own","--only","entities,actions,screens,blocks"], ["describe","<module.oml>","<ElementToChange>","<OtherElement>"] ] }`
-   then `oml run read.json; oml skills`. Only describe elements you will change or call. Producer files: add `--in <folder|file.oml>`.
+   then `oml batch read.json; oml team-rules`. Only describe elements you will change or call. Producer files: add `--in <folder|file.oml>`.
    Need an element from another module? Add `["find","<Name>","<module.oml>","--in","<producer folder|file.oml>"]` to the same file, show the user the candidates, and ask which to use (even for one match). Use its `Module.Name`.
-   Adding entities, screens or flows that no recipe covers? Run `oml run read.json; oml doc best-practices` in the same call and follow it.
+   Adding entities, screens or flows that no recipe covers? Run `oml batch read.json; oml doc best-practices` in the same call and follow it.
    `.oml/memory/` exists? Add step `["memory","recall","<task words>","--module","<Module>"]`; at the end, follow its `write` field.
 2. **Write the spec (no tool call to read docs if a recipe fits).** Copy the closest recipe from `skill/recipes/`. For a key no recipe shows, run `oml spec <key>` (one key only; never read `skill/reference/spec.md` whole). Put ALL requested elements in one spec. For many similar elements (for example 20 blocks), generate the spec with a small script, then check it, instead of applying elements one by one.
 3. **Check, apply and see the result (1 call):**
@@ -56,7 +56,7 @@ Put several commands in ONE tool call: chain them with `;` in one shell command,
    The apply report starts with `summary` (the counts), then `problems`, `newErrors`, `reopenNewErrors`, `warnings` and `newWarnings`, and the described elements. Do not run `validate`, `inspect` or `describe` again after a good apply.
    **A good apply means `saved: true`, no `newErrors`, and no `newWarnings`.** Every new warning is a real defect until you prove otherwise (for example "input parameter is never used in JavaScript" means the block ignores that input). Fix each one, or explain each remaining one to the user. Never report done with unexplained new warnings.
 4. **Fix (only if needed, 1 call per attempt).** Change only what the report names (new errors and new warnings), then repeat step 3 with a NEW staged path. Never retry an unchanged spec.
-5. **UI work: preview once per screen or block group (1 call):** write `preview.json` with a laptop and a desktop step per screen: `["preview","<staged.oml>","<Screen>","--width","1366","--out","<Screen>.1366.html","--screenshot","<Screen>.1366.png"]` and the same with `1920`. Add `"--theme","dark"` (theme work) or `"--width","390"` (mobile work) only when the task or user needs it; each step needs its own `--out`. Run `oml run preview.json`, look at each PNG and the report's `checklist`, fix, and preview again only if you changed the UI. Follow `skill/reference/ui-checklist.md`.
+5. **UI work: preview once per screen or block group (1 call):** write `preview.json` with a laptop and a desktop step per screen: `["preview","<staged.oml>","<Screen>","--width","1366","--out","<Screen>.1366.html","--screenshot","<Screen>.1366.png"]` and the same with `1920`. Add `"--theme","dark"` (theme work) or `"--width","390"` (mobile work) only when the task or user needs it; each step needs its own `--out`. Run `oml batch preview.json`, look at each PNG and the report's `checklist`, fix, and preview again only if you changed the UI. Follow `skill/reference/ui-checklist.md`.
 6. **Report.** Add `["review","<source.oml>","<staged.oml>","--md","<new path>.md"]` to `preview.json` (or run `oml review` alone), then show the staged path, what was built and the .md. It does not find logic bugs: 0 findings does not mean the code is correct. Ask before `install` or `publish`; run `oml validate <staged.oml> --warnings` only right before `install`.
 
 A normal task needs 4 to 8 tool calls. If you are past 12, stop and check whether you are repeating reads or applying one element at a time.
@@ -86,7 +86,7 @@ JSONC comments are allowed in specs; trailing commas are not. Expressions use Ou
 | `block-popup-event.jsonc` | Reusable confirm popup block with events (`triggerEvent`), handled on a screen. |
 | `send-email.jsonc` | Reactive email and a server action that sends it (`sendEmail`). |
 
-For OutSystems rules on a topic: `oml doc <topic>`; for a warning: `oml warn <id>`. Not sure which key, topic or recipe? `oml doc --search "<words>"` lists the 3 most likely sections, each with the command that opens it; use OutSystems terms (entity, screen, aggregate) when you can.
+For OutSystems rules on a topic: `oml doc <topic>`; for a warning: `oml explain-warning <id>`. Not sure which key, topic or recipe? `oml doc --search "<words>"` lists the 3 most likely sections, each with the command that opens it; use OutSystems terms (entity, screen, aggregate) when you can.
 
 Never read `skill/reference/model-api.md` unless you change the CLI itself.
 

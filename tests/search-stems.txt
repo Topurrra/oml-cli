@@ -202,7 +202,7 @@ valu: value, values
 vari: variable, variables
 version: version, versions
 walkthrough: walkthrough, walkthroughs
-warn: warn, warning, warnings, warns
+warn: warning, warnings, warns
 widget: widget, widgets
 work: work, working, works
 writ: write, writes

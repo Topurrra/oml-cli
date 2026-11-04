@@ -153,7 +153,7 @@ export default {
       if (linked.get('tab')) store.set('explorer-tab', linked.get('tab'));
       if (byName.has(linked.get('element'))) byName.get(linked.get('element'))();
 
-      // One element: Describe, its object Paths (tree), its Style sheet (describe --css), or Test screens (test scaffold).
+      // One element: Describe, its object Paths (tree), its Style sheet (describe --css), or Test screens (test bdd).
       function open(name, key, item) {
         const tabs = [['describe', 'Describe'], ['paths', 'Paths']];
         const kind = (item && item.kind) || '';
@@ -243,7 +243,7 @@ export default {
       }
     }
 
-    // oml validate --warnings, each message with a link to oml warn in Docs.
+    // oml validate --warnings, each message with a link to oml explain-warning in Docs.
     async function validateModule(path, button, out) {
       const data = await task(button, out, 'Validating…', async () => need(await api('validate', { path }), [0, 1]));
       if (!data) return;
@@ -259,7 +259,7 @@ export default {
               h('td', {}, h('span', { class: 'badge ' + (x.error ? 'fail' : 'warn') }, x.id || (x.error ? 'Error' : 'Warning')), x.count > 1 ? h('span', { class: 'tiny muted' }, ` ×${x.count}`) : null,
                 h('div', { class: 'small' }, sample.message || '', sample.detail ? ': ' + sample.detail : '')),
               h('td', { class: 'mono tiny' }, sample.owner || ''), h('td', { class: 'small' }, x.hint || ''),
-              h('td', { class: 'num' }, x.id && x.hint ? h('a', { class: 'button small', href: '#/docs?open=' + encodeURIComponent('oml warn ' + x.id), 'aria-label': 'Explain ' + x.id }, 'Explain') : null));
+              h('td', { class: 'num' }, x.id && x.hint ? h('a', { class: 'button small', href: '#/docs?open=' + encodeURIComponent('oml explain-warning ' + x.id), 'aria-label': 'Explain ' + x.id }, 'Explain') : null));
           })))) : h('p', { class: 'muted' }, 'No errors and no warnings.'),
         cli(data.cli)));
     }

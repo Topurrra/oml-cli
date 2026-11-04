@@ -2,14 +2,14 @@ import { h, add } from '../core/dom.js';
 import { api } from '../core/api.js';
 import { task, cli, errorBox } from '../core/ui.js';
 
-// What agents learned: the oml evolve report and the open proposals of a project folder, with their evidence and diff.
+// What agents learned: the oml learn report and the open proposals of a project folder, with their evidence and diff.
 // The dashboard only reads: Accept and Reject show the command, and the developer runs it.
 const pct = n => Math.round((n || 0) * 100) + '%';
 const quote = s => /[\s"]/.test(s) ? '"' + String(s).replace(/"/g, '\\"') + '"' : s;
 
 export default {
   id: 'learned', group: 'Team', title: 'What agents learned', icon: 'learned',
-  description: 'Proposals oml evolve made from the local usage log and memory: evidence, diff, and the command to accept or reject each one.',
+  description: 'Proposals oml learn made from the local usage log and memory: evidence, diff, and the command to accept or reject each one.',
   async render(main) {
     const out = h('div', { class: 'stack' });
     const dirInput = h('input', { type: 'text', id: 'evolve-dir', class: 'grow', placeholder: 'Project folder (holds .oml)', spellcheck: false });
@@ -50,21 +50,21 @@ function reportCard(r, dir) {
     table('Did the accepted proposals help?', ['Proposal', 'Failure rate before', 'After', 'Verdict'], (o.accepted || []).map(a => [
       `${a.id} ${a.title || ''}`, pct(a.before.failureRate), pct(a.after.failureRate),
       h('span', { class: 'badge ' + (a.verdict === 'helped' ? 'ok' : a.verdict === 'worse' ? 'fail' : 'warn') }, a.verdict)])));
-  add(card, cli(`oml evolve propose --dir ${quote(dir)}`));
+  add(card, cli(`oml learn propose --dir ${quote(dir)}`));
   return card;
 }
 
 function proposalsCard(r, dir) {
   const o = r.output || {};
   const card = h('section', { class: 'card' }, h('h2', {}, 'Proposals'));
-  if (r.code !== 0) { add(card, errorBox(o.error || 'oml evolve show failed.'), cli(r.cli)); return card; }
+  if (r.code !== 0) { add(card, errorBox(o.error || 'oml learn show failed.'), cli(r.cli)); return card; }
   const list = o.proposals || [];
-  if (list.length === 0) { add(card, h('p', { class: 'muted' }, o.hint || 'No open proposals.'), cli(`oml evolve propose --dir ${quote(dir)}`)); return card; }
+  if (list.length === 0) { add(card, h('p', { class: 'muted' }, o.hint || 'No open proposals.'), cli(`oml learn propose --dir ${quote(dir)}`)); return card; }
   for (const p of list) {
     const action = h('div');
     const reveal = (verb, extra) => () => action.replaceChildren(
       h('p', { class: 'hint' }, `Run this yourself after you read the lines and the diff. An agent never ${verb}s on your behalf.`),
-      cli(`oml evolve ${verb} ${p.id}${extra} --dir ${quote(dir)}`));
+      cli(`oml learn ${verb} ${p.id}${extra} --dir ${quote(dir)}`));
     add(card, h('article', { class: 'evolve-proposal' },
       h('div', { class: 'card-head' }, h('h3', {}, h('code', { text: p.id }), ' ', p.title), h('span', { class: 'badge' }, p.kind)),
       h('ul', {}, (p.lines || []).map(l => h('li', {}, h('span', { text: l.text }),
@@ -74,6 +74,6 @@ function proposalsCard(r, dir) {
       h('div', { class: 'row' }, h('button', { type: 'button', onclick: reveal('accept', '') }, 'Accept…'), h('button', { type: 'button', onclick: reveal('reject', ' --why "<reason>"') }, 'Reject…')),
       action));
   }
-  add(card, h('p', { class: 'hint' }, 'Accepted changes are listed by ', h('code', { text: 'oml evolve history' }), ' and can be undone with ', h('code', { text: 'oml evolve undo <id>' }), '.'));
+  add(card, h('p', { class: 'hint' }, 'Accepted changes are listed by ', h('code', { text: 'oml learn history' }), ' and can be undone with ', h('code', { text: 'oml learn undo <id>' }), '.'));
   return card;
 }

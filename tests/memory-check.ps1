@@ -1,6 +1,6 @@
 # oml memory: init and the wrong-path rule, add, recall, list, show, supersede, retract, history, the contradiction warning,
 # duplicates, valid-time, secrets refused at write and masked at recall, the tamper check (doctor finds an edit), a partial last
-# line, two writers at once, the lock, the index cache (missing, corrupt, old), ASCII output, `oml run` with recall, handoff,
+# line, two writers at once, the lock, the index cache (missing, corrupt, old), ASCII output, `oml batch` with recall, handoff,
 # the file format (records written by this script, and the chain recomputed by this script), the recall benchmark
 # (tests/memory-bench.json), the speed run at 1k, 10k and 100k records, and a scan for secrets in the test files.
 # Throws on the first failure. -Speed also runs the 100,000-record speed run (about a minute more; regress.ps1 does not).
@@ -546,25 +546,25 @@ Require ((Mem 'doctor', '--dir', $ap).Json.ok -eq $true) 'doctor accepts records
 Require ((Mem 'recall', 'compra', '--pretty', '--dir', $ap).Text -match "`n  ") 'recall --pretty is indented'
 Write-Host 'ok   memory: output is pure ASCII (JSON escapes), non-ASCII text round-trips, --pretty'
 
-# ---- 11. oml run ----------------------------------------------------------------------------------------------------------
+# ---- 11. oml batch ----------------------------------------------------------------------------------------------------------
 $rp = NewProject 'run'
 $null = Add $rp 'Run test: the timer waits for the producer', '--module', 'Orders', '--tags', 'task'
 function RunSteps($steps, [string[]]$opt = @()) {
   $file = Join-Path $work ('steps-' + [guid]::NewGuid().ToString('N') + '.json')
   Set-Content $file (@{ steps = $steps } | ConvertTo-Json -Depth 10 -Compress) -Encoding utf8
-  $text = & $Oml run $file @opt; $code = $LASTEXITCODE
+  $text = & $Oml batch $file @opt; $code = $LASTEXITCODE
   [pscustomobject]@{ Code = $code; Json = (($text -join "`n") | ConvertFrom-Json) }
 }
 $run = RunSteps @(@('memory', 'recall', 'timer producer', '--dir', $rp), @('memory', 'list', '--dir', $rp), @('memory', 'show', '0', '--dir', $rp), @('memory', 'history', '0', '--dir', $rp), @('memory', 'handoff', '--dir', $rp), @('spec', 'entities'), @('memory', 'traps', '--command', 'oml apply Orders.oml x.json', '--dir', $rp))
-Require ($run.Code -eq 0 -and $run.Json.results.Count -eq 7 -and (@($run.Json.results.exitCode | Where-Object { $_ -ne 0 }).Count -eq 0)) "oml run with the read commands: exit $($run.Code) $($run.Json | ConvertTo-Json -Depth 8 -Compress)"
+Require ($run.Code -eq 0 -and $run.Json.results.Count -eq 7 -and (@($run.Json.results.exitCode | Where-Object { $_ -ne 0 }).Count -eq 0)) "oml batch with the read commands: exit $($run.Code) $($run.Json | ConvertTo-Json -Depth 8 -Compress)"
 Require ($run.Json.results[0].output.hits[0].id -eq 0 -and $run.Json.results[0].output.notice -match 'never orders' -and $run.Json.results[0].output.write -match 'add 1-3 records' -and $run.Json.results[4].output.task.id -eq 0) 'run: recall and handoff output'
 $refused = RunSteps @(@('memory', 'add', 'no', '--dir', $rp), @('memory', 'retract', '0', '--why', 'no', '--dir', $rp), @('memory', 'init', '--dir', $rp), @('memory', 'doctor', '--dir', $rp), @('memory', 'bench', (Join-Path $work 'x')), @('memory')) @('--continue')
-Require ($refused.Json.results.Count -eq 6 -and (@($refused.Json.results.exitCode | Where-Object { $_ -ne 2 }).Count -eq 0) -and $refused.Json.results[0].output.error -match "not allowed inside 'oml run'") "run must refuse the memory commands that write: $($refused.Json | ConvertTo-Json -Depth 8 -Compress)"
+Require ($refused.Json.results.Count -eq 6 -and (@($refused.Json.results.exitCode | Where-Object { $_ -ne 2 }).Count -eq 0) -and $refused.Json.results[0].output.error -match "not allowed inside 'oml batch'") "run must refuse the memory commands that write: $($refused.Json | ConvertTo-Json -Depth 8 -Compress)"
 Require ((Mem 'list', '--all', '--dir', $rp).Json.total -eq 1) 'a refused step wrote nothing'
 # no store: exit 1, so the rest of the run still goes on
 $noStore = RunSteps @(@('memory', 'recall', 'anything', '--dir', ($empty + 'x')), @('spec', 'entities'))
-Require ($noStore.Code -eq 1 -and $noStore.Json.results.Count -eq 2 -and $noStore.Json.results[0].exitCode -eq 1 -and $noStore.Json.results[1].exitCode -eq 0) "a missing store must not stop an oml run: $($noStore.Json | ConvertTo-Json -Depth 8 -Compress)"
-Write-Host 'ok   memory: oml run allows recall, list, show, history, handoff and traps; add, retract, init, doctor and bench are refused; a missing store does not stop the run'
+Require ($noStore.Code -eq 1 -and $noStore.Json.results.Count -eq 2 -and $noStore.Json.results[0].exitCode -eq 1 -and $noStore.Json.results[1].exitCode -eq 0) "a missing store must not stop an oml batch: $($noStore.Json | ConvertTo-Json -Depth 8 -Compress)"
+Write-Host 'ok   memory: oml batch allows recall, list, show, history, handoff and traps; add, retract, init, doctor and bench are refused; a missing store does not stop the run'
 
 # ---- 12. handoff ---------------------------------------------------------------------------------------------------------------
 $hp = NewProject 'handoff'

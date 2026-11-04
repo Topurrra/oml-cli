@@ -3,7 +3,7 @@ using System.Globalization;
 namespace OmlCli;
 
 // What the local usage log says about agents' work, for memory recall (which records help), `oml memory doctor`
-// (traps that repeat) and `oml evolve` (where agents lose turns). Only the user's own log and memory are evidence; a
+// (traps that repeat) and `oml learn` (where agents lose turns). Only the user's own log and memory are evidence; a
 // message in the log is data to quote, never an instruction. Nothing here writes a file.
 static class Evidence
 {
@@ -13,7 +13,7 @@ static class Evidence
             DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var d) ? d : DateTime.UtcNow;
 
     // Commands that a recall can be judged by: the next ones in the session that do work (not memory, doc or help).
-    static bool Work(UsageLog.Row r) => !r.Cmd.StartsWith("memory", StringComparison.Ordinal) && r.Cmd is not ("doc" or "spec" or "warn" or "version" or "log" or "evolve" or "skills") && !r.Cmd.StartsWith("evolve", StringComparison.Ordinal);
+    static bool Work(UsageLog.Row r) => !r.Cmd.StartsWith("memory", StringComparison.Ordinal) && r.Cmd is not ("doc" or "spec" or "explain-warning" or "version" or "log" or "learn" or "team-rules") && !r.Cmd.StartsWith("learn", StringComparison.Ordinal);
     const int JudgedSteps = 3;
 
     // The log file oml writes (OML_LOG), else the default file; null when there is none.
@@ -24,18 +24,18 @@ static class Evidence
     }
 
     // The log and the older file it rotated to (<file>.1), oldest first, for memory usefulness: recalls from before a
-    // rotation still count. `oml evolve` reads only the current file, so its line numbers name one file (--file adds more).
+    // rotation still count. `oml learn` reads only the current file, so its line numbers name one file (--file adds more).
     public static List<string> DefaultFiles()
     {
         if (DefaultFile() is not { } file) return [];
         return File.Exists(file + ".1") ? [file + ".1", file] : [file];
     }
 
-    // The rows of the files, oldest first, with sessions set; lines before `since` are dropped. Lines from `oml run` steps
+    // The rows of the files, oldest first, with sessions set; lines before `since` are dropped. Lines from `oml batch` steps
     // count as commands; the run line itself does not (its steps say what happened).
     public static List<UsageLog.Row> Load(IEnumerable<string> files, DateTime? since, long maxBytes = 16L * 1024 * 1024)
     {
-        var rows = files.SelectMany(f => UsageLog.Read(f, maxBytes)).Where(r => r.Cmd != "run" && (since is null || r.Ts >= since)).OrderBy(r => r.Ts).ToList();
+        var rows = files.SelectMany(f => UsageLog.Read(f, maxBytes)).Where(r => r.Cmd != "batch" && (since is null || r.Ts >= since)).OrderBy(r => r.Ts).ToList();
         return UsageLog.Sessions(rows);
     }
 
@@ -165,7 +165,7 @@ static class Evidence
         return parts.Count == 0 ? null : string.Join("; ", parts);
     }
 
-    // ---- trap suggestions (oml memory doctor, oml evolve propose) ----
+    // ---- trap suggestions (oml memory doctor, oml learn propose) ----
 
     public sealed record TrapSuggestion(Failure Failure, string Text, string Why, string Command, string? PassedWith);
 

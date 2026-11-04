@@ -11,7 +11,7 @@ namespace OmlCli;
 // Ported from OutSystems/outsystems-pipeline outsystems/lifetime/lifetime_applications.py (Apache-2.0).
 static class LifeTime
 {
-    internal const string Usage = "oml lt environments | teams | team-apps Team | apps [--env Name] | download App --env Name --out Folder [--extract] | tag App --version x.y.z [--description Text] [--env Development] | deploy App[,App2] --from Env --to Env [--version x.y.z|latest] [--notes Text] [--wait] | status Key | abort Key | continue Key";
+    internal const string Usage = "oml lifetime environments | teams | team-apps Team | apps [--env Name] | download App --env Name --out Folder [--extract] | tag App --version x.y.z [--description Text] [--env Development] | deploy App[,App2] --from Env --to Env [--version x.y.z|latest] [--notes Text] [--wait] | status Key | abort Key | continue Key";
 
     // runCore runs one Core command (for `download --extract`: `app extract`); null when Core is not available here.
     public static int Run(string[] args, Func<string[], int>? runCore = null)
@@ -141,13 +141,13 @@ static class LifeTime
                         needsContinue = state == "needs_user_intervention" });
                     return state == "finished_successful" ? 0 : 1;
                 }
-                if (DateTime.UtcNow >= until) throw new LtError("Deployment polling timed out; use lt status before taking further action.", 1);
+                if (DateTime.UtcNow >= until) throw new LtError("Deployment polling timed out; use oml lifetime status before taking further action.", 1);
                 Thread.Sleep(TimeSpan.FromSeconds(20));
             }
         }
         catch (LtError e) { Emit(new { error = e.Message, deploymentKey }); return e.Code; }
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException or IOException)
-        { Emit(new { error = "LifeTime request failed (connection, TLS or timeout). Check lt status before retrying a mutation.", deploymentKey }); return 2; }
+        { Emit(new { error = "LifeTime request failed (connection, TLS or timeout). Check oml lifetime status before retrying a mutation.", deploymentKey }); return 2; }
         catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException or ArgumentException)
         { Emit(new { error = "Invalid LifeTime response or configuration; check LifeTime before retrying a mutation.", deploymentKey }); return 2; }
     }

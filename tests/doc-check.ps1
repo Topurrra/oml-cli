@@ -1,4 +1,4 @@
-# oml doc and oml warn: topic list, one topic, one section, unknown names, warning lookups, size budgets of the
+# oml doc and oml explain-warning: topic list, one topic, one section, unknown names, warning lookups, size budgets of the
 # knowledge files, of the default skill load, of oml --help and of each command reference section, links in skill/, the warnings.md table shape, and the `hint`
 # that apply adds to a known new warning. Throws on the first failure.
 param([string]$Oml, [string]$Tmp, [string]$Module)
@@ -26,10 +26,11 @@ function Tokens($path) { [math]::Ceiling((Get-Content -Raw $path).Replace("`r`n"
 
 # Size budget per topic in tokens (characters / 4). A file may be at most 15% over its budget. data-rules, rest and
 # troubleshooting were raised by 50-100 for the SQL column order, CrossSiteRequests and same-name publish notes. memory
-# was raised by 200 for "What recall learns" (usefulness, newest wins, stale records, suggested traps, oml evolve).
+# was raised by 200 for "What recall learns" (usefulness, newest wins, stale records, suggested traps, oml learn). warnings was
+# raised by 50 because the command is now named `oml explain-warning` (was `oml warn`) and the file names it twice.
 $budget = [ordered]@{
   'ui-reactive' = 1500; 'osui-patterns' = 2000; 'data-rules' = 1250; 'logic-rules' = 1200; 'security' = 800
-  'rest' = 950; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2000
+  'rest' = 950; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2050
   'traditional-to-reactive' = 900; 'troubleshooting' = 2100; 'ui-checklist' = 700; 'testing' = 2000
   'best-practices' = 1300; 'rules' = 900; 'memory' = 1300; 'dif' = 800
 }
@@ -71,22 +72,22 @@ if ($r.Exit -ne 2 -or $r.Text -notmatch 'several sections') { Fail "ambiguous se
 $r = Run 'doc', 'ui-reactive#nosuchsection'
 if ($r.Exit -ne 2 -or $r.Text -notmatch 'forms-and-validation') { Fail "unknown section: exit $($r.Exit), $($r.Text)" }
 
-# 5. oml warn: by id (any case), by title words, unknown
-$r = Run 'warn', 'NoErrorHandlingInFlow'
+# 5. oml explain-warning: by id (any case), by title words, unknown
+$r = Run 'explain-warning', 'NoErrorHandlingInFlow'
 if ($r.Exit -ne 0 -or $r.Text -notmatch '\| `NoErrorHandlingInFlow` \| No Exception Handling \|' -or $r.Text -notmatch '^## Warnings') { Fail "warn by id: $($r.Text)" }
-$r = Run 'warn', 'noerrorhandlinginflow'
+$r = Run 'explain-warning', 'noerrorhandlinginflow'
 if ($r.Exit -ne 0 -or $r.Text -notmatch 'NoErrorHandlingInFlow') { Fail "warn by id, lower case: $($r.Text)" }
-$r = Run 'warn', 'security', 'warning'
+$r = Run 'explain-warning', 'security', 'warning'
 if ($r.Exit -ne 0 -or $r.Text -notmatch 'EntityActionClientSide' -or $r.Text -notmatch 'ServerActionInAnonymousScreen') { Fail "warn by title: $($r.Text)" }
-$r = Run 'warn', 'locked module'
+$r = Run 'explain-warning', 'locked module'
 if ($r.Exit -ne 0 -or $r.Text -notmatch 'Stop:') { Fail "warn environment row: $($r.Text)" }
 # oml's own warning ids (apply raises them in newWarnings) have rows too.
-foreach ($id in 'PublicServerAction', 'UniqueIndexOnExistingEntity') { $r = Run 'warn', $id; if ($r.Exit -ne 0 -or $r.Text -notmatch "\| ``$id`` \| \(oml\)") { Fail "warn $id`: $($r.Text)" } }
-$r = Run 'warn', 'NoSuchMessageId'
+foreach ($id in 'PublicServerAction', 'UniqueIndexOnExistingEntity') { $r = Run 'explain-warning', $id; if ($r.Exit -ne 0 -or $r.Text -notmatch "\| ``$id`` \| \(oml\)") { Fail "warn $id`: $($r.Text)" } }
+$r = Run 'explain-warning', 'NoSuchMessageId'
 if ($r.Exit -ne 2 -or $r.Text -notmatch 'none is a close match' -or $r.Text -match 'Closest:') { Fail "warn unknown: exit $($r.Exit), $($r.Text)" }
-$r = Run 'warn', 'NoErrorHandlingInFlw'
+$r = Run 'explain-warning', 'NoErrorHandlingInFlw'
 if ($r.Exit -ne 2 -or $r.Text -notmatch 'Closest: NoErrorHandlingInFlow') { Fail "warn closest by id: $($r.Text)" }
-$r = Run 'warn', 'unused zzz'
+$r = Run 'explain-warning', 'unused zzz'
 if ($r.Exit -ne 2 -or $r.Text -notmatch 'Closest: Unused') { Fail "warn closest by words: $($r.Text)" }
 
 # 6. warnings.md: every table row has 4 cells, and an id is in one row only (a hint must not be ambiguous)
@@ -169,7 +170,7 @@ foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Include *.md, *
 }
 $help = [math]::Ceiling((Run '--help').Text.Length / 4)
 if ($help -gt 700 * 1.15) { Fail "oml --help is $help tokens; budget 700 (+15%)" }
-# oml help --all: every usage line. 2550: raised from 2400 for the three oml evolve lines (and the qa lines of the test branch).
+# oml help --all: every usage line. 2550: raised from 2400 for the three oml learn lines (and the qa lines of the test branch).
 $helpAll = [math]::Ceiling((Run 'help', '--all').Text.Length / 4)
 if ($helpAll -gt 2550 * 1.15) { Fail "oml help --all is $helpAll tokens; budget 2550 (+15%)" }
 # every command word of the full usage is named in the overview (a word is whole: `test` is not `testing`)

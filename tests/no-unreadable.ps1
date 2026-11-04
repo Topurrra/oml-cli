@@ -1,5 +1,5 @@
 # Fails when inspect or describe of a module that oml built lists an unreadable part: every part of what oml
-# builds must be readable. Describes every screen, block, entity, structure and action of each module in one oml run.
+# builds must be readable. Describes every screen, block, entity, structure and action of each module in one oml batch.
 param([string]$Oml, [string[]]$Modules, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
 foreach ($module in $Modules) {
@@ -14,7 +14,7 @@ foreach ($module in $Modules) {
   if (!$paths) { continue }
   $steps = Join-Path $Tmp 'no-unreadable-steps.json'
   @{ steps = @($paths | ForEach-Object { , @('describe', $module, $_, '--depth', '1') }) } | ConvertTo-Json -Depth 5 | Set-Content $steps
-  $run = (& $Oml run $steps --continue) -join "`n" | ConvertFrom-Json
+  $run = (& $Oml batch $steps --continue) -join "`n" | ConvertFrom-Json
   foreach ($r in $run.results) {
     if ($r.exitCode -ne 0) { throw "describe $($r.args[2]) in $module failed: $($r.output | ConvertTo-Json -Depth 8 -Compress)" }
     if ($r.output.unreadable) { throw "describe $($r.args[2]) in $module lists unreadable parts: $($r.output.unreadable | ConvertTo-Json -Depth 8 -Compress)" }

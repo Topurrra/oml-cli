@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace OmlCli;
 
-// `oml evolve propose`: the report turned into small, concrete edits, each line with its evidence. Project level: trap
+// `oml learn propose`: the report turned into small, concrete edits, each line with its evidence. Project level: trap
 // records (as `oml memory add` commands), and a draft company skill per command family in .oml/skills/evolved-<family>.md.
 // Product level (--maintainer): insertions into skill/reference/*.md as unified diffs. Never rules.md, and never a line
 // that could weaken a production rule or reads like an instruction: those become flags for a person.
@@ -64,8 +64,8 @@ static class EvolveProposals
                 new JsonArray([new JsonObject { ["memory"] = trap.Seq }, .. EvolveAnalysis.Cites(rows).Select(c => c!.DeepClone())]), rows[0].Cmd));
         foreach (var (id, rows, fix) in a.Warnings.Where(w => w.Fix is not null))
             lessons.Add(new Lesson($"warn|{id}", "warnings", "Warnings looked up often",
-                $"Agents looked up {Code(id)} {rows.Count} times. The fix from oml warn: {fix} ({EvolveAnalysis.Lines(rows)})",
-                EvolveAnalysis.Cites(rows), "warn"));
+                $"Agents looked up {Code(id)} {rows.Count} times. The fix from oml explain-warning: {fix} ({EvolveAnalysis.Lines(rows)})",
+                EvolveAnalysis.Cites(rows), "explain-warning"));
         foreach (var (rule, count, files) in a.CheckRules)
         {
             var r = CheckCatalog.All.First(x => x.Id == rule);
@@ -101,7 +101,7 @@ static class EvolveProposals
                 made.Flags.Add(new JsonObject
                 {
                     ["key"] = "doc|" + d.Query, ["reason"] = "no answer to write",
-                    ["text"] = $"Agents searched the docs for \"{d.Query}\" {d.Rows.Count} times and found nothing good. Write the answer as a company skill (oml skills add) or a memory answer record.",
+                    ["text"] = $"Agents searched the docs for \"{d.Query}\" {d.Rows.Count} times and found nothing good. Write the answer as a company skill (oml team-rules add) or a memory answer record.",
                     ["evidence"] = EvolveAnalysis.Cites(d.Rows),
                 });
         if (!maintainer)
@@ -192,7 +192,7 @@ static class EvolveProposals
             ["commands"] = new JsonArray(commands.Select(c => (JsonNode)JsonValue.Create(c)!).ToArray()),
             ["lines"] = new JsonArray(lines.Select(l => (JsonNode)new JsonObject { ["key"] = l.Key, ["text"] = l.Text, ["evidence"] = l.Evidence.DeepClone() }).ToArray()),
             ["diff"] = diff, ["diffFile"] = diffFile, ["apply"] = apply, ["status"] = "open",
-            ["accept"] = $"oml evolve accept {id}", ["reject"] = $"oml evolve reject {id} --why \"<reason>\"",
+            ["accept"] = $"oml learn accept {id}", ["reject"] = $"oml learn reject {id} --why \"<reason>\"",
         });
     }
 
@@ -223,14 +223,14 @@ static class EvolveProposals
         "memory" => (Path.Combine("skill", "reference", "memory.md"), "## Use it"),
         "apply" => (Path.Combine("skill", "reference", "troubleshooting.md"), "## Apply and install"),
         "publish" or "studio" or "pull" or "references" => (Path.Combine("skill", "reference", "troubleshooting.md"), "## Publish and Service Studio"),
-        "lt" => (Path.Combine("skill", "reference", "troubleshooting.md"), "## LifeTime"),
+        "lifetime" => (Path.Combine("skill", "reference", "troubleshooting.md"), "## LifeTime"),
         "font" or "image" => (Path.Combine("skill", "reference", "troubleshooting.md"), "## Fonts and images"),
         _ => (Path.Combine("skill", "reference", "troubleshooting.md"), "## Lessons from usage logs"),
     };
 
     static string SkillHeader(string name, string family) =>
         $"---\nname: {name}\ndescription: Lessons from this project's usage log for oml {family}. Read it before you run oml {family}.\n---\n\n" +
-        $"# oml {family}: lessons from this project\n\nWritten by oml evolve from the local usage log and memory. Each line names its evidence. Edit or delete lines before you accept.\n";
+        $"# oml {family}: lessons from this project\n\nWritten by oml learn from the local usage log and memory. Each line names its evidence. Edit or delete lines before you accept.\n";
 
     // The text with the lines added at the end of a section ("## Name"), or the section added at the end when missing.
     internal static string InsertUnder(string text, string heading, List<string> lines)

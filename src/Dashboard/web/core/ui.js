@@ -182,7 +182,7 @@ export function pullWarning(r) {
   return h('div', { class: 'message warn', role: 'alert' }, h('strong', {}, 'Check this copy. '), o.attention, ids ? h('div', { class: 'small' }, 'Errors: ' + ids) : null);
 }
 
-// `oml lt download`: GET only. The .oap stays in the work folder; with extract, so do its modules.
+// `oml lifetime download`: GET only. The .oap stays in the work folder; with extract, so do its modules.
 export async function ltDownload(app, env, extract, button, out, showFiles) {
   const data = await task(button, out, `Downloading ${app} from ${env}…`, () => api('lt/download', { app, env, extract }));
   if (!data) return null;

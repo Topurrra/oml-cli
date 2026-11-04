@@ -14,7 +14,7 @@ function Assert($Condition, $Message) { if (!$Condition) { throw $Message } }
 # The Service Studio the run started with: for the steps that need Core (pack, extract, team reports).
 function Use-RealStudio { if ($null -eq $saved['OML_SERVICE_STUDIO']) { Remove-Item Env:OML_SERVICE_STUDIO -ErrorAction SilentlyContinue } else { $env:OML_SERVICE_STUDIO = $saved['OML_SERVICE_STUDIO'] } }
 function Invoke-Lt([string[]]$Arguments, [int]$Exit = 0) {
-    $output = & $Oml lt @Arguments 2> $progress
+    $output = & $Oml lifetime @Arguments 2> $progress
     $code = $LASTEXITCODE
     $text = $output -join "`n"
     $events = Get-Content -LiteralPath $progress -Raw -ErrorAction SilentlyContinue
@@ -49,7 +49,7 @@ try {
     $credential = $env:OML_LIFETIME_TOKEN; $env:OML_LIFETIME_TOKEN = ''
     $null = Invoke-Architecture @('--team','Commerce')
     # Missing token needs a direct check because the leak assertion requires a nonempty token.
-    $missing = & $Oml lt environments | ConvertFrom-Json
+    $missing = & $Oml lifetime environments | ConvertFrom-Json
     Assert ($LASTEXITCODE -eq 2 -and $missing.error -match 'OML_LIFETIME_TOKEN') 'Missing token error'
     $env:OML_LIFETIME_TOKEN = $credential
     # Real packages for the mock to serve (oml app pack), so --extract and the dashboard's team reports run for real.
@@ -112,11 +112,11 @@ try {
     $null = & $Oml architecture --team Commerce 2> $progress
     Assert ($LASTEXITCODE -eq 2 -and (Get-Content -LiteralPath $progress -Raw) -match 'Service Studio not found') 'Core invoked after team rewrite'
     Assert (@(Get-ChildItem -LiteralPath $env:TEMP -Directory -Filter 'oml-architecture-*').Count -eq 0) 'Temporary downloads removed after Core failure'
-    $compact = & $Oml lt environments
+    $compact = & $Oml lifetime environments
     Assert ($LASTEXITCODE -eq 0 -and @($compact).Count -eq 1) 'LifeTime compact output'
-    $pretty = & $Oml --pretty lt environments
+    $pretty = & $Oml --pretty lifetime environments
     Assert ($LASTEXITCODE -eq 0 -and @($pretty).Count -gt 1) 'LifeTime global pretty output'
-    $pretty = & $Oml lt environments --pretty
+    $pretty = & $Oml lifetime environments --pretty
     Assert ($LASTEXITCODE -eq 0 -and @($pretty).Count -gt 1) 'LifeTime trailing pretty output'
     $r = @(Invoke-Lt @('environments'))
     Assert ($r.Count -eq 2 -and $r[0].Key -eq 'dev') 'Environment list'
@@ -175,11 +175,11 @@ try {
             return $response.Content | ConvertFrom-Json
         }
         $r = Dash 'lt/teams'
-        Assert ($r.configured -and $r.code -eq 0 -and $r.output[0].name -eq 'Commerce' -and $r.cli -eq 'oml lt teams') 'Dashboard teams'
+        Assert ($r.configured -and $r.code -eq 0 -and $r.output[0].name -eq 'Commerce' -and $r.cli -eq 'oml lifetime teams') 'Dashboard teams'
         $r = Dash 'lt/team-apps?team=Commerce'
-        Assert ($r.code -eq 0 -and @($r.output).Count -eq 2 -and $r.cli -eq 'oml lt team-apps Commerce') 'Dashboard team applications'
+        Assert ($r.code -eq 0 -and @($r.output).Count -eq 2 -and $r.cli -eq 'oml lifetime team-apps Commerce') 'Dashboard team applications'
         $r = Dash 'lt/download' @{ app = 'Shop'; env = 'Development' }
-        Assert ($r.code -eq 0 -and $r.download -and $r.output.bytes -eq $shopBytes.Length -and $r.cli -eq 'oml lt download Shop --env Development --out C:\Exports' -and $r.folder.StartsWith($first.workFolder)) "Dashboard download: $($r | ConvertTo-Json -Compress)"
+        Assert ($r.code -eq 0 -and $r.download -and $r.output.bytes -eq $shopBytes.Length -and $r.cli -eq 'oml lifetime download Shop --env Development --out C:\Exports' -and $r.folder.StartsWith($first.workFolder)) "Dashboard download: $($r | ConvertTo-Json -Compress)"
         $package = Invoke-WebRequest "$base/download/$($r.download)?key=$dashKey" -UseBasicParsing
         Assert ([Linq.Enumerable]::SequenceEqual([byte[]]$package.Content, [byte[]]$shopBytes) -and $package.Headers['Content-Security-Policy'] -eq 'sandbox' -and $package.Headers['Content-Disposition'] -match 'filename="Shop.oap"') 'Dashboard .oap through /download'
         Remove-Item -LiteralPath $r.folder -Recurse -Force

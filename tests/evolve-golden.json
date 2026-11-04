@@ -21,7 +21,7 @@
         "medianTurns": 2.5
       },
       {
-        "command": "oml lt deploy",
+        "command": "oml lifetime deploy",
         "count": 3,
         "failures": 3,
         "failureRate": 1,
@@ -134,7 +134,7 @@
         ]
       },
       {
-        "command": "oml lt deploy",
+        "command": "oml lifetime deploy",
         "message": "LifeTime refused token ghp_***yzAB",
         "count": 3,
         "sessions": 3,
@@ -142,19 +142,19 @@
           {
             "usage": 9,
             "ts": "2026-10-01T09:20:00Z",
-            "command": "oml lt deploy",
+            "command": "oml lifetime deploy",
             "error": "LifeTime refused token ghp_***yzAB"
           },
           {
             "usage": 17,
             "ts": "2026-10-03T10:09:00Z",
-            "command": "oml lt deploy",
+            "command": "oml lifetime deploy",
             "error": "LifeTime refused token ghp_***yzAB"
           },
           {
             "usage": 27,
             "ts": "2026-10-05T08:09:00Z",
-            "command": "oml lt deploy",
+            "command": "oml lifetime deploy",
             "error": "LifeTime refused token ghp_***yzAB"
           }
         ]
@@ -321,17 +321,17 @@
           {
             "usage": 15,
             "ts": "2026-10-03T10:07:00Z",
-            "command": "oml warn"
+            "command": "oml explain-warning"
           },
           {
             "usage": 23,
             "ts": "2026-10-05T08:05:00Z",
-            "command": "oml warn"
+            "command": "oml explain-warning"
           },
           {
             "usage": 24,
             "ts": "2026-10-05T08:06:00Z",
-            "command": "oml warn"
+            "command": "oml explain-warning"
           }
         ]
       }
@@ -358,7 +358,7 @@
     ],
     "memory": null,
     "checks": [],
-    "hint": "Run 'oml evolve propose' to turn this into proposals. Nothing changes until a person runs 'oml evolve accept <id>'."
+    "hint": "Run 'oml learn propose' to turn this into proposals. Nothing changes until a person runs 'oml learn accept <id>'."
   },
   "proposals": [
     {

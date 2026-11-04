@@ -347,7 +347,7 @@ td > .button:last-child { margin-top: 8px; }
   .spinner { border-top-color: var(--line-strong); }
 }
 
-/* Dif page (oml dif): call stacks, element links, comments */
+/* Dif page (oml show-change): call stacks, element links, comments */
 .dif-doc .doc { max-width: 920px; }
 .dif-stack { background: var(--sunken); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 0; margin: 0 0 14px; overflow-x: auto; line-height: 1.55; }
 .dif-row { display: block; padding: 0 14px 0 8px; white-space: pre; }

@@ -9,7 +9,7 @@ import { onLeave } from '../core/lifecycle.js';
 import { hashParams } from '../core/state.js';
 import { gallery, stash, placeMedia, settled } from '../core/dif-media.js';
 
-// The Dif page (oml dif <file.md>): an agent's change walkthrough. Plain Markdown plus three oml parts:
+// The Dif page (oml show-change <file.md>): an agent's change walkthrough. Plain Markdown plus three oml parts:
 //   ```callstack    rows "+" new, "-" removed, " " unchanged; [[...]] links and "# note" at the end of a row
 //   ```review       "before: Orders.oml" and "after: Orders.staged.oml": oml review of the two, from the model
 //   ```flow         "module:" and "action:": the action's flow as a diagram (oml flow)
@@ -47,7 +47,7 @@ export default {
       field.input.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
       head.replaceChildren(field.el, open);
       notes.hidden = true;
-      doc.replaceChildren(h('div', { class: 'doc' }, h('p', { class: 'muted' }, 'An agent writes the walkthrough as Markdown, for example specs/<name>.md, and runs oml dif <file>. ',
+      doc.replaceChildren(h('div', { class: 'doc' }, h('p', { class: 'muted' }, 'An agent writes the walkthrough as Markdown, for example specs/<name>.md, and runs oml show-change <file>. ',
         'Besides normal Markdown it can show call stacks, element links and the review of the staged module.')));
     }
 
@@ -56,7 +56,7 @@ export default {
       const reload = h('button', { class: 'button small', type: 'button' }, 'Reload');
       reload.addEventListener('click', async () => { const again = await refetch(true); if (again) render(again); });
       head.replaceChildren(h('div', { class: 'card-head' }, h('h2', { class: 'mono small', text: data.file }), h('div', { class: 'row' }, reload)),
-        cli('oml dif ' + (/\s/.test(data.file) ? '"' + data.file + '"' : data.file)));
+        cli('oml show-change ' + (/\s/.test(data.file) ? '"' + data.file + '"' : data.file)));
       notes.hidden = false;
       render(data);
       // The file the agent keeps editing: show its newest version (checked every 2 seconds while the page is open).

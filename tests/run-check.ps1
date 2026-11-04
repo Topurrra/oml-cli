@@ -1,4 +1,4 @@
-# Checks `oml run <steps.json>`: result shape, same output as separate commands, module cache, refusals,
+# Checks `oml batch <steps.json>`: result shape, same output as separate commands, module cache, refusals,
 # stopping on exit code 2, --continue, stdin input, and the time of 5 separate processes against one run.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
@@ -11,7 +11,7 @@ function Same($a, $b) { ($a | ConvertTo-Json -Depth 50 -Compress) -ceq ($b | Con
 function Run-Steps($steps, [string[]]$Options = @(), $Stdin = $false) {
   $file = Join-Path $dir ('steps-' + [guid]::NewGuid().ToString('N') + '.json')
   $json = @{ steps = $steps } | ConvertTo-Json -Depth 10 -Compress
-  if ($Stdin) { $text = $json | & $Oml run - @Options } else { Set-Content $file $json -Encoding utf8; $text = & $Oml run $file @Options }
+  if ($Stdin) { $text = $json | & $Oml batch - @Options } else { Set-Content $file $json -Encoding utf8; $text = & $Oml batch $file @Options }
   $code = $LASTEXITCODE
   [pscustomobject]@{ Code = $code; Json = (($text -join "`n") | ConvertFrom-Json) }
 }
@@ -83,10 +83,10 @@ Require ($fresh.Json.results[0].exitCode -eq 2 -and $fresh.Json.results[1].exitC
 Write-Host 'ok   run: a module written by apply is loaded fresh by the next step'
 
 # Refusals: commands that need a person's confirmation, and run itself.
-$refused = Run-Steps @(@('install', 'a.oml', 'b.oml'), @('publish', 'X'), @('references', 'X'), @('pull'), @('lt', 'environments'), @('run', 'x.json'), @('architecture', '--team', 'T'), @('preview', 'x.oml', 'B', '--serve'), @('new', 'x.oml')) @('--continue')
+$refused = Run-Steps @(@('install', 'a.oml', 'b.oml'), @('publish', 'X'), @('references', 'X'), @('pull'), @('lifetime', 'environments'), @('batch', 'x.json'), @('architecture', '--team', 'T'), @('preview', 'x.oml', 'B', '--serve'), @('new', 'x.oml')) @('--continue')
 Require ($refused.Code -eq 2 -and $refused.Json.results.Count -eq 9) 'run: refusals shape'
-foreach ($x in $refused.Json.results) { Require ($x.exitCode -eq 2 -and $x.output.error -match 'inside .oml run.') "run: step '$($x.args[0])' was not refused clearly: $($x.output.error)" }
-Require ($refused.Json.results[0].output.error -match "'install' is not allowed inside 'oml run'") 'run: install refusal text'
+foreach ($x in $refused.Json.results) { Require ($x.exitCode -eq 2 -and $x.output.error -match 'inside .oml batch.') "run: step '$($x.args[0])' was not refused clearly: $($x.output.error)" }
+Require ($refused.Json.results[0].output.error -match "'install' is not allowed inside 'oml batch'") 'run: install refusal text'
 Write-Host 'ok   run: install, publish, references, pull, lt, run, architecture --team, preview --serve refused'
 
 # Exit code 2 stops the run; exit code 1 does not; --continue goes on after 2; the run exits with the highest code.
@@ -109,9 +109,9 @@ Require ($stdin.Code -eq 0 -and $stdin.Json.results.Count -eq 2 -and $stdin.Json
 Write-Host 'ok   run: steps from stdin ("-")'
 foreach ($bad in @('{}', '{ "steps": [] }', '{ "steps": [ "inspect" ] }', '{ "steps": [ [] ] }', '{ "steps": [ ["a", 1] ] }', 'not json')) {
   $file = Join-Path $dir 'bad.json'; Set-Content $file $bad -Encoding utf8
-  $text = & $Oml run $file; $code = $LASTEXITCODE
+  $text = & $Oml batch $file; $code = $LASTEXITCODE
   Require ($code -eq 2 -and ($text -join '') -match '"error"') "run: bad steps file was not refused with exit 2: $bad"
 }
-$text = & $Oml run (Join-Path $dir 'missing.json'); Require ($LASTEXITCODE -eq 2 -and ($text -join '') -match 'Cannot read') 'run: missing steps file'
+$text = & $Oml batch (Join-Path $dir 'missing.json'); Require ($LASTEXITCODE -eq 2 -and ($text -join '') -match 'Cannot read') 'run: missing steps file'
 Write-Host 'ok   run: bad steps files refused with exit code 2'
 } finally { Remove-TestWorkFolder $Tmp }

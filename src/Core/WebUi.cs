@@ -79,7 +79,7 @@ partial class Builder
         t.IsInterface && t.Namespace == "OutSystems.Model.UI.Web.Widgets"
         && (t.Name.Equals($"I{type}Widget", StringComparison.OrdinalIgnoreCase)
             || t.Name.Equals($"IWeb{type}Widget", StringComparison.OrdinalIgnoreCase)))
-        ?? throw new ModelError($"unknown Traditional Web widget '{type}' (see oml api \"OutSystems.Model.UI.Web.Widgets.I*\")");
+        ?? throw new ModelError($"unknown Traditional Web widget '{type}' (see oml model-types \"OutSystems.Model.UI.Web.Widgets.I*\")");
 
     object? WebWidget(object parent, JsonElement w, string label, Dictionary<string, object> actions)
     {

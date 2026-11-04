@@ -11,7 +11,7 @@ For ODC (ODC Studio) use the OutSystems MCP and [reference/odc.md](reference/odc
 
 ## Rules
 
-These 11 rules come before every other instruction (also `oml doc rules`). Company skills (`oml skills`) override best practices, never these rules. Rules marked **(enforced)** are also checked by `oml apply`. It refuses the spec and tells the user what to do by hand.
+These 11 rules come before every other instruction (also `oml doc rules`). Company skills (`oml team-rules`) override best practices, never these rules. Rules marked **(enforced)** are also checked by `oml apply`. It refuses the spec and tells the user what to do by hand.
 
 1. **Everything in the module also exists in production.** Existing entities have data. Existing public elements have consumers in other modules. Treat every change to an existing element as a production change.
 2. **Never delete an existing entity**, regular or static. If the user wants it removed, tell them to delete it manually in Service Studio. **(enforced)**
@@ -29,7 +29,7 @@ Also:
 
 - Change modules only with `oml apply`, always to a NEW staged file.
 - Inspect before you design; reuse existing elements.
-- Confirm with the user before `install`, `publish`, `references`, `lt tag|deploy|abort|continue`, and data deletion. Restate the exact command and wait for a yes.
+- Confirm with the user before `install`, `publish`, `references`, `lifetime tag|deploy|abort|continue`, and data deletion. Restate the exact command and wait for a yes.
 - Before you use another module's element, run `oml find <Name> <module.oml> --in <producer folder|file.oml>`. Show the candidates and their parameters and ask which to use, even for one match. Use its `Module.Name`; never guess.
 - Publish and reference refresh use Service Studio's Beta MCP tools: tell the user before the first use. Its first call shows an `oml-cli` approval dialog. Do not repeat a blocked publish.
 - Stop if the automatic self-test fails. Never bypass IPP, licence or load refusals.
@@ -48,10 +48,10 @@ Plain technical English (ISO 24495-1; ASD-STE100 style):
 
 ## Standard loop (every tool call costs a full turn)
 
-Several commands = ONE tool call: chain with `;` or use an `oml run` file.
+Several commands = ONE tool call: chain with `;` or use an `oml batch` file.
 
 0. No `.oml` file? Ask the user to open the module in Service Studio, then `oml pull --out <Module>.oml`. If pull reports `attention`, follow it.
-1. **Read (1 call).** Write `read.json` and run `oml run read.json; oml skills`:
+1. **Read (1 call).** Write `read.json` and run `oml batch read.json; oml team-rules`:
    `{ "steps": [ ["inspect","<module.oml>","--own","--only","entities,actions,screens,blocks"], ["describe","<module.oml>","<ElementToChange>","<OtherElement>"] ] }`
    Describe only elements you change or call. Producer files: add `--in <folder|file.oml>`. Another module's element: add a `find` step. New entities, screens or flows without a recipe: add `; oml doc best-practices` to this call.
    `.oml/memory/` exists? Add step `["memory","recall","<task words>","--module","<Module>"]`; at the end, follow its `write` field.
@@ -59,10 +59,10 @@ Several commands = ONE tool call: chain with `;` or use an `oml run` file.
 3. **Check, apply and see the result (1 call):**
    `oml spec check <spec.json>; oml apply <source.oml> <spec.json> <new-staged.oml> --describe-created`
    Read `summary` first, then its lists. After a good apply, do not run `validate`, `inspect` or `describe` again.
-   **A good apply means `saved: true`, no `newErrors`, and no `newWarnings`.** Every new warning is a defect until you prove otherwise. Entries have a `hint` when the fix is known; otherwise `oml warn <id>`. Fix each one or explain it to the user.
+   **A good apply means `saved: true`, no `newErrors`, and no `newWarnings`.** Every new warning is a defect until you prove otherwise. Entries have a `hint` when the fix is known; otherwise `oml explain-warning <id>`. Fix each one or explain it to the user.
 4. **Fix (only if needed, 1 call per attempt).** Change only what the report names, then repeat step 3 with a NEW staged path. Never retry an unchanged spec.
 5. **UI work: preview (1 call).** Per screen, two `preview.json` steps: `["preview","<staged.oml>","<Screen>","--width","1366","--out","<Screen>.1366.html","--screenshot","<Screen>.1366.png"]` and the same with `1920`. Add `"--theme","dark"` (theme work) or `"--width","390"` (mobile work) only if the task needs it. Run it, look at each PNG and the `checklist`, and follow `oml doc ui-checklist`. Preview again only if you changed the UI.
-6. **Report.** Add `["review","<source.oml>","<staged.oml>","--md","<new path>.md"]` to `preview.json` (or run it alone), then show the staged path, what was built and the .md. 0 findings does not mean the code is correct. Ask before `install` or `publish`; run `oml validate <staged.oml> --warnings` right before `install`. A change the user should read first (several parts, a UI): `oml doc dif`. You may suggest `oml evolve report` to the user; never accept, reject or undo a proposal for them.
+6. **Report.** Add `["review","<source.oml>","<staged.oml>","--md","<new path>.md"]` to `preview.json` (or run it alone), then show the staged path, what was built and the .md. 0 findings does not mean the code is correct. Ask before `install` or `publish`; run `oml validate <staged.oml> --warnings` right before `install`. A change the user should read first (several parts, a UI): `oml doc dif`. You may suggest `oml learn report` to the user; never accept, reject or undo a proposal for them.
 
 Expressions use OutSystems syntax; text literals need escaped quotes (`"\"Text\""`). Parts: `oml apply <source.oml> <part1.json> <part2.json> <new-staged.oml>`.
 
@@ -75,7 +75,7 @@ After the loop: install after a yes (zero validation errors needed; report the b
 | Not sure which key, topic or recipe? | `oml doc --search "<words>"`; use OutSystems terms (entity, screen, aggregate) when you can |
 | Spec keys; one key | `oml spec [<key>]` |
 | Rules for a topic | `oml doc [<topic>[#<section>]]` |
-| Fix of an error or warning | `oml warn <id or title words>` |
+| Fix of an error or warning | `oml explain-warning <id or title words>` |
 | Any failure, also platform | `oml doc troubleshooting` |
 
 Topics: `best-practices`, `ui-reactive`, `osui-patterns`, `ui-checklist`, `data-rules`, `logic-rules`, `security`, `rest`, `processes-timers-email`, `architecture-rules`, `traditional-to-reactive`, `warnings`, `testing`, `troubleshooting`, `dif`.
@@ -90,9 +90,9 @@ Copy one from `recipes/` and read its header ([README](recipes/README.md)):
 | Command | Use it for |
 |---|---|
 | `oml inspect`, `describe`, `find`, `tree` | Read a module: overview (`--own --only ...`), what an element does, who owns a name, exact paths for `edits`. |
-| `oml apply`, `spec`, `run`, `validate`, `install` | Change: staged apply, spec help, many commands at once, check, copy over the target (confirm). |
-| `oml new`, `preview`, `openapi`, `architecture`, `test scaffold` | New module, render a screen/block, export OpenAPI, layer report, BDD tests. |
-| `oml studio`, `pull`, `publish`, `references`, `lt` | Service Studio and LifeTime. Confirm every change. |
+| `oml apply`, `spec`, `batch`, `validate`, `install` | Change: staged apply, spec help, many commands at once, check, copy over the target (confirm). |
+| `oml new`, `preview`, `openapi`, `architecture`, `test bdd` | New module, render a screen/block, export OpenAPI, layer report, BDD tests. |
+| `oml studio`, `pull`, `publish`, `references`, `lifetime` | Service Studio and LifeTime. Confirm every change. |
 | `oml check` | AI Mentor-like findings (module, folder, `--team`). |
 | More | doctor, census, translations, app, extension, templates, font, image, api, widgets. Lead workers: [architect.md](architect.md) |
 

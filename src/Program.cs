@@ -12,6 +12,7 @@ public static class Program
     public static int Main(string[] args)
     {
         SetUpConsole();
+        args = CliUsage.Normalize(args); // an old command name (lt, census, ...) is its new name from here on
         JsonOutput.Pretty = args.Contains("--pretty");
         var filtered = args.Where(a => a != "--pretty").ToArray();
         // `--json` (force JSON) and OML_OUTPUT=json|human decide the human view; see TerminalOutput.
@@ -28,7 +29,7 @@ public static class Program
         return UsageLog.Enabled ? UsageLog.Measure(filtered, () => Dispatch(args, filtered)) : Dispatch(args, filtered);
     }
 
-    internal static readonly string[] TimingsRefused = ["lt", "font", "doctor", "spec", "doc", "warn", "dashboard", "setup", "log", "image", "memory", "library", "skills", "qa", "hooks", "dif", "evolve"];
+    internal static readonly string[] TimingsRefused = ["lifetime", "font", "doctor", "spec", "doc", "explain-warning", "dashboard", "explorer-menu", "log", "image", "memory", "outsystems-docs", "team-rules", "qa", "hooks", "show-change", "learn"];
     internal static string TimingsRefusal(string command) => $"--timings is not available for {command}.";
     // Output encoding (commands.md, "Output encoding"). A console window gets UTF-16 through WriteConsoleW: every
     // character shows, and the console code page is not changed (.NET never sets code page 1200 on the console).
@@ -71,27 +72,27 @@ public static class Program
         // `oml`, `oml help`, `oml --help`: the overview, or every usage line with --all. Needs no Service Studio.
         if (CliUsage.IsHelp(filtered)) { TerminalOutput.PrintHelp(CliUsage.HelpText(filtered), null); return 0; }
         // Commands the launcher runs itself print their usage lines here, without Service Studio.
-        if (filtered.FirstOrDefault() is "lt" or "font" or "doctor" or "setup" or "image" or "dashboard" or "library" or "qa" or "hooks" or "dif" && (filtered.Contains("--help") || filtered.Contains("-h")))
+        if (filtered.FirstOrDefault() is "lifetime" or "font" or "doctor" or "explorer-menu" or "image" or "dashboard" or "outsystems-docs" or "qa" or "hooks" or "show-change" && (filtered.Contains("--help") || filtered.Contains("-h")))
         {
-            // lt: one line per subcommand, with its options.
-            TerminalOutput.PrintHelp(filtered[0] == "lt" ? LifeTime.Usage.Replace(" | ", Environment.NewLine + "oml lt ") : CliUsage.For(filtered[0]), filtered[0]);
+            // lifetime: one line per subcommand, with its options.
+            TerminalOutput.PrintHelp(filtered[0] == "lifetime" ? LifeTime.Usage.Replace(" | ", Environment.NewLine + "oml lifetime ") : CliUsage.For(filtered[0]), filtered[0]);
             return 0;
         }
         if (filtered.FirstOrDefault() == "hooks") return AgentHooks.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "lt") return LifeTime.Run(filtered.Skip(1).ToArray(), RunCore);
+        if (filtered.FirstOrDefault() == "lifetime") return LifeTime.Run(filtered.Skip(1).ToArray(), RunCore);
         if (filtered.FirstOrDefault() == "font") return FontAssets.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "doctor") return Doctor.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "spec") return SpecCommand.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "doc") return DocCommand.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "warn") return DocCommand.Warn(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "explain-warning") return DocCommand.Warn(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "memory") return MemoryCommand.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "evolve") return EvolveCommand.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "library") return Library.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "skills") return CompanySkills.Run(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "learn") return EvolveCommand.Run(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "outsystems-docs") return Library.Run(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "team-rules") return CompanySkills.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "dashboard") return Dashboard.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "qa") return Qa.QaCommand.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "dif") return Dashboard.Dif(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "setup" && OperatingSystem.IsWindows()) return Setup.Run(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "show-change") return Dashboard.Dif(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "explorer-menu" && OperatingSystem.IsWindows()) return Setup.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() is "architecture" or "check" && filtered.Contains("--team"))
         {
             if (filtered[0] == "check" && CheckPreflight(filtered) is { } error)
@@ -150,7 +151,7 @@ public static class Program
             return (int)imageRun.Invoke(null, new object[] { filtered.Skip(1).Concat(JsonOutput.Pretty ? new[] { "--pretty" } : []).ToArray() })!;
         }
         var cli = core.GetType("OmlCli.Cli", throwOnError: true)!;
-        // `oml run` steps include `spec`, `doc` and `warn`, which live here and need no Service Studio.
+        // `oml batch` steps include `spec`, `doc` and `explain-warning`, which live here and need no Service Studio.
         cli.GetField("LauncherRun")!.SetValue(null, (Func<string[], int>)(step => step[0] switch
         {
             "spec" => SpecCommand.Run(step[1..]),

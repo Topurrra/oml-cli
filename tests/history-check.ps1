@@ -116,11 +116,11 @@ Require (($none.PSObject.Properties.Name -join ',') -eq 'changedSince') "a cut a
 $bare = Run @('inspect', $sample, '--own', '--only', 'entities', '--changed-since', $days[0])
 Require ($bare.Code -eq 0 -and $bare.Text -cnotmatch '"lastModified') '--changed-since alone printed change fields'
 
-# oml run passes the flags on.
+# oml batch passes the flags on.
 $steps = Join-Path $dir 'steps.json'
 @{ steps = @(@('describe', $sample, 'MenuItem', '--history'), @('inspect', $sample, '--own', '--history', '--only', 'entities', '--changed-since', $days[0])) } |
     ConvertTo-Json -Depth 5 | Set-Content $steps -Encoding utf8
-$run = Read-Oml @('run', $steps)
-Require ($run.results.Count -eq 2 -and $run.results[0].output.text.Contains($line) -and $run.results[1].output.changedSince -eq $days[0] -and ($run.results[1].output.entities | Where-Object name -eq 'MenuItem').lastModifiedBy) 'oml run did not pass the flags on'
+$run = Read-Oml @('batch', $steps)
+Require ($run.results.Count -eq 2 -and $run.results[0].output.text.Contains($line) -and $run.results[1].output.changedSince -eq $days[0] -and ($run.results[1].output.entities | Where-Object name -eq 'MenuItem').lastModifiedBy) 'oml batch did not pass the flags on'
 Write-Host 'ok   history: values and dates on the Service Studio sample, --changed-since at every edge, nothing without the flags (also --pretty), specs cannot write history'
 } finally { Remove-TestWorkFolder $Tmp }

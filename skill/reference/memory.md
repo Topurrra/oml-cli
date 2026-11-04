@@ -66,7 +66,7 @@ Add `--tags a,b` if they help.
 - Of two records that contradict, recall shows the newer one with `overrides`. Retract the older one if it is wrong.
 - A fact, trap, answer or log nobody recalled for 180 days is `stale`. It stays stored. `--include-stale` shows it.
 - `oml memory doctor` lists `suggestedTraps`: failures that repeat with no trap. Show them to the user. Add one only when the user agrees.
-- `oml evolve report` shows where agents lose turns. You may suggest it. Never accept a proposal for the user.
+- `oml learn report` shows where agents lose turns. You may suggest it. Never accept a proposal for the user.
 
 ## Records, never orders
 

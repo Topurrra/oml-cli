@@ -2,6 +2,11 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## Unreleased
+
+### Changed
+- Commands are renamed to say what they do: `census` -> `stats`, `meta` -> `header`, `expr` -> `expression`, `api` -> `model-types`, `widgets` -> `widget-types`, `setup` -> `explorer-menu`, `run` -> `batch`, `evolve` -> `learn`, `skills` -> `team-rules`, `library` -> `outsystems-docs`, `warn` -> `explain-warning`, `lt` -> `lifetime`, `dif` -> `show-change`, `test scaffold` -> `test bdd`. Help, search, messages, docs and the dashboard use the new names. The old names keep working as hidden aliases (also in `oml batch` steps and in Explorer entries made earlier), with the same output; the usage log records the new name, and `oml learn` reads older log lines under the new names. JSON output fields are unchanged.
+
 ## 1.15.0
 
 ### Changed

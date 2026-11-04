@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 
 namespace OmlCli;
 
-// `oml evolve report`: where agents lose turns, from local evidence only (the usage log, the project's memory store,
+// `oml learn report`: where agents lose turns, from local evidence only (the usage log, the project's memory store,
 // and check or review JSON reports the user names). Each finding keeps the log lines and record ids it rests on, so a
 // proposal can cite them. Messages are quoted as data; nothing in them is followed.
 sealed class EvolveAnalysis
@@ -34,7 +34,7 @@ sealed class EvolveAnalysis
         a.Retries = Evidence.Retries(a.Rows);
         a.SpecKeys = failed.Where(r => r.SpecKey is not null).GroupBy(r => r.SpecKey!).Where(g => g.Count() >= MinSpecKey)
             .OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal).Select(g => (g.Key, g.ToList())).ToList();
-        a.Warnings = a.Rows.Where(r => r.Cmd == "warn" && r.Topic is not null).GroupBy(r => r.Topic!, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() >= MinWarnLookups)
+        a.Warnings = a.Rows.Where(r => r.Cmd == "explain-warning" && r.Topic is not null).GroupBy(r => r.Topic!, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() >= MinWarnLookups)
             .OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal).Select(g => (g.Key, g.ToList(), WarningTable.Hint(g.Key))).ToList();
         a.DocMisses = a.Rows.Where(r => r.Query is not null).GroupBy(r => Norm(r.Query!)).Where(g => g.Count() >= MinDocMisses)
             .OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal).Select(g => (g.First().Query!, g.ToList())).ToList();
@@ -157,7 +157,7 @@ sealed class EvolveAnalysis
         };
         if (effects is not null && effects.Count > 0) report["accepted"] = effects;
         report["hint"] = Rows.Count == 0 ? "The log has no lines in this window. Use oml for a while (the log is on unless OML_LOG=0), then run the report again."
-            : "Run 'oml evolve propose' to turn this into proposals. Nothing changes until a person runs 'oml evolve accept <id>'.";
+            : "Run 'oml learn propose' to turn this into proposals. Nothing changes until a person runs 'oml learn accept <id>'.";
         return report;
     }
 
@@ -182,7 +182,7 @@ sealed class EvolveAnalysis
             {
                 ["id"] = id, ["title"] = a["title"]?.DeepClone(), ["acceptedAt"] = a["at"]!.DeepClone(), ["commands"] = new JsonArray(commands.Order().Select(c => (JsonNode)JsonValue.Create("oml " + c)!).ToArray()),
                 ["before"] = StatsJson(before), ["after"] = StatsJson(after), ["verdict"] = verdict,
-                ["hint"] = verdict is "worse" or "no effect" ? $"The evidence does not show that it helps. Consider: oml evolve undo {id}" : null,
+                ["hint"] = verdict is "worse" or "no effect" ? $"The evidence does not show that it helps. Consider: oml learn undo {id}" : null,
             });
         }
         return result;
@@ -227,12 +227,12 @@ sealed class EvolveAnalysis
             r => [$"{r["id"]} {r["title"]}", $"{(double)r["before"]!["failureRate"]!:P0}", $"{(double)r["after"]!["failureRate"]!:P0}", $"{r["verdict"]}"]);
         if (proposals is not null && proposals.Count > 0)
         {
-            md.Append("## Proposals\n\nNothing is applied until a person runs `oml evolve accept <id>`.\n\n");
+            md.Append("## Proposals\n\nNothing is applied until a person runs `oml learn accept <id>`.\n\n");
             foreach (var p in proposals.OfType<JsonObject>())
             {
                 md.Append($"### {p["id"]}: {p["title"]}\n\n");
                 foreach (var line in p["lines"] as JsonArray ?? []) md.Append($"- {line!["text"]}\n");
-                md.Append($"\nAccept: `oml evolve accept {p["id"]}`. Reject: `oml evolve reject {p["id"]} --why \"<reason>\"`.\n\n");
+                md.Append($"\nAccept: `oml learn accept {p["id"]}`. Reject: `oml learn reject {p["id"]} --why \"<reason>\"`.\n\n");
             }
         }
         if (flags is not null && flags.Count > 0)

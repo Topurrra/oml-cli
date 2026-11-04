@@ -412,7 +412,7 @@ static class Apply
 
         if (dryRun) return (0, new { saved = false, dryRun = true }); // spec check --module: the build ran, nothing is written
         Model.Save(m, output);
-        using var open = Model.Borrow(output, "reopen"); var reopened = open.Module; // an `oml run` keeps it for the next command
+        using var open = Model.Borrow(output, "reopen"); var reopened = open.Module; // an `oml batch` keeps it for the next command
         var reopenedAll = Model.All(reopened, "validate reopened");
         var reopenNew = Subtract(reopenedAll.Where(e => e.Type == ValidationMessageType.Error).ToArray(), baseline);
         // Warnings do not block a save, but a type mismatch warning can still mean a wrong model: report them.
@@ -512,7 +512,7 @@ static class Apply
     static IEnumerable<object> Notices(List<(string id, string owner, string message, int count)> notices) =>
         notices.GroupBy(n => n.id).Select(g => (object)new
         {
-            id = g.Key, count = g.Sum(n => n.count), hint = WarningTable.Hint(g.Key), // rows in warnings.md, so `oml warn` finds them too
+            id = g.Key, count = g.Sum(n => n.count), hint = WarningTable.Hint(g.Key), // rows in warnings.md, so `oml explain-warning` finds them too
             samples = g.Take(12).Select(n => new { message = n.message, detail = (string?)null, owner = n.owner == "" ? null : n.owner }),
         });
 

@@ -26,7 +26,7 @@ static class Content
 
     static T NamedEnum<T>(string name) where T : struct, Enum =>
         Enum.GetNames<T>().FirstOrDefault(n => n.Equals(name, StringComparison.OrdinalIgnoreCase)) is { } found
-            ? Enum.Parse<T>(found) : throw new ModelError($"unknown {typeof(T).Name} '{name}'; supported: {(Enum.GetNames<T>().Length > 30 ? "see oml api " + typeof(T).Name : string.Join(", ", Enum.GetNames<T>()))}");
+            ? Enum.Parse<T>(found) : throw new ModelError($"unknown {typeof(T).Name} '{name}'; supported: {(Enum.GetNames<T>().Length > 30 ? "see oml model-types " + typeof(T).Name : string.Join(", ", Enum.GetNames<T>()))}");
 
     static Culture CultureOf(string name) => NamedEnum<Culture>(name.Replace('-', '_'));
     internal static IEnumerable<object> Items(object owner, string property) =>

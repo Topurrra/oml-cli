@@ -11,7 +11,7 @@ using OutSystems.Model.UI;
 
 namespace OmlCli;
 
-// `oml test scaffold`: reads a module's public server actions and a BDDFramework module, and writes a spec that
+// `oml test bdd`: reads a module's public server actions and a BDDFramework module, and writes a spec that
 // builds BDD test screens in a separate Reactive test module. Read-only: it never saves either module.
 // Every block, input, placeholder, event and assert name comes from the BDDFramework file itself, so the spec
 // matches the module the user gives. oml's own tests use a stand-in (tests/bdd-standin.json), not the Forge component.
@@ -29,7 +29,7 @@ static class TestScaffold
             var option = args[i];
             if (!option.StartsWith("--")) { actions.Add(option); continue; }
             if (option is not ("--out" or "--module-name" or "--bdd" or "--producer") || i + 1 >= args.Count || args[i + 1].StartsWith("--"))
-                throw new CliError("test scaffold accepts --out <spec.json>, --module-name <TestModule>, --bdd <BDDFramework.oml> and --producer <path>.", 2);
+                throw new CliError("test bdd accepts --out <spec.json>, --module-name <TestModule>, --bdd <BDDFramework.oml> and --producer <path>.", 2);
             var value = args[++i];
             ref var slot = ref option == "--out" ? ref output : ref option == "--module-name" ? ref moduleName : ref option == "--bdd" ? ref bdd : ref producerPath;
             if (slot is not null) throw new CliError($"Duplicate option {option}.", 2);
@@ -41,9 +41,9 @@ static class TestScaffold
     // The report of one run; the spec file is written before it returns. The self-test calls this directly.
     internal static object Write(string module, List<string> actions, string? bdd, string? output, string? moduleName, string? producerPath)
     {
-        if (actions.Count == 0) throw new CliError("test scaffold needs at least one <ServerAction> after <module.oml>.", 2);
+        if (actions.Count == 0) throw new CliError("test bdd needs at least one <ServerAction> after <module.oml>.", 2);
         if (bdd is null)
-            throw new CliError("test scaffold needs --bdd <BDDFramework.oml>: the framework module the test module references. oml cannot download it. "
+            throw new CliError("test bdd needs --bdd <BDDFramework.oml>: the framework module the test module references. oml cannot download it. "
                 + "Install BDDFramework Client Side from Forge in Service Studio, open it, and save it with 'oml pull --out BDDFramework.oml'.", 2);
         var source = Path.GetFullPath(module);
         var framework = Path.GetFullPath(bdd);
@@ -143,17 +143,17 @@ static class TestScaffold
             var scenario = Block("BDDScenario");
             var step = Block("BDDStep");
             if (Mandatory(Block("FinalResult"), null) is { } finalInput)
-                throw new CliError($"{module}.FinalResult has a mandatory input '{finalInput}'; oml test scaffold cannot fill it.", 1);
+                throw new CliError($"{module}.FinalResult has a mandatory input '{finalInput}'; oml test bdd cannot fill it.", 1);
 
             var placeholders = Walk(scenario).Where(w => w is OutSystems.Model.UI.Mobile.Widgets.IPlaceholderWidgetSignature).Select(w => Model.NameOf(w)!).ToList();
             var placeholder = placeholders.Count == 1 ? placeholders[0]
                 : placeholders.Where(p => p.Contains("Step", StringComparison.OrdinalIgnoreCase)).ToList() is [var one] ? one
-                : throw new CliError($"{module}.BDDScenario has placeholders {string.Join(", ", placeholders.DefaultIfEmpty("(none)"))}; oml test scaffold needs one placeholder, or one whose name has 'Step', for the steps.", 1);
+                : throw new CliError($"{module}.BDDScenario has placeholders {string.Join(", ", placeholders.DefaultIfEmpty("(none)"))}; oml test bdd needs one placeholder, or one whose name has 'Step', for the steps.", 1);
 
             var events = List(step, "Events").Cast<IObjectSignature>().ToList();
             var stepEvent = events.Count == 1 ? events[0]
                 : events.Where(e => Reflect.Get(e, "IsMandatory") is true).ToList() is [var mandatory] ? mandatory
-                : throw new CliError($"{module}.BDDStep has events {string.Join(", ", events.Select(Model.NameOf).DefaultIfEmpty("(none)"))}; oml test scaffold needs one event, or one mandatory event, that runs the step's screen action.", 1);
+                : throw new CliError($"{module}.BDDStep has events {string.Join(", ", events.Select(Model.NameOf).DefaultIfEmpty("(none)"))}; oml test bdd needs one event, or one mandatory event, that runs the step's screen action.", 1);
 
             var assert = m.ClientActions.FirstOrDefault(a => a.Name == "AssertTrue" && a.Public)
                 ?? throw new CliError($"{module} has no public client action 'AssertTrue'. Public client actions named Assert*: {string.Join(", ", m.ClientActions.Where(a => a.Public && a.Name.StartsWith("Assert")).Select(a => a.Name).DefaultIfEmpty("(none)"))}.", 1);
@@ -162,13 +162,13 @@ static class TestScaffold
                 : throw new CliError($"{module}.AssertTrue needs exactly one Boolean input for the condition; it has {string.Join(", ", assertInputs.Select(Model.NameOf))}.", 1);
             var message = TextInput(m, assert, "Message");
             if (Mandatory(assert, [condition, message]) is { } other)
-                throw new CliError($"{module}.AssertTrue has a mandatory input '{other}' that oml test scaffold cannot fill.", 1);
+                throw new CliError($"{module}.AssertTrue has a mandatory input '{other}' that oml test bdd cannot fill.", 1);
 
             var scenarioInput = TextInput(m, scenario, "Description") ?? throw new CliError($"{module}.BDDScenario has no Text input for the scenario description.", 1);
             var stepInput = TextInput(m, step, "Description") ?? throw new CliError($"{module}.BDDStep has no Text input for the step description.", 1);
             foreach (var (block, input) in new[] { (scenario, scenarioInput), (step, stepInput) })
                 if (Mandatory(block, [input]) is { } extra)
-                    throw new CliError($"{module}.{Model.NameOf(block)} has a mandatory input '{extra}' that oml test scaffold cannot fill.", 1);
+                    throw new CliError($"{module}.{Model.NameOf(block)} has a mandatory input '{extra}' that oml test bdd cannot fill.", 1);
             var eventName = Model.NameOf(stepEvent)!;
             return new(module, scenarioInput, placeholder, stepInput, eventName, assert.Name, condition, message,
                 ["BDDScenario", "BDDStep", "FinalResult", assert.Name],
@@ -205,7 +205,7 @@ static class TestScaffold
             if (action is null || !action.Public)
             {
                 var publicOnes = m.ServerActions.Where(a => a.Public).Select(a => a.Name).Order(StringComparer.Ordinal).ToList();
-                var why = action is null ? m.ClientActions.Any(a => a.Name == name) ? $"'{name}' is a client action; oml test scaffold tests public server actions" : $"no server action '{name}'"
+                var why = action is null ? m.ClientActions.Any(a => a.Name == name) ? $"'{name}' is a client action; oml test bdd tests public server actions" : $"no server action '{name}'"
                     : $"server action '{name}' is not public; a test module can only call public actions";
                 throw new CliError($"{((IModule)m).Name}: {why}. Public server actions: {string.Join(", ", publicOnes.DefaultIfEmpty("(none)"))}.", 1);
             }

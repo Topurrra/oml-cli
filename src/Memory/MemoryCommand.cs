@@ -10,7 +10,7 @@ namespace OmlCli;
 // `doctor --module` loads the module). The design and the file format are in MemoryFormat.cs and
 // skill/reference/memory.md. Output is compact JSON; an error is {"error", "hint"} with exit 1 (the store or a record
 // is not there) or 2 (the input is wrong or refused). Read subcommands (recall, list, show, history, handoff) also run
-// inside `oml run`; the others are refused there.
+// inside `oml batch`; the others are refused there.
 static class MemoryCommand
 {
     public static readonly string[] ReadSubcommands = ["recall", "list", "show", "history", "handoff", "traps"];

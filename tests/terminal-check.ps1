@@ -21,8 +21,8 @@ $reactive = Join-Path $Fixtures 'r0.oml'
 # --- 1. Redirected output is byte-identical JSON, as in 1.8.0. ---
 $cases = @(
   @{ Name = 'inspect-entities'; Args = @('inspect', $reactive, '--only', 'entities') },
-  @{ Name = 'expr-add'; Args = @('expr', '1 + 2') },
-  @{ Name = 'expr-invalid'; Args = @('expr', '1 +') },
+  @{ Name = 'expr-add'; Args = @('expression', '1 + 2') },
+  @{ Name = 'expr-invalid'; Args = @('expression', '1 +') },
   @{ Name = 'validate-r0'; Args = @('validate', $reactive) },
   @{ Name = 'describe-missing'; Args = @('describe', $reactive, 'NoSuchElement') },
   @{ Name = 'find-id'; Args = @('find', 'Id', $reactive) },
@@ -56,7 +56,7 @@ foreach ($c in $cases) {
 
 # --- 2. OML_OUTPUT=human renders a human view even when stdout is redirected (no ANSI in a pipe). ---
 $env:OML_OUTPUT = 'human'
-$human = (& $Oml meta $reactive) -join "`n"
+$human = (& $Oml header $reactive) -join "`n"
 Remove-Item Env:OML_OUTPUT
 if ($human -match '^\s*\{') { throw 'OML_OUTPUT=human did not render a human view' }
 if ($human -match '\x1b\[') { throw 'human view contains escape sequences' }
@@ -65,14 +65,14 @@ Write-Host 'ok   OML_OUTPUT=human renders a human view'
 
 # --- 3. --json beats OML_OUTPUT=human. ---
 $env:OML_OUTPUT = 'human'
-$forced = (& $Oml meta $reactive --json) -join "`n"
+$forced = (& $Oml header $reactive --json) -join "`n"
 Remove-Item Env:OML_OUTPUT
 $null = $forced | ConvertFrom-Json # throws when the output is not JSON
 Write-Host 'ok   --json forces JSON'
 
 # --- 4. OML_OUTPUT=json forces JSON. ---
 $env:OML_OUTPUT = 'json'
-$j = (& $Oml meta $reactive) -join "`n"
+$j = (& $Oml header $reactive) -join "`n"
 Remove-Item Env:OML_OUTPUT
 $null = $j | ConvertFrom-Json
 Write-Host 'ok   OML_OUTPUT=json forces JSON'
@@ -86,7 +86,7 @@ Write-Host 'ok   redirected output equals --json output'
 # --- 6. NO_COLOR gives no escape sequences. ---
 $env:OML_OUTPUT = 'human'
 $env:NO_COLOR = '1'
-$nc = (& $Oml meta $reactive) -join "`n"
+$nc = (& $Oml header $reactive) -join "`n"
 Remove-Item Env:OML_OUTPUT, Env:NO_COLOR
 if ($nc -match '\x1b\[') { throw 'NO_COLOR gave escape sequences' }
 Write-Host 'ok   NO_COLOR gives no escape sequences'

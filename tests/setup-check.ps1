@@ -1,7 +1,7 @@
-# oml setup: the Explorer right-click entries and the actions they call.
+# oml explorer-menu: the Explorer right-click entries and the actions they call.
 # Registry: every install/status/remove here uses a throwaway root HKCU\Software\oml-setup-test-<id> (--registry-root),
 # never the person's real HKCU\Software\Classes. A snapshot of real Classes keys before and after proves nothing else changed.
-# Actions: `oml setup run ... --no-ui` does the work and prints what it would open, so no window or message box appears.
+# Actions: `oml explorer-menu run ... --no-ui` does the work and prints what it would open, so no window or message box appears.
 # Runs in the alone lane: it writes to HKCU.
 param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
 $ErrorActionPreference = 'Stop'
@@ -26,7 +26,7 @@ function Dump([string]$Path) {
         return $lines -join "`n"
     } finally { $key.Dispose() }
 }
-# The real keys oml setup would touch: every file type it uses, Directory (with Directory\Background), and the subkey
+# The real keys oml explorer-menu would touch: every file type it uses, Directory (with Directory\Background), and the subkey
 # names of Classes and SystemFileAssociations (a key added or removed next to them).
 function Names([string]$Path) { $key = $hkcu.OpenSubKey($Path); if (-not $key) { return "[$Path] absent" }; try { "[$Path] " + (($key.GetSubKeyNames() | Sort-Object) -join '|') } finally { $key.Dispose() } }
 $extensions = '.ttf', '.otf', '.woff', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg', '.oml'
@@ -48,7 +48,7 @@ $id = [guid]::NewGuid().ToString('N')
 $root = "Software\oml-setup-test-$id"
 $hkcu.CreateSubKey($root).Dispose()
 function Setup([string[]]$More) {
-    $text = & $exe setup --registry-root $root @More
+    $text = & $exe explorer-menu --registry-root $root @More
     return [pscustomobject]@{ Code = $LASTEXITCODE; Json = ($text | ConvertFrom-Json) }
 }
 
@@ -78,7 +78,7 @@ try {
             Require ($key.GetValue('OmlSetup') -eq 'oml-cli') "Marker missing on $($e[0])\$($e[1])"
             Require ($key.GetValue('MultiSelectModel') -eq 'Single') "MultiSelectModel on $($e[0])\$($e[1])"
             $command = $key.OpenSubKey('command').GetValue('')
-            $want = "`"$exe`" setup run $($e[3]) `"$($e[4])`""
+            $want = "`"$exe`" explorer-menu run $($e[3]) `"$($e[4])`""
             Require ($command -ceq $want) "Command of $($e[0])\$($e[1]): $command (want $want)"
         } finally { $key.Dispose() }
     }
@@ -90,7 +90,7 @@ try {
     Require ($s.Code -eq 0 -and $s.Json.installed -eq $expected.Count -and $s.Json.total -eq $expected.Count) "status after install: $($s.Json | ConvertTo-Json -Compress)"
     Require (@($s.Json.entries | Where-Object state -ne 'installed').Count -eq 0) 'status: not every entry is installed'
     # Another oml.exe (moved or a second copy) shows as "other oml.exe".
-    $other = & $Oml setup --status --registry-root $root | ConvertFrom-Json
+    $other = & $Oml explorer-menu --status --registry-root $root | ConvertFrom-Json
     Require (@($other.entries | Where-Object state -eq 'other oml.exe').Count -eq $expected.Count) 'status from another oml.exe must say "other oml.exe"'
 
     # A second install changes nothing.
@@ -98,12 +98,12 @@ try {
     $r = Setup @()
     Require ($r.Code -eq 0) "second install exit $($r.Code)"
     Require ((Dump $root) -ceq $installed) 'second install changed the registry'
-    # A marked entry without its command shows as "incomplete"; oml setup repairs it.
+    # A marked entry without its command shows as "incomplete"; oml explorer-menu repairs it.
     $hkcu.DeleteSubKeyTree("$root\SystemFileAssociations\.gif\shell\oml.image.optimize\command")
     $s = Setup @('--status')
     Require (@($s.Json.entries | Where-Object state -eq 'incomplete').Count -eq 1 -and $s.Json.installed -eq $expected.Count - 1) "status with a missing command: $($s.Json | ConvertTo-Json -Compress)"
     $r = Setup @()
-    Require ($r.Code -eq 0 -and (Dump $root) -ceq $installed) 'oml setup did not repair the incomplete entry'
+    Require ($r.Code -eq 0 -and (Dump $root) -ceq $installed) 'oml explorer-menu did not repair the incomplete entry'
     # An exe path with '%' could turn into an Explorer placeholder: refused, nothing written.
     $percentBin = Join-Path $Tmp 'oml 100% bin'
     Remove-Item -LiteralPath $percentBin -Recurse -Force -ErrorAction SilentlyContinue
@@ -124,7 +124,7 @@ try {
     # --no-ui goes right after the action, so the path stays the last argument, as in the real entry.
     function Run-Registered([string]$Verb, [string]$Placeholder, [string]$Path) {
         $command = $hkcu.OpenSubKey("$root\$Verb\command").GetValue('')
-        Require ($command -match '^"([^"]+)" (setup run \w+) (.*)$') "Unexpected command shape: $command"
+        Require ($command -match '^"([^"]+)" (explorer-menu run \w+) (.*)$') "Unexpected command shape: $command"
         $start = [Diagnostics.ProcessStartInfo]::new($Matches[1], "$($Matches[2]) --no-ui $($Matches[3].Replace($Placeholder, $Path))")
         $start.RedirectStandardOutput = $true; $start.UseShellExecute = $false
         $process = [Diagnostics.Process]::Start($start)
@@ -198,7 +198,7 @@ try {
 
     $r = Setup @('--status', '--remove')
     Require ($r.Code -eq 2) 'two modes must be refused'
-    $bad = & $exe setup --registry-root 'Software\Classes\Evil' | ConvertFrom-Json
+    $bad = & $exe explorer-menu --registry-root 'Software\Classes\Evil' | ConvertFrom-Json
     Require ($LASTEXITCODE -eq 2 -and $bad.error -match 'tests only') 'a registry root outside the test prefix must be refused'
 } finally {
     $hkcu.DeleteSubKeyTree($root, $false)
@@ -209,7 +209,7 @@ Write-Host 'ok   setup: the real HKCU\Software\Classes keys did not change'
 
 # ---- The actions, without UI. ----
 function Act([string]$Action, [string]$Path) {
-    $text = & $exe setup run $Action $Path --no-ui
+    $text = & $exe explorer-menu run $Action $Path --no-ui
     $json = $text | ConvertFrom-Json
     $json | Add-Member Code $LASTEXITCODE
     return $json

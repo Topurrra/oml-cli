@@ -55,7 +55,7 @@ foreach ($fixture in 'r0.oml', 's0.oml', 'w0.oml', 'references-producer-blank.om
 }
 & $oml --help | Out-Null; if ($LASTEXITCODE -ne 0) { $fail++; Write-Host "FAIL --help exit $LASTEXITCODE" } else { Write-Host "ok   --help" }
 # `oml <command> --help` prints that command's usage, not the whole list.
-$helpBad = @(foreach ($c in 'check', 'doc', 'warn', 'apply', 'lt', 'font', 'doctor', 'setup', 'image', 'dashboard') { $h = (& $oml $c --help) -join "`n"; if ($LASTEXITCODE -ne 0 -or $h -notmatch "oml $c" -or $h -match 'oml new ') { $c } })
+$helpBad = @(foreach ($c in 'check', 'doc', 'explain-warning', 'apply', 'lifetime', 'font', 'doctor', 'explorer-menu', 'image', 'dashboard') { $h = (& $oml $c --help) -join "`n"; if ($LASTEXITCODE -ne 0 -or $h -notmatch "oml $c" -or $h -match 'oml new ') { $c } })
 if ($helpBad) { $fail++; Write-Host "FAIL command --help prints the global usage: $($helpBad -join ', ')" } else { Write-Host "ok   command --help" }
 # A known command with missing arguments prints its own usage on stderr, with exit 2.
 $usageBad = @(foreach ($c in 'describe', 'tree', 'apply', 'install', 'find') { $h = (& $oml $c 2>&1) -join "`n"; if ($LASTEXITCODE -ne 2 -or $h -notmatch "oml $c" -or $h -match 'oml new ') { $c } })
@@ -257,6 +257,10 @@ Unit 'lifetime-check' -Alone {
   try { & (Join-Path $tests "lifetime-check.ps1") -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL LifeTime checks: $_" }
 }
 # log-check also appends to and trims the person's default usage log (OML_LOG=1), so it runs alone.
+Unit 'aliases-check' -Alone {
+  try { & (Join-Path $tests 'aliases-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL aliases checks: $_" }
+}
 Unit 'log-check' -Alone {
   try { & (Join-Path $tests 'log-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL log checks: $_" }
@@ -346,7 +350,7 @@ Unit 'preview-check' -Alone {
 }
 Unit 'test-scaffold-check' -Alone {
   try { & (Join-Path $tests 'test-scaffold-check.ps1') -Oml $oml -Tmp $tmp }
-  catch { $global:fail++; Write-Host "FAIL test scaffold: $_" }
+  catch { $global:fail++; Write-Host "FAIL test bdd: $_" }
 }
 Unit 'architecture-page-check' -Alone {
   try { & (Join-Path $tests 'architecture-page-check.ps1') -Oml $oml -Tmp $tmp }
@@ -378,7 +382,7 @@ Unit 'selftest' -Alone {
 # --- Smoke tier: -Smoke keeps only the quick units. The fixtures (tmp\base) are built once above, as for the full run. ---
 # Chosen for speed and breadth: text and parser checks, the spec and doc tooling, hooks, the usage log, encoding, and a few apply fixtures.
 $smokeUnits = 'logic.json', 'service.json', 'web.json', 'datamodel.json', 'edits.json', 'edits-check', 'names-check', 'validate-check', 'parsers-check', 'encoding-check',
-  'hooks-check', 'spec-check', 'doc-check', 'evolve-check', 'inspect-check', 'turns-check', 'log-check'
+  'hooks-check', 'spec-check', 'doc-check', 'evolve-check', 'inspect-check', 'turns-check', 'log-check', 'aliases-check'
 if ($Smoke) {
   $unknown = @($smokeUnits | Where-Object { $n = $_; -not ($units | Where-Object { $_.Name -eq $n }) })
   if ($unknown) { throw "-Smoke names units that do not exist: $($unknown -join ', ')" }

@@ -4,11 +4,11 @@ namespace OmlCli;
 
 // Decides between JSON (today's machine output) and the human terminal view, and owns the shared state.
 // The human view runs only when ALL of these hold: stdout is a console (not redirected), the command is not inside
-// `oml run`, and nobody asked for JSON. Otherwise the exact JSON of today is printed, byte for byte.
+// `oml batch`, and nobody asked for JSON. Otherwise the exact JSON of today is printed, byte for byte.
 // `--json` forces JSON; OML_OUTPUT=json|human overrides the default either way.
 internal static class TerminalOutput
 {
-    // True while a step of `oml run`, a dashboard call or another captured run is executing: always JSON there.
+    // True while a step of `oml batch`, a dashboard call or another captured run is executing: always JSON there.
     public static bool InRun;
 
     // The command being run, when known: the renderer uses it for tailored views (validate, apply, check, ...).
@@ -30,13 +30,13 @@ internal static class TerminalOutput
         return !Console.IsOutputRedirected && ForDevelopers(Command);
     }
 
-    // Commands developers type themselves. Every other command (the agent loop: inspect, describe, apply, spec, run,
+    // Commands developers type themselves. Every other command (the agent loop: inspect, describe, apply, spec, batch,
     // validate, review, memory, doc, ...) prints JSON in a console too, because some harnesses (Copilot in VS Code,
     // Cursor) run agent commands in a real terminal. OML_OUTPUT=human gives the human view for those as well.
     static readonly HashSet<string> DeveloperCommands = new(StringComparer.Ordinal)
     {
-        "--help", "-h", "help", "version", "doctor", "check", "architecture", "image", "font", "setup", "log",
-        "library", "skills", "templates", "meta", "expr", "api", "widgets",
+        "--help", "-h", "help", "version", "doctor", "check", "architecture", "image", "font", "explorer-menu", "log",
+        "outsystems-docs", "team-rules", "templates", "header", "expression", "model-types", "widget-types",
     };
 
     internal static bool ForDevelopers(string? command) => command is null || DeveloperCommands.Contains(command);
@@ -53,7 +53,7 @@ internal static class TerminalOutput
     public static void PrintNode(JsonNode node) => Console.WriteLine(Render(JsonOutput.Write(node)));
     public static void PrintText(string json) => Console.WriteLine(Render(json));
 
-    // Machine output no matter what: the `oml run` envelope and debug dumps keep their JSON shape.
+    // Machine output no matter what: the `oml batch` envelope and debug dumps keep their JSON shape.
     public static void PrintNodeRaw(JsonNode node) => Console.WriteLine(JsonOutput.Write(node));
 
     // `oml --help` / `oml <command> --help`: grouped by area in the human view, the exact text otherwise.
@@ -84,7 +84,7 @@ internal static class TerminalOutput
 }
 
 // Progress on stderr for slow commands, only when a person watches a console: an agent's or script's redirected output
-// stays clean. `oml library fetch` already prints its own bar; the commands that use this one do the same.
+// stays clean. `oml outsystems-docs fetch` already prints its own bar; the commands that use this one do the same.
 internal static class TerminalProgress
 {
     public static bool Active => !TerminalOutput.InRun && !Console.IsErrorRedirected;
