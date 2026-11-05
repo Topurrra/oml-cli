@@ -90,6 +90,7 @@ public static class Program
         // oml map: build loads modules (Core); the queries read the stored map here, without Service Studio.
         if (filtered.FirstOrDefault() == "map" && !(filtered.Length > 1 && filtered[1] == "build")) return MapCommand.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "mock") return MockCommand.Run(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "create") return CreateCommand.Run(filtered.Skip(1).ToArray());
         // oml test data: the module spec needs the producer module (Core); the rest calls the test-data API here.
         if (filtered.FirstOrDefault() == "test" && filtered.Length > 1 && filtered[1] == "data" && !(filtered.Length > 2 && filtered[2] == "module")) return TestDataCommand.Run(filtered.Skip(2).ToArray());
         if (filtered.FirstOrDefault() == "outsystems-docs") return Library.Run(filtered.Skip(1).ToArray());

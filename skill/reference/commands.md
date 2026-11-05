@@ -1202,6 +1202,16 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 
 **oml memory bench** `<new folder> --records N [--runs R]` is for maintainers (`tests/memory-check.ps1` runs it at 1k and 10k records, and at 100k with `-Speed`): it writes a synthetic store of N records into a new folder and prints the timings above as JSON. `bench --quality <fixture.json>` scores recall on a fixture in memory and writes no store; a fixture record over the limits of `add` or with a secret is refused. Neither is listed in `oml help --all`.
 
+## Create a project
+
+`oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--no-skill] [--no-hooks]` is the starting point of a project, such as `oml create falcon --in C:\Downloads\falcon`. The name is 1-40 lower-case letters, digits and hyphens; the folder `<parent>\<project>` must be new or empty, and nothing is created when an input is wrong.
+
+- **Folders:** `modules/` (the project's `.oap` and `.oml` files), `staged/`, `specs/`, `qa/`, `mocks/`, `scenarios/`.
+- **Memory:** `.oml/memory/memory.log`, as `oml memory init` makes it.
+- **The agent's instructions:** a copy of the `skill/` that came with this oml, `AGENTS.md` (any agent) and `CLAUDE.md` with `@AGENTS.md` (Claude Code). `--no-skill` leaves them out.
+- **Hooks:** the Claude Code hooks of `oml hooks install` in `.claude/settings.local.json`. `--no-hooks` leaves them out.
+- **`.gitignore`** (staged copies, caches, local state) and **`PROJECT.md`** (the layout and the next steps).
+- **With `--in`:** the modules are copied into `modules/`, and the application map is built under the project's name (`oml map build <project> --in modules`), so `oml map overview` works there at once.
 ## Map
 
 `oml map` is an application map of a whole project (for example the 24 applications of one domain), for agents that need to know what is where and what depends on what without loading modules.

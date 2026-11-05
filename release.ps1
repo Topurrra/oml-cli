@@ -83,7 +83,7 @@ try {
             throw "Publish output is missing $required."
         }
     }
-    foreach ($item in @('skill', 'README.md', 'THIRD-PARTY-NOTICES.md', 'licenses', 'CHANGELOG.md')) {
+    foreach ($item in @('skill', 'README.md', 'INSTRUCTION.md', 'THIRD-PARTY-NOTICES.md', 'licenses', 'CHANGELOG.md')) {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $item) -Destination $stage -Recurse
     }
     if (Test-Path -LiteralPath LICENSE -PathType Leaf) { Copy-Item -LiteralPath LICENSE -Destination $stage }

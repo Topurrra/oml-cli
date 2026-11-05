@@ -6,6 +6,7 @@ static class CliUsage
 {
     public const string Text = """
         oml version
+        oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--no-skill] [--no-hooks]   (start a project: folders, memory, the agent's skill and hooks, .gitignore; with --in, the modules and the application map)
         oml new <out.oml> [--name N] [--kind WebResponsive|Mobile|Service|ReactiveLibrary|...]
         oml new <out.oml> --template <name-or-exported.oml> [--name N]
         oml new <out.oml> --from-template <template.oml> [--name N] [--kind K]
@@ -113,6 +114,7 @@ static class CliUsage
     public const string Overview = """
         Commands by area (OutSystems 11 modules; compact JSON out, a readable view in a console):
         Read a module: inspect, describe, find, tree, flow, stats, header, expression, openapi (what a module holds, one element, search, counts, the header, an expression, OpenAPI)
+        Start a project: create (a folder with memory, the agent's skill and hooks, and with --in the application map)
         Change a module: new, apply, install, validate, spec, translations (new module; edit by spec into a staged copy; install after checks; spec keys; translation files)
         Application map: map, mock (every app of a project: who calls what, which APIs feed which; mocks chained across APIs)
         Check and review: check, review, architecture (rules and findings; a change before and after; module map and publish order)

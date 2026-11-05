@@ -12,9 +12,10 @@ oml lets any AI agent (Claude Code, Codex, Cursor, Copilot, Gemini and others) b
 |---|---|
 | Install oml | Unzip the [latest release](https://github.com/Topurrra/oml-cli/releases) and add its `bin` folder to PATH. Check: `oml version` |
 | Check your machine | `oml doctor` says what is missing (Service Studio, .NET, browser) and how to fix it. |
-| Give the agent the skill | Copy the `skill/` folder to your project root, then follow the table in the [README](README.md#use-with-ai-agents) for your agent (usually: copy `skill/AGENTS.md` to `AGENTS.md`). |
-| Claude Code only | `oml hooks install` adds guards: no reading huge references whole, no editing `.oml` files by hand, no calling the test-data API around oml. |
-| Optional | `oml memory init` (the agent remembers decisions between sessions), `oml map build <project> --in <folder of .oap files>` (a map of the whole project). |
+| Start a project | `oml create falcon --in <folder of the project's .oap files>` makes a `falcon` folder with memory, the agent's skill and hooks, your modules and the application map. Start your agent in that folder. |
+| Other agents | `oml create` writes `AGENTS.md` and `CLAUDE.md`. For other agents, follow the table in the [README](README.md#use-with-ai-agents) (usually `AGENTS.md` is enough). |
+| Claude Code guards | `oml create` installs them (`oml hooks install` in an existing folder): no reading huge references whole, no editing `.oml` files by hand, no calling the test-data API around oml. |
+| Existing folder instead | `oml memory init` (memory), `oml map build <project> --in <folder of .oap files>` (the map), `oml hooks install` (guards). |
 
 The usage log is on by default and never leaves your computer. `oml learn report` turns it into lessons; `OML_LOG=0` turns it off.
 

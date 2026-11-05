@@ -9,6 +9,7 @@ function Require($condition, $message) { if (-not $condition) { throw $message }
 
 # Not run, and why: these start a server, open a window, or reach the network, Service Studio's MCP server or LifeTime.
 $skip = [ordered]@{
+  'create'         = 'makes a project folder in the current folder; tests/create-check.ps1 covers its bad inputs'
   'dashboard'      = 'starts a web server'
   'show-change'    = 'starts a web server'
   'explorer-menu'  = 'writes Explorer registry entries'
