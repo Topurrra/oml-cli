@@ -3,6 +3,8 @@
 param(
     [string]$Version,
     [switch]$Publish,
+    [switch]$NoCorpus,
+    [switch]$FullSuite,
     [string]$OutDir = 'dist'
 )
 
@@ -59,6 +61,9 @@ try {
     if (-not (Test-Path -LiteralPath (Join-Path $ss 'OutSystems.Model.V1.dll') -PathType Leaf)) {
         throw "Service Studio 11 not found at $ss. Set OML_SERVICE_STUDIO."
     }
+    # The suite's own fixtures are small modules it builds itself; real applications catch what those never hold.
+    $hasCorpus = $env:OML_CORPUS -or ((Test-Path -LiteralPath corpus.txt) -and @(Get-Content corpus.txt | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') }).Count)
+    if (-not $hasCorpus -and -not $NoCorpus) { throw 'No real applications to test: list folders of .oap/.oml files in corpus.txt (or OML_CORPUS). -NoCorpus releases without them.' }
     Get-Command dotnet -ErrorAction Stop | Out-Null
     Get-Command pwsh -ErrorAction Stop | Out-Null
     if ($Publish) { Get-Command gh -ErrorAction Stop | Out-Null }
@@ -72,9 +77,19 @@ try {
     New-Item -ItemType Directory -Force -Path $bin | Out-Null
 
     $buildArgs = @('-c', 'Release', "-p:SS=$ss", "-p:Version=$Version")
+    # The full suite (about 12 minutes) runs after each commit, not here: a release needs its pass recorded for this exact
+    # commit (tests/regress.ps1 writes the record only for a clean tree). -FullSuite runs it here instead.
+    $head = (& git rev-parse HEAD)
+    if ($FullSuite) { Invoke-Checked pwsh @('-NoProfile', '-File', 'tests/regress.ps1') }
+    $record = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'oml-cli\regress-passed.json'
+    $passed = if (Test-Path -LiteralPath $record) { (Get-Content -Raw $record | ConvertFrom-Json).commit } else { $null }
+    if ($passed -ne $head) {
+        throw "The full suite has not passed on this commit ($($head.Substring(0, 7))). Run: pwsh -NoProfile -File tests/regress.ps1 (about 12 minutes), or release.ps1 -FullSuite."
+    }
+    Write-Host "Full suite passed on $($head.Substring(0, 7)) ($record)."
     Invoke-Checked dotnet (@('clean', 'src') + $buildArgs)
-    Invoke-Checked dotnet (@('build', 'src') + $buildArgs)
-    Invoke-Checked pwsh @('-NoProfile', '-File', 'tests/regress.ps1')
+    # The quick tier on a fresh build: the real applications, the map, a few apply fixtures, the text tooling.
+    Invoke-Checked pwsh @('-NoProfile', '-File', 'tests/regress.ps1', '-Smoke')
     Invoke-Checked dotnet (@('publish', 'src/OmlCli.csproj') + $buildArgs + @(
         '-r', 'win-x64', '--self-contained', 'false', '-p:UseAppHost=true', '-o', $bin
     ))

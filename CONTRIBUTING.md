@@ -36,8 +36,8 @@ Exit `0` means pass. The exit code is the number of failed checks. The suite nee
 ### Smoke or full
 
 ```powershell
-pwsh -NoProfile -File tests/regress.ps1 -Smoke   # quick tier, about 2 to 3 minutes
-pwsh -NoProfile -File tests/regress.ps1          # full suite, about 20 minutes
+pwsh -NoProfile -File tests/regress.ps1 -Smoke   # quick tier, about 2 to 3 minutes, with the real applications
+pwsh -NoProfile -File tests/regress.ps1          # full suite, about 12 minutes; a pass on a clean tree is recorded for release.ps1
 ```
 
 `-Smoke` builds the fixtures once and runs only the quick units: a few apply fixtures (`logic`, `service`, `web`, `datamodel`, `edits`), then the `names`, `edits`, `inspect`, `turns`, `validate`, `parsers`, `encoding`, `hooks`, `spec`, `doc`, `evolve` and `log` checks (the list is `$smokeUnits` in `tests/regress.ps1`). It prints its time on the last line (`smoke tier: total 132s ...`). Use it while you work; run the full suite before you commit a change to a command's output or an apply fixture. `release.ps1` always runs the full suite.
@@ -61,7 +61,7 @@ Output is printed per unit in the order of the list in the script, with the unit
 1. Write `tests/<name>-check.ps1`. Take `$Oml` and `$Tmp` as parameters. Put every file in `$Tmp`. It is your own folder, a copy of the shared base modules. Throw (or call `Write-Error`) on failure.
 2. In `tests/regress.ps1` add a `Unit '<name>' { ... }` where the script is listed, in the order you want its output. Copy the pattern of a neighbour: `try { & (Join-Path $tests '<name>-check.ps1') $oml $tmp } catch { $global:fail++; Write-Host "FAIL ...: $_" }`.
 3. The body sees `$oml`, `$tests`, `$tmp`, `$reactive`, `$service`, `$web`. Count failures with `$global:fail++`.
-4. Parallel is the default. Add `-After 'other-unit'` if you read a file another unit makes. Add `-Alone` only if the check changes machine-wide state, binds a fixed port, needs a quiet machine or is long and heavy. Put the reason in the comment at the top of `regress.ps1`.
+4. Parallel is the default. Add `-After 'other-unit'` if you read a file another unit makes. Add `-Group <name>` only if the check shares something with other checks (a browser, the usage log, a machine-wide record or registry key); units of one group run at most `$groupLimit` at a time. Put the reason in the comment at the top of `regress.ps1`.
 5. Do not write outside `$Tmp`, and do not rely on files made by another unit unless you declare it with `-After`.
 6. Isolate the script. Dot-source `tests/lib.ps1` and work in a fresh subfolder of `-Tmp`, removed in a `finally`: `$Fixtures = $Tmp; $Tmp = New-TestFolder $Tmp '<name>'; try { ... } finally { Remove-TestWorkFolder $Tmp }` (read fixture modules such as `r0.oml` from `$Fixtures`). Remove folders with `Remove-TestFolder`, never `Remove-Item -Recurse` on a tree that may hold a junction or symlink: it deletes links as links and leaves their targets. Call `Require-TestFile` for a module the check needs, so a missing file fails with a plain message. Set `OML_KEEP_TEST_TMP=1` to keep the subfolder (screenshots, reports) for a look.
 
@@ -90,8 +90,10 @@ Set `OML_SERVICE_STUDIO` for a non-default installation and ensure `dotnet` is o
 pwsh -NoProfile -File ./release.ps1
 ```
 
-The script requires a clean working tree on a branch. It cleans and builds Release,
-runs the full regression suite, publishes a framework-dependent win-x64 CLI, checks that
+The script requires a clean working tree on a branch, a pass of the full suite recorded for that exact commit (run
+`tests/regress.ps1` after committing; `-FullSuite` runs it here instead) and real applications listed in an ignored
+`corpus.txt` or `OML_CORPUS` (`-NoCorpus` releases without them). It cleans, runs the quick tier with the real
+applications on a fresh build (about 3 minutes), publishes a framework-dependent win-x64 CLI, checks that
 no Service Studio files are included, and smoke-tests the extracted archive.
 It writes the zip, SHA-256 checksum, and `release-notes.md` to ignored `dist/` and prints
 the exact tag, push, and GitHub CLI release commands for you to run.

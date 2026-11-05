@@ -1,31 +1,26 @@
-# Regression: every fixture must apply with saved=true and no new errors. Run from the repo root after a build.
-# Needs PowerShell 7. Usage: pwsh -NoProfile -File tests\regress.ps1 [-Throttle 4]
+# Regression: every fixture must apply with saved=true and no new errors. Run from the repo root.
+# Needs PowerShell 7. Usage: pwsh -NoProfile -File tests\regress.ps1 [-Throttle N] [-Smoke]
 #
-# How it runs. Each check is a "unit". A unit runs in its own pwsh process (Start-Job) with its own work folder
-# tmp\<unit> and its own TEMP, so units cannot clash on files or on process-wide environment variables.
+# How it runs. It builds src first (incremental), so it never tests a stale build. Each check is a "unit". A unit runs in
+# its own pwsh process (Start-Job) with its own work folder tmp\<unit> and its own TEMP, so units cannot clash on files or
+# on process-wide environment variables.
 #   1. Setup (here, one at a time): the blank modules and the producer module that most units start from, in tmp\base.
-#   2. Parallel lane (up to -Throttle units at once): every unit starts from a copy of tmp\base. A unit with
-#      -After waits for the units whose outputs it reads. A unit with -Publish moves the out-*.oml files it made into tmp\base.
-#   3. Alone lane (one at a time, after the parallel lane): units that must not share the machine with others:
-#        lifetime-check      binds a local port, starts a mock server job and sets OML_LIFETIME_* and OML_SERVICE_STUDIO
-#        doctor-check        sets OML_* variables and reads machine-wide state (the Service Studio folder, the self-test record)
-#        preview-check       starts headless Edge/Chrome with timeouts; CPU load from other units would make it flaky
-#        test-scaffold-check same: one headless browser run (a preview of the generated test screen)
-#        architecture-page-check  same: several headless browser runs, each with a 30 to 60 s window
-#        check-page-check    same: headless browser with a 20 s window, for the oml check HTML report
-#        review-page-check   same, for the oml review HTML report
-#        image-check         headless Chrome with a 30 s window, and a timing limit (a 1024 px trace in under 5 s)
-#        log-check           appends to and trims the person's default usage log (OML_LOG=1)
-#        dashboard-check     binds a local port for oml dashboard and starts headless Edge/Chrome for screenshots
-#        setup-check         writes to HKCU (only under a throwaway HKCU\Software\oml-setup-test-<id> key) and compares real
-#                            HKCU\Software\Classes keys before and after, so nothing else may change them meanwhile
-#        selftest            long, CPU heavy, and it records the build as checked in %LOCALAPPDATA%; selftest-check
-#                            uses its own record (OML_SELFTEST_RECORD) and starts oml dashboard on a free port
-#      Processes are already separate, so most would be safe in parallel; they stay alone for load and shared-state reasons.
-# Output is printed per unit in the order of the list below (the order of the old script), not in finish order.
+#   2. Units (up to -Throttle at once; default half the logical processors, 4 to 16), longest first by the times of the
+#      last full run (%LOCALAPPDATA%\oml-cli\regress-times.json). Every unit starts from a copy of tmp\base. A unit with
+#      -After waits for the units whose outputs it reads; a unit with -Publish moves the out-*.oml files it made into
+#      tmp\base. A unit with -Group shares something with the others of its group, which run at most $groupLimit at a time:
+#        browser   (3)  headless Edge/Chrome with time windows: preview, test-scaffold, architecture-page, check-page,
+#                       review-page, image (also a 5 s trace limit), dashboard (a local port), qa-replay (a local page)
+#        usagelog  (1)  log-check and aliases-check append to and trim the person's default usage log (OML_LOG=1)
+#        selftest  (1)  selftest records the build as checked in %LOCALAPPDATA%; doctor-check reads that record
+#        hkcu      (1)  setup-check writes a throwaway HKCU key and compares the real HKCU\Software\Classes keys
+#        lifetime  (1)  lifetime-check starts a mock LifeTime server
+# Output is printed per unit in the order of the list below, not in finish order.
+# A full run that passes on a clean tree records its commit in %LOCALAPPDATA%\oml-cli\regress-passed.json; release.ps1
+# releases only a commit with that record. Most of the time is Service Studio's start-up (about 1.5 s per model command).
 # To add a check: see CONTRIBUTING.md ("Adding a regression check").
-# -Smoke runs only the quick units (see $smokeUnits below), about 3 minutes instead of about 20. release.ps1 always runs the full suite.
-param([int]$Throttle = 4, [switch]$Smoke)
+# -Smoke runs only the quick units (see $smokeUnits below), including the real applications of corpus-check.
+param([int]$Throttle = [math]::Min(16, [math]::Max(4, [int]([Environment]::ProcessorCount / 2))), [switch]$Smoke)
 $ErrorActionPreference = "Stop"
 $watch = [Diagnostics.Stopwatch]::StartNew()
 $tests = $PSScriptRoot
@@ -39,6 +34,13 @@ foreach ($child in @(Get-ChildItem -LiteralPath $tmp -Force | Where-Object { $_.
 $base = Join-Path $tmp "base"; New-Item -ItemType Directory -Force $base | Out-Null
 $env:TEMP = $tmp; $env:TMP = $tmp
 $env:OML_LOG = '0' # the suite must not write to a person's usage log (it is on by default)
+# Test what the sources say, never a stale build: an incremental build takes a few seconds when nothing changed.
+$repo = Split-Path $tests -Parent
+& dotnet build (Join-Path $repo 'src\OmlCli.csproj') -c Release --nologo -v q -clp:ErrorsOnly | Out-Host
+if ($LASTEXITCODE -ne 0) { throw 'Build failed; nothing was tested.' }
+# A full run that passes on a clean tree records its commit; release.ps1 releases only a commit with such a record.
+function TreeState { $c = (& git -C $repo rev-parse HEAD 2>$null); $d = @(& git -C $repo status --porcelain --untracked-files=no 2>$null); [pscustomobject]@{ Commit = $c; Clean = ($LASTEXITCODE -eq 0 -and $d.Count -eq 0) } }
+$startState = TreeState
 $fail = 0
 
 # --- Setup: the blank modules every unit starts from. ---
@@ -104,10 +106,18 @@ $runner = {
 
 # --- The units, in the order their output is printed. ---
 $units = [System.Collections.Generic.List[object]]::new()
-function Unit([string]$Name, [scriptblock]$Body, [string[]]$After = @(), [switch]$Publish, [switch]$Alone) {
-  $units.Add([pscustomobject]@{ Name = $Name; Body = $Body.ToString(); After = $After; Publish = [bool]$Publish; Alone = [bool]$Alone; Job = $null; Started = $false })
+# -Group: units of one group share something (a browser, the usage log, the self-test record) and run at most
+# $groupLimit[group] at a time; all other units run side by side, up to -Throttle at once.
+function Unit([string]$Name, [scriptblock]$Body, [string[]]$After = @(), [switch]$Publish, [string]$Group) {
+  $units.Add([pscustomobject]@{ Name = $Name; Body = $Body.ToString(); After = $After; Publish = [bool]$Publish; Group = $Group; Job = $null; Started = $false })
 }
+$groupLimit = @{ browser = 3; usagelog = 1; selftest = 1; hkcu = 1; lifetime = 1 }
 
+# Real applications (OML_CORPUS or corpus.txt): no module may be skipped and no command may crash on them.
+Unit 'corpus-check' {
+  try { & (Join-Path $tests 'corpus-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL real applications: $_" }
+}
 Unit 'logic-check' {
   try { & (Join-Path $tests 'logic-check.ps1') $oml $tmp }
   catch { $global:fail++; Write-Host "FAIL extended logic checks: $_" }
@@ -253,20 +263,20 @@ Unit 'content-check' {
   try { & (Join-Path $tests 'content-check.ps1') $oml $tmp $reactive }
   catch { $global:fail++; Write-Host "FAIL content checks: $_" }
 }
-Unit 'lifetime-check' -Alone {
+Unit 'lifetime-check' -Group lifetime {
   try { & (Join-Path $tests "lifetime-check.ps1") -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL LifeTime checks: $_" }
 }
 # qa-replay-check drives a real browser window against a local page; one browser at a time.
-Unit 'qa-replay-check' -Alone {
+Unit 'qa-replay-check' -Group browser {
   try { & (Join-Path $tests 'qa-replay-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL qa replay checks: $_" }
 }
 # log-check also appends to and trims the person's default usage log (OML_LOG=1), so it runs alone.
-Unit 'aliases-check' -Alone {
+Unit 'aliases-check' -Group usagelog {
   try { & (Join-Path $tests 'aliases-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL aliases checks: $_" }
 }
-Unit 'log-check' -Alone {
+Unit 'log-check' -Group usagelog {
   try { & (Join-Path $tests 'log-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL log checks: $_" }
 }
@@ -276,7 +286,7 @@ Unit 'pull-check' {
 Unit 'validate-check' {
   try { & (Join-Path $tests 'validate-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL validate checks: $_" }
 }
-Unit 'doctor-check' -Alone {
+Unit 'doctor-check' -Group selftest {
   try { & (Join-Path $tests 'doctor-check.ps1') -Oml $oml } catch { $global:fail++; Write-Host "FAIL doctor checks: $_" }
 }
 Unit 'recipes-check' {
@@ -353,7 +363,7 @@ Unit 'packages-check' {
 Unit 'assets-check' {
   try { & (Join-Path $tests 'assets-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL assets checks: $_" }
 }
-Unit 'image-check' -Alone {
+Unit 'image-check' -Group browser {
   try { & (Join-Path $tests 'image-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL image checks: $_" }
 }
 Unit 'architecture-check' {
@@ -365,36 +375,36 @@ Unit 'check-check' {
 Unit 'review-check' {
   try { & (Join-Path $tests 'review-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL review checks: $_" }
 }
-Unit 'preview-check' -Alone {
+Unit 'preview-check' -Group browser {
   try { & (Join-Path $tests 'preview-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL preview checks: $_" }
 }
-Unit 'test-scaffold-check' -Alone {
+Unit 'test-scaffold-check' -Group browser {
   try { & (Join-Path $tests 'test-scaffold-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL test bdd: $_" }
 }
-Unit 'architecture-page-check' -Alone {
+Unit 'architecture-page-check' -Group browser {
   try { & (Join-Path $tests 'architecture-page-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL architecture page: $_" }
 }
-Unit 'check-page-check' -Alone {
+Unit 'check-page-check' -Group browser {
   try { & (Join-Path $tests 'check-page-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL check page: $_" }
 }
-Unit 'review-page-check' -Alone {
+Unit 'review-page-check' -Group browser {
   try { & (Join-Path $tests 'review-check.ps1') -Oml $oml -Tmp $tmp -Page }
   catch { $global:fail++; Write-Host "FAIL review page: $_" }
 }
 Unit 'badinput-check' { try { & (Join-Path $tests 'badinput-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL badinput checks: $_" } }
-Unit 'dashboard-check' -Alone {
+Unit 'dashboard-check' -Group browser {
   try { & (Join-Path $tests 'dashboard-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL dashboard checks: $_" }
 }
-Unit 'setup-check' -Alone -After 'rest.json' {
+Unit 'setup-check' -Group hkcu -After 'rest.json' {
   try { & (Join-Path $tests 'setup-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL setup checks: $_" }
 }
-Unit 'selftest' -Alone {
+Unit 'selftest' -Group selftest {
   try { & (Join-Path $tests 'selftest-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL self-test on an unrecorded build: $_" }
   & $oml selftest | ConvertFrom-Json | ForEach-Object { if (-not $_.passed) { $global:fail++; Write-Host "FAIL selftest"; Write-Host ($_ | ConvertTo-Json -Depth 8) } else { Write-Host "ok   selftest" } }
@@ -402,7 +412,7 @@ Unit 'selftest' -Alone {
 
 # --- Smoke tier: -Smoke keeps only the quick units. The fixtures (tmp\base) are built once above, as for the full run. ---
 # Chosen for speed and breadth: text and parser checks, the spec and doc tooling, hooks, the usage log, encoding, and a few apply fixtures.
-$smokeUnits = 'map-check', 'scenarios-check', 'logic.json', 'service.json', 'web.json', 'datamodel.json', 'edits.json', 'edits-check', 'names-check', 'validate-check', 'parsers-check', 'encoding-check',
+$smokeUnits = 'corpus-check', 'map-check', 'scenarios-check', 'logic.json', 'service.json', 'web.json', 'datamodel.json', 'edits.json', 'edits-check', 'names-check', 'validate-check', 'parsers-check', 'encoding-check',
   'hooks-check', 'spec-check', 'doc-check', 'evolve-check', 'inspect-check', 'turns-check', 'log-check', 'aliases-check'
 if ($Smoke) {
   $unknown = @($smokeUnits | Where-Object { $n = $_; -not ($units | Where-Object { $_.Name -eq $n }) })
@@ -423,36 +433,48 @@ function Flush-Output {
     $script:nextPrint++
   }
 }
-function Run-Lane($lane, [int]$limit) {
-  $running = @{}
-  while ($true) {
-    while ($running.Count -lt $limit) {
-      $u = $lane | Where-Object { -not $_.Started -and @($_.After | Where-Object { -not $done.ContainsKey($_) }).Count -eq 0 } | Select-Object -First 1
-      if (-not $u) { break }
-      $u.Started = $true
-      $u.Job = Start-Job -ScriptBlock $runner -ArgumentList $u.Name, $oml, $tests, $base, (Join-Path $tmp $u.Name), $preamble, $u.Body, $u.Publish
-      $running[$u.Job.Id] = $u
-    }
-    if ($running.Count -eq 0) { break }
-    $finished = Wait-Job -Job @($running.Values | ForEach-Object Job) -Any -Timeout 5
-    foreach ($job in @($finished)) {
-      $u = $running[$job.Id]; $running.Remove($job.Id)
-      $res = Receive-Job $job -ErrorAction SilentlyContinue | Where-Object { $_ -is [pscustomobject] -and $_.PSObject.Properties['Fail'] } | Select-Object -Last 1
-      if (-not $res) { $res = [pscustomobject]@{ Name = $u.Name; Fail = 1; Text = "FAIL $($u.Name): unit process ended without a result ($($job.State)) $($job.ChildJobs[0].JobStateInfo.Reason)" } }
-      $res | Add-Member Seconds (($job.PSEndTime - $job.PSBeginTime).TotalSeconds) -Force
-      $script:fail += $res.Fail
-      $done[$u.Name] = $res
-      Remove-Job $job -Force
-    }
-    Flush-Output
+# Longest units first (times of the last run on this machine), so the long ones do not start last and set the total.
+$timesFile = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'oml-cli\regress-times.json'
+$lastTimes = @{}
+try { (Get-Content -Raw $timesFile | ConvertFrom-Json).PSObject.Properties | ForEach-Object { $lastTimes[$_.Name] = [double]$_.Value } } catch { }
+$order = @($units | Sort-Object @{ Expression = { if ($lastTimes.ContainsKey($_.Name)) { $lastTimes[$_.Name] } else { 1000 } }; Descending = $true })
+$running = @{}
+while ($true) {
+  while ($running.Count -lt $Throttle) {
+    $busy = @{}; foreach ($r in $running.Values) { if ($r.Group) { $busy[$r.Group] = 1 + [int]$busy[$r.Group] } }
+    $u = $order | Where-Object { -not $_.Started -and @($_.After | Where-Object { -not $done.ContainsKey($_) }).Count -eq 0 -and
+      (-not $_.Group -or [int]$busy[$_.Group] -lt $groupLimit[$_.Group]) } | Select-Object -First 1
+    if (-not $u) { break }
+    $u.Started = $true
+    $u.Job = Start-Job -ScriptBlock $runner -ArgumentList $u.Name, $oml, $tests, $base, (Join-Path $tmp $u.Name), $preamble, $u.Body, $u.Publish
+    $running[$u.Job.Id] = $u
   }
-  foreach ($u in @($lane | Where-Object { -not $_.Started })) {
-    $script:fail++
-    $done[$u.Name] = [pscustomobject]@{ Name = $u.Name; Fail = 1; Text = "FAIL $($u.Name): never started, waiting for $($u.After -join ', ')"; Seconds = 0 }
+  if ($running.Count -eq 0) { break }
+  $finished = Wait-Job -Job @($running.Values | ForEach-Object Job) -Any -Timeout 5
+  foreach ($job in @($finished)) {
+    $u = $running[$job.Id]; $running.Remove($job.Id)
+    $res = Receive-Job $job -ErrorAction SilentlyContinue | Where-Object { $_ -is [pscustomobject] -and $_.PSObject.Properties['Fail'] } | Select-Object -Last 1
+    if (-not $res) { $res = [pscustomobject]@{ Name = $u.Name; Fail = 1; Text = "FAIL $($u.Name): unit process ended without a result ($($job.State)) $($job.ChildJobs[0].JobStateInfo.Reason)" } }
+    $res | Add-Member Seconds (($job.PSEndTime - $job.PSBeginTime).TotalSeconds) -Force
+    $script:fail += $res.Fail
+    $done[$u.Name] = $res
+    Remove-Job $job -Force
   }
+  Flush-Output
 }
-Run-Lane @($units | Where-Object { -not $_.Alone }) $Throttle
-Run-Lane @($units | Where-Object { $_.Alone }) 1
-Flush-Output
+foreach ($u in @($units | Where-Object { -not $_.Started })) {
+  $fail++
+  $done[$u.Name] = [pscustomobject]@{ Name = $u.Name; Fail = 1; Text = "FAIL $($u.Name): never started, waiting for $($u.After -join ', ')"; Seconds = 0 }
+}
+if (-not $Smoke -and $fail -eq 0) {
+  $endState = TreeState
+  $record = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'oml-cli\regress-passed.json'
+  if ($startState.Clean -and $endState.Clean -and $startState.Commit -eq $endState.Commit) {
+    try { New-Item -ItemType Directory -Force (Split-Path $record) | Out-Null; [ordered]@{ commit = $endState.Commit; at = (Get-Date).ToString('o'); seconds = [int]$watch.Elapsed.TotalSeconds } | ConvertTo-Json | Set-Content $record; Write-Host "full suite passed on $($endState.Commit.Substring(0, 7)): recorded for release.ps1" } catch { }
+  } else { Write-Host 'full suite passed, but the tree had uncommitted changes (or the commit changed): not recorded for a release' }
+}
+if (-not $Smoke) {
+  try { New-Item -ItemType Directory -Force (Split-Path $timesFile) | Out-Null; $t = [ordered]@{}; foreach ($k in $done.Keys) { $t[$k] = [math]::Round($done[$k].Seconds, 1) }; $t | ConvertTo-Json | Set-Content $timesFile } catch { }
+}Flush-Output
 Write-Host ("{0}total {1:N0}s ({2:N1} min), {3} failures" -f $(if ($Smoke) { 'smoke tier: ' } else { '' }), $watch.Elapsed.TotalSeconds, $watch.Elapsed.TotalMinutes, $fail)
 exit $fail
