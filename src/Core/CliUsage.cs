@@ -121,7 +121,7 @@ static class CliUsage
         Memory and learning: memory, learn (project facts, decisions and traps for agents; lessons from where agents fail and retry)
         Agents: batch, hooks, show-change, dashboard (several commands in one process; Claude Code hooks; a change walkthrough; the local web dashboard)
         Service Studio and LifeTime: studio, pull, publish, references, lifetime (Studio's open modules; save, publish and refresh references; the LifeTime API)
-        Testing: qa, test bdd (test a running app in a browser; BDD test specs for server actions)
+        Testing: qa, test (test a running app in a browser, replay without an agent; test bdd, test scenarios, test data: BDD specs, what to test after a change, dev test data)
         Assets: font, image (woff2 fonts; convert, resize, trace and ICO images)
         Packages: app, extension, templates (.oap and .osp packages; .xif extensions; sample modules)
         Setup: version, selftest, doctor, explorer-menu, log, model-types, widget-types (the build and its checks; Explorer right-click entries; the usage log; OutSystems API members)

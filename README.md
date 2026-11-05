@@ -4,6 +4,8 @@
 
 You describe a change in a JSON spec, apply it to a new staged file, check it, and then install it. You can use `oml` yourself, or give its skill to an AI agent.
 
+**New here?** [INSTRUCTION.md](INSTRUCTION.md) shows in one page how to work with any agent: development, manual QA, QA automation, test scenarios, test data, mocks and the application map.
+
 Website: [topurrra.github.io/oml-cli](https://topurrra.github.io/oml-cli/) · [Releases](https://github.com/Topurrra/oml-cli/releases) · [Changelog](CHANGELOG.md)
 
 ## Dashboard
