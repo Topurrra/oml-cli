@@ -6,7 +6,7 @@ using System.Text.Json.Nodes;
 
 namespace OmlCli;
 
-// `oml test data allow|create|check|cleanup|status`: test data in a DEV database, through the test-data module that
+// `oml test data allow|create|update|check|cleanup|status`: test data in a DEV database, through the test-data module that
 // `oml test data module` builds, the way BDD tests work: create the data, check what must be checked, clean up exactly
 // what was created. An agent calls the API only through these commands (the hook refuses curl and the like to an allowed
 // host), so every value it reports comes from oml's output. The API's URL and key come from OML_TESTDATA_URL and
@@ -36,10 +36,11 @@ static class TestDataCommand
             {
                 "allow" => Allow(rest),
                 "create" => Create(rest),
+                "update" => Update(rest),
                 "check" => Check(rest),
                 "cleanup" => Cleanup(rest),
                 "status" => Status(),
-                _ => throw new TestDataException($"Unknown test data command '{args[0]}'.", 2, "Use module, allow, create, check, cleanup or status."),
+                _ => throw new TestDataException($"Unknown test data command '{args[0]}'.", 2, "Use module, allow, create, update, check, cleanup or status."),
             };
         }
         catch (TestDataException e)
@@ -192,13 +193,32 @@ static class TestDataCommand
         var (api, key) = Api();
         var r = CurrentRun(run, create: true);
         if (r.Cleaned is not null) throw new TestDataException($"Run {r.Run} is cleaned up already. Start a new one: leave out --run.", 1);
-        var (status, body, text) = Call(HttpMethod.Post, new Uri(api, $"runs/{Uri.EscapeDataString(r.Run)}/{entity}"), key, values).GetAwaiter().GetResult();
+        var (status, body, text) = Call(HttpMethod.Post, new Uri(api, entity), key, values).GetAwaiter().GetResult();
         if (status >= 300) throw new TestDataException($"create {entity} failed: " + Problem(status, body, text), 1);
         long id = body is JsonValue v && v.TryGetValue<long>(out var n) ? n : body?["Id"] is JsonValue iv && iv.TryGetValue<long>(out var m) ? m : 0;
         if (id <= 0) throw new TestDataException($"create {entity}: the API answered without an id ({text}).", 1);
         r.Records.Add((entity, id));
         Save(r);
         TerminalOutput.PrintObject(new { run = r.Run, entity, id, created = r.Records.Count, cleanup = $"oml test data cleanup --run {r.Run}" });
+        return 0;
+    }
+
+    // Changes a record through the module's Update (or CreateOrUpdate) wrapper. Any record may be changed, so the agent
+    // must change only records its own run created; the run file says which.
+    static int Update(string[] args)
+    {
+        const string usage = "oml test data update <Entity> <Id> --values '<json>' | --file <record.json>";
+        var values = Values(ref args);
+        var entity = Entity(args, usage);
+        if (args.Length != 2 || !long.TryParse(args[1], NumberStyles.None, CultureInfo.InvariantCulture, out var id)) throw new TestDataException("Usage: " + usage, 2);
+        if (MemorySecrets.Find(values.ToJsonString()) is { } secret) throw new TestDataException($"The record holds what looks like a {secret}. Test data is plain data: use made-up values.", 2);
+        var ours = Directory.Exists(RunsFolder) && Directory.EnumerateFiles(RunsFolder, "*.json").Select(RunFile.Read).Any(r => r.Cleaned is null && r.Records.Contains((entity, id)));
+        if (!ours) throw new TestDataException($"{entity} {id} was not created by an open run of this project. oml test data changes only its own test records.", 2, "Create one with oml test data create, then update it.");
+        var (api, key) = Api();
+        var (status, body, text) = Call(HttpMethod.Put, new Uri(api, $"{entity}/{id}"), key, values).GetAwaiter().GetResult();
+        if (status == 404) throw new TestDataException($"The test-data module has no update for {entity}: build it with an Update or CreateOrUpdate wrapper.", 1);
+        if (status >= 300) throw new TestDataException($"update {entity} {id} failed: " + Problem(status, body, text), 1);
+        TerminalOutput.PrintObject(new { entity, id, updated = true, check = $"oml test data check {entity} {id} --expect '<json>'" });
         return 0;
     }
 
@@ -262,22 +282,21 @@ static class TestDataCommand
         var (api, key) = Api();
         var results = new List<object>();
         var ok = true;
-        foreach (var group in r.Records.GroupBy(x => x.Entity, StringComparer.Ordinal))
+        // Newest first, so a record is deleted before the records it points to.
+        foreach (var (entity, id) in Enumerable.Reverse(r.Records).ToList())
         {
-            var (status, body, text) = Call(HttpMethod.Delete, new Uri(api, $"runs/{Uri.EscapeDataString(r.Run)}/{group.Key}"), key).GetAwaiter().GetResult();
-            if (status >= 300) throw new TestDataException($"cleanup {group.Key} failed: " + Problem(status, body, text), 1, "Nothing is lost: run the cleanup again; the run file still lists the records.");
-            long deleted = body is JsonValue v && v.TryGetValue<long>(out var n) ? n : body?["Deleted"] is JsonValue dv && dv.TryGetValue<long>(out var m) ? m : -1;
-            var still = group.Where(x => Read(api, key, x.Entity, x.Id).Found).Select(x => x.Id).ToArray();
-            ok &= still.Length == 0 && deleted == group.Count();
-            results.Add(new { entity = group.Key, created = group.Count(), deleted, stillThere = still.Length == 0 ? null : still });
-        }
-        if (ok)
+            var (status, body, text) = Call(HttpMethod.Delete, new Uri(api, $"{entity}/{id}"), key).GetAwaiter().GetResult();
+            var gone = !Read(api, key, entity, id).Found;
+            // A record deleted already (by the test itself) counts as cleaned; any other failure keeps it in the run file.
+            if (!gone) ok = false;
+            results.Add(new { entity, id, deleted = status < 300 ? true : (bool?)null, gone, problem = status >= 300 && !gone ? Problem(status, body, text) : null });
+        }        if (ok)
         {
             r.Cleaned = DateTime.UtcNow.ToString("O");
             Save(r);
             if (File.Exists(CurrentFile) && File.ReadAllText(CurrentFile).Trim() == r.Run) File.Delete(CurrentFile);
         }
-        TerminalOutput.PrintObject(new { ok, run = r.Run, entities = results, hint = ok ? null : "The counts do not match: some records were not deleted or were deleted elsewhere. Tell the user; run the cleanup again after checking." });
+        TerminalOutput.PrintObject(new { ok, run = r.Run, records = results, hint = ok ? null : "Some records are still there (see problem). Tell the user; run the cleanup again after checking; the run file still lists them." });
         return ok ? 0 : 1;
     }
 

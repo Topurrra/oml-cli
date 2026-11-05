@@ -5,6 +5,10 @@
       "flow": [ { "kind": "execute", "name": "Save", "action": "CreateContact", "args": { "Source": "Contact" } }, { "kind": "assign", "name": "Out", "assign": { "ContactId": "Save.Id" } } ] },
     { "name": "RemoveContact", "public": true, "inputs": [{ "name": "ContactId", "type": "Contact Identifier", "mandatory": true }],
       "flow": [ { "kind": "execute", "name": "Del", "action": "DeleteContact", "args": { "Id": "ContactId" } } ] },
+    { "name": "GetContactById", "public": true, "inputs": [{ "name": "ContactId", "type": "Contact Identifier", "mandatory": true }], "outputs": [{ "name": "Contact", "type": "Contact" }],
+      "flow": [ { "kind": "aggregate", "name": "Find", "sources": ["Contact"], "filters": ["Contact.Id = ContactId"], "maxRecords": 1 }, { "kind": "assign", "name": "Out", "assign": { "Contact": "Find.List.Current.Contact" } } ] },
+    { "name": "ChangeContact", "public": true, "inputs": [{ "name": "Contact", "type": "Contact", "mandatory": true }],
+      "flow": [ { "kind": "execute", "name": "Save", "action": "UpdateContact", "args": { "Source": "Contact" } } ] },
     { "name": "PrivateAdd", "inputs": [{ "name": "Contact", "type": "Contact" }], "flow": [{ "kind": "end" }] }
   ]
 }

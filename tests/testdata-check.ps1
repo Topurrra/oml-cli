@@ -20,40 +20,50 @@ try {
   $r = Json apply (Join-Path $Tmp 'p0.oml') (Join-Path $PSScriptRoot 'testdata.json') $producer
   Require $r.saved 'producer fixture'
   $spec = Join-Path $Tmp 'ContactsTestData.spec.json'
-  $m = Json test data module $producer --entity Contact:AddContact:RemoveContact --out $spec
-  Require ($LASTEXITCODE -eq 0 -and $m.writes -contains 'Contact' -and @($m.next).Count -ge 4) "module: $($m | ConvertTo-Json -Compress)"
+  $m = Json test data module $producer --entity Contact:Create=AddContact,Delete=RemoveContact,Get=GetContactById,Update=ChangeContact --out $spec
+  Require ($LASTEXITCODE -eq 0 -and $m.entities[0].get -eq 'GetContactById' -and $m.entities[0].update -eq 'ChangeContact' -and @($m.next).Count -ge 4) "module: $($m | ConvertTo-Json -Compress -Depth 4)"
   & $Oml new (Join-Path $Tmp 'td0.oml') --name ContactsTestData --kind CrossDevice | Out-Null
   $a = Json apply (Join-Path $Tmp 'td0.oml') $spec (Join-Path $Tmp 'ContactsTestData.oml')
   Require ($a.saved -and $a.summary.newErrors -eq 0 -and $a.summary.newWarnings -eq 0 -and $a.summary.problems -eq 0) "test-data module apply: $($a.summary | ConvertTo-Json -Compress)"
-  Require (@($a.created) -contains 'entity TestDataLedger' -and @($a.created) -contains 'SiteProperties TestDataKey' -and @($a.created) -contains 'restService TestDataApi.CleanupContact') 'test-data module elements'
-  $bad = Json test data module $producer --entity Contact:PrivateAdd:RemoveContact --out (Join-Path $Tmp 'x.json')
+  Require (@($a.created) -contains 'SiteProperties TestDataKey' -and @($a.created) -contains 'restService TestDataApi.UpdateContact' -and @($a.created) -contains 'restService TestDataApi.DeleteContact') "test-data module elements: $($a.created -join ', ')"
+  Require (-not (@($a.created) -match '^entity ')) 'the test-data module must not create an entity (its table would stay in the database)'
+  # Only Create and Delete: reads through an aggregate, no update method; it applies cleanly too.
+  $minimal = Join-Path $Tmp 'minimal.spec.json'
+  Json test data module $producer --entity Contact:Create=AddContact,Delete=RemoveContact --out $minimal --name ContactsMin | Out-Null
+  & $Oml new (Join-Path $Tmp 'min0.oml') --name ContactsMin --kind CrossDevice | Out-Null
+  $a2 = Json apply (Join-Path $Tmp 'min0.oml') $minimal (Join-Path $Tmp 'ContactsMin.oml')
+  Require ($a2.saved -and $a2.summary.newErrors -eq 0 -and -not (@($a2.created) -contains 'restService TestDataApi.UpdateContact')) "minimal module: $($a2.summary | ConvertTo-Json -Compress)"
+  $bad = Json test data module $producer --entity Contact:Create=PrivateAdd,Delete=RemoveContact --out (Join-Path $Tmp 'x.json')
   Require ($LASTEXITCODE -eq 2 -and $bad.error -like '*not public*') 'a private action is refused'
   $bad = Json test data module $producer --out (Join-Path $Tmp 'y.json')
   Require ($LASTEXITCODE -eq 2 -and $bad.error -like '*--entity*') 'no entity'
-  Write-Host 'ok   test data module: the spec applies cleanly; private or missing actions are refused'
+  $bad = Json test data module $producer --entity Contact:Create=AddContact --out (Join-Path $Tmp 'z.json')
+  Require ($LASTEXITCODE -eq 2 -and $bad.error -like '*Delete wrapper*') 'no Delete wrapper'
+  Write-Host 'ok   test data module: no entity of its own, wrappers (Get, Update) used, applies cleanly; private or missing wrappers refused'
 
   # 2. A fake API that answers like the module.
   $probe = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0); $probe.Start(); $port = $probe.LocalEndpoint.Port; $probe.Stop()
   $server = Start-Job -ArgumentList $port -ScriptBlock {
     param($port)
     $l = [Net.HttpListener]::new(); $l.Prefixes.Add("http://127.0.0.1:$port/"); $l.Start()
-    $records = @{}; $ledger = [System.Collections.Generic.List[object]]::new(); $next = 100
+    $records = @{}; $next = 100
     while ($l.IsListening) {
       $c = $l.GetContext(); $q = $c.Request; $path = $q.Url.AbsolutePath -replace '^/api/', ''
       $status = 200; $body = ''
       if ($q.Headers['X-Test-Data-Key'] -ne 'k-123') { $status = 500; $body = '{"Errors":["Wrong or missing X-Test-Data-Key"],"StatusCode":500}' }
-      elseif ($q.HttpMethod -eq 'POST' -and $path -match '^runs/([^/]+)/(\w+)$') {
-        $run = $Matches[1]; $entity = $Matches[2]; $text = [IO.StreamReader]::new($q.InputStream).ReadToEnd(); $rec = $text | ConvertFrom-Json
-        $next++; $rec | Add-Member -NotePropertyName Id -NotePropertyValue $next -Force; $records["$entity/$next"] = $rec
-        $ledger.Add([pscustomobject]@{ Run = $run; Entity = $entity; Id = $next }); $body = "$next"
+      elseif ($q.HttpMethod -eq 'POST' -and $path -match '^(\w+)$') {
+        $entity = $Matches[1]; $rec = [IO.StreamReader]::new($q.InputStream).ReadToEnd() | ConvertFrom-Json
+        $next++; $rec | Add-Member -NotePropertyName Id -NotePropertyValue $next -Force; $records["$entity/$next"] = $rec; $body = "$next"
       }
       elseif ($q.HttpMethod -eq 'GET' -and $path -match '^(\w+)/(\d+)$') {
         $rec = $records["$($Matches[1])/$($Matches[2])"]; $body = if ($rec) { $rec | ConvertTo-Json -Compress } else { '{"Id":0,"Name":"","Email":""}' }
       }
-      elseif ($q.HttpMethod -eq 'DELETE' -and $path -match '^runs/([^/]+)/(\w+)$') {
-        $run = $Matches[1]; $entity = $Matches[2]; $rows = @($ledger | Where-Object { $_.Run -eq $run -and $_.Entity -eq $entity })
-        foreach ($row in $rows) { $records.Remove("$entity/$($row.Id)"); [void]$ledger.Remove($row) }
-        $body = "$($rows.Count)"
+      elseif ($q.HttpMethod -eq 'PUT' -and $path -match '^(\w+)/(\d+)$') {
+        $k = "$($Matches[1])/$($Matches[2])"; $rec = [IO.StreamReader]::new($q.InputStream).ReadToEnd() | ConvertFrom-Json
+        if ($records.ContainsKey($k)) { $rec | Add-Member -NotePropertyName Id -NotePropertyValue ([long]$Matches[2]) -Force; $records[$k] = $rec } else { $status = 500; $body = '{"Errors":["not found"]}' }
+      }
+      elseif ($q.HttpMethod -eq 'DELETE' -and $path -match '^(\w+)/(\d+)$') {
+        $k = "$($Matches[1])/$($Matches[2])"; if ($records.ContainsKey($k)) { $records.Remove($k) } else { $status = 500; $body = '{"Errors":["The record does not exist"]}' }
       }
       else { $status = 404; $body = '{"Errors":["no such method"]}' }
       $bytes = [Text.Encoding]::UTF8.GetBytes($body); $c.Response.StatusCode = $status; $c.Response.ContentType = 'application/json'
@@ -85,22 +95,27 @@ try {
     $env:OML_TESTDATA_KEY = 'k-123'
     $s = Json test data create Contact --values '{"Name":"ghp_1234567890abcdefghijklmnopqrstuvwxyzAB"}'
     Require ($LASTEXITCODE -eq 2 -and ($s.error -like '*secret*' -or $s.error -like '*token*')) 'secret refused'
-    Write-Host 'ok   test data: create, check with expected values, wrong key and secrets refused'
+    $u = Json test data update Contact $c1.id --values '{"Name":"Anna","Email":"anna@example.com"}'
+    Require ($LASTEXITCODE -eq 0 -and $u.updated) "update: $($u | ConvertTo-Json -Compress)"
+    Require ((Json test data check Contact $c1.id --expect '{"Name":"Anna"}').ok) 'update then check'
+    $other = Json test data update Contact 999 --values '{"Name":"X"}'
+    Require ($LASTEXITCODE -eq 2 -and $other.error -like '*not created by an open run*') 'update of a record the run did not create is refused'
+    Write-Host 'ok   test data: create, update, check with expected values; wrong key, secrets and foreign records refused'
 
     # 5. Status shows the open run; cleanup deletes exactly the run's records and checks they are gone.
     $st = Json test data status
     Require (@($st.open).Count -eq 1 -and $st.open[0].records -eq 2) "status: $($st | ConvertTo-Json -Compress -Depth 4)"
     $cl = Json test data cleanup
-    Require ($LASTEXITCODE -eq 0 -and $cl.ok -and $cl.entities[0].deleted -eq 2 -and $cl.entities[0].created -eq 2) "cleanup: $($cl | ConvertTo-Json -Compress -Depth 4)"
+    Require ($LASTEXITCODE -eq 0 -and $cl.ok -and @($cl.records).Count -eq 2 -and @($cl.records | Where-Object gone).Count -eq 2 -and $cl.records[0].id -eq $c2.id) "cleanup (newest first): $($cl | ConvertTo-Json -Compress -Depth 4)"
     $gone = Json test data check Contact $c1.id --absent
     Require ($LASTEXITCODE -eq 0 -and -not $gone.found) 'absent after cleanup'
     Require (@((Json test data status).open | Where-Object { $_ }).Count -eq 0) 'no open run after cleanup'
-    Write-Host 'ok   test data: cleanup deletes the run''s records by the ledger and proves they are gone'
+    Write-Host 'ok   test data: cleanup deletes the run''s records one by one (newest first) and proves they are gone'
 
     # 6. The hook: the API only through oml test data.
     function Hook($tool, $toolInput) { $j = @{ tool_name = $tool; tool_input = $toolInput; hook_event_name = 'PreToolUse' } | ConvertTo-Json -Compress; $j | & $Oml hooks check 2>&1 | Out-Null; $LASTEXITCODE }
     Require ((Hook 'Bash' @{ command = "curl -H 'X-Test-Data-Key: k' http://127.0.0.1:$port/api/Contact/1" }) -eq 2) 'hook: curl to the test-data host must be refused'
-    Require ((Hook 'PowerShell' @{ command = "Invoke-RestMethod http://127.0.0.1:$port/api/runs/x/Contact -Method Delete" }) -eq 2) 'hook: Invoke-RestMethod must be refused'
+    Require ((Hook 'PowerShell' @{ command = "Invoke-RestMethod http://127.0.0.1:$port/api/Contact/1 -Method Delete" }) -eq 2) 'hook: Invoke-RestMethod must be refused'
     Require ((Hook 'WebFetch' @{ url = "http://127.0.0.1:$port/api/Contact/1"; prompt = 'x' }) -eq 2) 'hook: WebFetch must be refused'
     Require ((Hook 'Bash' @{ command = "oml test data check Contact 1" }) -eq 0) 'hook: oml test data is allowed'
     Require ((Hook 'Bash' @{ command = "curl https://example.com" }) -eq 0) 'hook: other hosts are not refused'
