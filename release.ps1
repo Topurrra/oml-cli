@@ -39,9 +39,12 @@ try {
     Assert-CleanTree
     $branch = & git symbolic-ref --quiet --short HEAD
     if ($LASTEXITCODE -ne 0 -or -not $branch) { throw 'Release from a branch; detached HEAD is not supported.' }
-    if (-not $Version) {
-        [xml]$props = Get-Content -Raw src/Directory.Build.props
-        $Version = [string]$props.Project.PropertyGroup.Version
+    # The version lives in src/Directory.Build.props: a build from source reports it, so a release must match it.
+    [xml]$props = Get-Content -Raw src/Directory.Build.props
+    $sourceVersion = [string]$props.Project.PropertyGroup.Version
+    if (-not $Version) { $Version = $sourceVersion }
+    if ($Version -ne $sourceVersion) {
+        throw "-Version $Version differs from src/Directory.Build.props ($sourceVersion), so a build from source would report the wrong version. Set <Version>$Version</Version> there and commit."
     }
     if ($Version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$') {
         throw "Invalid release version: $Version (expected major.minor.patch with an optional prerelease suffix)."
