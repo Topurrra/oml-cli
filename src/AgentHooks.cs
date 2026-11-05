@@ -23,14 +23,14 @@ static class AgentHooks
 {
     const string Usage = "Usage: oml hooks [status|install|remove] [--dir <project folder>] [--agent claude|codex|gemini|all]   (oml hooks check is what the hook runs)";
 
-    sealed record Target(string Agent, string File, string Event, string Matcher, string For);
+    sealed record Target(string Agent, string File, string Event, string Matcher, string For, string StopEvent);
     static readonly Target[] Targets =
     [
-        new("claude", Path.Combine(".claude", "settings.local.json"), "PreToolUse", "Read|Grep|Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Shell|StrReplace|Delete|WebFetch", "Claude Code, GitHub Copilot (VS Code, app, CLI), Cursor"),
-        new("codex", Path.Combine(".codex", "hooks.json"), "PreToolUse", "Bash|apply_patch|Edit|Write", "Codex"),
-        new("gemini", Path.Combine(".gemini", "settings.json"), "BeforeTool", "run_shell_command|write_file|replace|read_file|web_fetch", "Gemini CLI"),
+        new("claude", Path.Combine(".claude", "settings.local.json"), "PreToolUse", "Read|Grep|Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Shell|StrReplace|Delete|WebFetch", "Claude Code, GitHub Copilot (VS Code, app, CLI), Cursor", "Stop"),
+        new("codex", Path.Combine(".codex", "hooks.json"), "PreToolUse", "Bash|apply_patch|Edit|Write", "Codex", "Stop"),
+        new("gemini", Path.Combine(".gemini", "settings.json"), "BeforeTool", "run_shell_command|write_file|replace|read_file|web_fetch", "Gemini CLI", "AfterAgent"),
     ];
-    const string Marker = " hooks check";
+    const string Marker = " hooks check", StopMarker = " hooks stop";
     const int MaxReadLines = 400, MaxGrepLines = 100;
 
     static readonly (string File, string Instead)[] BigDocs =
@@ -52,6 +52,7 @@ static class AgentHooks
     public static int Run(string[] args)
     {
         if (args is ["check"]) return Check(Console.In.ReadToEnd());
+        if (args is ["stop"]) return Stop(Console.In.ReadToEnd());
         if (args is ["--help" or "-h"]) { Console.WriteLine(Usage); return 0; }
         var verb = args.Length > 0 && !args[0].StartsWith("--") ? args[0] : "status";
         var rest = args.Length > 0 && !args[0].StartsWith("--") ? args[1..] : args;
@@ -85,6 +86,7 @@ static class AgentHooks
         {
             folder = dir, agents = results,
             blocks = verb == "install" ? new[] { "reading skill/reference/commands.md, spec.md or model-api.md whole", "editing or writing .oml files (rule 9)", "calling the test-data API other than through oml test data" } : null,
+            reminds = verb == "install" ? "once, when the agent finishes a session that changed a module or ran qa but saved nothing to the project memory: to save what the next agent should know, or say there is nothing (OML_MEMORY_REMINDER=0 turns it off)" : null,
             next = verb switch
             {
                 "install" => "Each agent reads its hook when a session starts in this folder (Codex: trust the project first). oml hooks remove takes them out.",
@@ -117,6 +119,60 @@ static class AgentHooks
             ["decision"] = "deny", ["reason"] = "oml: " + reason,
         }.ToJsonString());
         return 2;
+    }
+
+    // The end-of-turn hook (Stop; Gemini CLI AfterAgent): a reminder to keep what the session learned, given at most once
+    // and only when it is likely worth it, so it never costs a turn on a session that only read or answered. It speaks
+    // only when all of these hold:
+    //   - OML_MEMORY_REMINDER is not 0, and the agent is not already continuing because of a stop hook (stop_hook_active);
+    //   - the project folder (cwd) has a memory store (.oml/memory/memory.log);
+    //   - since the session started (its transcript file's creation time; else the last 2 hours) the usage log shows a
+    //     command that changed something or tested the app (ChangeCommands) and no memory add or retract.
+    // The reason says that finishing without a record is fine when nothing is worth keeping, so it never forces filler.
+    // The decision goes on stdout with exit 0: "block" for Claude Code, Codex, Copilot and Cursor, "deny" for Gemini CLI;
+    // each sends the reason back to the agent as the next prompt. Anything it cannot read lets the agent stop.
+    static readonly HashSet<string> ChangeCommands = new(StringComparer.Ordinal)
+        { "apply", "install", "new", "publish", "references", "extension new", "app pack", "lifetime deploy", "lifetime tag", "qa" };
+
+    static int Stop(string input)
+    {
+        string? reason = null;
+        var gemini = false;
+        try
+        {
+            if (JsonNode.Parse(input) is JsonObject o)
+            {
+                gemini = Str(o, "hook_event_name") == "AfterAgent";
+                reason = MemoryReminder(o, DateTime.UtcNow);
+            }
+        }
+        catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException or IOException or UnauthorizedAccessException or ArgumentException) { reason = null; }
+        if (reason is null) return 0;
+        Console.Out.WriteLine(new JsonObject { ["decision"] = gemini ? "deny" : "block", ["reason"] = reason }.ToJsonString());
+        return 0;
+    }
+
+    static string? Str(JsonObject o, params string[] keys) =>
+        keys.Select(k => o[k] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null).FirstOrDefault(s => !string.IsNullOrEmpty(s));
+
+    internal static string? MemoryReminder(JsonObject o, DateTime now)
+    {
+        if (Environment.GetEnvironmentVariable("OML_MEMORY_REMINDER")?.Trim() is "0" or "off" or "false") return null;
+        if (o["stop_hook_active"] is JsonValue a && a.TryGetValue<bool>(out var active) && active) return null;
+        var cwd = Str(o, "cwd") ?? Environment.CurrentDirectory;
+        if (!File.Exists(MemStore.LogPathOf(cwd))) return null;
+        var log = UsageLog.FilePath;
+        if (log is null || !File.Exists(log)) return null;
+        var start = now.AddHours(-2);
+        if (Str(o, "transcript_path", "transcriptPath") is { } transcript && File.Exists(transcript)) start = File.GetCreationTimeUtc(transcript);
+        var rows = UsageLog.Read(log, maxBytes: 2 * 1024 * 1024).Where(r => r.Ts >= start && !r.InRun).ToList();
+        if (rows.Any(r => r.Cmd is "memory add" or "memory retract" && r.Exit == 0)) return null;
+        var changed = rows.Where(r => r.Exit == 0 && ChangeCommands.Contains(r.Cmd)).GroupBy(r => r.Cmd).Select(g => $"{g.Key} {g.Count()}x").ToList();
+        if (changed.Count == 0) return null;
+        return $"oml: this session ran {string.Join(", ", changed)} and saved nothing to the project memory. Before you finish: if it found something the next agent should know " +
+            "(a decision and why, a trap or error and its fix, what the user wants, how to test or log in to the app), save one to three short records: " +
+            "oml memory add \"<one fact>\" --kind decision|trap|fact|pref --module <Name> --why \"<reason>\" (run oml memory recall \"<topic>\" first, and use --supersedes <id> to correct an old one). " +
+            "Do not save what the code or the module already shows. If nothing is worth keeping, say so in one line and finish.";
     }
 
     const string TestDataOnly = "The test-data API is called only through oml test data (create, update, check, cleanup), so every result comes from oml's output.";
@@ -189,10 +245,11 @@ static class AgentHooks
 
     static bool IsOml(string? path) => path is not null && path.Trim().EndsWith(".oml", StringComparison.OrdinalIgnoreCase);
 
-    static string Command() => $"\"{Environment.ProcessPath}\"" + Marker;
+    static string Command(string marker = Marker) => $"\"{Environment.ProcessPath}\"" + marker;
 
     static bool Ours(JsonNode? entry) =>
-        entry?["hooks"] is JsonArray hooks && hooks.Any(h => h?["command"] is JsonValue v && v.TryGetValue<string>(out var c) && c.EndsWith(Marker, StringComparison.Ordinal) && c.Contains("oml", StringComparison.OrdinalIgnoreCase));
+        entry?["hooks"] is JsonArray hooks && hooks.Any(h => h?["command"] is JsonValue v && v.TryGetValue<string>(out var c)
+            && (c.EndsWith(Marker, StringComparison.Ordinal) || c.EndsWith(StopMarker, StringComparison.Ordinal)) && c.Contains("oml", StringComparison.OrdinalIgnoreCase));
 
     // The settings file, or null when it is not valid JSON (then nothing is written).
     static JsonObject? Load(string settings, out string? error)
@@ -214,7 +271,7 @@ static class AgentHooks
         File.WriteAllText(settings, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }) + Environment.NewLine);
     }
 
-    static JsonArray? Entries(JsonObject root, Target t) => root["hooks"]?[t.Event] as JsonArray;
+    static JsonArray? Entries(JsonObject root, Target t, bool stop = false) => root["hooks"]?[stop ? t.StopEvent : t.Event] as JsonArray;
 
     static object Status(Target t, string file, JsonObject root)
     {
@@ -224,36 +281,43 @@ static class AgentHooks
         return new
         {
             agent = t.Agent, @for = t.For, file, installed = entry is not null,
+            memoryReminder = Entries(root, t, stop: true)?.Any(Ours) == true,
             exeFound = exe is null ? (bool?)null : File.Exists(exe),
-            hint = exe is not null && !File.Exists(exe) ? "oml.exe moved: run oml hooks install again." : null,
+            hint = exe is not null && !File.Exists(exe) ? "oml.exe moved: run oml hooks install again."
+                : entry is not null && Entries(root, t, stop: true)?.Any(Ours) != true ? "No memory reminder yet (added in 1.17): run oml hooks install again." : null,
         };
     }
 
     static object Install(Target t, string file, JsonObject root)
     {
         if (root["hooks"] is not JsonObject hooks) root["hooks"] = hooks = [];
-        if (hooks[t.Event] is not JsonArray list) hooks[t.Event] = list = [];
-        var replaced = list.Where(Ours).ToList();
-        foreach (var old in replaced) list.Remove(old);
-        list.Add(new JsonObject
+        var replaced = false;
+        foreach (var (eventName, matcher, marker) in new[] { (t.Event, t.Matcher, Marker), (t.StopEvent, "", StopMarker) })
         {
-            ["matcher"] = t.Matcher,
-            // Claude Code and Codex count the timeout in seconds, Gemini CLI in milliseconds.
-            ["hooks"] = new JsonArray(new JsonObject { ["type"] = "command", ["command"] = Command(), ["timeout"] = t.Agent == "gemini" ? 10000 : 10 }),
-        });
+            if (hooks[eventName] is not JsonArray list) hooks[eventName] = list = [];
+            foreach (var old in list.Where(Ours).ToList()) { list.Remove(old); replaced = true; }
+            list.Add(new JsonObject
+            {
+                // The end-of-turn events take no matcher, but Cursor skips a Claude Code hook entry that has none.
+                ["matcher"] = matcher,
+                // Claude Code and Codex count the timeout in seconds, Gemini CLI in milliseconds.
+                ["hooks"] = new JsonArray(new JsonObject { ["type"] = "command", ["command"] = Command(marker), ["timeout"] = t.Agent == "gemini" ? 10000 : 10 }),
+            });
+        }
         Save(file, root);
-        return new { agent = t.Agent, @for = t.For, file, installed = true, replaced = replaced.Count > 0 };
+        return new { agent = t.Agent, @for = t.For, file, installed = true, memoryReminder = true, replaced };
     }
 
     static object Remove(Target t, string file, JsonObject root)
     {
         var removed = false;
-        if (Entries(root, t) is { } list)
-        {
-            foreach (var old in list.Where(Ours).ToList()) { list.Remove(old); removed = true; }
-            if (list.Count == 0) (root["hooks"] as JsonObject)!.Remove(t.Event);
-            if (root["hooks"] is JsonObject { Count: 0 }) root.Remove("hooks");
-        }
+        foreach (var eventName in new[] { t.Event, t.StopEvent })
+            if (root["hooks"]?[eventName] is JsonArray list)
+            {
+                foreach (var old in list.Where(Ours).ToList()) { list.Remove(old); removed = true; }
+                if (list.Count == 0) (root["hooks"] as JsonObject)!.Remove(eventName);
+            }
+        if (root["hooks"] is JsonObject { Count: 0 }) root.Remove("hooks");
         // A file that held only oml's hook goes; a file with the user's own settings stays.
         if (removed && root.Count == 0) File.Delete(file);
         else if (removed) Save(file, root);

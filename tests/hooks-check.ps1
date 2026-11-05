@@ -97,8 +97,12 @@ $codex = Get-Content (Join-Path $project '.codex\hooks.json') -Raw | ConvertFrom
 Require ($codex.hooks.PreToolUse[0].matcher -match 'apply_patch' -and $codex.hooks.PreToolUse[0].hooks[0].command -match 'hooks check$') "codex hooks.json: $(Get-Content (Join-Path $project '.codex\hooks.json') -Raw)"
 $gemini = Get-Content (Join-Path $project '.gemini\settings.json') -Raw | ConvertFrom-Json
 Require ($gemini.hooks.BeforeTool[0].matcher -match 'run_shell_command' -and $gemini.hooks.BeforeTool[0].hooks[0].timeout -eq 10000) "gemini settings.json: $(Get-Content (Join-Path $project '.gemini\settings.json') -Raw)"
+foreach ($x in @(@($s, 'Stop'), @($codex, 'Stop'), @($gemini, 'AfterAgent'))) {
+  $entry = @($x[0].hooks.($x[1]))
+  Require ($entry.Count -eq 1 -and $entry[0].matcher -eq '' -and $entry[0].hooks[0].command -match 'oml\.exe" hooks stop$') "end-of-turn hook $($x[1]): $($entry | ConvertTo-Json -Compress -Depth 5)"
+}
 $r = Call 'hooks', '--dir', $project
-Require ($r.Exit -eq 0 -and @($r.Json.agents | Where-Object { $_.installed -and $_.exeFound }).Count -eq 3 -and -not $r.Json.next) "status after install: $($r.Text)"
+Require ($r.Exit -eq 0 -and @($r.Json.agents | Where-Object { $_.installed -and $_.exeFound -and $_.memoryReminder }).Count -eq 3 -and -not $r.Json.next) "status after install: $($r.Text)"
 $r = Call 'hooks', 'remove', '--dir', $project
 Require ($r.Exit -eq 0 -and @($r.Json.agents | Where-Object removed).Count -eq 3) "remove: $($r.Text)"
 $s = Get-Content $settings -Raw | ConvertFrom-Json
@@ -132,6 +136,47 @@ $r = Call 'hooks', 'install', '--bogus'
 Require ($r.Exit -eq 2 -and $r.Json.error -match 'Unknown or incomplete option') "unknown option: $($r.Text)"
 $r = Call 'hooks', '--help'
 Require ($r.Exit -eq 0 -and $r.Text -match 'oml hooks') "help: $($r.Text)"
+
+# 4. the end-of-turn memory reminder: once, only after a change or qa with nothing saved, only with a memory store
+$saved = @{}; foreach ($n in 'OML_LOG', 'OML_MEMORY_REMINDER') { $saved[$n] = [Environment]::GetEnvironmentVariable($n) }
+try {
+  $mem = Join-Path $work 'memproject'; New-Item -ItemType Directory -Force $mem | Out-Null
+  $env:OML_LOG = '0'
+  Push-Location $mem; try { & $Oml memory init --force | Out-Null } finally { Pop-Location }
+  Require (Test-Path (Join-Path $mem '.oml\memory\memory.log')) 'memory init for the reminder test'
+  $log = Join-Path $work 'usage.jsonl'; $env:OML_LOG = $log; $env:OML_MEMORY_REMINDER = $null
+  function Line($minutesAgo, $cmd, $exit = 0) { '{"ts":"' + [DateTime]::UtcNow.AddMinutes(-$minutesAgo).ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'") + '","cmd":"' + $cmd + '","exit":' + $exit + ',"ms":10,"bytes":1}' }
+  function Stop-Hook($payload) {
+    $out = (($payload | ConvertTo-Json -Compress) | & $Oml hooks stop 2>&1) -join ''
+    Require ($LASTEXITCODE -eq 0) "hooks stop exit $LASTEXITCODE`: $out"
+    if ($out.Trim()) { $out | ConvertFrom-Json } else { $null }
+  }
+  Set-Content $log @((Line 300 'apply'), (Line 20 'inspect'), (Line 10 'apply'), (Line 9 'install'), (Line 8 'apply' 1))
+  $d = Stop-Hook @{ hook_event_name = 'Stop'; cwd = $mem; stop_hook_active = $false; session_id = 'x' }
+  Require ($d.decision -eq 'block' -and $d.reason -match 'apply 1x, install 1x' -and $d.reason -match 'oml memory add' -and $d.reason -match 'nothing is worth keeping') "reminder after apply and install: $($d | ConvertTo-Json -Compress)"
+  $d = Stop-Hook @{ hook_event_name = 'AfterAgent'; cwd = $mem; stop_hook_active = $false }
+  Require ($d.decision -eq 'deny' -and $d.reason) "Gemini CLI AfterAgent gets deny: $($d | ConvertTo-Json -Compress)"
+  $d = Stop-Hook @{ sessionId = 'x'; cwd = $mem; stopReason = 'end_turn' }
+  Require ($d.decision -eq 'block') "Copilot agentStop payload: $($d | ConvertTo-Json -Compress)"
+  Require ($null -eq (Stop-Hook @{ hook_event_name = 'Stop'; cwd = $mem; stop_hook_active = $true })) 'reminded again while already continuing (stop_hook_active)'
+  Require ($null -eq (Stop-Hook @{ hook_event_name = 'Stop'; cwd = $work })) 'reminded in a folder without a memory store'
+  $transcript = Join-Path $work 'transcript.jsonl'; Set-Content $transcript '{}'
+  Require ($null -eq (Stop-Hook @{ hook_event_name = 'Stop'; cwd = $mem; transcript_path = $transcript })) 'reminded for changes made before this session started'
+  $env:OML_MEMORY_REMINDER = '0'
+  Require ($null -eq (Stop-Hook @{ hook_event_name = 'Stop'; cwd = $mem })) 'reminded with OML_MEMORY_REMINDER=0'
+  $env:OML_MEMORY_REMINDER = $null
+  Add-Content $log (Line 1 'memory add')
+  Require ($null -eq (Stop-Hook @{ hook_event_name = 'Stop'; cwd = $mem })) 'reminded after a memory add'
+  Set-Content $log @((Line 10 'inspect'), (Line 5 'describe'), (Line 4 'apply' 1))
+  Require ($null -eq (Stop-Hook @{ hook_event_name = 'Stop'; cwd = $mem })) 'reminded after a session that only read (and a failed apply)'
+  Set-Content $log @((Line 3 'qa'))
+  Require ((Stop-Hook @{ hook_event_name = 'Stop'; cwd = $mem }).reason -match 'qa 1x') 'no reminder after a qa run'
+  foreach ($junk in 'not json', '', '[1]') {
+    $out = $junk | & $Oml hooks stop 2>&1
+    Require ($LASTEXITCODE -eq 0 -and -not "$out".Trim()) "unreadable stop input '$junk': exit $LASTEXITCODE $out"
+  }
+  Write-Host 'ok   hooks: memory reminder once after a change or qa with nothing saved; quiet when continuing, without a store, before the session, after memory add, for reading only, when off'
+} finally { foreach ($n in $saved.Keys) { [Environment]::SetEnvironmentVariable($n, $saved[$n]) } }
 
 Write-Host "ok   hooks: $($cases.Count) decisions (large references, .oml writes by tool, patch and shell; Claude, Copilot, Cursor, Codex, Gemini payloads), unreadable input allowed, install/status/remove for 3 agents keep the user's settings, refusals"
 } finally { Remove-TestWorkFolder $Tmp }

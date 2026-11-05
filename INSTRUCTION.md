@@ -14,7 +14,7 @@ oml lets any AI agent (Claude Code, Codex, Cursor, Copilot, Gemini and others) b
 | Check your machine | `oml doctor` says what is missing (Service Studio, .NET, browser) and how to fix it. |
 | Start a project | `oml create falcon --in <folder of the project's .oap files>` makes a `falcon` folder with memory, the agent's skill and guards, your modules and the application map. Start your agent in that folder. |
 | Instructions for the agent | `oml create` writes `AGENTS.md` (read by Codex, Cursor, Copilot, Gemini and most others) and `CLAUDE.md` for Claude Code. |
-| Guards | `oml create` installs them: no reading huge references whole, no editing `.oml` files by hand, no calling the test-data API around oml. They cost no tokens. See the table below. |
+| Guards | `oml create` installs them: no reading huge references whole, no editing `.oml` files by hand, no calling the test-data API around oml. They cost no tokens. A memory reminder asks the agent once, at the end of a session that changed something but saved nothing, to keep what the next agent should know. See the table below. |
 | Existing folder instead | Copy `skill/` and `AGENTS.md` in, then `oml memory init` (memory), `oml map build <project> --in <folder of .oap files>` (the map), `oml hooks install` (guards). |
 
 **Which agents get the guards**
@@ -92,10 +92,30 @@ The agent saves decisions, your answers and traps with `oml memory`, so the next
 - **Answer the agent's questions.** It asks before anything risky; it does not guess.
 - **Find a command fast:** `oml --help` (by area), `oml <command> --help`, `oml doc --search "<words>"`.
 - **Use the dashboard if you prefer a browser:** `oml dashboard` (reads only; buttons show the command to run).
+- **Small models work well** (Haiku and similar) because the guards and the memory reminder do the remembering. Check the result with the commands below.
 
 ---
 
-## 4. What agents will never do
+## 4. Check things yourself
+
+| Question | Run this |
+|---|---|
+| Which oml runs, and which version? | `oml version` and `where.exe oml` (the first path wins; remove older copies from PATH) |
+| Is my machine set up? | `oml doctor --text` |
+| Are the guards and the memory reminder installed here? | `oml hooks status` (run `oml hooks install` again after moving oml) |
+| Was the agent slow, or oml? | `oml log summary --hours 12 --pretty`: per session, `omlSeconds` (oml working) and `betweenCommandsSeconds` (the agent thinking, or you away), and the slowest commands |
+| Which commands fail again and again? | `oml log summary --pretty` (`topFailures` per command) |
+| What has the agent remembered? | `oml memory list` (newest first), `oml memory recall "<words>"` |
+| Is the memory store healthy? | `oml memory doctor --module <file.oml>` (also checks that the elements it names still exist) |
+| What changed in the staged module? | `oml review <source.oml> <staged.oml> --md review.md` |
+| Is the staged module safe to install? | `oml validate <staged.oml> --warnings`, then `oml install <staged.oml> <target.oml>` yourself (a backup is kept) |
+| Does the app still work? | `oml qa run <file.json>` (a saved test; no agent needed) |
+
+Every command prints JSON; add `--pretty` to read it yourself.
+
+---
+
+## 5. What agents will never do
 
 The production rules are in [skill/rules.md](skill/rules.md). In short:
 - **No destructive changes:** never delete or rename existing elements or data, never break a public element's signature, never write SQL that changes data, never weaken security.

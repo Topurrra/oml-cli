@@ -86,7 +86,7 @@ oml selftest   (build check; also runs by itself on a Service Studio build not s
 oml doctor [--text] [--selftest]   (checks the setup and says what to fix)
 oml dashboard [--port N] [--no-open] [--module <file.oml>]   (local web dashboard for developers; reads only, on 127.0.0.1)
 oml explorer-menu [--remove | --status]   (Explorer right-click entries for the current user: fonts, images, .oml files, folders)
-oml log summary [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; OML_LOG=0 turns the log off)
+oml log summary [--hours N] [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; --hours: oml vs agent time per session)
 Output is compact JSON on stdout. Global --pretty includes empty fields and indents. Exit 0 ok, 1 model/validation failure, 2 usage/environment.
 --timings on a command that loads a module (apply, inspect, describe, validate, install, batch, ...) adds "timings": milliseconds per phase.
 ```
@@ -187,7 +187,7 @@ A line has `ts` (UTC), `cmd` (the command, with the verb for `lifetime`, `app`, 
 
 For `oml learn` and memory recall a line can also hold: `session` (a hash of `OML_SESSION`, `CLAUDE_SESSION_ID` or `CLAUDE_CODE_SESSION_ID`, never the value; without one, a gap of 30 minutes starts a new session), `opts` (the option names, such as `--module`, never their values), `recalled` (the record ids a `memory recall` returned), `specKey` (the key path of the first spec problem, letters only, such as `entities.attributes`), `topic` (the id of `oml explain-warning <id>`) and, for a `doc --search` or `spec --search` with no good hit, `query` (its words, secrets masked, cut to 100 characters) with `found: false`.
 
-`oml log summary [--file <usage.jsonl>]` prints, per command: `count`, `failures`, `medianMs` and the five most common failure messages (`topFailures`). It shows where turns are lost, such as a command that fails again and again with the same message. Without `--file` it reads `OML_LOG` (when that is a file) or the default file.
+`oml log summary [--file <usage.jsonl>]` prints, per command: `count`, `failures`, `medianMs` and the five most common failure messages (`topFailures`). It shows where turns are lost, such as a command that fails again and again with the same message. Without `--file` it reads `OML_LOG` (when that is a file) or the default file. `--hours N` keeps only the last N hours, adds `totalSeconds` per command (sorted by it) and `sessions`: per session, `omlSeconds` (oml running commands), `betweenCommandsSeconds` (the rest: the agent thinking, or the user away) and the three `slowest` commands. It answers "was the agent slow, or oml?". A gap of 30 minutes starts a new session.
 
 #### Module header and expressions: oml header, oml expression
 
@@ -1307,13 +1307,21 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 
 Anything the hook cannot read is allowed: a broken hook never blocks work. Each check starts `oml.exe` once (about 35 ms).
 
+**Memory reminder** (the end-of-turn hook, `oml hooks stop`): small models often forget `oml memory add`. When the agent finishes, the hook asks it once to save what the next agent should know, and only when all of these hold:
+
+- the session changed something or tested the app (`apply`, `install`, `new`, `publish`, `references`, `extension new`, `app pack`, `lifetime deploy|tag`, `qa`) and saved nothing (`memory add` or `retract`), going by the usage log since the session started (the transcript file's creation time, else the last 2 hours);
+- the project folder has a memory store (`.oml/memory/memory.log`);
+- the agent is not already continuing because of a stop hook (`stop_hook_active`), so it never asks twice.
+
+The message says to save one to three short records (recall first, `--supersedes` to correct one), not to save what the module already shows, and to finish with one line when nothing is worth keeping, so it never forces filler. A session that only read or answered gets no extra turn. `OML_MEMORY_REMINDER=0` turns it off.
+
 **Where** (`--dir`, else the current folder; `--agent claude|codex|gemini` for one, default all):
 
 | File | Read by | Notes |
 |---|---|---|
-| `.claude\settings.local.json` (PreToolUse) | Claude Code; GitHub Copilot agent mode in VS Code, the Copilot app and Copilot CLI; Cursor | Copilot and Cursor read Claude Code's settings files, also when Copilot runs a Claude model. If a Copilot session ignores the hook, check that agent hooks are turned on in its settings (a preview feature in some versions). |
-| `.codex\hooks.json` (PreToolUse) | Codex | Codex runs project hooks only after you trust the project. |
-| `.gemini\settings.json` (BeforeTool) | Gemini CLI | oml adds its entry next to your other settings. |
+| `.claude\settings.local.json` (PreToolUse, Stop) | Claude Code; GitHub Copilot agent mode in VS Code, the Copilot app and Copilot CLI; Cursor | Copilot and Cursor read Claude Code's settings files, also when Copilot runs a Claude model. If a Copilot session ignores the hook, check that agent hooks are turned on in its settings (a preview feature in some versions). |
+| `.codex\hooks.json` (PreToolUse, Stop) | Codex | Codex runs project hooks only after you trust the project. |
+| `.gemini\settings.json` (BeforeTool, AfterAgent) | Gemini CLI | oml adds its entries next to your other settings. |
 
 Not covered: the Copilot cloud agent (it runs on GitHub's Linux machines, where this `oml.exe` does not exist), Windsurf, Cline and Kiro (other hook formats). Agents without a hook still follow the same rules from `AGENTS.md` and the skill; only the automatic check is missing.
 

@@ -284,35 +284,85 @@ static class UsageLog
         return rows;
     }
 
-    // `oml log summary [--file f]`: per command count, failures, median ms and the 5 most common failure messages.
+    const string SummaryUsage = "Usage: oml log summary [--hours N] [--file <usage.jsonl>]";
+
+    // `oml log summary [--hours N] [--file f]`: per command count, failures, median and total seconds and the 5 most
+    // common failure messages. With --hours, only the last N hours, plus each session's time split: seconds oml spent
+    // running commands, and the rest of the session, which is the agent thinking between commands (or the user away).
+    // A session is the agent's logged session id, else commands with no 30-minute gap (Sessions).
     public static int Summary(string[] args)
     {
         string? file = null;
+        double? hours = null;
         for (var i = 0; i < args.Length; i++)
         {
             if (args[i] == "--file" && i + 1 < args.Length) file = args[++i];
+            else if (args[i] == "--hours" && i + 1 < args.Length && double.TryParse(args[++i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var h) && h > 0) hours = h;
             else if (i == 0 && args[i] == "summary") continue;
-            else return Fail("Usage: oml log summary [--file <usage.jsonl>]");
+            else return Fail(SummaryUsage);
         }
-        if (args.Length == 0 || args[0] != "summary") return Fail("Usage: oml log summary [--file <usage.jsonl>]");
+        if (args.Length == 0 || args[0] != "summary") return Fail(SummaryUsage);
         file = Path.GetFullPath(file ?? FilePath ?? DefaultPath);
         if (!File.Exists(file)) return Fail($"No usage log at {file}. oml writes one line per command unless OML_LOG=0; use oml for a while.");
 
-        var rows = Read(file).Select(r => (cmd: r.Cmd, exit: r.Exit, ms: r.Ms, error: r.Error)).ToList();
-        var commands = rows.GroupBy(r => r.cmd).OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal).Select(g =>
+        var all = Read(file);
+        var since = hours is { } span ? DateTime.UtcNow.AddHours(-span) : DateTime.MinValue;
+        // Steps inside oml run are logged too, and their time is already in the run's own line.
+        var rows = all.Where(r => r.Ts >= since).ToList();
+        var whole = rows.Where(r => !r.InRun).ToList();
+        var commands = rows.GroupBy(r => r.Cmd).OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal).Select(g =>
         {
-            var times = g.Select(r => r.ms).Order().ToArray();
+            var times = g.Select(r => r.Ms).Order().ToArray();
             var median = times.Length % 2 == 1 ? times[times.Length / 2] : (times[times.Length / 2 - 1] + times[times.Length / 2]) / 2;
-            var failed = g.Where(r => r.exit != 0).ToList();
+            var failed = g.Where(r => r.Exit != 0).ToList();
             return new
             {
                 command = g.Key, count = g.Count(), failures = failed.Count, medianMs = median,
-                topFailures = failed.GroupBy(r => r.error ?? "(no message)").OrderByDescending(f => f.Count()).ThenBy(f => f.Key, StringComparer.Ordinal)
+                totalSeconds = hours is null ? (double?)null : Math.Round(g.Where(r => !r.InRun).Sum(r => r.Ms) / 1000.0, 1),
+                topFailures = failed.GroupBy(r => r.Error ?? "(no message)").OrderByDescending(f => f.Count()).ThenBy(f => f.Key, StringComparer.Ordinal)
                     .Take(5).Select(f => new { message = f.Key, count = f.Count() }).ToArray(),
             };
         }).ToArray();
-        TerminalOutput.PrintObject(new { file, lines = rows.Count, commands });
+        object? sessions = null;
+        if (hours is not null)
+            sessions = Stretches(whole).Select(g =>
+            {
+                var first = g.Min(r => r.Ts);
+                var last = g.Max(r => r.Ts);
+                // ts is when a command ended, so the first command's own time comes before it.
+                var wall = (last - first).TotalSeconds + g.First(r => r.Ts == first).Ms / 1000.0;
+                var oml = g.Sum(r => r.Ms) / 1000.0;
+                return new
+                {
+                    start = first.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), end = last.ToLocalTime().ToString("HH:mm"),
+                    commands = g.Count(), omlSeconds = Math.Round(oml), wallSeconds = Math.Round(Math.Max(wall, oml)),
+                    betweenCommandsSeconds = Math.Round(Math.Max(0, wall - oml)),
+                    slowest = g.GroupBy(r => r.Cmd).OrderByDescending(c => c.Sum(r => r.Ms)).Take(3).Select(c => $"{c.Key} {c.Count()}x {c.Sum(r => r.Ms) / 1000.0:0}s").ToArray(),
+                };
+            }).OrderBy(s => s.start, StringComparer.Ordinal).ToArray();
+        TerminalOutput.PrintObject(new
+        {
+            file, hours, lines = rows.Count, sessions,
+            note = hours is null ? null : "omlSeconds: oml running commands. betweenCommandsSeconds: the rest of the session, which is the agent thinking (or you away). A gap of 30 minutes starts a new session.",
+            commands = hours is null ? commands : commands.OrderByDescending(c => c.totalSeconds).ToArray(),
+        });
         return 0;
+    }
+
+    // For timing: each logged session (or none) cut wherever 30 minutes pass without a command, so a session left open
+    // overnight does not count the night as agent time.
+    static IEnumerable<List<Row>> Stretches(List<Row> rows)
+    {
+        foreach (var session in rows.GroupBy(r => r.Session ?? ""))
+        {
+            var part = new List<Row>();
+            foreach (var r in session.OrderBy(r => r.Ts))
+            {
+                if (part.Count > 0 && r.Ts - part[^1].Ts > SessionGap) { yield return part; part = []; }
+                part.Add(r);
+            }
+            if (part.Count > 0) yield return part;
+        }
     }
 
     static int Fail(string message)

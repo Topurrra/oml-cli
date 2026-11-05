@@ -2,6 +2,16 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.17.0
+
+### Added
+- Memory reminder: `oml hooks install` also adds an end-of-turn hook (Stop for Claude Code, Copilot, Cursor and Codex; AfterAgent for Gemini CLI). When a session changed something or ran qa but saved nothing to the project memory, it asks the agent once to save what the next agent should know, or to say there is nothing. It never asks twice, stays quiet for sessions that only read, and needs a memory store. `OML_MEMORY_REMINDER=0` turns it off. Run `oml hooks install` again in existing projects; `oml hooks status` shows `memoryReminder`.
+- `oml log summary --hours N`: only the last N hours, total seconds per command, and per session the seconds oml ran commands and the seconds between them (the agent thinking), so "was the agent slow, or oml?" has an answer.
+- INSTRUCTION.md: "Check things yourself", the commands for checking the version, the setup, the guards, the timings, the memory and a staged module.
+
+### Fixed
+- A build from source reported 1.16.0 after 1.16.1 and 1.16.2; `release.ps1` now refuses a version that differs from `src/Directory.Build.props`.
+
 ## 1.16.2
 
 ### Fixed

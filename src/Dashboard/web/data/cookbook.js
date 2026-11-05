@@ -179,7 +179,8 @@ export const cookbook = [
     ['oml team-rules remove acme-naming', 'Uninstall one company skill. Your source file stays.'],
   ] },
   { group: 'Diagnostics', items: [
-    ['oml log summary', 'Show which commands agents use and where they fail. Needs OML_LOG=1.'],
+    ['oml log summary', 'Show which commands agents use and where they fail. The log is on unless OML_LOG=0.'],
+    ['oml log summary --hours 12', 'Was the agent slow, or oml? Per session: seconds oml ran commands, and seconds between them.'],
     ['oml learn report --md learned.md', 'Where agents lose turns: failures that repeat, retries and what fixed them, searches that found nothing. Changes nothing.'],
     ['oml learn propose', 'Proposals with evidence: trap records and a draft company skill per command. Nothing is applied.'],
     ['oml learn show', 'The open proposals with their evidence and diff. Accept one with oml learn accept <id>; undo it with oml learn undo <id>.'],

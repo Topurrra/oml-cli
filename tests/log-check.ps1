@@ -94,6 +94,22 @@ try {
   $missing = & $Oml log summary --file (Join-Path $dir 'none.jsonl'); Require ($LASTEXITCODE -eq 2 -and ($missing -join '') -match 'No usage log') 'log summary: missing file'
   Write-Host 'ok   log summary: count, failures, median, top 5 failures'
 
+  # --hours: only recent lines, and per session oml's seconds vs the seconds between commands. One session of 3
+  # commands (2 s, 3 s and a run of 5 s whose 4 s step is not counted twice) over 60 s; a 2-hour gap starts another;
+  # a line from 3 days ago is left out.
+  $timed = Join-Path $dir 'timed.jsonl'
+  function At($minutesAgo, $cmd, $ms, $extra = '') { '{"ts":"' + [DateTime]::UtcNow.AddMinutes(-$minutesAgo).ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'") + '","cmd":"' + $cmd + '","exit":0,"ms":' + $ms + ',"bytes":1' + $extra + '}' }
+  @((At 4320 'inspect' 9000), (At 181 'inspect' 2000), (At 180.5 'validate' 3000), (At 180.1 'inspect' 4000 ',"run":true'), (At 180 'batch' 5000), (At 10 'apply' 1000)) | Set-Content $timed
+  $s3 = & $Oml log summary --hours 24 --file $timed | ConvertFrom-Json
+  Require ($LASTEXITCODE -eq 0 -and $s3.lines -eq 5 -and $s3.hours -eq 24) "log summary --hours: lines $($s3.lines)"
+  Require ($s3.sessions.Count -eq 2) "log summary --hours: $($s3.sessions.Count) sessions, expected 2"
+  $first = $s3.sessions[0]
+  Require ($first.commands -eq 3 -and $first.omlSeconds -eq 10 -and $first.wallSeconds -eq 62 -and $first.betweenCommandsSeconds -eq 52) "log summary --hours: first session $($first | ConvertTo-Json -Compress)"
+  Require ($first.slowest[0] -ceq 'batch 1x 5s') "log summary --hours: slowest $($first.slowest -join '; ')"
+  Require ($s3.commands[0].command -ceq 'batch' -and $s3.commands[0].totalSeconds -eq 5) 'log summary --hours: commands sorted by total seconds'
+  & $Oml log summary --hours nope --file $timed | Out-Null; Require ($LASTEXITCODE -eq 2) 'log summary: --hours takes a number'
+  Write-Host 'ok   log summary --hours: recent lines only, oml vs between-commands seconds per session'
+
   # 6. On by default: unset, empty and 1 write the default file. Only the lines added here are removed again.
   $length = if (Test-Path $default) { (Get-Item $default).Length } else { 0 }
   try {
