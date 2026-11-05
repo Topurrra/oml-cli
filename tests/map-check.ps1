@@ -41,7 +41,10 @@ try {
     $i = Json map impact CrmApi.GetCreditLines
     $flows = @($i.affected | ForEach-Object flow)
     Require ($flows -contains 'CrmIS/GetCredits' -and $flows -contains 'CrmCore/LoadCredits' -and $flows -contains 'CrmCore/CustomerCredits/Load') "impact: $($flows -join ', ')"
-    Write-Host 'ok   map overview, uses, impact (through the wrapper and the process activity)'
+    # A Reactive screen action: the model throws NotImplementedException for its outputs; the module must still be read.
+    $u = Json map uses SyncCustomer
+    Require (@($u.calledBy | ForEach-Object flow) -match 'CustomerSync' ) "screen action call: $($u | ConvertTo-Json -Compress -Depth 6)"
+    Write-Host 'ok   map overview, uses, impact (through the wrapper, the process activity and a screen action)'
 
     # 3. Data lineage: the API output saved in the entity, through the wrapper; the entity feeds the next API.
     $d = Json map data Customer

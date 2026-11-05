@@ -12,6 +12,8 @@
       { "kind": "execute", "name": "Credits", "action": "GetCredits", "args": { "CustomerId": "FindCustomers.List.Current.Customer.ExternalId" } }
     ] }
   ],
+  "screens": [{ "name": "CustomerSync", "locals": [{ "name": "ClientId" }],
+    "actions": [{ "name": "SyncNow", "flow": [ { "kind": "execute", "name": "CallSync", "action": "SyncCustomer", "args": { "Id": "ClientId" } } ] }] }],
   "processes": [{ "name": "CustomerCredits", "launchOn": "Customer", "detail": "\"Credits\"", "flow": [
       { "kind": "start", "name": "Start", "next": "Load" }, { "kind": "automaticActivity", "name": "Load", "action": "LoadCredits" }, { "kind": "end", "name": "Done" } ] }]
 }

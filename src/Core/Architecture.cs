@@ -277,7 +277,8 @@ static class Architecture
                     if (fileOf is not null) fileOf[name] = Shown(file.path);
                     allEdges.AddRange(edges);
                 }
-                catch (Exception e) { Skip(file.path, (e.InnerException ?? e).Message); }
+                // OML_DEBUG=1 adds where it failed, for a bug report.
+                catch (Exception e) { Skip(file.path, Environment.GetEnvironmentVariable("OML_DEBUG") == "1" ? (e.InnerException ?? e).ToString() : (e.InnerException ?? e).Message); }
             }
             var modules = snapshots.ToDictionary(p => p.Key, p => p.Value.data, StringComparer.OrdinalIgnoreCase);
             foreach (var producer in allEdges.Select(e => e.to).Distinct(StringComparer.OrdinalIgnoreCase))

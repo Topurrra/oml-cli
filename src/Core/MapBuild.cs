@@ -260,6 +260,13 @@ static class MapBuild
         }
     }
 
+    // A Reactive screen action has no outputs, and the model throws NotImplementedException when asked for them.
+    static object? Parameters(object owner, string property)
+    {
+        try { return Reflect.Get(owner, property); }
+        catch (Exception e) when ((e as System.Reflection.TargetInvocationException)?.InnerException is NotImplementedException || e is NotImplementedException) { return null; }
+    }
+
     static string Text(object? expression) => expression is IExpression e ? (e.Text ?? "").Trim() : "";
 
     static JsonObject? Flow(IESpace m, IObjectSignature owner, string kind, Dictionary<object, (string api, string method)> rest)
@@ -308,7 +315,7 @@ static class MapBuild
                     calls.Add(call);
                 }
             }
-            catch (Exception e) when (e is System.Reflection.TargetInvocationException or NullReferenceException or InvalidCastException or InvalidOperationException) { }
+            catch (Exception e) when (e is System.Reflection.TargetInvocationException or NullReferenceException or InvalidCastException or InvalidOperationException or NotImplementedException) { }
         }
         if (calls.Count == 0 && reads.Count == 0 && assigns.Count == 0) return null;
         // Its parameters, so a wrapper action (an API call behind a server action in another module) passes the lineage on.
@@ -316,7 +323,7 @@ static class MapBuild
         return new JsonObject
         {
             ["path"] = CheckRules.PathOf(owner), ["kind"] = kind, ["public"] = Reflect.Get(owner, "Public") is true ? true : null,
-            ["inputs"] = Names(Reflect.Get(owner, "InputParameters")), ["outputs"] = Names(Reflect.Get(owner, "OutputParameters")),
+            ["inputs"] = Names(Parameters(owner, "InputParameters")), ["outputs"] = Names(Parameters(owner, "OutputParameters")),
             ["calls"] = calls, ["reads"] = reads, ["assigns"] = assigns,
         };
     }

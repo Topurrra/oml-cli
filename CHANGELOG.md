@@ -2,6 +2,11 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.16.1
+
+### Fixed
+- `oml map build` skipped every Reactive module with a screen action that calls something (`The method or operation is not implemented.`): the model throws when asked for a screen action's outputs. Such modules are read again, and an element the model cannot describe no longer drops its whole module. `OML_DEBUG=1` adds the stack trace to a skipped file's reason, for bug reports.
+
 ## 1.16.0
 
 ### Added
