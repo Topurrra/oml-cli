@@ -2,7 +2,7 @@
 
 Keep a Changelog style: one section per release, newest first.
 
-## Unreleased
+## 1.16.0
 
 ### Added
 - `oml map`: an application map of a whole project. `map build <project> --in <folders or .oap files>` reads every module once into `%LOCALAPPDATA%\oml-cli\maps\<project>` and later reads only the files that changed; the folder remembers its project (`.oml/map.json`). Queries run without Service Studio: `overview`, `uses <element>`, `impact <element>`, `data <Entity>`, `api <Api.Method>`, `list`. The lineage follows what Service Studio sees: argument expressions, assignments into saved records, aggregate and entity Get results, wrapper actions in other modules, and processes started on entity events, by `Launch<Process>` or by timers; `map api` shows the chain from one API to the next. The map also keeps each REST method's sample request and response, for mocks.
