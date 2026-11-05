@@ -2,6 +2,11 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.16.2
+
+### Fixed
+- `oml map build` reused a file that was read only in part (one module of an `.oap` failed), so a later build with a fixed oml still missed that module. Such a file is now listed under `failed` as `<file>.oap!<Module>.oml`, kept in the map with what was read, and read again on the next build. Maps saved by older versions are read again once.
+
 ## 1.16.1
 
 ### Fixed

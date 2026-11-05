@@ -117,6 +117,14 @@ try {
   try {
     $b = Json map build crm
     Require ($b.read -eq 0 -and $b.reused -eq 2) "rebuild unchanged: $($b | ConvertTo-Json -Compress)"
+    # A file read only in part (a module failed) is read again; so is a file stored by an older map schema.
+    $cached = Get-ChildItem (Join-Path $env:OML_MAPS 'crm\sources') -Filter *.json | Where-Object { (Get-Content $_.FullName -Raw) -match 'CrmIS\.oml' } | Select-Object -First 1
+    $doc = Get-Content $cached.FullName -Raw | ConvertFrom-Json; $doc | Add-Member partial $true -Force; $doc | ConvertTo-Json -Depth 100 -Compress | Set-Content $cached.FullName
+    $b = Json map build crm
+    Require ($b.read -eq 1 -and $b.reused -eq 1) "rebuild after a partial read: $($b | ConvertTo-Json -Compress)"
+    $doc = Get-Content $cached.FullName -Raw | ConvertFrom-Json; $doc.schema = '1'; $doc | ConvertTo-Json -Depth 100 -Compress | Set-Content $cached.FullName
+    $b = Json map build crm
+    Require ($b.read -eq 1 -and $b.reused -eq 1) "rebuild after an old schema: $($b | ConvertTo-Json -Compress)"
     (Get-Item (Join-Path $in 'CrmCore.oml')).LastWriteTimeUtc = (Get-Date).ToUniversalTime().AddMinutes(1)
     Require ((Json map overview).stale -like '*1 input file(s) changed*') 'stale after a change'
     Remove-Item (Join-Path $in 'CrmIS.oml')
@@ -124,7 +132,7 @@ try {
     Require ($b.removed -eq 1 -and $b.files -eq 1) "rebuild after removal: $($b | ConvertTo-Json -Compress)"
     Require ((Json map overview).totals.modules -eq 1) 'removed module left the map'
   } finally { Pop-Location }
-  Write-Host 'ok   map build: reuses unchanged files, reports stale ones, drops removed ones'
+  Write-Host 'ok   map build: reuses unchanged files, rereads partial and old reads, reports stale ones, drops removed ones'
 } finally {
   foreach ($n in $saved.Keys) { [Environment]::SetEnvironmentVariable($n, $saved[$n]) }
   Remove-TestWorkFolder $Tmp

@@ -20,7 +20,8 @@ namespace OmlCli;
 // One file per input file, so a rebuild reads only the inputs whose bytes changed. Read only: no module is saved.
 static class MapBuild
 {
-    const string Schema = "1";
+    // 2: a file with a module that could not be read is marked partial and read again (1.16.0 kept such files as complete).
+    const string Schema = "2";
     static readonly Regex ProjectName = new("^[a-z0-9][a-z0-9-]{0,39}$", RegexOptions.CultureInvariant);
 
     internal static string Root => Environment.GetEnvironmentVariable("OML_MAPS") is { Length: > 0 } root
@@ -73,7 +74,8 @@ static class MapBuild
             var target = Path.Combine(store, key + ".json");
             var hash = Sha(file);
             if (File.Exists(target) && JsonNode.Parse(File.ReadAllText(target)) is JsonObject old
-                && old["sha256"]?.GetValue<string>() == hash && old["schema"]?.GetValue<string>() == Schema && old["apps"]?.GetValue<string>() == appFilter)
+                && old["sha256"]?.GetValue<string>() == hash && old["schema"]?.GetValue<string>() == Schema && old["apps"]?.GetValue<string>() == appFilter
+                && old["partial"] is null)
             {
                 reused.Add(file);
                 continue;
@@ -83,11 +85,13 @@ static class MapBuild
             warnings.AddRange(result.warnings);
             // A file no module could be read from stays out of the map (and out of keep), so the next build tries it again.
             if (facts.Count == 0 && result.skipped.Count > 0) { keep.Remove(key + ".json"); failed.Add((file, result.skipped[0].reason)); continue; }
+            // Some modules read, some not: the map keeps what was read, the file is marked partial and read again next time.
+            foreach (var (input, reason) in result.skipped) failed.Add((input == file ? file : file + "!" + Path.GetFileName(input), reason));
             var doc = new JsonObject
             {
                 ["schema"] = Schema, ["file"] = file, ["sha256"] = hash, ["size"] = new FileInfo(file).Length, ["mtime"] = File.GetLastWriteTimeUtc(file).Ticks, ["apps"] = appFilter, ["readAt"] = DateTime.UtcNow.ToString("O"),
                 ["modules"] = result.document["modules"]!.DeepClone(), ["edges"] = result.document["edges"]!.DeepClone(),
-                ["applications"] = result.document["applications"]!.DeepClone(), ["facts"] = facts,
+                ["applications"] = result.document["applications"]!.DeepClone(), ["facts"] = facts, ["partial"] = result.skipped.Count > 0 ? true : null,
             };
             File.WriteAllText(target, doc.ToJsonString());
             read.Add(file);
