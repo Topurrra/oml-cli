@@ -307,6 +307,10 @@ Unit 'memory-check' {
   try { & (Join-Path $tests 'memory-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL memory checks: $_" }
 }
+Unit 'testdata-check' {
+  try { & (Join-Path $tests 'testdata-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL test data checks: $_" }
+}
 Unit 'scenarios-check' {
   try { & (Join-Path $tests 'scenarios-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL scenarios checks: $_" }

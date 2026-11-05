@@ -42,6 +42,8 @@ export const cookbook = [
     ['oml check --diff C:\\Work\\Orders.oml C:\\Work\\Orders.staged.oml', 'Which check findings the change fixed and which it introduced, per rule. Exit code 1 when one is introduced.'],
     ['oml review C:\\Work\\Orders.oml C:\\Work\\Orders.staged.oml --md C:\\Work\\Orders.review.md', 'What changed, the production-rule risks and new findings. Run it before you install.'],
     ['oml review C:\\Work\\Orders.oml C:\\Work\\Orders.staged.oml --out C:\\Work\\review.html --notes C:\\Work\\release-notes.md', 'Write the review as a web page, and short release notes for testers.'],
+    ['oml test data module C:\\Work\\Contacts.oml --entity Contact:AddContact:RemoveContact', 'Spec of a dev-only test-data module: a ledger, a key check, writes through the public actions you name.'],
+    ['oml test data create Contact --file contact.json', 'Create test data in DEV through the test-data module; oml test data check and cleanup follow.'],
     ['oml test scenarios C:\\Work\\Orders.oml C:\\Work\\Orders.staged.oml', 'What to test after a change: BDD scenarios per new or changed public action, QA scenarios and qa.json skeletons per screen.'],
     ['oml test bdd C:\\Work\\Orders.oml Order_Save --bdd C:\\Work\\BDDFramework.oml --out C:\\Work\\orders-tests.json', 'Write a spec for BDD test screens in a separate test module.'],
   ] },

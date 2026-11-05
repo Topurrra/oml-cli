@@ -35,6 +35,8 @@ static class CliUsage
         oml preview <module.oml> <Block|Screen|Email> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>] [--wait <ms>] [--click <selector>] [--type <selector>=<text>] [--eval <js>] [--serve [--no-open]]
         oml test bdd <module.oml> <ServerAction>... --bdd <BDDFramework.oml> [--out <spec.json>] [--module-name <TestModule>] [--producer <path>]   (spec for BDD test screens in a separate test module)
         oml test scenarios <source.oml> <staged.oml> [--out <folder>]   (what to test after a change: BDD scenarios per new or changed public action, QA scenarios and qa.json skeletons per screen)
+        oml test data module <producer.oml> --entity <Entity>:<CreateAction>:<DeleteAction>... [--read <Entity>]... [--name <Module>] [--out <spec.json>]   (spec of a dev-only test-data module: ledger, key check, writes through public actions)
+        oml test data allow <dev host> | create <Entity> --values <json> [--run <id>] | check <Entity> <Id> [--expect <json>] [--absent] | cleanup [--run <id>] | status   (test data in a DEV database, BDD style: create, check, clean up exactly what was created)
         oml flow <module.oml> <Action>   (one flow as a graph: nodes with their positions and what they do, and the connectors; the Dif page draws it)
         oml map build <project> [--in <folder|file.oap|file.oml>]... [--app <Name>]...   (an application map of every module of a project: calls, APIs, entities, processes; rebuilds only changed files)
         oml map overview | uses <element> | impact <element> | data <Entity> | api <Api.Method> | list [--project <name>]   (short answers from the map, without Service Studio)

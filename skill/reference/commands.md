@@ -870,6 +870,25 @@ Exposed REST has no typed request/response format setting on this build; Text bo
 - **Screens (QA).** Per screen: it opens, and per named button or link with an action, one scenario per path through that action (the If conditions on the way), with the messages and screens the user then sees. A screen aggregate adds an empty-list scenario. An unnamed button gets a scenario to name it, since a qa step needs a widget Name.
 - **qa.json skeletons.** `qa/<Screen>.qa.json` per screen: open, fill the named fields, click, and expect what the success path shows. Set `baseUrl` and the values, run it with `oml qa run ... --save <replay.json>`, and the replay needs no agent.
 - `<FILL: ...>` marks what the model cannot know: values and expected results. Show `scenarios.md` to the user and fill these in with them.
+## Test data
+
+An agent cannot see the database. `oml test data` lets it create test data in a DEV database, check what was saved, and clean up exactly what it created, the way BDD tests work. The agent calls the API only through these commands: `oml hooks` refuses curl, `Invoke-WebRequest`, `Invoke-RestMethod`, WebFetch and the like to an allowed test-data host, so every value it reports comes from oml's output.
+
+**The module.** `oml test data module <producer.oml> --entity <Entity>:<CreateAction>:<DeleteAction>... [--read <Entity>]... [--name <Module>] [--out <spec.json>]` writes the spec of a separate module (default `<Producer>TestData`). It never goes in the real module, since everything there reaches production. It writes only through the producer's own public actions that the user names: the create action takes the entity record and returns its Identifier, and the delete action takes the Identifier. Entities stay read-only to consumers (rule 7). Ask the user which actions to use; never make an action public for this without their yes.
+- `TestDataLedger` (run, entity, record id, time) gets a row for every record the module creates.
+- The REST API `TestDataApi` has `POST /runs/{RunId}/<Entity>` (body: the record; returns its id), `GET /<Entity>/{Id}` (an Id of 0 means not found), and `DELETE /runs/{RunId}/<Entity>` (deletes the ledger's records of the run through the delete action, and their ledger rows; returns the count).
+- Every method first checks the `X-Test-Data-Key` header against the `TestDataKey` site property. Set it per DEV environment in Service Center. While it is empty, every call is refused, so the module does nothing where nobody set a key.
+- The command prints the steps: create and apply the module, publish it to a DEV environment after a yes, set the key, set `OML_TESTDATA_URL` (`https://<dev>/<Module>/rest/TestDataApi`) and `OML_TESTDATA_KEY`.
+
+**The commands** (in the project folder):
+
+| Command | What it does |
+|---|---|
+| `oml test data allow <dev host>` | Allows that host for this project (`.oml/testdata.json`). Ask the user that it is a DEV environment first. Every other command refuses a host that is not allowed, and plain http except for localhost. |
+| `oml test data create <Entity> --values '<json>' \| --file <record.json> [--run <id>]` | Creates a record in the current run (a new run when none is open) and records its id in `.oml/testdata/runs/<run>.json`. A value that looks like a secret is refused. |
+| `oml test data check <Entity> <Id> [--expect '<json>'] [--absent]` | Reads the record. With `--expect`, compares those fields (`mismatches`); with `--absent`, passes when the record is gone. Exit 1 when the check fails. |
+| `oml test data cleanup [--run <id>]` | Deletes the run's records through the API, compares the counts with the run file, and checks each record is gone. Exit 1 when they differ. A cleanup that failed can run again. |
+| `oml test data status` | Open runs (test data still in the database) with the cleanup command for each. |
 ## Test BDD: oml test bdd
 
 `oml test bdd <module.oml> <ServerAction>... --bdd <BDDFramework.oml> [--out <spec.json>] [--module-name <TestModule>] [--producer <path>]`

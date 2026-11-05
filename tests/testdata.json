@@ -1,0 +1,10 @@
+{
+  "entities": [{ "name": "Contact", "public": true, "attributes": [{ "name": "Name" }, { "name": "Email" }] }],
+  "serverActions": [
+    { "name": "AddContact", "public": true, "inputs": [{ "name": "Contact", "type": "Contact", "mandatory": true }], "outputs": [{ "name": "ContactId", "type": "Contact Identifier" }],
+      "flow": [ { "kind": "execute", "name": "Save", "action": "CreateContact", "args": { "Source": "Contact" } }, { "kind": "assign", "name": "Out", "assign": { "ContactId": "Save.Id" } } ] },
+    { "name": "RemoveContact", "public": true, "inputs": [{ "name": "ContactId", "type": "Contact Identifier", "mandatory": true }],
+      "flow": [ { "kind": "execute", "name": "Del", "action": "DeleteContact", "args": { "Id": "ContactId" } } ] },
+    { "name": "PrivateAdd", "inputs": [{ "name": "Contact", "type": "Contact" }], "flow": [{ "kind": "end" }] }
+  ]
+}

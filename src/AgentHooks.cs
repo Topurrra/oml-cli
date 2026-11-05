@@ -78,6 +78,8 @@ static class AgentHooks
         return 2;
     }
 
+    const string TestDataOnly = "The test-data API is called only through oml test data (create, check, cleanup), so every result comes from oml's output and the ledger stays right.";
+
     internal static string? Refusal(string tool, JsonObject input)
     {
         string? Text(string key) => input[key] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
@@ -90,9 +92,15 @@ static class AgentHooks
                 return $"Grep in content mode on {doc.File} returns large parts of it. Use {doc.Instead}, or set head_limit to at most {MaxGrepLines}.";
             case "Edit" or "Write" or "MultiEdit" or "NotebookEdit" when IsOml(Text("file_path") ?? Text("notebook_path")):
                 return "rule 9: an .oml file is a binary package. Never edit or write it with a tool; change modules only with oml apply to a new staged file.";
+            case "WebFetch" when Text("url") is { } url && Uri.TryCreate(url, UriKind.Absolute, out var u) && TestDataCommand.AllowedHosts(Environment.CurrentDirectory).Contains(u.Host.ToLowerInvariant()):
+                return TestDataOnly;
             case "Bash" or "PowerShell" when Text("command") is { } command:
+                var testHosts = TestDataCommand.AllowedHosts(Environment.CurrentDirectory);
                 foreach (var part in Separators.Split(command))
                 {
+                    // The test-data API only through oml test data, so every value an agent reports comes from oml's output.
+                    if (testHosts.Any(h => part.Contains(h, StringComparison.OrdinalIgnoreCase)) && !Regex.IsMatch(part, @"^\s*(&\s*)?(""[^""]*\boml(\.exe)?""|\S*\boml(\.exe)?)\s+test\s+data\b", RegexOptions.IgnoreCase))
+                        return TestDataOnly;
                     if (OmlWrite.IsMatch(part))
                         return "rule 9: this command writes an .oml file. Change modules only with oml apply to a new staged file; install copies it over the target after the user says yes.";
                     if (Reader.IsMatch(part) && !LineLimit.IsMatch(part) && BigDocs.FirstOrDefault(d => Regex.IsMatch(part, @"reference[\\/]" + Regex.Escape(d.File) + @"\b", RegexOptions.IgnoreCase)) is { File: not null } doc)

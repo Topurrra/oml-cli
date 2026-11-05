@@ -57,6 +57,7 @@ $shapes = [ordered]@{
   'preview'                = @('preview {p} Foo')
   'test bdd'               = @('test bdd {p} Foo --bdd {p}')
   'test scenarios'         = @('test scenarios {p} {p}', 'test scenarios {p} {o}')
+  'test data'              = @('test data module {p} --entity A:B:C', 'test data create Contact --file {p}')
   'flow'                   = @('flow {p} Foo')
   'tree'                   = @('tree {p} Foo')
   'validate'               = @('validate {p}')
