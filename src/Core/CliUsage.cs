@@ -35,9 +35,9 @@ static class CliUsage
         oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
         oml preview <module.oml> <Block|Screen|Email> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>] [--wait <ms>] [--click <selector>] [--type <selector>=<text>] [--eval <js>] [--serve [--no-open]]
         oml test bdd <module.oml> <ServerAction>... --bdd <BDDFramework.oml> [--out <spec.json>] [--module-name <TestModule>] [--producer <path>]   (spec for BDD test screens in a separate test module)
-        oml test scenarios <source.oml> <staged.oml> [--out <folder>]   (what to test after a change: BDD scenarios per new or changed public action, QA scenarios and qa.json skeletons per screen)
-        oml test data module <producer.oml> --entity <Entity>:Create=<A>,Delete=<B>[,Get=<C>][,Update=<D>][,CreateOrUpdate=<E>]... [--name <Module>] [--out <spec.json>]   (spec of a dev-only test-data module: no entity of its own, a key check, works through your wrapper actions)
-        oml test data allow <dev host> | create <Entity> --values <json> [--run <id>] | update <Entity> <Id> --values <json> | check <Entity> <Id> [--expect <json>] [--absent] | cleanup [--run <id>] | status   (test data in a DEV database, BDD style: create, check, clean up exactly what was created)
+        oml test scenarios <source.oml> <staged.oml> [--out <folder>]   (what to test after a change: BDD per changed public action, QA scenarios and qa.json per screen)
+        oml test data module <producer.oml> --entity <Entity>:Create=<A>,Delete=<B>[,Get=..][,Update=..][,CreateOrUpdate=..]... [--name <Module>] [--out <spec.json>]   (dev-only test-data module through your wrapper actions)
+        oml test data allow <dev host> | create <Entity> --values <json> [--run <id>] | update <Entity> <Id> --values <json> | check <Entity> <Id> [--expect <json>] [--absent] | cleanup [--run <id>] | status   (DEV test data, BDD style; cleanup removes exactly what the run created)
         oml flow <module.oml> <Action>   (one flow as a graph: nodes with their positions and what they do, and the connectors; the Dif page draws it)
         oml map build <project> [--in <folder|file.oap|file.oml>]... [--app <Name>]...   (an application map of every module of a project: calls, APIs, entities, processes; rebuilds only changed files)
         oml map overview | uses <element> | impact <element> | data <Entity> | api <Api.Method> | list [--project <name>]   (short answers from the map, without Service Studio)
@@ -99,7 +99,7 @@ static class CliUsage
         oml doctor [--text] [--selftest]   (checks the setup and says what to fix)
         oml show-change <file.md> [--port N] [--no-open]   (an agent's change walkthrough on the dashboard: call stacks, flows, element links, review, comments)
         oml dashboard [--port N] [--no-open] [--module <file.oml>]   (local web dashboard for developers; reads only, on 127.0.0.1)
-        oml hooks [status|install|remove] [--dir <project>] [--agent claude|codex|gemini|all]   (agent hooks for this project (Claude Code, Copilot, Cursor, Codex, Gemini CLI): refuse reading the large skill references whole, changing .oml files and calling the test-data API around oml)
+        oml hooks [status|install|remove] [--dir <project>] [--agent claude|codex|gemini|all]   (agent guards: no reading big references whole, no .oml edits, no test-data API around oml)
         oml explorer-menu [--remove | --status]   (Explorer right-click entries for the current user: fonts, images, .oml files, folders)
         oml log summary [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; OML_LOG=0 turns the log off)
         oml learn report [--since <date>] [--file <usage.jsonl>]... [--check <report.json>]... [--md <file.md>]   (where agents fail and retry, from the local log and memory; changes nothing)
