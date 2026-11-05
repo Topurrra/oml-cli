@@ -1,6 +1,6 @@
 # oml test data: the module spec (applies cleanly; refuses private actions and missing actions), and the client against a
-# fake test-data API on 127.0.0.1 that answers like the generated module (key check, ledger per run, cleanup by ledger):
-# allowed hosts only, create, check with expected values, cleanup with counts and absence, status, secrets refused, and
+# fake test-data API on 127.0.0.1 that answers like the generated module (key check, create, get, update and delete per record):
+# allowed hosts only, create, update of the run's own records, check with expected values, cleanup record by record and absence, status, secrets refused, and
 # the hook that refuses calling the API without oml. Throws on the first failure.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'

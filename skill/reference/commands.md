@@ -874,20 +874,24 @@ Exposed REST has no typed request/response format setting on this build; Text bo
 
 An agent cannot see the database. `oml test data` lets it create test data in a DEV database, check what was saved, and clean up exactly what it created, the way BDD tests work. The agent calls the API only through these commands: `oml hooks` refuses curl, `Invoke-WebRequest`, `Invoke-RestMethod`, WebFetch and the like to an allowed test-data host, so every value it reports comes from oml's output.
 
-**The module.** `oml test data module <producer.oml> --entity <Entity>:<CreateAction>:<DeleteAction>... [--read <Entity>]... [--name <Module>] [--out <spec.json>]` writes the spec of a separate module (default `<Producer>TestData`). It never goes in the real module, since everything there reaches production. It writes only through the producer's own public actions that the user names: the create action takes the entity record and returns its Identifier, and the delete action takes the Identifier. Entities stay read-only to consumers (rule 7). Ask the user which actions to use; never make an action public for this without their yes.
-- `TestDataLedger` (run, entity, record id, time) gets a row for every record the module creates.
-- The REST API `TestDataApi` has `POST /runs/{RunId}/<Entity>` (body: the record; returns its id), `GET /<Entity>/{Id}` (an Id of 0 means not found), and `DELETE /runs/{RunId}/<Entity>` (deletes the ledger's records of the run through the delete action, and their ledger rows; returns the count).
-- Every method first checks the `X-Test-Data-Key` header against the `TestDataKey` site property. Set it per DEV environment in Service Center. While it is empty, every call is refused, so the module does nothing where nobody set a key.
+**The module.** `oml test data module <producer.oml> --entity <Entity>:Create=<Action>,Delete=<Action>[,Get=<Action>][,Update=<Action>][,CreateOrUpdate=<Action>]... [--name <Module>] [--out <spec.json>]` writes the spec of a separate module (default `<Producer>TestData`). It never goes in the real module, since everything there reaches production. It works only through the producer's **wrapper actions**, the public server actions that create, get, update and delete a record of an entity, the way modules normally use another module's data; the entities stay read-only to consumers (rule 7). Create takes the record and returns its Identifier; Delete takes the Identifier; Get takes the Identifier and returns the record (without Get, the module reads the public entity with an aggregate); Update takes the record (CreateOrUpdate is used when there is no Update). Ask the user which wrappers to use. A missing wrapper is added to the producer the usual way, by the developer or by the agent after the user's yes.
+- The module has **no entity of its own**, so a published and later deleted test module leaves no table in the database. What a run created is listed by oml on the agent's machine (`.oml/testdata/runs/<run>.json`).
+- The REST API `TestDataApi` has, per entity, `POST /<Entity>` (body: the record; returns its id), `GET /<Entity>/{Id}` (an Id of 0 means not found), `PUT /<Entity>/{Id}` (when there is an Update or CreateOrUpdate wrapper) and `DELETE /<Entity>/{Id}`.
+- Every method first checks the `X-Test-Data-Key` header against the `TestDataKey` site property. Set it per DEV environment in Service Center. While it is empty, every call is refused (`TestDataRefused`), so the module does nothing where nobody set a key.
 - The command prints the steps: create and apply the module, publish it to a DEV environment after a yes, set the key, set `OML_TESTDATA_URL` (`https://<dev>/<Module>/rest/TestDataApi`) and `OML_TESTDATA_KEY`.
 
+```powershell
+oml test data module Contacts.oml --entity "Contact:Create=AddContact,Delete=RemoveContact,Get=GetContactById,Update=ChangeContact"
+```
 **The commands** (in the project folder):
 
 | Command | What it does |
 |---|---|
 | `oml test data allow <dev host>` | Allows that host for this project (`.oml/testdata.json`). Ask the user that it is a DEV environment first. Every other command refuses a host that is not allowed, and plain http except for localhost. |
 | `oml test data create <Entity> --values '<json>' \| --file <record.json> [--run <id>]` | Creates a record in the current run (a new run when none is open) and records its id in `.oml/testdata/runs/<run>.json`. A value that looks like a secret is refused. |
+| `oml test data update <Entity> <Id> --values '<json>' \| --file <record.json>` | Changes a record through the Update (or CreateOrUpdate) wrapper. Only a record that the current run created: oml never changes data it did not create. |
 | `oml test data check <Entity> <Id> [--expect '<json>'] [--absent]` | Reads the record. With `--expect`, compares those fields (`mismatches`); with `--absent`, passes when the record is gone. Exit 1 when the check fails. |
-| `oml test data cleanup [--run <id>]` | Deletes the run's records through the API, compares the counts with the run file, and checks each record is gone. Exit 1 when they differ. A cleanup that failed can run again. |
+| `oml test data cleanup [--run <id>]` | Deletes the run's records one by one through the Delete wrapper, newest first (so a record goes before the records it points to), and checks each is gone. Exit 1 when one is still there; the run file keeps it, so the cleanup can run again. |
 | `oml test data status` | Open runs (test data still in the database) with the cleanup command for each. |
 ## Test BDD: oml test bdd
 
@@ -1209,7 +1213,7 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 - **Folders:** `modules/` (the project's `.oap` and `.oml` files), `staged/`, `specs/`, `qa/`, `mocks/`, `scenarios/`.
 - **Memory:** `.oml/memory/memory.log`, as `oml memory init` makes it.
 - **The agent's instructions:** a copy of the `skill/` that came with this oml, `AGENTS.md` (any agent) and `CLAUDE.md` with `@AGENTS.md` (Claude Code). `--no-skill` leaves them out.
-- **Hooks:** the Claude Code hooks of `oml hooks install` in `.claude/settings.local.json`. `--no-hooks` leaves them out.
+- **Hooks:** the agent hooks of `oml hooks install`: `.claude/settings.local.json` (Claude Code, Copilot, Cursor), `.codex/hooks.json` and `.gemini/settings.json`. `--no-hooks` leaves them out.
 - **`.gitignore`** (staged copies, caches, local state) and **`PROJECT.md`** (the layout and the next steps).
 - **With `--in`:** the modules are copied into `modules/`, and the application map is built under the project's name (`oml map build <project> --in modules`), so `oml map overview` works there at once.
 ## Map
@@ -1293,17 +1297,27 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 
 ## Agent hooks
 
-`oml hooks install` adds a Claude Code PreToolUse hook to the project, so two skill instructions become checks the agent cannot skip. A hook costs no tokens; a refused call costs one short message.
+`oml hooks install` adds a pre-tool hook to the project for every agent that supports one, so skill instructions become checks the agent cannot skip. A hook costs no tokens; a refused call costs one short message.
 
-**What it refuses** (exit 2; Claude Code shows the agent the reason and the command to use instead):
+**What it refuses** (exit 2; the agent is shown the reason and the command to use instead):
 
-- Reading a large skill reference whole: `skill/reference/commands.md` (about 47k tokens), `spec.md` (about 19k) and `model-api.md` (about 14k). A Read needs a `limit` of at most 400 lines, a Grep in content mode a `head_limit` of at most 100, and a `cat`, `type` or `Get-Content` of the file a pipe or a line limit. The refusal points to `oml doc commands#<section>` or `oml spec <key>`. Only paths that end in `reference/<file>` count, so another project's `spec.md` is not refused.
-- Changing an `.oml` file (rule 9): Edit, Write, MultiEdit or NotebookEdit on it, or a shell command that writes it (a `>` redirect, `Set-Content`, `Add-Content`, `Out-File`, `sed -i`, `WriteAllBytes`). `oml apply`, `oml install` and copies are not refused.
+- Reading a large skill reference whole: `skill/reference/commands.md` (about 47k tokens), `spec.md` (about 19k) and `model-api.md` (about 14k). A read needs a `limit` of at most 400 lines, a Grep in content mode a `head_limit` of at most 100, and a `cat`, `type` or `Get-Content` of the file a pipe or a line limit. The refusal points to `oml doc commands#<section>` or `oml spec <key>`. Only paths that end in `reference/<file>` count, so another project's `spec.md` is not refused.
+- Changing an `.oml` file (rule 9): an edit or write tool on it (Edit, Write, MultiEdit, StrReplace, write_file, replace, ...), a patch that names it (Codex `apply_patch`), or a shell command that writes it (a `>` redirect, `Set-Content`, `Add-Content`, `Out-File`, `sed -i`, `WriteAllBytes`). `oml apply`, `oml install` and copies are not refused.
+- Calling an allowed test-data host other than through `oml test data` (curl, `Invoke-RestMethod`, WebFetch, ...): see [Test data](#test-data).
 
 Anything the hook cannot read is allowed: a broken hook never blocks work. Each check starts `oml.exe` once (about 35 ms).
 
-**Where.** `<project>\.claude\settings.local.json` (`--dir`, else the current folder): the personal settings file, which is not committed, because the hook holds this machine's `oml.exe` path. `install` keeps your other settings and hooks and replaces only oml's entry; run it again after you move `oml.exe` (`status` says `exeFound: false`). `remove` takes out only oml's entry. A settings file that is not valid JSON is never changed. Claude Code reads hooks when a session starts.
+**Where** (`--dir`, else the current folder; `--agent claude|codex|gemini` for one, default all):
 
+| File | Read by | Notes |
+|---|---|---|
+| `.claude\settings.local.json` (PreToolUse) | Claude Code; GitHub Copilot agent mode in VS Code, the Copilot app and Copilot CLI; Cursor | Copilot and Cursor read Claude Code's settings files, also when Copilot runs a Claude model. If a Copilot session ignores the hook, check that agent hooks are turned on in its settings (a preview feature in some versions). |
+| `.codex\hooks.json` (PreToolUse) | Codex | Codex runs project hooks only after you trust the project. |
+| `.gemini\settings.json` (BeforeTool) | Gemini CLI | oml adds its entry next to your other settings. |
+
+Not covered: the Copilot cloud agent (it runs on GitHub's Linux machines, where this `oml.exe` does not exist), Windsurf, Cline and Kiro (other hook formats). Agents without a hook still follow the same rules from `AGENTS.md` and the skill; only the automatic check is missing.
+
+The files hold this machine's `oml.exe` path, so they are personal and not committed (`oml create` adds them to `.gitignore`). `install` keeps your other settings and hooks and replaces only oml's entry; run it again after you move `oml.exe` (`status` says `exeFound: false`). `remove` takes out only oml's entries and deletes a file that held nothing else. A settings file that is not valid JSON is never changed, and then no file is changed. Agents read hooks when a session starts.
 ## OutSystems docs
 
 `oml outsystems-docs fetch` downloads the OutSystems 11 documentation, so `oml doc --search "<words>" --library` can answer platform questions: Service Center, LifeTime, Platform Server, deployment zones, network, errors. `oml doc --search` without `--library` searches only oml's own docs; a weak match there suggests `--library`.

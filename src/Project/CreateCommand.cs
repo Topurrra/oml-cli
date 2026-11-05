@@ -6,7 +6,7 @@ namespace OmlCli;
 
 // `oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--no-skill] [--no-hooks]`: the starting
 // point of a project. A new folder with a place for every kind of work (modules, staged copies, specs, QA files, mocks,
-// scenarios), the project memory, the agent's instructions (the skill, AGENTS.md, CLAUDE.md), the Claude Code hooks, a
+// scenarios), the project memory, the agent's instructions (the skill, AGENTS.md, CLAUDE.md), the agent hooks (Claude Code, Copilot, Cursor, Codex, Gemini CLI), a
 // .gitignore and a PROJECT.md with the next steps. With --in it copies the project's modules in and builds the
 // application map under the project's name, so `oml map ...` works there at once. Nothing outside the new folder changes,
 // except the map store (%LOCALAPPDATA%\oml-cli\maps\<project>).
@@ -74,8 +74,8 @@ static class CreateCommand
         if (hooks)
         {
             var (code, _) = Captured(() => AgentHooks.Run(["install", "--dir", root]));
-            if (code == 0) created.Add(".claude/settings.local.json");
-            else notes.Add("Claude Code hooks were not installed; run: oml hooks install --dir " + root);
+            if (code == 0) created.AddRange([".claude/settings.local.json (Claude Code, Copilot, Cursor)", ".codex/hooks.json", ".gemini/settings.json"]);
+            else notes.Add("Agent hooks were not installed; run: oml hooks install --dir " + root);
         }
 
         File.WriteAllText(Path.Combine(root, ".gitignore"), string.Join("\n",
@@ -83,7 +83,7 @@ static class CreateCommand
             "staged/", "*.staged.oml", "qa/out/", "*.blank.oml",
             "# oml: caches and local state (memory.log itself is kept)",
             ".oml/memory/memory.idx", ".oml/memory/.lock", ".oml/memory/memory.log.torn-*", ".oml/testdata/", ".oml/evolve/*/",
-            ".claude/settings.local.json", "") );
+            ".claude/settings.local.json", ".codex/hooks.json", ".gemini/settings.json", "") );
         created.Add(".gitignore");
 
         // Modules and the application map.

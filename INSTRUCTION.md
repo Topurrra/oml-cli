@@ -12,10 +12,23 @@ oml lets any AI agent (Claude Code, Codex, Cursor, Copilot, Gemini and others) b
 |---|---|
 | Install oml | Unzip the [latest release](https://github.com/Topurrra/oml-cli/releases) and add its `bin` folder to PATH. Check: `oml version` |
 | Check your machine | `oml doctor` says what is missing (Service Studio, .NET, browser) and how to fix it. |
-| Start a project | `oml create falcon --in <folder of the project's .oap files>` makes a `falcon` folder with memory, the agent's skill and hooks, your modules and the application map. Start your agent in that folder. |
-| Other agents | `oml create` writes `AGENTS.md` and `CLAUDE.md`. For other agents, follow the table in the [README](README.md#use-with-ai-agents) (usually `AGENTS.md` is enough). |
-| Claude Code guards | `oml create` installs them (`oml hooks install` in an existing folder): no reading huge references whole, no editing `.oml` files by hand, no calling the test-data API around oml. |
-| Existing folder instead | `oml memory init` (memory), `oml map build <project> --in <folder of .oap files>` (the map), `oml hooks install` (guards). |
+| Start a project | `oml create falcon --in <folder of the project's .oap files>` makes a `falcon` folder with memory, the agent's skill and guards, your modules and the application map. Start your agent in that folder. |
+| Instructions for the agent | `oml create` writes `AGENTS.md` (read by Codex, Cursor, Copilot, Gemini and most others) and `CLAUDE.md` for Claude Code. |
+| Guards | `oml create` installs them: no reading huge references whole, no editing `.oml` files by hand, no calling the test-data API around oml. They cost no tokens. See the table below. |
+| Existing folder instead | Copy `skill/` and `AGENTS.md` in, then `oml memory init` (memory), `oml map build <project> --in <folder of .oap files>` (the map), `oml hooks install` (guards). |
+
+**Which agents get the guards**
+
+| Agent | Guards |
+|---|---|
+| Claude Code | Yes |
+| GitHub Copilot in VS Code, the Copilot app and Copilot CLI (with any model, Claude included) | Yes, from the same `.claude` file. If they seem off, turn on agent hooks in Copilot's settings. |
+| Cursor | Yes, from the same `.claude` file |
+| Codex | Yes, after you trust the project in Codex |
+| Gemini CLI | Yes |
+| Copilot cloud agent (on github.com), Windsurf, Cline, Kiro | No automatic guard; the agent still follows the same rules from `AGENTS.md`. |
+
+`oml hooks status` shows what is installed. Run `oml hooks install` again after moving oml.
 
 The usage log is on by default and never leaves your computer. `oml learn report` turns it into lessons; `OML_LOG=0` turns it off.
 
@@ -46,7 +59,7 @@ After a task, the agent offers `oml test scenarios <source.oml> <staged.oml>`. I
 - **QA** for every changed screen: one scenario per path through each button, with a ready `qa.json` to run.
 
 ### Seeing the database (dev only)
-Agents cannot see what was saved. `oml test data module` builds a small dev-only module. Then the agent can `create` test data, `check` what was saved and `cleanup` exactly what it created, like a BDD test. Ask your team before publishing it to DEV.
+Agents cannot see what was saved. `oml test data module` builds a small dev-only module that works through your module's **wrapper actions** (Create, Get, Update, Delete of an entity; the developer or the agent adds a missing one, as usual). It has no table of its own, so deleting it later leaves nothing in the database. Then the agent can `create` test data, `update` it, `check` what was saved and `cleanup` exactly what it created, like a BDD test. It calls that API only through oml. Ask your team before publishing it to DEV.
 
 ### Mocks for Castlemock (or any mock server)
 `oml mock --all` writes a JSON response for every consumed API and persona, plus a checklist of which request value selects which answer. Mocks are **chained**: the CustomerId one API returns is the one the next API is asked about. Give real dev test data with `--personas personas.json`.

@@ -4,20 +4,32 @@ using System.Text.RegularExpressions;
 
 namespace OmlCli;
 
-// `oml hooks`: a Claude Code PreToolUse hook that turns two skill instructions into checks the agent cannot skip, at no
-// token cost. It refuses (exit 2, the reason on stderr, which Claude Code shows the agent):
+// `oml hooks`: a pre-tool hook that turns skill instructions into checks the agent cannot skip, at no token cost. It
+// refuses (exit 2, the reason on stderr):
 //   - reading a large skill reference whole (commands.md about 47k tokens, spec.md about 19k, model-api.md about 14k):
-//     a Read without a limit of at most 400 lines, a Grep in content mode without a head_limit of at most 100, or a
+//     a read without a limit of at most 400 lines, a Grep in content mode without a head_limit of at most 100, or a
 //     cat / type / Get-Content of the file without a pipe or a line limit;
-//   - changing an .oml file with a tool or a shell (rule 9): Edit, Write, MultiEdit, NotebookEdit, a redirect,
-//     Set-Content / Add-Content / Out-File, sed -i, or WriteAllBytes / WriteAllText.
+//   - changing an .oml file with a tool, a patch or a shell (rule 9);
+//   - calling the test-data API other than through oml test data.
 // Anything it cannot read is allowed: a broken hook must never block the agent's work.
-// `install` adds it to <project>\.claude\settings.local.json (personal and not committed: the command holds this
-// machine's oml.exe path); `remove` takes out only oml's entry; `status` says whether it is there.
+// One check serves every agent that runs command hooks before a tool. `install` writes it where each one looks:
+//   claude  .claude\settings.local.json  Claude Code, and also GitHub Copilot (VS Code agent mode, the Copilot app and
+//           CLI) and Cursor, which read Claude Code's settings files;
+//   codex   .codex\hooks.json            Codex (the project must be trusted in Codex);
+//   gemini  .gemini\settings.json        Gemini CLI (BeforeTool).
+// The files hold this machine's oml.exe path, so they are personal and not committed. `remove` takes out only oml's
+// entries; `status` says where it is installed.
 static class AgentHooks
 {
-    const string Usage = "Usage: oml hooks [status|install|remove] [--dir <project folder>]   (Claude Code hooks; oml hooks check is what the hook runs)";
-    const string Matcher = "Read|Grep|Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell";
+    const string Usage = "Usage: oml hooks [status|install|remove] [--dir <project folder>] [--agent claude|codex|gemini|all]   (oml hooks check is what the hook runs)";
+
+    sealed record Target(string Agent, string File, string Event, string Matcher, string For);
+    static readonly Target[] Targets =
+    [
+        new("claude", Path.Combine(".claude", "settings.local.json"), "PreToolUse", "Read|Grep|Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Shell|StrReplace|Delete|WebFetch", "Claude Code, GitHub Copilot (VS Code, app, CLI), Cursor"),
+        new("codex", Path.Combine(".codex", "hooks.json"), "PreToolUse", "Bash|apply_patch|Edit|Write", "Codex"),
+        new("gemini", Path.Combine(".gemini", "settings.json"), "BeforeTool", "run_shell_command|write_file|replace|read_file|web_fetch", "Gemini CLI"),
+    ];
     const string Marker = " hooks check";
     const int MaxReadLines = 400, MaxGrepLines = 100;
 
@@ -43,58 +55,113 @@ static class AgentHooks
         if (args is ["--help" or "-h"]) { Console.WriteLine(Usage); return 0; }
         var verb = args.Length > 0 && !args[0].StartsWith("--") ? args[0] : "status";
         var rest = args.Length > 0 && !args[0].StartsWith("--") ? args[1..] : args;
-        string? dir = null;
+        string? dir = null, agent = "all";
         for (var i = 0; i < rest.Length; i++)
         {
             if (rest[i] == "--dir" && i + 1 < rest.Length) dir = rest[++i];
+            else if (rest[i] == "--agent" && i + 1 < rest.Length) agent = rest[++i].ToLowerInvariant();
             else return Fail($"Unknown or incomplete option {rest[i]}. {Usage}");
         }
+        var targets = agent == "all" ? Targets : Targets.Where(t => t.Agent == agent).ToArray();
+        if (targets.Length == 0) return Fail($"Unknown agent '{agent}'. {Usage}");
         dir = Path.GetFullPath(dir ?? Directory.GetCurrentDirectory());
         if (!Directory.Exists(dir)) return Fail($"Folder not found: {dir}");
-        var settings = Path.Combine(dir, ".claude", "settings.local.json");
-        return verb switch
+        if (verb is not ("status" or "install" or "remove")) return Fail($"Unknown hooks command '{verb}'. {Usage}");
+        // Check every file first, so a broken one changes nothing anywhere.
+        var loaded = new List<(Target T, string File, JsonObject Root)>();
+        foreach (var t in targets)
         {
-            "status" => Status(settings),
-            "install" => Install(settings),
-            "remove" => Remove(settings),
-            _ => Fail($"Unknown hooks command '{verb}'. {Usage}"),
-        };
+            var file = Path.Combine(dir, t.File);
+            if (Load(file, out var error) is not { } root) return Fail(error!);
+            loaded.Add((t, file, root));
+        }
+        var results = loaded.Select(x => verb switch
+        {
+            "install" => Install(x.T, x.File, x.Root),
+            "remove" => Remove(x.T, x.File, x.Root),
+            _ => Status(x.T, x.File, x.Root),
+        }).ToList();
+        TerminalOutput.PrintObject(new
+        {
+            folder = dir, agents = results,
+            blocks = verb == "install" ? new[] { "reading skill/reference/commands.md, spec.md or model-api.md whole", "editing or writing .oml files (rule 9)", "calling the test-data API other than through oml test data" } : null,
+            next = verb switch
+            {
+                "install" => "Each agent reads its hook when a session starts in this folder (Codex: trust the project first). oml hooks remove takes them out.",
+                "status" when loaded.Any(x => Entries(x.Root, x.T)?.Any(Ours) != true) => "oml hooks install adds the hook for every agent (--agent to choose one).",
+                _ => null,
+            },
+        });
+        return 0;
     }
-
     static int Fail(string message)
     {
         TerminalOutput.PrintObject(new { error = message });
         return 2;
     }
 
-    // The hook itself: Claude Code sends {tool_name, tool_input, ...} on stdin.
+    // The hook itself. Each agent sends its own JSON on stdin; Payload reads them all. A refusal exits 2 with the reason on
+    // stderr (Claude Code, Codex, Gemini CLI, Cursor and Copilot all block on exit 2) and also prints a deny decision on
+    // stdout in the shapes Copilot, Cursor and Codex read, so it holds whichever one the agent looks at.
     static int Check(string input)
     {
         string? reason;
-        try { reason = JsonNode.Parse(input) is JsonObject o ? Refusal(o["tool_name"]?.GetValue<string>() ?? "", o["tool_input"] as JsonObject ?? []) : null; }
+        try { reason = JsonNode.Parse(input) is JsonObject o ? Refusal(o) : null; }
         catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException) { reason = null; }
         if (reason is null) return 0;
         Console.Error.WriteLine("oml hook: " + reason);
+        Console.Out.WriteLine(new JsonObject
+        {
+            ["permissionDecision"] = "deny", ["permissionDecisionReason"] = "oml: " + reason,
+            ["hookSpecificOutput"] = new JsonObject { ["hookEventName"] = "PreToolUse", ["permissionDecision"] = "deny", ["permissionDecisionReason"] = "oml: " + reason },
+            ["decision"] = "deny", ["reason"] = "oml: " + reason,
+        }.ToJsonString());
         return 2;
     }
 
-    const string TestDataOnly = "The test-data API is called only through oml test data (create, check, cleanup), so every result comes from oml's output and the ledger stays right.";
+    const string TestDataOnly = "The test-data API is called only through oml test data (create, update, check, cleanup), so every result comes from oml's output.";
 
-    internal static string? Refusal(string tool, JsonObject input)
+    enum Kind { Other, Shell, Edit, Read, Grep, Web }
+
+    // The tool and its arguments, from any of the payloads: tool_name/tool_input (Claude Code, Codex, Gemini CLI, Cursor,
+    // Copilot with PascalCase PreToolUse) or toolName/toolArgs (Copilot's own preToolUse; toolArgs may be a JSON string).
+    static (Kind Kind, string Tool, JsonObject Input) Payload(JsonObject o)
     {
-        string? Text(string key) => input[key] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null;
-        int? Number(string key) => input[key] is JsonValue v && v.TryGetValue<int>(out var n) ? n : null;
-        switch (tool)
+        var tool = (o["tool_name"] ?? o["toolName"]) is JsonValue t && t.TryGetValue<string>(out var name) ? name : "";
+        var raw = o["tool_input"] ?? o["toolArgs"];
+        if (raw is JsonValue v && v.TryGetValue<string>(out var text))
+            try { raw = JsonNode.Parse(text); } catch (JsonException) { raw = new JsonObject { ["command"] = text }; }
+        var input = raw as JsonObject ?? [];
+        var kind = tool.ToLowerInvariant() switch
         {
-            case "Read" when BigDoc(Text("file_path")) is { } doc && Number("limit") is not (> 0 and <= MaxReadLines):
+            "bash" or "powershell" or "shell" or "run_shell_command" or "run_in_terminal" or "runinterminal" => Kind.Shell,
+            "edit" or "write" or "multiedit" or "notebookedit" or "strreplace" or "str_replace_editor" or "delete" or "write_file" or "replace" or "create" or "apply_patch" => Kind.Edit,
+            "read" or "read_file" or "view" => Kind.Read,
+            "grep" or "search_file_content" => Kind.Grep,
+            "webfetch" or "web_fetch" => Kind.Web,
+            _ => Kind.Other,
+        };
+        return (kind, tool, input);
+    }
+
+    internal static string? Refusal(JsonObject payload)
+    {
+        var (kind, tool, input) = Payload(payload);
+        string? Text(params string[] keys) => keys.Select(k => input[k] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null).FirstOrDefault(s => s is not null);
+        int? Number(string key) => input[key] is JsonValue v && v.TryGetValue<int>(out var n) ? n : null;
+        var path = Text("file_path", "path", "absolute_path", "notebook_path", "filePath");
+        switch (kind)
+        {
+            case Kind.Read when BigDoc(path) is { } doc && Number("limit") is not (> 0 and <= MaxReadLines):
                 return $"{doc.File} is a large reference; do not read it whole. Use {doc.Instead}, or Read with a limit of at most {MaxReadLines} lines.";
-            case "Grep" when BigDoc(Text("path")) is { } doc && Text("output_mode") == "content" && Number("head_limit") is not (> 0 and <= MaxGrepLines):
+            case Kind.Grep when BigDoc(path) is { } doc && Text("output_mode") == "content" && Number("head_limit") is not (> 0 and <= MaxGrepLines):
                 return $"Grep in content mode on {doc.File} returns large parts of it. Use {doc.Instead}, or set head_limit to at most {MaxGrepLines}.";
-            case "Edit" or "Write" or "MultiEdit" or "NotebookEdit" when IsOml(Text("file_path") ?? Text("notebook_path")):
+            // A patch (Codex apply_patch) names its files in "*** Update File: <path>" lines.
+            case Kind.Edit when IsOml(path) || Regex.IsMatch(Text("command", "patch", "input") ?? "", @"^\*\*\* (Add|Update|Delete) File: .*\.oml\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase):
                 return "rule 9: an .oml file is a binary package. Never edit or write it with a tool; change modules only with oml apply to a new staged file.";
-            case "WebFetch" when Text("url") is { } url && Uri.TryCreate(url, UriKind.Absolute, out var u) && TestDataCommand.AllowedHosts(Environment.CurrentDirectory).Contains(u.Host.ToLowerInvariant()):
+            case Kind.Web when Text("url") is { } url && Uri.TryCreate(url, UriKind.Absolute, out var u) && TestDataCommand.AllowedHosts(Environment.CurrentDirectory).Contains(u.Host.ToLowerInvariant()):
                 return TestDataOnly;
-            case "Bash" or "PowerShell" when Text("command") is { } command:
+            case Kind.Shell when Text("command", "command_line", "cmd") is { } command:
                 var testHosts = TestDataCommand.AllowedHosts(Environment.CurrentDirectory);
                 foreach (var part in Separators.Split(command))
                 {
@@ -110,7 +177,6 @@ static class AgentHooks
         }
         return null;
     }
-
     // Only the skill's own copies (a path that ends in reference\<file>): another project's spec.md is not refused.
     static (string File, string Instead)? BigDoc(string? path)
     {
@@ -148,58 +214,49 @@ static class AgentHooks
         File.WriteAllText(settings, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }) + Environment.NewLine);
     }
 
-    static JsonArray? PreToolUse(JsonObject root) => root["hooks"]?["PreToolUse"] as JsonArray;
+    static JsonArray? Entries(JsonObject root, Target t) => root["hooks"]?[t.Event] as JsonArray;
 
-    static int Status(string settings)
+    static object Status(Target t, string file, JsonObject root)
     {
-        if (Load(settings, out var error) is not { } root) return Fail(error!);
-        var entry = PreToolUse(root)?.FirstOrDefault(Ours);
-        var command = entry?["hooks"]?.AsArray().Select(h => h?["command"]?.GetValue<string>()).FirstOrDefault(c => c?.EndsWith(Marker) == true);
+        var entry = Entries(root, t)?.FirstOrDefault(Ours);
+        var command = entry?["hooks"]?.AsArray().Select(h => h?["command"] is JsonValue v && v.TryGetValue<string>(out var c) ? c : null).FirstOrDefault(c => c?.EndsWith(Marker) == true);
         var exe = command is null ? null : Regex.Match(command, "^\"([^\"]+)\"").Groups[1].Value;
-        TerminalOutput.PrintObject(new
+        return new
         {
-            settings, installed = entry is not null, command,
+            agent = t.Agent, @for = t.For, file, installed = entry is not null,
             exeFound = exe is null ? (bool?)null : File.Exists(exe),
-            hint = entry is null ? "oml hooks install adds the hook for this project." : exe is not null && !File.Exists(exe) ? "oml.exe moved: run oml hooks install again." : null,
-        });
-        return 0;
+            hint = exe is not null && !File.Exists(exe) ? "oml.exe moved: run oml hooks install again." : null,
+        };
     }
 
-    static int Install(string settings)
+    static object Install(Target t, string file, JsonObject root)
     {
-        if (Load(settings, out var error) is not { } root) return Fail(error!);
         if (root["hooks"] is not JsonObject hooks) root["hooks"] = hooks = [];
-        if (hooks["PreToolUse"] is not JsonArray list) hooks["PreToolUse"] = list = [];
+        if (hooks[t.Event] is not JsonArray list) hooks[t.Event] = list = [];
         var replaced = list.Where(Ours).ToList();
         foreach (var old in replaced) list.Remove(old);
         list.Add(new JsonObject
         {
-            ["matcher"] = Matcher,
-            ["hooks"] = new JsonArray(new JsonObject { ["type"] = "command", ["command"] = Command(), ["timeout"] = 10 }),
+            ["matcher"] = t.Matcher,
+            // Claude Code and Codex count the timeout in seconds, Gemini CLI in milliseconds.
+            ["hooks"] = new JsonArray(new JsonObject { ["type"] = "command", ["command"] = Command(), ["timeout"] = t.Agent == "gemini" ? 10000 : 10 }),
         });
-        Save(settings, root);
-        TerminalOutput.PrintObject(new
-        {
-            settings, installed = true, replaced = replaced.Count > 0, command = Command(), matcher = Matcher,
-            blocks = new[] { "reading skill/reference/commands.md, spec.md or model-api.md whole", "editing or writing .oml files (rule 9)" },
-            next = "Claude Code reads the hook when a session starts in this folder. oml hooks remove takes it out.",
-        });
-        return 0;
+        Save(file, root);
+        return new { agent = t.Agent, @for = t.For, file, installed = true, replaced = replaced.Count > 0 };
     }
 
-    static int Remove(string settings)
+    static object Remove(Target t, string file, JsonObject root)
     {
-        if (!File.Exists(settings)) { TerminalOutput.PrintObject(new { settings, removed = false }); return 0; }
-        if (Load(settings, out var error) is not { } root) return Fail(error!);
         var removed = false;
-        if (PreToolUse(root) is { } list)
+        if (Entries(root, t) is { } list)
         {
             foreach (var old in list.Where(Ours).ToList()) { list.Remove(old); removed = true; }
-            if (list.Count == 0) (root["hooks"] as JsonObject)!.Remove("PreToolUse");
+            if (list.Count == 0) (root["hooks"] as JsonObject)!.Remove(t.Event);
             if (root["hooks"] is JsonObject { Count: 0 }) root.Remove("hooks");
         }
-        if (removed) Save(settings, root);
-        TerminalOutput.PrintObject(new { settings, removed });
-        return 0;
+        // A file that held only oml's hook goes; a file with the user's own settings stays.
+        if (removed && root.Count == 0) File.Delete(file);
+        else if (removed) Save(file, root);
+        return new { agent = t.Agent, file, removed };
     }
 }

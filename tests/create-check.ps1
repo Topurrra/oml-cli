@@ -16,7 +16,7 @@ try {
   $r = Json create alpha --dir $Tmp
   $root = Join-Path $Tmp 'alpha'
   Require ($LASTEXITCODE -eq 0 -and $r.folder -eq $root) "create: $($r | ConvertTo-Json -Compress)"
-  foreach ($p in 'modules', 'staged', 'specs', 'qa', 'mocks', 'scenarios', '.oml\memory\memory.log', '.oml\map.json', 'skill\SKILL.md', 'AGENTS.md', 'CLAUDE.md', '.claude\settings.local.json', '.gitignore', 'PROJECT.md') {
+  foreach ($p in 'modules', 'staged', 'specs', 'qa', 'mocks', 'scenarios', '.oml\memory\memory.log', '.oml\map.json', 'skill\SKILL.md', 'AGENTS.md', 'CLAUDE.md', '.claude\settings.local.json', '.codex\hooks.json', '.gemini\settings.json', '.gitignore', 'PROJECT.md') {
     Require (Test-Path (Join-Path $root $p)) "missing $p"
   }
   Require ((Get-Content (Join-Path $root 'CLAUDE.md') -Raw).Trim() -eq '@AGENTS.md') 'CLAUDE.md imports AGENTS.md'
@@ -37,7 +37,7 @@ try {
   $r = Json create beta --dir $Tmp --in $src --no-skill --no-hooks
   $beta = Join-Path $Tmp 'beta'
   Require ($LASTEXITCODE -eq 0 -and $r.map.project -eq 'beta' -and $r.map.read -eq 1 -and (Test-Path (Join-Path $beta 'modules\CrmIS.oml'))) "create --in: $($r | ConvertTo-Json -Compress -Depth 4)"
-  Require (-not (Test-Path (Join-Path $beta 'skill')) -and -not (Test-Path (Join-Path $beta '.claude'))) '--no-skill and --no-hooks'
+  Require (-not (Test-Path (Join-Path $beta 'skill')) -and -not (Test-Path (Join-Path $beta '.claude')) -and -not (Test-Path (Join-Path $beta '.codex'))) '--no-skill and --no-hooks'
   Push-Location $beta
   try { Require ((Json map overview).totals.modules -eq 1) 'map overview in the new project without --project' } finally { Pop-Location }
   Write-Host 'ok   create --in: modules copied, the map built and remembered by the folder'
