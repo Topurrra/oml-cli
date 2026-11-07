@@ -98,7 +98,7 @@ static class QaSession
         var sent = args.ToArray();
         if (sent[0] == "run") sent[1] = Path.GetFullPath(sent[1]);
         for (var i = 2; i < sent.Length - 1; i++)
-            if (sent[i] is "--out" or "--screenshot") sent[i + 1] = Path.GetFullPath(sent[i + 1]);
+            if (sent[i] is "--out" or "--screenshot" or "--css") sent[i + 1] = Path.GetFullPath(sent[i + 1]);
         JsonObject answer;
         try { answer = Send(s, new JsonObject { ["args"] = new JsonArray([.. sent.Select(a => (JsonNode)a)]) }, 30 * 60_000); }
         catch (TimeoutException) { throw new QaUsage("The QA session is busy with another request. Wait, or run with --no-session."); }

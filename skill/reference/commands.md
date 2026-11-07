@@ -925,6 +925,28 @@ oml apply Orders_Tests.oml Orders_Tests.bdd-spec.json Orders_Tests.staged.oml
 
 ## Preview
 
+### Live: the real page, before you publish
+
+`oml preview --live <url> <source.oml> <staged.oml> [--out <folder>] [--width N] [--height N] [--timeout <ms>] [--engine auto|cdp] [--headed] [--no-session]`
+
+Shows a style change in the running app (real data, theme, OutSystems UI and login), before it is published. Two flows:
+
+| Change | How to see it |
+|---|---|
+| Style sheets only (theme, screen, block) | `preview --live`: the real page, before and after. |
+| Widgets, classes, data, logic, new screens | The user installs and publishes to DEV; then `oml qa page <url> --screenshot <file.png>`. |
+
+How it works:
+1. It reads every style sheet of both modules (`oml describe <module.oml> --css --all`) and compares them, and runs `oml review` for everything else.
+2. It opens the page with the qa browser. A running `oml qa start` session is used, so its login stays (`--no-session` for a browser of its own).
+3. It saves `before.png`, takes out the page's rules that the old sheets hold (matched by the browser's own text of each rule), adds the new sheets after all others, and saves `after.png`.
+
+Output: `before`, `after`, `styleSheets` (the changed ones), `rules` (`oldRules`, `oldRulesFound`, `newRules`), `needsPublish` (changes it cannot show: widgets, data, logic, new elements), `notes`, `errors` and `next`. `oldRulesFound` lower than `oldRules` means the page does not show those screens or blocks, or what is published differs from `<source.oml>`. Exit 0 shown, 1 when no style sheet changed (then `needsPublish` says what to check after the publish), 2 for a usage or browser problem. It needs DevTools: under a `RemoteDebuggingAllowed = 0` policy it stops and names the publish flow (`oml doctor` shows the qa engine). Without `--out`, the screenshots go to `%TEMP%\oml-live\<time>`.
+
+### Offline: a rendered copy
+
+Use this only when there is no running app yet (a new module or screen).
+
 `oml preview <module.oml> <Block|Screen|Email> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>] [--wait <ms>] [--click <selector>] [--type <selector>=<text>] [--eval <js>] [--serve [--no-open]]`
 
 Renders one block, screen or Reactive email to one self-contained static HTML file, so you can see it before you publish. It reads the widget tree with the typed model and never changes the module. Default output: `<Element>.preview.html` in the current folder. Existing `--out` and `--screenshot` files are refused. Stdout is the compact JSON report.

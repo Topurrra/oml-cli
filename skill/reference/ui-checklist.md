@@ -1,7 +1,7 @@
 # UI checklist
 
-Use this list for every block and screen you build. You cannot see the result, so look at a preview.
-Never report UI work as done without at least one `oml preview` that you looked at.
+Use this list for every block and screen you build. You cannot see the result, so look at a screenshot of the real app.
+Never report UI work as done without at least one screenshot that you looked at: `oml preview --live` (style sheets), `oml qa page --screenshot` (after a publish), or `oml preview` (no running app yet).
 
 - **Labels:** No default widget texts. A new Link has the text "link" and a new Button has "Button". Replace them; do not add text after them.
 - **Content:** Use real demo content. No "Demo content", "Lorem ipsum" or "Text".
@@ -21,11 +21,8 @@ Never report UI work as done without at least one `oml preview` that you looked 
 ## The loop
 
 1. `oml apply` the spec to a new staged file.
-2. `oml preview <staged.oml> <Element> --width 1366 --screenshot 1366.png`, and the same with `1920`.
-3. Theme work: add `--theme dark`. Mobile work: add `--width 390`.
-4. Look at each screenshot. Read `checklist`, `scriptErrors`, `skipped`, `blocked`, `horizontalOverflow` and `unsupported` in each report. With `--click`, `--type`, `--eval` or `--wait`, read `steps[].ok` (and `error`) first: a failed step means the screenshot does not show that interaction.
-5. Fix every failed check and every problem you see. Use new output paths. Repeat from step 1.
+2. Only style sheets changed: `oml preview --live <screen url> <source.oml> <staged.oml>`. Look at `before` and `after`. Changes in `needsPublish` need step 3.
+3. Anything else: the user installs and publishes to DEV. Then `oml qa page <screen url> --screenshot <Screen>.png`; read `layout` and `errors` too.
+4. Fix every problem you see in a new staged file. Repeat from step 1.
 
-The preview does not load OutSystems UI. Classes such as `card` or `btn` look plain there. Judge your own CSS, texts and layout in the preview. Test OutSystems UI styling in the published app.
-
-JavaScript: the preview loads the required scripts of the block or screen and runs its OnInitialize, OnReady and OnRender JavaScript with stubs. Each `scriptErrors` entry names the node or script. Script elements that it does not require are not loaded (see `notes`). It has no network, so data comes from `--arg` values. To check an interaction, add steps: `--click "#ToggleButton" --wait 300 --eval "document.getElementById('Status').textContent"`, then read `steps` and look at the screenshot.
+No running app yet (a new module): `oml preview <staged.oml> <Element> --width 1366 --screenshot 1366.png`. It shows only your own CSS and texts, without OutSystems UI. Read its `checklist` and `scriptErrors`. Details: `oml doc commands#preview`.

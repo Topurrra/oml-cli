@@ -27,12 +27,14 @@ chang: change, changed, changes, changing
 chart: chart, charts
 check: check, checked, checks
 class: class, classes
+click: click, clicking
 client: client, clients
 color: color, colors
 column: column, columns
 command: command, commands
 comment: comment, comments
 component: component, components
+compress: compress, compressed
 connect: connect, connected
 connector: connector, connectors
 consumer: consumer, consumers
@@ -96,10 +98,11 @@ label: label, labels
 layer: layer, layers
 layout: layout, layouts
 library: libraries, library
+limit: limit, limits
 lin: line, lines
 list: list, listed, lists
 literal: literal, literals
-load: load, loaded, loading, loads
+load: load, loaded, loading
 local: local, locals
 log: log, logging
 mak: make, makes
@@ -145,6 +148,7 @@ remov: remove, removed, removes
 renam: rename, renames, renaming
 reopen: reopen, reopening
 replac: replace, replaced, replaces
+replac: replace, replaces
 report: report, reports
 request: request, requested
 request: request, requested, requests
@@ -164,6 +168,7 @@ select: select, selected, selects
 servic: service, services
 set: set, sets
 setting: setting, settings
+sheet: sheet, sheets
 show: show, shows
 sign: sign, signed
 signatur: signature, signatures
@@ -206,6 +211,3 @@ warn: warning, warnings, warns
 widget: widget, widgets
 work: work, working, works
 writ: write, writes
-click: click, clicking
-replac: replace, replaces
-compress: compress, compressed

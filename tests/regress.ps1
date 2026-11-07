@@ -375,6 +375,10 @@ Unit 'check-check' {
 Unit 'review-check' {
   try { & (Join-Path $tests 'review-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL review checks: $_" }
 }
+Unit 'live-preview-check' -Group browser {
+  try { & (Join-Path $tests 'live-preview-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL live preview checks: $_" }
+}
 Unit 'preview-check' -Group browser {
   try { & (Join-Path $tests 'preview-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL preview checks: $_" }

@@ -33,6 +33,7 @@ static class CliUsage
         oml check --diff <before.oml> <after.oml> [--rules <oml-rules.json>]   (findings fixed and introduced per rule; exit 1 when one is introduced)
         oml review <before.oml> <after.oml> [--md <file.md>] [--out <file.html>] [--notes <file.md>] [--rules <oml-rules.json>]   (what changed, production-rule risks, new check findings)
         oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
+        oml preview --live <url> <source.oml> <staged.oml> [--out <folder>]   (a CSS change on the live page, before/after)
         oml preview <module.oml> <Block|Screen|Email> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>] [--wait <ms>] [--click <selector>] [--type <selector>=<text>] [--eval <js>] [--serve [--no-open]]
         oml test bdd <module.oml> <ServerAction>... --bdd <BDDFramework.oml> [--out <spec.json>] [--module-name <TestModule>] [--producer <path>]   (spec for BDD test screens in a separate test module)
         oml test scenarios <source.oml> <staged.oml> [--out <folder>]   (what to test after a change: BDD per changed public action, QA scenarios and qa.json per screen)
@@ -101,7 +102,7 @@ static class CliUsage
         oml dashboard [--port N] [--no-open] [--module <file.oml>]   (local web dashboard for developers; reads only, on 127.0.0.1)
         oml hooks [status|install|remove] [--dir <project>] [--agent claude|codex|gemini|all]   (agent guards: no reading big references whole, no .oml edits, no test-data API around oml)
         oml explorer-menu [--remove | --status]   (Explorer right-click entries for the current user: fonts, images, .oml files, folders)
-        oml log summary [--hours N] [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; --hours: oml vs agent time per session)
+        oml log summary [--hours N] [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; --hours: oml vs agent time)
         oml learn report [--since <date>] [--file <usage.jsonl>]... [--check <report.json>]... [--md <file.md>]   (where agents fail and retry, from the local log and memory; changes nothing)
         oml learn propose [--maintainer [--repo <folder>]] [report options]   (proposals with evidence: trap records, a draft company skill, doc patches; nothing applied)
         oml learn show [<id>] | accept <id> | reject <id> [--why <text>] | history | undo <id>   (a person accepts; each accepted change can be undone)

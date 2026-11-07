@@ -97,6 +97,7 @@ public static class Program
         if (filtered.FirstOrDefault() == "team-rules") return CompanySkills.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "dashboard") return Dashboard.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "qa") return Qa.QaCommand.Run(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "preview" && filtered.Contains("--live")) return Qa.LivePreview.Run(filtered.Skip(1).ToArray(), RunCoreCaptured);
         if (filtered.FirstOrDefault() == "show-change") return Dashboard.Dif(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "explorer-menu" && OperatingSystem.IsWindows()) return Setup.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() is "architecture" or "check" && filtered.Contains("--team"))

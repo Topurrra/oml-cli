@@ -56,6 +56,20 @@ static class Describe
         return new { element = ElementPaths.PathTo(m, o) ?? Name(o), kind = Kind(o), styleSheet = Reflect.Get(o, "StyleSheet") as string ?? "" };
     }
 
+    // `describe --css --all`: every theme, screen and block with a style sheet, as { element, kind, styleSheet }.
+    public static List<object> AllStyleSheets(IESpace m)
+    {
+        var owners = new List<object>();
+        foreach (var key in new[] { "MobileThemes", "WebThemes" })
+            if (Reflect.Get(m, key) is System.Collections.IEnumerable themes) owners.AddRange(themes.Cast<object>());
+        owners.AddRange(Inspect.Screens(m).Select(s => (object)s.screen));
+        return owners.Distinct()
+            .Select(o => (o, css: Reflect.Get(o, "StyleSheet") as string ?? ""))
+            .Where(x => x.css.Trim().Length > 0)
+            .Select(x => (object)new { element = (x.o is IObjectSignature s ? ElementPaths.PathTo(m, s) : null) ?? Name(x.o), kind = Kind(x.o), styleSheet = x.css })
+            .ToList();
+    }
+
     public static object Run(IESpace m, string path, int depth, List<string> searchIn, bool history = false) => Many(m, [path], depth, searchIn, collectErrors: false, history)[0];
 
     // One load of the module and of each producer file, however many elements are described.

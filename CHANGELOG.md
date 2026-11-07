@@ -2,6 +2,15 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.18.0
+
+### Added
+- `oml preview --live <url> <source.oml> <staged.oml>`: a style change in the real DEV page before it is published. It opens the page (with the login of a running `oml qa start`), swaps the changed style sheets of themes, screens and blocks for the new ones, and saves before and after screenshots. Changes it cannot show (widgets, data, logic, new elements) are listed under `needsPublish`, with the publish-and-check step: `oml qa page <url> --screenshot`.
+- `oml describe <module.oml> --css --all`: every style sheet of a module.
+
+### Changed
+- The agent loop (AGENTS.md, SKILL.md, the UI checklist) checks UI work in the real app: `preview --live` for style sheets, `qa page` after a publish for the rest. The offline `oml preview` is only for a module with no running app yet.
+
 ## 1.17.0
 
 ### Added

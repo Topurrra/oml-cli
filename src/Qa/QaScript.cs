@@ -101,6 +101,22 @@ static class QaScript
               });
             },
             text() { return document.body ? document.body.innerText : ''; },
+            // oml preview --live: take out the page's rules that the old style sheets hold (matched by the browser's own
+            // text of each rule, so both sides are parsed the same way) and add the new style sheets after everything else.
+            restyle(removed, added) {
+              const rules = css => { const s = new CSSStyleSheet(); try { s.replaceSync(css); } catch (e) { return []; } return [...s.cssRules].map(r => r.cssText); };
+              const old = new Set(removed.flatMap(rules));
+              const found = new Set();
+              let unreadable = 0;
+              for (const sheet of [...document.styleSheets]) {
+                let list; try { list = sheet.cssRules; } catch (e) { unreadable++; continue; }
+                for (let i = list.length - 1; i >= 0; i--) if (old.has(list[i].cssText)) { found.add(list[i].cssText); sheet.deleteRule(i); }
+              }
+              const s = new CSSStyleSheet();
+              s.replaceSync(added.join('\n'));
+              document.adoptedStyleSheets = [...document.adoptedStyleSheets, s];
+              return { oldRules: old.size, oldRulesFound: found.size, newRules: s.cssRules.length, unreadableSheets: unreadable };
+            },
             table(t, nth) {
               const r = this.locate(t, nth);
               if (!r.found || r.ambiguous || r.error) return r;

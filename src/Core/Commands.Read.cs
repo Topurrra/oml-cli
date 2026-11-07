@@ -126,6 +126,7 @@ public static partial class Cli
         var depth = 0;
         var history = false;
         var css = false;
+        var all = false;
         var searchIn = new List<string>();
         var names = new List<string>();
         for (var i = 2; i < args.Count; i++)
@@ -134,8 +135,16 @@ public static partial class Cli
             if (args[i] == "--in" && i + 1 < args.Count) { searchIn.Add(args[++i]); continue; }
             if (args[i] == "--history") { history = true; continue; }
             if (args[i] == "--css") { css = true; continue; }
+            if (args[i] == "--all") { all = true; continue; }
             if (args[i].StartsWith("--")) throw new CliError("describe requires --depth N (non-negative), --in <folder|file.oml>, --history or --css.", 2);
             names.Add(args[i]);
+        }
+        // `describe <module> --css --all`: every style sheet (themes, screens, blocks); oml preview --live compares two modules with it.
+        if (all)
+        {
+            if (!css || names.Count > 0 || depth > 0 || searchIn.Count > 0 || history) throw new CliError("--all goes with --css only, without element names: describe <module.oml> --css --all.", 2);
+            using var whole = Open(args[1]);
+            return Emit(Describe.AllStyleSheets(whole.Module));
         }
         if (names.Count == 0) throw new CliError("describe needs at least one element name.", 2);
         if (css && (depth > 0 || searchIn.Count > 0 || history)) throw new CliError("describe --css prints only style sheets: it takes no --depth, --in or --history.", 2);

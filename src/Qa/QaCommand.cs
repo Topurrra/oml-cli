@@ -22,7 +22,7 @@ static class QaCommand
                 case "stop": return QaSession.Stop();
                 case "serve" when args.Length >= 2: return QaSession.Serve(args[1], Options(args[2..]));
                 case "record" when args.Length >= 2: return QaRecorder.Run(args[1], Options(args[2..])).GetAwaiter().GetResult();
-                case "run" or "page" when args.Length >= 2:
+                case "run" or "page" or "restyle" when args.Length >= 2:
                     var options = Options(args[2..]);
                     if (!options.Has("--no-session") && QaSession.Forward(args) is { } forwarded)
                     {
@@ -47,7 +47,7 @@ static class QaCommand
     public static async Task<(int Code, JsonObject Output)> Execute(string[] args, (IQaEngine Engine, string? Note)? shared)
     {
         var options = Options(args[2..]);
-        return args[0] == "run" ? await RunFile(args[1], options, shared) : await Page(args[1], options, shared);
+        return args[0] switch { "run" => await RunFile(args[1], options, shared), "restyle" => await Restyle(args[1], options, shared), _ => await Page(args[1], options, shared) };
     }
 
     public sealed record Settings(Dictionary<string, string?> Values)
@@ -57,7 +57,7 @@ static class QaCommand
         public int Int(string name, int fallback) => Get(name) is { } v ? int.TryParse(v, out var n) && n > 0 ? n : throw new QaUsage($"{name} takes a positive number.") : fallback;
     }
 
-    public static readonly string[] Valued = ["--base-url", "--width", "--height", "--timeout", "--out", "--screenshot", "--engine", "--save"];
+    public static readonly string[] Valued = ["--base-url", "--width", "--height", "--timeout", "--out", "--screenshot", "--engine", "--save", "--css"];
     static readonly string[] Flags = ["--headed", "--continue", "--no-session"];
 
     public static Settings Options(string[] args)
@@ -197,6 +197,48 @@ static class QaCommand
             page["readyMs"] = ready;
             page["ms"] = clock.ElapsedMilliseconds;
             return (0, Prune(page));
+        }
+        finally { if (shared is null) browser.Dispose(); }
+    }
+
+    // `oml preview --live` (LivePreview), in this browser or the session's: open the page, screenshot it, swap the old
+    // style sheets' rules for the new ones (page helper restyle), screenshot again. --css is a JSON file
+    // { "removed": [css...], "added": [css...] }. Needs DevTools: UI Automation cannot change a page.
+    static async Task<(int, JsonObject)> Restyle(string url, Settings o, (IQaEngine Engine, string? Note)? shared)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !uri.Scheme.StartsWith("http")) throw new QaUsage($"{url} is not an http(s) URL.");
+        var cssFile = o.Get("--css") ?? throw new QaUsage("restyle needs --css <file.json>.");
+        var css = JsonNode.Parse(File.ReadAllText(cssFile))!.AsObject();
+        string[] List(string key) => (css[key] as JsonArray ?? []).Select(n => n?.GetValue<string>() ?? "").ToArray();
+        var out_ = Path.GetFullPath(o.Get("--out") ?? Path.Combine(Path.GetTempPath(), "oml-live", DateTime.Now.ToString("yyyyMMdd-HHmmss")));
+        Directory.CreateDirectory(out_);
+        var clock = Stopwatch.StartNew();
+        var (browser, engineNote) = shared ?? await Engine(o, o.Int("--width", 1366), o.Int("--height", 900));
+        try
+        {
+            if (browser.Mode != "cdp")
+                throw new QaUsage("A live preview changes the page's style sheets, which needs the DevTools engine; this browser runs UI Automation" +
+                    (engineNote is null ? "." : $" ({engineNote})") + " Publish to DEV instead, then check with oml qa page <url> --screenshot <file.png>.");
+            var (exceptionCount, consoleCount) = browser.ErrorCounts();
+            await browser.Navigate(uri.AbsoluteUri);
+            await browser.WaitReady(Math.Max(o.Int("--timeout", 15_000), 30_000));
+            var now = await browser.Url();
+            var path = new Uri(now).AbsolutePath.TrimEnd('/');
+            var before = await browser.Screenshot(Path.Combine(out_, "before.png"));
+            var swap = await browser.Helper("restyle", List("removed"), List("added"));
+            await Task.Delay(300); // transitions and fonts the new rules start
+            await browser.WaitReady(5_000);
+            var after = await browser.Screenshot(Path.Combine(out_, "after.png"));
+            var (exceptions, _) = browser.ErrorsSince(exceptionCount, consoleCount);
+            var report = new JsonObject
+            {
+                ["url"] = now, ["screen"] = Uri.UnescapeDataString(path[(path.LastIndexOf('/') + 1)..]), ["engine"] = browser.Mode,
+                ["before"] = before, ["after"] = after,
+                ["rules"] = JsonNode.Parse(swap.GetRawText()),
+                ["errors"] = new JsonArray([.. exceptions.Select(e => (JsonNode)("JavaScript error: " + e))]),
+                ["session"] = shared is null ? null : true, ["ms"] = clock.ElapsedMilliseconds,
+            };
+            return (0, Prune(report));
         }
         finally { if (shared is null) browser.Dispose(); }
     }
