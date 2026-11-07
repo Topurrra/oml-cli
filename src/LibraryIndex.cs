@@ -8,7 +8,7 @@ namespace OmlCli;
 // A cache only: a missing, stale or damaged file is rebuilt, and a failed save is ignored.
 static class LibraryIndex
 {
-    const int Format = 1;
+    const int Format = 2; // 2: front matter left out of the sections, summary in the page entry
     static string File => Path.Combine(Library.Root, "index.bin");
 
     static string Key(List<string> folders) =>

@@ -29,7 +29,7 @@ try {
   # A repository as GitHub's "Download ZIP" gives it: src\ with Markdown, a LICENSE, and files that are not copied.
   $repo = Join-Path $work 'docs-product-master'
   New-Item -ItemType Directory -Force (Join-Path $repo 'src\deploying-apps\zones'), (Join-Path $repo 'images') | Out-Null
-  Set-Content (Join-Path $repo 'src\deploying-apps\zones\address.md') "# Deployment zones`n`nIntro.`n`n## Zone address { #zone-address }`n`nThe zorblax address of a zone is a bare host name.`n"
+  Set-Content (Join-Path $repo 'src\deploying-apps\zones\address.md') "---`nsummary: Quuxle frobnication of deployment zones.`ntags:`n  - Deployment`n---`n# Deployment zones`n`nIntro.`n`n## Zone address { #zone-address }`n`nThe zorblax address of a zone is a bare host name.`n"
   Set-Content (Join-Path $repo 'src\other.md') "# Other page`n`nNothing here.`n"
   Set-Content (Join-Path $repo 'README.md') "# Not under src"
   Set-Content (Join-Path $repo 'LICENSE') 'Attribution-NonCommercial-NoDerivatives 4.0 International'
@@ -54,6 +54,9 @@ try {
   $hit = $r.Json.hits[0]
   Require ($r.Exit -eq 0 -and $hit.kind -eq 'library' -and $hit.title -eq 'Zone address') "search: $($r.Text)"
   Require ($hit.open -match '#zone-address$' -and (Test-Path ($hit.open -replace '#.*$', ''))) "hit does not open its file: $($hit.open)"
+  # Front matter is not a section of its own; its summary finds the page by its title.
+  $r = Call 'doc', '--search', 'quuxle frobnication', '--library'
+  Require ($r.Exit -eq 0 -and $r.Json.hits[0].title -eq 'Deployment zones' -and -not ($r.Json.hits | Where-Object { $_.title -match 'address\.md|summary' })) "front matter: $($r.Text)"
   # The saved index: written by the import and the first search, read by the next one (same hit), rebuilt when it is
   # damaged or when a source changes.
   $index = Join-Path $env:OML_LIBRARY 'index.bin'

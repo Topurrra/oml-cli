@@ -25,7 +25,7 @@ static class SearchGlossary
         ("Aggregate", "data-rules#aggregates", "aggregate fetch", "select query; select statement; query builder; linq; orm query; fetch data; read data; get data; load data"),
         ("SQL node", "data-rules#sql", "SQL", "raw query; raw sql; by hand; handwritten query; stored procedure; native query"),
         ("Transaction", "data-rules#transactions", "transaction CommitTransaction AbortTransaction", "rollback; atomic; unit of work"),
-        ("Paging", "ui-reactive#tables-lists-sorting-paging", "Pagination StartIndex MaxRecords paging", "pager; next page; page size; infinite scroll; limit offset"),
+        ("Paging", "ui-reactive#tables-lists-sorting-paging", "Pagination StartIndex MaxRecords paging", "pager; next page; page size; infinite scroll; limit offset; many rows; lots of rows; long table; long list; large list"),
         ("Sorting", "ui-reactive#tables-lists-sorting-paging", "sort sorting dynamic", "order by; sortable column; sort column"),
         ("Search and filter", "recipe:list-search-paging", "search filter", "where clause; search box; filter list"),
         ("Group by", "spec#queries/groupby", "groupBy Count Sum", "group by; totals; sum up; count per"),
@@ -55,7 +55,7 @@ static class SearchGlossary
         ("Block", "ui-reactive#screens-and-blocks", "block", "component; partial view; web component; user control"),
         ("Screen inputs", "spec#reactive-ui-and-mobile-ui/screenblock", "input parameters", "query string; url parameter; route parameter; props"),
         ("Block events", "ui-reactive#block-communication", "event triggerEvent", "emit; notify parent; child to parent; output event"),
-        ("Lifecycle events", "ui-reactive#lifecycle", "OnInitialize OnReady OnRender OnAfterFetch OnDestroy", "page load; mount; useeffect; componentdidmount; unmount"),
+        ("Lifecycle events", "ui-reactive#lifecycle", "OnInitialize OnReady OnRender OnAfterFetch OnDestroy", "page load; mount; useeffect; componentdidmount; unmount; screen opens; page opens; when the screen loads"),
         ("Popup", "ui-reactive#popups", "Popup", "modal; dialog; small window; overlay window; lightbox"),
         ("Form validation", "ui-reactive#forms-and-validation", "Form Valid ValidationMessage mandatory", "required fields; required field; form errors; input validation; field validation"),
         ("Input widget", "spec#reactive-ui-and-mobile-ui/widget", "Input widget", "text box; textbox; input field; text field"),
@@ -79,9 +79,9 @@ static class SearchGlossary
         ("Translations", "spec#copy-translations-resources-and-folders/translations", "translations locales translate", "language; i18n; localization; localisation; multilingual; another language"),
         ("Client variables", "spec#module-variables-and-system-events", "clientVariables client variable", "local storage; localstorage; remember; across screens; global state; app state"),
         ("Session variables", "spec#module-variables-and-system-events", "sessionVariables session variable", "session; session state"),
-        ("Site property", "spec#platform-elements/siteproperties", "site property", "config setting; configuration; env variable; environment variable; app setting; feature flag"),
+        ("Site property", "spec#platform-elements/siteproperties", "site property", "config setting; configuration; env variable; environment variable; app setting; feature flag; each environment; per environment; different environments"),
         // Security
-        ("Roles", "security#screens-and-roles", "role CheckRole", "permission; user group; authorization; access control; rbac; admin only"),
+        ("Roles", "security#screens-and-roles", "role CheckRole", "permission; user group; authorization; access control; rbac; admin only; only managers; only admins; who can open; who can see"),
         ("Screen access", "spec#platform-elements/screenaccess", "Anonymous Registered access", "public page; login required; without login; guest"),
         ("User identity", "security#user-identity", "GetUserId user", "logged in user; current user; signed in user; who is logged in; user id"),
         ("Secrets", "security#secrets", "secret site properties", "api key; password; credentials; connection string"),
@@ -95,7 +95,7 @@ static class SearchGlossary
         ("References", "key:references", "references producer", "import module; dependency; shared module"),
         // Processes
         ("Timer", "processes-timers-email#timers", "timer schedule Wake", "cron; scheduled job; background job; batch job; nightly; recurring task; background; async; later"),
-        ("Process", "processes-timers-email#processes-bpt", "process BPT activity", "workflow; bpm; approval flow; state machine; long running"),
+        ("Process", "processes-timers-email#processes-bpt", "process BPT activity", "workflow; bpm; approval flow; state machine; long running; approve request; approved by; several approvals"),
         ("Human activity", "spec#platform-elements/humanactivity", "human activity Taskbox", "task inbox; approval task; manual step; user task"),
         // Architecture
         ("Layers", "architecture-rules#layers", "layer Core Foundation", "split into modules; module structure; architecture; tiers; monolith"),
@@ -107,8 +107,9 @@ static class SearchGlossary
         ("LifeTime", "troubleshooting#lifetime", "LifeTime deployment", "ci cd; pipeline; promote; production deploy; environments"),
         ("Testing", "testing", "BDDFramework test", "unit test; automated test; test case; tdd; integration test"),
         ("Preview", "ui-checklist#the-loop", "preview screenshot", "see the ui; visual check; screenshot"),
-        ("Mobile and offline", "best-practices#mobile", "Mobile offline sync", "offline mode; native app; pwa; sync data"),
+        ("Mobile and offline", "best-practices#mobile", "Mobile offline sync", "offline mode; native app; pwa; sync data; no internet; without internet; no connection"),
         ("Traditional to Reactive", "traditional-to-reactive", "Traditional Web Reactive", "migrate; legacy; convert screen"),
+        ("Caching", "troubleshooting#symptoms-in-the-running-app/ascreenisslow", "cache caching Cache In Minutes", "cache result; in memory; keep result; memoize; cached data"),
         ("Performance", "troubleshooting#symptoms-in-the-running-app/ascreenisslow", "slow server calls", "slow page; slow screen; lag"),
     };
 }

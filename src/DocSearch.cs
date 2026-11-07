@@ -150,6 +150,14 @@ static class DocSearch
     {
         var docs = new List<SearchDoc>();
         var lines = text.Replace("\r\n", "\n").Split('\n');
+        // YAML front matter (the OutSystems docs start with summary and tags): left out of the sections, so the first
+        // heading is the page's title and its sections carry it; the one-line summary goes to the page entry's keys.
+        string? summary = null;
+        if (lines.Length > 2 && lines[0].Trim() == "---" && Array.FindIndex(lines, 1, l => l.Trim() == "---") is var end && end > 0)
+        {
+            summary = lines.Take(end).Select(l => Regex.Match(l, @"^summary:\s*(.+)$")).FirstOrDefault(m => m.Success)?.Groups[1].Value.Trim().Trim('"');
+            lines = lines[(end + 1)..];
+        }
         var fence = false;
         string topTitle = name;
         SearchDoc? current = null;
@@ -173,7 +181,7 @@ static class DocSearch
                 if (heading.Groups[1].Length == 1 && current is null)
                 {
                     topTitle = title;
-                    current = new SearchDoc { Id = name, Kind = kind, Title = title, Open = open(null), Keys = name };
+                    current = new SearchDoc { Id = name, Kind = kind, Title = title, Open = open(null), Keys = summary is null ? name : name + "\n" + summary };
                 }
                 else current = new SearchDoc { Id = $"{name}#{SpecDocs.Slug(title)}", Kind = kind, Title = Clip(Plain(title), 80), Open = open(Clip(SpecDocs.Slug(title), 80)), Keys = topTitle };
                 header = null;
@@ -328,7 +336,10 @@ static class DocSearch
 
     // The library's saved index (LibraryIndex.cs), built from the fetched files when it is missing or stale.
     internal static SearchIndex LibraryIndex(List<string> folders, List<string> notes) =>
-        OmlCli.LibraryIndex.Get(folders, notes, (fs, ns) => fs.SelectMany(f => Folder(f, ns, LibraryFiles, LibraryBytes, "library")).ToList());
+        OmlCli.LibraryIndex.Get(folders, notes, (fs, ns) => fs.SelectMany(f => Folder(f, ns, LibraryFiles, LibraryBytes, "library")).ToList()).WithQueryOptions(LibraryOptions);
+
+    // Concept links count more here than in oml's own docs: the library is large and written in OutSystems words, so a question in everyday words needs them (chosen on a tune set and checked on two others).
+    static SearchOptions LibraryOptions => new() { ConceptWeight = 0.5 };
 
     const int MaxFiles = 2000, LibraryFiles = 10000;
     const long MaxBytes = 20 * 1024 * 1024, LibraryBytes = 64 * 1024 * 1024;

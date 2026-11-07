@@ -8,6 +8,7 @@ add: add, adds
 agent: agent, agents
 aggregat: aggregate, aggregates
 allow: allow, allowed
+approv: approve, approved
 argument: argument, arguments
 array: array, arrays
 ask: ask, asked, asks
@@ -102,7 +103,7 @@ limit: limit, limits
 lin: line, lines
 list: list, listed, lists
 literal: literal, literals
-load: load, loaded, loading
+load: load, loaded, loading, loads
 local: local, locals
 log: log, logging
 mak: make, makes
@@ -121,6 +122,7 @@ number: number, numbers
 object: object, objects
 one: one, ones
 onselect: onselect, onselected
+open: open, opens
 order: order, orders
 output: output, outputs
 own: own, owned

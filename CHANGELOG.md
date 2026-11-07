@@ -2,6 +2,14 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.18.1
+
+### Fixed
+- `oml doc --search --library` read each OutSystems docs page's front matter (summary, tags) as a section of its own, titled with the file path. Its sections then lacked the page's title, and the summary was not on the page. The page title now reaches every section, and the summary is part of the page entry. The saved library index is rebuilt once.
+
+### Changed
+- Library search in everyday words: the glossary's concept links count more for the library (weight 0.5, oml's own docs keep 0.2), and the glossary knows more everyday phrasings (each environment, only managers, many rows, no internet, when the screen opens, approvals, caching). On 12 questions in everyday words the right page now ranks higher (MRR 0.35 to 0.44, and 0.38 to 0.57 on a second set). A third set, mostly in OutSystems words, stayed at 0.67. zg 0.3.0 scored 0.32 to 0.52 on the same three sets.
+
 ## 1.18.0
 
 ### Added

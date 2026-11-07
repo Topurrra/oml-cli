@@ -334,7 +334,9 @@ static class SearchText
 sealed class SearchIndex
 {
     readonly IReadOnlyList<SearchDoc> docs;
-    readonly SearchOptions options;
+    SearchOptions options;
+    // Query-time weights for this index (the library's are not the oml docs' ones); the index itself stays as built.
+    internal SearchIndex WithQueryOptions(SearchOptions o) { options = o; return this; }
     readonly Dictionary<string, int>[][] tf;   // [doc][field] term -> count
     readonly int[][] length;                   // [doc][field]
     readonly double[] average = new double[3];
