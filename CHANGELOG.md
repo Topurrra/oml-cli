@@ -2,6 +2,23 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.20.0
+
+Found while building a component library (23 blocks and a showcase screen) with oml.
+
+### Added
+- Widget `attributes` in specs: HTML attributes (Service Studio's Attributes list) such as `aria-label`, `role` or a computed `style`, each value an expression. A component library needs them for accessibility and for values such as a progress width.
+- `description` on screens and blocks in specs. `oml check` already reported public blocks without one.
+- `oml describe` prints input default values (`Size: Text = "md"`) and the icon of an Icon widget (`icon=check`).
+
+### Fixed
+- `oml preview` evaluates much more of a screen as it first renders: `If(condition, a, b)`, `and`, `or`, number comparisons, input type defaults (False, 0, empty text) and local variable defaults. Style Classes use the classes the expression gives, not every quoted class in it; a widget whose Visible evaluates to False is not shown; a Button whose Enabled evaluates to False is disabled. Before, a button block with `If(IsLoading, " is-loading", "")` showed every button as loading.
+- `oml preview`: its own base styles for buttons, links, inputs and tables (also in dark mode) no longer override the module's CSS classes.
+- `oml preview` cuts an expression it cannot compute to 40 characters, so it does not cover the layout.
+
+### Docs
+- A theme made with Theme Editor keeps its Theme Editor part: a spec's `styleSheet` replaces only the rest.
+
 ## 1.19.0
 
 ### Changed

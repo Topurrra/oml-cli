@@ -964,7 +964,7 @@ How widgets become HTML. The widget Name is the `id` and the Style Classes are t
 |---|---|
 | Container, Form, Label, List, ListItem | `div`, `form`, `label` |
 | Text | The text. |
-| Expression | A string literal shows its text. An input parameter shows the `--arg` value, else its default value, else `{InputName}`. A `+` join of those works when one part is text; a sum such as `Count + 1` shows as `{Count + 1}`. Anything else shows as `{expression}` in a muted span. |
+| Expression | A string literal shows its text. An input parameter shows the `--arg` value, else its default value, else its type's default (False, 0, empty text). A local variable shows its default value. A `+` join of those works when one part is text; a sum such as `Count + 1` shows as `{Count + 1}`. `If(condition, a, b)` shows the chosen branch when the preview can evaluate the condition. Anything else shows as `{expression}` (cut at 40 characters) in a muted span. |
 | Link, Button | `a`, `button` with the child widgets. |
 | Image | `img` for an external URL (it does not load: the page has no network). A resource image is a grey box with its name. |
 | Icon | `i` with the Style Classes and the icon class. |
@@ -977,7 +977,7 @@ How widgets become HTML. The widget Name is the `id` and the Style Classes are t
 | Block instance, other module | A `div` whose class is the block name, with its placeholder content inside. Layouts and OutSystems UI blocks are not drawn. |
 | Any other widget | A labelled box with its children. The kind and its count are listed in `unsupported`. |
 
-A widget with Visible set to the literal `False` gets the `hidden` attribute. Extended properties with a literal value become HTML attributes (`class` is merged). Names that start with `on` and `id` are skipped.
+The Style Classes expression gives the classes it evaluates to; when the preview cannot evaluate it, every quoted class in it is used. A widget whose Visible is `False`, or a condition the preview evaluates to False, is not shown; a Button whose Enabled evaluates to False is `disabled`. Conditions: True, False, `not`, `and`, `or`, `=` and `<>` between values of one kind, and `<`, `>`, `<=`, `>=` between numbers. Extended properties with a literal value become HTML attributes (`class` is merged). Names that start with `on` and `id` are skipped.
 
 CSS in the file, in this order: a small neutral base stylesheet (system font, spacing, plain buttons and tables), the module default theme (only if it is local to the module), then the stylesheet of the element and of each same-module block that was rendered. External CSS is not loaded.
 

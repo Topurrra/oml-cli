@@ -16,7 +16,7 @@ record ScreenSpec(string Name, string Flow = "MainFlow", JsonElement? Title = nu
     string? Layout = null, Dictionary<string, List<JsonElement>>? Placeholders = null, string? Template = null, string? Entity = null,
     AccessSpec? Access = null, List<JsonElement>? Preparation = null, string? StyleSheet = null, bool IsDefault = false,
     List<string>? RequiredScripts = null,
-    List<EventSpec>? Events = null, string? OnParametersChanged = null, bool? Public = null);
+    List<EventSpec>? Events = null, string? OnParametersChanged = null, bool? Public = null, string? Description = null);
 
 /// Builds actions, flows, screens and widgets in the order the model needs (skill §9.2):
 /// create everything -> wire references and types -> wire connectors -> widgets -> expressions and arguments.
@@ -398,6 +398,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
     {
         OmlCli.Content.RequireScripts(m, screen, s.RequiredScripts);
         if (s.StyleSheet is not null) Queue(label, m, screen, "StyleSheet", JsonSerializer.SerializeToElement(s.StyleSheet));
+        if (s.Description is not null && Reflect.Property(screen, "Description", writable: true) is { } description) description.SetValue(screen, s.Description);
         if (s.IsDefault) references.Add(($"{label}.isDefault", () => Set(m, "DefaultScreen", screen)));
         if (s.Access is { } access) references.Add(($"{label}.access", () => SetAccess(screen, access)));
         if (WebUi.IsTraditional(m)) { WebScreenParts(screen, s, label); return; }
@@ -552,6 +553,9 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                     Reflect.Property(evt, "Destination", writable: true)!.SetValue(evt, destination);
                     if (p.Value.TryGetProperty("args", out var eventArgs)) Defer(widget, ($"{where}.{p.Name}.args", () => Arguments(evt, eventArgs)));
                 });
+            // HTML attributes (Service Studio's Attributes list): { "aria-label": "\"Close\"", "style": "\"--value:\" + Value" }.
+            else if (p.Name.Equals("attributes", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.Object)
+                Try($"{where}.attributes", () => Attributes(widget, p.Value, where));
             else if (p.Name.Equals("targetWidget", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.String)
                 Defer(widget, ($"{where}.targetWidget", () => TargetWidget(widget, p.Value.GetString()!)));
             else
@@ -572,6 +576,29 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         if (hits.Count != 1) throw new ModelError(hits.Count == 0 ? $"targetWidget: no widget named '{name}' in {Model.NameOf(owner)}" : $"targetWidget: several widgets named '{name}'");
         if (!property.PropertyType.IsInstanceOfType(hits[0])) throw new ModelError($"targetWidget: '{name}' is {ElementPaths.Kind(hits[0])}, which a Label cannot target; name an input widget");
         property.SetValue(widget, hits[0]);
+    }
+
+    // Widget HTML attributes. The name is set now; the value is an expression, set with the other expressions.
+    void Attributes(object widget, JsonElement attributes, string where)
+    {
+        var existing = Describe.List(widget, "ExtendedProperties").ToList();
+        foreach (var a in attributes.EnumerateObject())
+        {
+            if (!System.Text.RegularExpressions.Regex.IsMatch(a.Name, @"^[a-zA-Z_:][-a-zA-Z0-9_:.]*$"))
+                throw new ModelError($"attribute name '{a.Name}' is not a valid HTML attribute name");
+            if (a.Value.ValueKind != JsonValueKind.String) throw new ModelError($"attribute '{a.Name}': the value is an expression in a string, for example \"\\\"Close\\\"\"");
+            var property = existing.FirstOrDefault(x => string.Equals(Reflect.Get(x, "Property") as string, a.Name, StringComparison.OrdinalIgnoreCase));
+            if (property is null)
+            {
+                property = Reflect.Call(widget, "CreateExtendedProperty") ?? throw new ModelError("this widget has no attributes on this build");
+                if (Reflect.Property(property, "Property", writable: true) is { } name) name.SetValue(property, a.Name);
+                else Reflect.Call(property, "SetProperty", a.Name);
+                existing.Add(property);
+            }
+            var value = a.Value.GetString()!;
+            var target = property;
+            Defer(widget, ($"{where}.attributes.{a.Name}", () => Reflect.Call(target, "SetValue", value)));
+        }
     }
 
     static object Content(object widget) =>

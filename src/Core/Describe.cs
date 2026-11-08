@@ -147,7 +147,9 @@ static class Describe
         string TypeOf(object p) => Unreadable.Try(() => "type of " + Unreadable.Where(p), () => Model.Describe(m, Reflect.Get(p, "DataType") as ITypeSignature), "?");
         // Parameters in model order: it is the saved order, and a function action is called by position.
         object[] Parameters(object o, string key) => List(o, key).Select(p => (object)new { name = Name(p), type = TypeOf(p) }).ToArray();
-        string ParametersText(object o, string key) => string.Join(", ", List(o, key).Select(p => Name(p) + ": " + TypeOf(p)));
+        // An input's default value follows its type, as Service Studio shows it: Size: Text = "md".
+        string ParametersText(object o, string key) => string.Join(", ", List(o, key).Select(p => Name(p) + ": " + TypeOf(p)
+            + (key == "InputParameters" && Expr(p, "DefaultValue") is { Length: > 0 } value ? " = " + value : "")));
         public object Signature(object o) => new { inputs = Parameters(o, "InputParameters"), outputs = Parameters(o, "OutputParameters") };
         string Header(object o) => Kind(o) + " " + Name(o) + "(" + ParametersText(o, "InputParameters") + ")"
             + (ParametersText(o, "OutputParameters") is { Length: > 0 } outputs ? " -> " + outputs : "")
@@ -395,6 +397,7 @@ static class Describe
                 else if (Text(Reflect.Get(o, "StyleClasses")) is { Length: > 0 } classNames && classNames != "\"\"") properties.Add("style=" + classNames);
                 if (Reflect.Get(o, "CustomStyle") is string inline && inline.Trim().Length > 0) properties.Add("inlineStyle=\"" + inline.Trim() + "\"");
                 if (Reflect.Get(o, "Tag") is string tag && tag.Length > 0) properties.Add("tag=" + tag);
+                if (Reflect.Get(o, "Icon") is string icon && icon.Length > 0) properties.Add("icon=" + icon);
                 if (Reflect.Property(o, "InputType") is not null && Reflect.Get(o, "InputType")?.ToString() is { } inputType && inputType != "Text") properties.Add("type=" + inputType);
                 if (Expr(o, "Prompt") is { Length: > 0 } prompt) properties.Add("prompt=" + prompt);
                 if (Expr(o, "Mandatory") is { Length: > 0 } mandatory && !mandatory.Equals("False", StringComparison.OrdinalIgnoreCase)) properties.Add("mandatory=" + mandatory);

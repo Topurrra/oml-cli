@@ -220,9 +220,12 @@ static class Preview
                     if (v.Literal is null) { v = new Val(given, Quote(given), false); notes.Add($"--arg {pn} is not a literal; used as plain text."); }
                     frame.Scope[pn] = v.Literal;
                 }
-                else frame.Scope[pn] = DefaultLiteral(p);
-                if (TypeKind(Model.Describe(m, Reflect.Get(p, "DataType") as OutSystems.Model.Types.ITypeSignature)) is { } kindOf) frame.Kinds[pn] = kindOf;
+                var kindOf = TypeKind(Model.Describe(m, Reflect.Get(p, "DataType") as OutSystems.Model.Types.ITypeSignature));
+                if (kindOf is not null) frame.Kinds[pn] = kindOf;
+                if (!overrides.ContainsKey(pn))
+                    frame.Scope[pn] = DefaultLiteral(p) ?? kindOf switch { "bool" => "False", "text" => "\"\"", "number" => "0", _ => null };
             }
+            AddLocals(element, frame);
 
             // Module scripts first, as the app loads them for every screen: the module's required scripts, then its JavaScript.
             foreach (var s in Content.Items(m, "RequiredScripts")) Require(s);
@@ -352,8 +355,10 @@ static class Preview
             var name = Model.NameOf(w);
             var id = Id(f, name);
             var cls = Text(Reflect.Get(w, "Style")) is { Length: > 0 } s ? s : Text(Reflect.Get(w, "StyleClasses"));
-            var classes = string.Join(" ", ClassNames(cls));
-            var hidden = Text(Reflect.Get(w, "Visible")).Equals("False", StringComparison.OrdinalIgnoreCase) ? " hidden" : "";
+            // The classes the expression gives with these inputs; every quoted class only when the preview cannot tell.
+            var classes = Eval(cls, f.Scope) is { Literal: not null } known ? known.Display.Trim() : string.Join(" ", ClassNames(cls));
+            var visible = Text(Reflect.Get(w, "Visible"));
+            var hidden = visible.Equals("False", StringComparison.OrdinalIgnoreCase) || Condition(visible, f.Scope, f.Kinds) == false ? " hidden" : "";
             var (ext, extClass) = ExtendedAttributes(w, f);
             string A(string extra = "", string more = "") => (id is null ? "" : $" id=\"{Enc(id)}\"")
                 + ((classes + " " + extClass + " " + more).Trim() is { Length: > 0 } all ? $" class=\"{Enc(all)}\"" : "") + hidden + ext + extra;
@@ -380,7 +385,7 @@ static class Preview
                     return Tag("a", Kids(w, f, owner), " href=\"#\"");
                 case "Button":
                     labels.Add((owner, "Button", PlainText(w, f)));
-                    return Tag("button", Kids(w, f, owner), " type=\"button\"");
+                    return Tag("button", Kids(w, f, owner), " type=\"button\"" + (Condition(Text(Reflect.Get(w, "Enabled")), f.Scope, f.Kinds) == false ? " disabled" : ""));
                 case "Image": return Image(w, f, A);
                 case "Icon":
                     return $"<i{(id is null ? "" : $" id=\"{Enc(id)}\"")} class=\"{Enc((classes + " " + (Reflect.Get(w, "Icon") as string)).Trim())}\" aria-hidden=\"true\"{hidden}></i>";
@@ -499,9 +504,13 @@ static class Preview
                 var pn = Model.NameOf(p)!;
                 var arg = Describe.List(w, "Arguments").FirstOrDefault(x => Reflect.Get(x, "Parameter") is { } q && Model.NameOf(q) == pn);
                 var expr = arg is null ? "" : Text(Reflect.Get(arg, "Value"));
-                inner.Scope[pn] = expr.Trim().Length > 0 ? Eval(expr, f.Scope).Literal : DefaultLiteral(p);
-                if (TypeKind(Model.Describe(m, Reflect.Get(p, "DataType") as OutSystems.Model.Types.ITypeSignature)) is { } kindOf) inner.Kinds[pn] = kindOf;
+                var kindOf = TypeKind(Model.Describe(m, Reflect.Get(p, "DataType") as OutSystems.Model.Types.ITypeSignature));
+                if (kindOf is not null) inner.Kinds[pn] = kindOf;
+                // No argument and no default: the type's own default, as the platform gives it.
+                inner.Scope[pn] = expr.Trim().Length > 0 ? Eval(expr, f.Scope).Literal
+                    : DefaultLiteral(p) ?? kindOf switch { "bool" => "False", "text" => "\"\"", "number" => "0", _ => null };
             }
+            AddLocals(local, inner);
             foreach (var pc in slotsHere)
                 if (Model.NameOf(Reflect.Get(pc, "Placeholder") ?? pc) is { } slotName)
                     inner.Slots[slotName] = (Kids(pc).ToList(), f);
@@ -629,6 +638,20 @@ static class Preview
 
         // ---- expressions ----
 
+        // Local variables start at their default (or the type's default): the screen as it first renders.
+        void AddLocals(object owner, Frame frame)
+        {
+            foreach (var v in Describe.List(owner, "LocalVariables"))
+            {
+                var vn = Model.NameOf(v);
+                if (vn is null || frame.Scope.ContainsKey(vn)) continue;
+                var kindOf = TypeKind(Model.Describe(m, Reflect.Get(v, "DataType") as OutSystems.Model.Types.ITypeSignature));
+                if (kindOf is null) continue;
+                frame.Kinds[vn] = kindOf;
+                frame.Scope[vn] = DefaultLiteral(v) ?? kindOf switch { "bool" => "False", "text" => "\"\"", _ => "0" };
+            }
+        }
+
         static string? DefaultLiteral(object parameter)
         {
             var text = Text(Reflect.Get(parameter, "DefaultValue"));
@@ -648,6 +671,9 @@ static class Preview
     internal static string Text(object? o) => o is IExpression e ? e.Text : o as string ?? "";
 
     // Class names in a Style expression: every quoted piece, so "card " + If(x, "a", "b") still yields card, a and b.
+    // An expression the preview cannot compute shows as {expression}; a long one is cut so it does not cover the layout.
+    static string Unknown(string e) => "{" + (e.Length <= 40 ? e : e[..37] + "...") + "}";
+
     internal static List<string> ClassNames(string expression) =>
         Regex.Matches(expression, "\"((?:[^\"]|\"\")*)\"").SelectMany(x => x.Groups[1].Value.Replace("\"\"", "\"").Split(' ', StringSplitOptions.RemoveEmptyEntries)).Distinct().ToList();
 
@@ -659,7 +685,12 @@ static class Preview
         if (Str.Match(e) is { Success: true } s) return new Val(s.Groups[1].Value.Replace("\"\"", "\""), e, false);
         if (Num.IsMatch(e) || e.Equals("True", StringComparison.OrdinalIgnoreCase) || e.Equals("False", StringComparison.OrdinalIgnoreCase)) return new Val(e, e, false);
         if (Ident.IsMatch(e) && scope is not null && scope.TryGetValue(e, out var value))
-            return value is null ? new Val("{" + e + "}", null, true) : Eval(value, null);
+            return value is null ? new Val(Unknown(e), null, true) : Eval(value, null);
+        // If(condition, a, b) with a condition the preview can decide: the chosen branch.
+        if (Regex.Match(e, @"^If\s*\((.*)\)$", RegexOptions.IgnoreCase | RegexOptions.Singleline) is { Success: true } call
+            && Outer(call.Groups[1].Value).balanced && SplitTop(call.Groups[1].Value, ',') is { Count: 3 } args
+            && Condition(args[0], scope) is bool chosen)
+            return Eval(chosen ? args[1] : args[2], scope);
         var parts = SplitPlus(e);
         if (parts.Count > 1)
         {
@@ -668,7 +699,7 @@ static class Preview
             if (values.All(v => v.Literal is not null) && values.Any(v => Str.IsMatch(v.Literal!)))
             { var joined = string.Concat(values.Select(v => v.Display)); return new Val(joined, Quote(joined), false); }
         }
-        return new Val("{" + e + "}", null, true);
+        return new Val(Unknown(e), null, true);
     }
 
     // A flow If condition: True, False, a Boolean input, not X, or two values of the same kind compared with = or <>. Null
@@ -680,7 +711,22 @@ static class Preview
         while (e.Length > 1 && e[0] == '(' && e[^1] == ')' && Outer(e[1..^1]).balanced) e = e[1..^1].Trim();
         if (Regex.Match(e, @"^not\s+(.+)$", RegexOptions.IgnoreCase | RegexOptions.Singleline) is { Success: true } not)
             return Condition(not.Groups[1].Value, scope, kinds) is bool inner ? !inner : null;
+        // Top-level or, then and: three-valued, so an unknown part decides nothing unless the other part does.
+        foreach (var (word, stop) in new[] { ("or", true), ("and", false) })
+            if (SplitWord(e, word) is { Count: > 1 } terms)
+            {
+                var results = terms.Select(t => Condition(t, scope, kinds)).ToList();
+                if (results.Any(r => r == stop)) return stop;
+                return results.All(r => r is not null) ? !stop : null;
+            }
         var o = Outer(e);
+        if (o.balanced && o.unsupported && Regex.Match(e, @"^([^<>=""]+?)\s*(<=|>=|<|>)\s*([^<>=""]+)$") is { Success: true } cmp
+            && Side(cmp.Groups[1].Value, scope, kinds) is { } l1 && Side(cmp.Groups[3].Value, scope, kinds) is { } r1
+            && LiteralKind(l1) == "number" && LiteralKind(r1) == "number")
+        {
+            var (a, b) = (decimal.Parse(l1, System.Globalization.CultureInfo.InvariantCulture), decimal.Parse(r1, System.Globalization.CultureInfo.InvariantCulture));
+            return cmp.Groups[2].Value switch { "<" => a < b, ">" => a > b, "<=" => a <= b, _ => a >= b };
+        }
         if (!o.balanced || o.unsupported) return null;
         if (o.at < 0) return Side(e, scope, kinds) is { } l && LiteralKind(l) == "bool" ? bool.Parse(l) : null;
         if (Side(e[..o.at], scope, kinds) is not { } left || Side(e[(o.at + o.length)..], scope, kinds) is not { } right) return null;
@@ -744,6 +790,43 @@ static class Preview
         return (depth == 0 && !quoted, at, length, unsupported);
     }
 
+    // Splits at a character outside quotes and brackets (the commas of a function call).
+    static List<string> SplitTop(string e, char at)
+    {
+        var parts = new List<string>();
+        int depth = 0, start = 0;
+        var quoted = false;
+        for (var i = 0; i < e.Length; i++)
+        {
+            if (e[i] == '"') quoted = !quoted;
+            else if (quoted) continue;
+            else if (e[i] == '(') depth++;
+            else if (e[i] == ')') depth--;
+            else if (e[i] == at && depth == 0) { parts.Add(e[start..i]); start = i + 1; }
+        }
+        parts.Add(e[start..]);
+        return parts;
+    }
+
+    // Splits at a word operator (and, or) outside quotes and brackets.
+    static List<string> SplitWord(string e, string word)
+    {
+        var parts = new List<string>();
+        int depth = 0, start = 0;
+        var quoted = false;
+        for (var i = 0; i < e.Length; i++)
+        {
+            if (e[i] == '"') quoted = !quoted;
+            else if (quoted) continue;
+            else if (e[i] == '(') depth++;
+            else if (e[i] == ')') depth--;
+            else if (depth == 0 && char.IsWhiteSpace(e[i]) && Regex.Match(e[i..], @"^\s+" + word + @"\s+", RegexOptions.IgnoreCase) is { Success: true } m)
+            { parts.Add(e[start..i]); start = i + m.Length; i = start - 1; }
+        }
+        parts.Add(e[start..]);
+        return parts;
+    }
+
     static List<string> SplitPlus(string e)
     {
         var parts = new List<string>();
@@ -768,14 +851,15 @@ static class Preview
         html{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.5;color:#1b1f24;background:#fff}
         html[data-theme=dark]{color-scheme:dark;color:#e6e8eb;background:#14171c}
         body{margin:0}
+        [hidden]{display:none!important}
         .oml-frame{margin:0}
-        a{color:#2563eb}html[data-theme=dark] a{color:#8ab4ff}
-        button,input,select,textarea{font:inherit;color:inherit}
-        button{padding:.4em .9em;border:1px solid #8a919a;border-radius:6px;background:#f3f4f6;cursor:pointer}
-        html[data-theme=dark] button{background:#262b33;border-color:#4a515b}
-        input:not([type=checkbox]):not([type=radio]),select,textarea{padding:.35em .5em;border:1px solid #8a919a;border-radius:4px;background:transparent}
+        :where(a){color:#2563eb}:where(html[data-theme=dark] a){color:#8ab4ff}
+        :where(button,input,select,textarea){font:inherit;color:inherit}
+        :where(button){padding:.4em .9em;border:1px solid #8a919a;border-radius:6px;background:#f3f4f6;cursor:pointer}
+        :where(html[data-theme=dark] button){background:#262b33;border-color:#4a515b}
+        :where(input:not([type=checkbox]):not([type=radio]),select,textarea){padding:.35em .5em;border:1px solid #8a919a;border-radius:4px;background:transparent}
         table{border-collapse:collapse}th,td{padding:.4em .7em;border-bottom:1px solid #c8ccd2;text-align:left}
-        html[data-theme=dark] th,html[data-theme=dark] td{border-color:#3a4049}
+        :where(html[data-theme=dark] th,html[data-theme=dark] td){border-color:#3a4049}
         i[class*="fa-"]::before{content:"\25A0";font-size:.8em;opacity:.6}
         .oml-muted{opacity:.6;font-style:italic}
         .oml-placeholder{border:1px dashed #8a919a;padding:8px;opacity:.85}

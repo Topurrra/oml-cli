@@ -642,13 +642,14 @@ Inspect reports platform names and key fields, including generated role actions.
 | Scope | Keys | Meaning |
 |---|---|---|
 | Root | `screens`, `blocks` | UI elements in a named flow. |
-| Screen/block | name, flow, title, inputs, locals, aggregates, dataActions, actions, widgets, public | Flow defaults MainFlow and is created if missing. String title is an expression. `public` makes a block usable by other modules. |
+| Screen/block | name, flow, title, inputs, locals, aggregates, dataActions, actions, widgets, public, description | Flow defaults MainFlow and is created if missing. String title is an expression. `public` makes a block usable by other modules. `description` is shown in Service Studio (give every public block and its inputs one). |
 | Lifecycle | onInitialize, onReady, onRender, onDestroy; block only: onParametersChanged | Names of actions owned by the screen/block. On an existing screen or block (listed again or `addParts`), an unset handler is set; a creation list reports it in `changed`. Changing a set one in a creation list is refused (use `set`). |
 | Block events | events (block), triggerEvent (flow node), events (BlockInstance) | See Block events below. |
 | Styling and access | styleSheet, isDefault, access | Raw CSS; true selects the landing screen; access uses the platform shape. |
 | Layout/scaffold | layout, placeholders, template, entity | See layouts below. |
 | Widget | type, name, children, content area arrays | Built-in type or registered descriptor type. |
 | Widget property | value, variable, source, style, visible, enabled, mandatory, prompt, text, sourceBlock | Uses installed setters/properties. Expression properties need OutSystems expressions. |
+| Widget attributes | attributes | HTML attributes (Service Studio's Attributes list): `{ "aria-label": "\"Close\"", "role": "\"tab\"", "style": "\"width:\" + Value + \"%\"" }`. Each value is an expression. An existing attribute with the same name gets the new value. |
 | Widget event | onClick, onChange, other installed events; args | Action name, screen name, or destination object. Arguments bind by parameter name. |
 | BlockInstance | sourceBlock, args, placeholders, events | Source block, input expressions, named placeholder content, event handlers. |
 | Label | targetWidget | Name of the input it describes, in the same screen, block or email (`""` clears it; also in `edits.set`). See Edits. |
@@ -961,7 +962,7 @@ Locales, translation imports, translation writes, and folders run after logic an
 | `translations` | `{ "import": "ModuleLanguage.ka-GE.resX" }` calls `LoadTextResources`. Refusals prevent saving. On 11.55.92 the headless host refuses ResX format detection, so file round trips are unavailable. Use `translate` for module resource IDs. |
 | `images` | `name`, `file`, optional `public` (false). Uses `CreateImage`. SVG and PNG were verified; the API also lists Jpg, Gif, and Ico. Invalid files are problems. Image widgets can reference the image in the same spec. |
 | `scripts` | `name`, `file`, optional `public` (false). Sets `JavaScript` to the file text. Screens and blocks accept `requiredScripts`, an array of script names. |
-| `themes` | `name`, optional `styleSheet` and `baseTheme`. `styleSheet` is CSS text, an existing file path, or `{ "file": ... }`; a value that looks like a path (`theme.css`, `css/app.css`) but names no file is refused. A new theme without `styleSheet` starts empty. Creates a Web theme in Traditional Web modules, otherwise a Mobile theme. Does not select the module default theme. |
+| `themes` | `name`, optional `styleSheet` and `baseTheme`. `styleSheet` is CSS text, an existing file path, or `{ "file": ... }`; a value that looks like a path (`theme.css`, `css/app.css`) but names no file is refused. A new theme without `styleSheet` starts empty. On a theme made with Theme Editor, the model keeps the Theme Editor part (the CSS between its comment banners) apart: `styleSheet` replaces only the rest, so do not copy the Theme Editor part into it. Creates a Web theme in Traditional Web modules, otherwise a Mobile theme. Does not select the module default theme. |
 | `resources` | `name`, `file`, optional `public` (false). Stores the exact file bytes. |
 | `folders` | `name`, `area`, `elements` paths. Reuses folders with the same area and name. Moves elements by their typed `Folder` property. `entities` is an alias for `ServerEntities`. Other areas match installed `ESpaceTreeFolder` names without case sensitivity: `serverActions`, `clientActions`, `serviceActions`, `structures`, `images`, `resources`, `scripts`, `themes`, `siteProperties`, `timers`, `roles`, `processes`, and others listed by `oml model-types ESpaceTreeFolder`. Rejects elements outside the requested area. |
 

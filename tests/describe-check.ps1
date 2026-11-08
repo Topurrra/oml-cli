@@ -28,6 +28,11 @@ $spec.screens[0].actions += [pscustomobject]@{ name='Notify'; flow=@(
     @{ kind='message'; name='Tell'; message='"Saved"'; type='warning' },
     @{ kind='comment'; text='Explains the flow' }) }
 $spec.screens[0].widgets[0].children[1] | Add-Member -NotePropertyName mandatory -NotePropertyValue 'True'
+# A block with a description, an input default, HTML attributes, an icon and If() classes, for describe and preview.
+$spec | Add-Member -NotePropertyName blocks -NotePropertyValue @(@{ name='Pill'; description='A small label.'; public=$true
+    inputs=@(@{name='Tone';type='Text';mandatory=$false;default='"info"';description='info or danger.'}, @{name='IsSolid';type='Boolean';mandatory=$false;description='Filled.'}, @{name='Note';type='Text';mandatory=$false;description='Extra text.'})
+    widgets=@(@{ type='Container'; name='PillRoot'; style='"pill pill--" + Tone + If(IsSolid, " is-solid", " is-soft")'; attributes=@{ role='"status"'; 'aria-label'='"Tone " + Tone' }
+        children=@(@{type='Icon';name='PillIcon';icon='check'}, @{type='Expression';name='PillNote';value='Note';visible='Note <> "" and not IsSolid'}) }) }) -Force
 $specPath = Join-Path $Tmp 'describe-spec.json'
 $spec | ConvertTo-Json -Depth 80 | Set-Content $specPath
 $r = Read-Oml @('apply',$blank,$specPath,$out)
@@ -51,6 +56,18 @@ Require ($screen.text.Contains('DataAction LoadValue() -> DataValue: Integer') -
 foreach ($line in @('javascript Mark(Value = "x") -> Out: Text:', "  var a = `$parameters.Value;", "  `$parameters.Out = a + '!';", 'message Warning: "Saved"', 'comment: Explains the flow', 'Container Header style="card"', 'Input TotalInput variable=NewTotal style="form-control" type=Number mandatory=True')) {
     Require ($screen.text.Contains($line)) "screen describe missing $line in: $($screen.text)"
 }
+$pill = Read-Oml @('describe',$out,'Pill')
+foreach ($line in @('Block Pill(Tone: Text = "info", IsSolid: Boolean, Note: Text) [public]', 'attr role="status"', 'attr aria-label="Tone " + Tone', 'Icon PillIcon', 'icon=check')) {
+    Require ($pill.text.Contains($line)) "block describe missing $line in: $($pill.text)"
+}
+$html = Join-Path $Tmp 'pill.html'
+$p = Read-Oml @('preview',$out,'Pill','--out',$html)
+$page = Get-Content $html -Raw
+Require ($page -match 'class="pill pill--info is-soft"' -and $page -notmatch 'is-solid') "preview did not evaluate If() classes with defaults: $([regex]::Match($page, '<div[^>]*pill[^>]*>').Value)"
+Require ($page -match 'id="PillNote"[^>]*hidden') "preview showed a widget whose Visible is false (Note is empty)"
+$html2 = Join-Path $Tmp 'pill2.html'
+$p = Read-Oml @('preview',$out,'Pill','--arg','IsSolid=True','--arg','Tone="danger"','--out',$html2)
+Require ((Get-Content $html2 -Raw) -match 'class="pill pill--danger is-solid"') 'preview did not use --arg in If() classes'
 $js = Read-Oml @('describe',$out,'Orders/Notify/Mark')
 Require ($js.text.Contains('javascript:') -and $js.text.Contains("`$parameters.Out = a + '!';") -and !$js.text.Contains('[signature only]')) "JavaScript node code: $($js.text)"
 $data = Read-Oml @('describe',$out,'Orders/LoadValue')

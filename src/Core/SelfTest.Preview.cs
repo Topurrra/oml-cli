@@ -106,8 +106,10 @@ partial class SelfTest
         Check(Preview.Condition("True", scope) == true && Preview.Condition("On", scope) == true && Preview.Condition("Mode = \"bar\"", scope) == true
             && Preview.Condition("Mode <> \"bar\"", scope) == false && Preview.Condition("not (Count = 3)", scope) == false && Preview.Condition("(Count = 3.0)", scope) == true
             && Preview.Condition("\"a=b\" = \"a=b\"", scope) == true && Preview.Condition("Mode", scope) is null && Preview.Condition("Length(Mode) > 2", scope) is null
-            && Preview.Condition("Mode = \"bar\" and Count = 3", scope) is null && Preview.Condition("Local = 1", scope) is null && Preview.Condition("Empty = 1", scope) is null
-            && Preview.Condition("Count >= 3", scope) is null, "flow If condition evaluation");
+            && Preview.Condition("Mode = \"bar\" and Count = 3", scope) == true && Preview.Condition("Mode = \"baz\" or Count = 3", scope) == true
+            && Preview.Condition("Mode = \"baz\" and Local = 1", scope) == false && Preview.Condition("Mode = \"bar\" and Local = 1", scope) is null
+            && Preview.Condition("Local = 1", scope) is null && Preview.Condition("Empty = 1", scope) is null
+            && Preview.Condition("Count >= 3", scope) == true && Preview.Condition("Count < 3", scope) == false, "flow If condition evaluation");
         // --type splits at the first '=' outside [...] and quotes.
         Check(Preview.TypeEquals("input[name=q]=Ann") == 13 && Preview.TypeEquals("#a=b=c") == 2 && Preview.TypeEquals("=x") == -1
             && Preview.TypeEquals("[a=b]") == -1 && Preview.TypeEquals("[title='a=b']=c") == 13, "--type selector split");
