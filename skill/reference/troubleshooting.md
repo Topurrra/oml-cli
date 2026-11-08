@@ -71,7 +71,7 @@ Symptoms of oml itself (apply, install, publish, LifeTime, fonts and images), th
 
 - A producer's change has no effect: consumers run their own copy of server actions and themes (strong dependencies). Republish each module named under Outdated Consumer.
 - "The connection has timed out" and a busy state that never ends: a client's server call waits 10 s by default. Set `serverRequestTimeout` on the execute node, and add an exception handler that ends the busy state.
-- Answers with `â€™` instead of `'`: the API sent no charset. Run TextToBinaryData with `iso-8859-1`, then BinaryDataToText with `utf-8`.
+- Answers with garbled accents and quotes (one character shown as three): the API sent no charset. Run TextToBinaryData with `iso-8859-1`, then BinaryDataToText with `utf-8`.
 Failures of the published app. First find where the code runs: browser or server.
 
 | Symptom | Where to look | Cause and fix |

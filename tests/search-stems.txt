@@ -127,6 +127,7 @@ one: one, ones
 onselect: onselect, onselected
 open: open, opens
 order: order, orders
+other: other, others
 output: output, outputs
 own: own, owned
 parameter: parameter, parameters
