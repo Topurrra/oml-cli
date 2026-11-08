@@ -233,7 +233,7 @@ static class TestDataModule
             ["exceptions"] = N(new[] { "TestDataRefused" }),
             ["siteProperties"] = N(new[] { new { name = "TestDataKey", type = "Text", @default = "\"\"", description = "Set per DEV environment in Service Center. While empty, every call is refused." } }),
             ["serverActions"] = actions,
-            ["restServices"] = N(new[] { new { name = "TestDataApi", actions = rest } }),
+            ["restServices"] = N(new[] { new { name = "TestDataApi", authentication = "none", actions = rest } }),
         };
     }
 }

@@ -295,6 +295,12 @@
           "items": {
             "$ref": "#/$defs/IndexSpec"
           }
+        },
+        "multiTenant": {
+          "type": "boolean"
+        },
+        "exposeProcessEvents": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false,
@@ -327,6 +333,15 @@
           "type": "string"
         },
         "deleteRule": {
+          "type": "string"
+        },
+        "jsonName": {
+          "type": "string"
+        },
+        "sendDefault": {
+          "type": "boolean"
+        },
+        "label": {
           "type": "string"
         }
       },
@@ -576,6 +591,12 @@
         },
         "description": {
           "type": "string"
+        },
+        "layoutArgs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false,
@@ -687,6 +708,21 @@
           "items": {
             "$ref": "#/$defs/RestActionSpec"
           }
+        },
+        "authentication": {
+          "type": "string"
+        },
+        "internalAccessOnly": {
+          "type": "boolean"
+        },
+        "onAuthentication": {
+          "$ref": "#/$defs/RestCallbackSpec"
+        },
+        "onBeforeRequest": {
+          "$ref": "#/$defs/RestCallbackSpec"
+        },
+        "onAfterResponse": {
+          "$ref": "#/$defs/RestCallbackSpec"
         }
       },
       "additionalProperties": false,
@@ -723,6 +759,12 @@
           "items": {
             "$ref": "#/$defs/FlowNode"
           }
+        },
+        "locals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VarSpec"
+          }
         }
       },
       "additionalProperties": false,
@@ -754,6 +796,24 @@
         "name"
       ]
     },
+    "RestCallbackSpec": {
+      "type": "object",
+      "properties": {
+        "locals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/VarSpec"
+          }
+        },
+        "flow": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FlowNode"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "ReferenceSpec": {
       "type": "object",
       "properties": {
@@ -772,6 +832,9 @@
               }
             }
           ]
+        },
+        "extension": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

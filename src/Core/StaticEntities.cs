@@ -82,6 +82,16 @@ static class StaticEntities
             {
                 if (e.Attributes.FirstOrDefault(x => x.Name == a.Name) is { } old)
                 {
+                    // The Id of a new static entity takes the spec's shape: nothing is published yet.
+                    if (!was && a.Name == "Id" && ReferenceEquals(old, e.IdentifierAttribute) && (s.Attributes ?? new()).Contains(a))
+                    {
+                        if (Model.Resolve(m, a.Type, problems, $"{s.Name}.Id") is not { } idType) continue;
+                        if (!ReferenceEquals(idType, m.IntegerType) && !ReferenceEquals(idType, m.LongIntegerType) && !ReferenceEquals(idType, m.TextType))
+                        { problems.Add($"{s.Name}.Id: a static entity's identifier must be Integer, Long Integer or Text, not '{a.Type}'"); continue; }
+                        old.DataType = (IBasicType)idType;
+                        Apply.SetCommon(old, a);
+                        old.IsMandatory = true;
+                    }
                     // The default Label, Order and Is_Active rows are not in the spec: nothing to compare.
                     if (was && (s.Attributes ?? new()).Contains(a)) Reuse.Attribute(m, old, a, Reuse.Item(rawEntity, "attributes", a.Name), $"{s.Name}.{a.Name}", problems);
                     existing.Add($"attribute {s.Name}.{a.Name}");
@@ -93,8 +103,9 @@ static class StaticEntities
                 var attr = e.CreateAttribute(a.Name, Model.Services().NewKey());
                 if (attr.Name != a.Name) throw new ModelError($"attribute {a.Name}: {NameClash.Taken(attr, a.Name)}; the model renamed it {attr.Name}");
                 attr.DataType = type;
-                if (type is IIdentifierType) attr.DeleteRule = Enum.Parse<DeleteRule>(a.DeleteRule ?? "Protect", ignoreCase: true);
+                if (!Apply.SetDeleteRule(attr, type, a, $"{s.Name}.{a.Name}", problems)) continue;
                 Apply.SetCommon(attr, a);
+                if (a.Label is not null) attr.Label = a.Label;
                 created.Add($"attribute {s.Name}.{a.Name}");
             }
             e.LabelAttribute ??= e.Attributes.Single(a => a.Name == "Label");
@@ -118,7 +129,7 @@ static class StaticEntities
                 record.Identifier = r.Identifier;
                 if (record.Identifier != r.Identifier) throw new ModelError($"identifier renamed {record.Identifier}");
                 var values = new Dictionary<string, string> {
-                    [e.IdentifierAttribute!.Name] = id.ToString(CultureInfo.InvariantCulture),
+                    [e.IdentifierAttribute!.Name] = ReferenceEquals(e.IdentifierAttribute.DataType, m.TextType) ? "\"" + r.Identifier.Replace("\"", "\"\"") + "\"" : id.ToString(CultureInfo.InvariantCulture),
                     [e.LabelAttribute.Name] = "\"" + (r.Label ?? r.Identifier).Replace("\"", "\"\"") + "\"",
                     [e.OrderByAttribute.Name] = (r.Order ?? id).ToString(CultureInfo.InvariantCulture),
                     [e.IsActiveAttribute.Name] = r.IsActive ? "True" : "False" };

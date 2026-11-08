@@ -29,7 +29,7 @@ Common errors and warnings. Look one up with `oml explain-warning <id or title w
 | Id | Title | Cause | Fix |
 |---|---|---|---|
 | `ExpressionUnknownObject` | Invalid Expression | Name not in scope (renamed aggregate, wrong path, loop label). | Use final names and `<List>.Current`; check with `oml tree`. |
-| `ExpressionUnknownFunction` | Invalid Expression | Function does not exist. | See `oml doc logic-rules`; errors are `<Handler>.ExceptionMessage`. |
+| `ExpressionUnknownFunction` | Invalid Expression | Function does not exist. | Closest built-ins: `CurrDateTime()`, `CurrDate()`, `CurrTime()`. `GenerateGuid()` does not exist: use an extension or the Text module. See `oml doc logic-rules`; errors are `<Handler>.ExceptionMessage`. |
 | `ExpressionInvalidVariableType`, `ExpressionInvalidExpressionType` | Invalid Data Type | Value type does not fit. | Convert it; bind an Identifier with a Dropdown, not an Input. |
 | `ParserUnexpectedElement`, `ParserUnterminatedStringLiteral` | Invalid Expression | Syntax error, often text without quotes. | Write text as `"\"Text\""` in the spec. |
 
@@ -75,6 +75,9 @@ Common errors and warnings. Look one up with `oml explain-warning <id or title w
 | `CrossJoinQuery`, `CrossJoinDataSet` | Scalability Suggestion | Two sources without a join. | Add the join in `joins`. |
 | `InvalidAttribute_EntRefWithoutIdx` | Scalability Suggestion | Reference attribute without index. | Add it to the entity's `indexes`. |
 | `DisconnectedDestination` | Unexpected Link | Traditional link to a screen that is not a Frequent Destination. | Harmless; tell the user. |
+| `ExposedRestApiWithoutAuthentication` | (oml) No authentication | New exposed API, open to all. | Set `authentication` (`"none"` if a gateway protects it) or `internalAccessOnly`. |
+| `RestAuthenticationNotImplemented` | (oml) OnAuthentication empty | It refuses every call. | Give `onAuthentication` a flow. |
+| `Entity_SuggestPartialUpdateBehavior`, `Entity_SuggestPartialUpdateBehavior_Many`, `Entity_SuggestPartialUpdateBehavior_Text` | Update Behavior | Suggests updating changed attributes only. | New entity: `"updateBehavior": "changedAttributes"`. Existing: by hand (rule 5). |
 | `PublicServerAction` | (oml) Public server action | Server action made public (rule 7). | Ask the user. If they say no, remove `public` from the spec and apply again from the same source. |
 | `UniqueIndexOnExistingEntity` | (oml) Unique index | Unique index on an existing entity. | Tell the user: publish fails if production has duplicate values. Ask them to check before publishing. |
 | `ARR_MissingRef`, `ARR_MissingElem`, `ARR_IncompatibleRef`, `ARR_NoSigRef` | (no title) | Producer changed, removed or not published. | Tell the user; after a yes, `oml references`. |

@@ -132,7 +132,7 @@ static class AgentHooks
     // The decision goes on stdout with exit 0: "block" for Claude Code, Codex, Copilot and Cursor, "deny" for Gemini CLI;
     // each sends the reason back to the agent as the next prompt. Anything it cannot read lets the agent stop.
     static readonly HashSet<string> ChangeCommands = new(StringComparer.Ordinal)
-        { "apply", "install", "new", "publish", "references", "extension new", "app pack", "lifetime deploy", "lifetime tag", "qa" };
+        { "apply", "install", "new", "publish", "references", "studio close", "extension new", "app pack", "lifetime deploy", "lifetime tag", "qa" };
 
     static int Stop(string input)
     {

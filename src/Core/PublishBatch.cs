@@ -8,7 +8,8 @@ namespace OmlCli;
 static class PublishBatch
 {
     internal sealed record Item(string module, string file);
-    internal sealed record PublishResult(string module, bool published, string? warning, JsonNode? result);
+    internal sealed record Consumer(string module, bool open, string next);
+    internal sealed record PublishResult(string module, bool published, string? warning, JsonNode? result, string? fileUpdated = null, string? backup = null, List<Consumer>? consumers = null);
 
     const string Manual = "Publish the module in stoppedAt and then the modules in notRun by hand: open each one in Service Studio, in that order, and use 1-Click Publish. " +
         "oml leaves the modules it opened open in Service Studio. Close them there before you run this batch again: a module that is already open is refused.";

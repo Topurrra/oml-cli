@@ -30,7 +30,7 @@ function Tokens($path) { [math]::Ceiling((Get-Content -Raw $path).Replace("`r`n"
 # raised by 50 because the command is now named `oml explain-warning` (was `oml warn`) and the file names it twice.
 $budget = [ordered]@{
   'ui-reactive' = 1550; 'osui-patterns' = 2000; 'data-rules' = 1250; 'logic-rules' = 1200; 'security' = 800
-  'rest' = 950; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2050
+  'rest' = 950; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2200
   'traditional-to-reactive' = 900; 'troubleshooting' = 2100; 'ui-checklist' = 700; 'testing' = 2000
   'best-practices' = 1300; 'rules' = 900; 'memory' = 1300; 'dif' = 800
 }

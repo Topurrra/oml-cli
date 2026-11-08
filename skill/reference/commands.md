@@ -69,7 +69,8 @@ oml install <staged.oml> <target.oml> [--allow-existing-errors]
 oml install --batch <index.json> [--allow-existing-errors]   (items {staged,target}; checks all first, installs none if any is refused)
 
 oml studio                          (Service Studio's MCP server: reachable? open modules)
-oml publish <Module | file.oml>     (1-Click Publish through Service Studio)
+oml studio tabs | focus | close <Module>   (Studio's module tabs; bring it forward; close a saved tab)
+oml publish <Module | file.oml> [--close]   (1-Click Publish through Service Studio)
 oml publish --in <folder> --order <order.json>   (publish many modules in that order; stops at the first failure)
 oml references <Module | file.oml>  (Refresh All references through Service Studio)
 oml lifetime environments|teams|team-apps|apps|download|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lifetime' for usage)
@@ -586,6 +587,14 @@ Use **Edit > MCP Server > Start MCP server**. The default port is 41820; overrid
 | references | Calls `omlRefreshReferences` for Refresh All. Output has `refreshed`. When Service Studio answers that it is busy, nothing was refreshed: `refreshed: false`, `message`, exit 1. Does not add references or write the passed file. Save or publish the open module. |
 
 Publish exits `0` only when `published` is true.
+
+**Write-back after a push.** When `oml publish <file>` pushes texts into the open module and publishes, oml writes the open copy over the file and keeps a `<file>.<time>.bak` (`fileUpdated`, `backup`). The next cycle then starts from the server's version. A file built from an older version than the open module is refused before anything changes, with the steps to get the current one; Service Studio would answer "A concurrent publication was detected".
+
+**Consumers.** A consumer serves its own copy of a producer's theme and scripts, made when the consumer is compiled. Theme and script changes reach a consumer only when it is republished. `consumers` lists the modules to republish, each with `open` and `next`. They come from the publish result's Outdated Consumer message and, after a theme or script push, from the `.oml` files next to the file.
+
+**Tabs.** `oml studio tabs` lists the module tabs with their labels, from the window that has module tabs (Service Studio can have several windows). `oml studio focus` brings that window to the front. `oml studio close <Module>` closes one tab, by exact label, and checks `listApps` afterwards. It refuses when no tab or several tabs have the label, and when the tab is marked `* ` (unsaved): the save prompt cannot be answered from outside, so save or publish first. `oml publish <file> --close` closes the tab only when the file cannot be pushed as texts. Do not use computer use's `open_application` for a running Service Studio: it opens a second, empty window; use `oml studio focus`.
+
+**Opening a module from the server is not available.** The MCP server has no open tool. The environment page's Recent modules list and the application page's Add Module work by clicks only.
 
 **Batch publish.** `oml publish --in <folder> --order <order.json>` publishes many modules, one after the other, in the order of the file (the output of `oml architecture --publish-order`; only `order[].module` and `order[].file` are read). Each module goes through the same single publish as `oml publish <file.oml>`, including the version 0 `warning`. Before anything is published, oml finds the file of every module in the folder (subfolders included): it looks for the file name in `file`, else `<module>.oml`, and checks that the file holds that module. A module that is missing, a file name used twice, a file with another module, a module from a package (`.oap`), or a module that is already open in Service Studio gives exit 2 and nothing is published. **Batch publish stops at the first failure.** The modules after it are not tried. Stdout: `total`, `published` (the number that went through), `stoppedAt` (null when all went through), `results` (module, file, `published`, and `warning`, `error` or `result` when there is one), `notRun` (the modules not tried, in order) and, after a failure, `manualStep`. Exit `0`: all published. Exit `1`: it stopped on a failure. Exit `2`: bad input, or a missing folder or file. oml leaves the modules it opened open in Service Studio. To run the batch again, close them first: the open-module check refuses them. A manual 1-Click Publish in Service Studio is the fallback: publish the module in `stoppedAt`, then open each module in `notRun` and publish it, in that order. `oml batch` and the dashboard refuse `publish`, as before. Service Studio opens each file; the first real run needs the user's yes.
 Compare `status` without case sensitivity: `success`, `blocked`, `failure`, or `timeout`.

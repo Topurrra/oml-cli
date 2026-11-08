@@ -2,6 +2,36 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.21.1
+
+Found while building the OUIAI and MCP modules on the OUI library.
+
+### Added
+- `oml studio tabs`, `oml studio focus` and `oml studio close <Module>`, on the Service Studio window that has module tabs. `close` finds the tab by its exact label, refuses an unsaved tab (`* `), and checks through the open modules that only that module closed. `oml publish <file> --close` closes the tab when the file cannot be pushed as texts.
+- `oml publish <file>` after a push: the open copy is written over the file, with a backup, so the next cycle starts from the server's version. A file older than the open module is refused with the steps to get the current one, instead of the server's "concurrent publication".
+- `oml publish` lists in `consumers` the modules to republish after a theme or script change.
+- Variables can use a consumed REST API's structures: plain name, or `Client.Structure`.
+- Structure attributes: `jsonName` (Name in JSON) and `sendDefault` (Send Default Value, on the REST copy).
+- `restServices[].authentication` (none, basic, custom), `internalAccessOnly` and `onAuthentication`; apply warns about a new exposed API without authentication. `restClients[].onBeforeRequest` and `onAfterResponse` flows. `locals` on exposed REST methods.
+- `references` takes a `.xif` producer, and `extension` copies a non-platform extension's reference from another `.oml`. A platform extension still needs Manage Dependencies once: its key is reserved.
+- Entities: `multiTenant`, `exposeProcessEvents`, attribute `label`. A new static entity's `Id` can be Long Integer or Text. `layoutArgs` on a screen sets the layout block's inputs.
+
+### Changed
+- `replaceNode` on a node of the same kind and name updates it where it is and keeps its key, so what reads its outputs stays valid. Every applied edit is listed in `changed`.
+- `next: "End"` means the End reached from that place (main path or handler). `insertNodes` with `ifMissing` ignores End nodes, whose names the model does not store.
+- `oml describe` shows a Delete or Ignore delete rule and a Name in JSON.
+- `oml spec check` flags `AllExceptions.` in a handler's path and names `<Handler>.ExceptionMessage`.
+- The `ExpressionUnknownFunction` hint names the closest built-ins and says `GenerateGuid()` does not exist.
+
+### Fixed
+- `replaceNode`, `delete` and `insertNodes` work in a flow with a Switch (Otherwise and condition connectors).
+- A `deleteRule` on a non-reference attribute, or with an unknown value, is a problem naming the attribute. It was ignored or crashed the apply.
+- `Id` given for a new static entity was ignored.
+- A listed existing Script is no longer reported as changed on every apply. `module.defaultTheme` can name a theme of the same spec. A refused `copy` between infrastructures says why and names the two ways that work.
+
+### Docs
+- JSON Serialize and Deserialize node keys; theme and script changes reach consumers only when they are republished; do not use `open_application` for a running Service Studio.
+
 ## 1.21.0
 
 Found while building the full OUI component library (181 blocks, 16 screens) with oml and publishing it cycle after cycle.

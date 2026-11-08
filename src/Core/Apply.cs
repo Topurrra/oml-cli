@@ -9,7 +9,8 @@ using OutSystems.Model.Types;
 namespace OmlCli;
 
 record AttrSpec(string Name, string Type = "Text", int? Length = null, int? Decimals = null,
-    bool Mandatory = false, string? Default = null, string? Description = null, string? DeleteRule = null);
+    bool Mandatory = false, string? Default = null, string? Description = null, string? DeleteRule = null,
+    string? JsonName = null, bool? SendDefault = null, string? Label = null);
 // Public is null when the spec leaves it out: a reused element keeps its own value.
 record RecordSpec(string Name, List<AttrSpec>? Attributes = null, bool? Public = null, string? Description = null);
 record Spec(List<EntitySpec>? Entities = null, List<RecordSpec>? Structures = null, List<string>? Exceptions = null,
@@ -204,11 +205,12 @@ static class Apply
         var changed = new List<string>(); // UI settings replaced on existing elements (rule 3)
         var sheetsBefore = Timings.Measure("style sheet snapshot", () => StyleSheets(m));
 
-        ModuleReferences.Add(m, spec.References, created, existing, problems);
+        ModuleReferences.Add(m, spec.References, created, existing, problems, warnings);
         ModuleReferences.Alias(m, spec.ReferenceAliases, problems, rules);
 
-        ModuleSettings.Apply(m, spec.Module, problems, warnings);
+        // Themes (content) first: module.defaultTheme may name a theme this spec creates.
         Timings.Measure("content", () => Content.Before(m, spec, created, existing, changed, problems));
+        ModuleSettings.Apply(m, spec.Module, problems, warnings);
         var staticEntities = StaticEntities.Create(m, spec.StaticEntities, created, existing, problems);
         // Warnings oml itself raises; the report lists them in newWarnings, next to the model's, so they are explained too.
         var notices = new List<(string id, string owner, string message, int count)>();
@@ -310,8 +312,9 @@ static class Apply
                 }
                 var attr = e.CreateAttribute(a.Name, services.NewKey());
                 attr.DataType = type;
-                if (type is IIdentifierType) attr.DeleteRule = Enum.Parse<DeleteRule>(a.DeleteRule ?? "Protect", ignoreCase: true);
+                if (!SetDeleteRule(attr, type, a, $"{s.Name}.{a.Name}", problems)) continue;
                 SetCommon(attr, a);
+                if (a.Label is not null) attr.Label = a.Label;
                 created.Add($"attribute {s.Name}.{a.Name}");
             }
         }
@@ -339,6 +342,7 @@ static class Apply
                 var attr = st.CreateAttribute(a.Name, services.NewKey());
                 attr.DataType = type;
                 SetCommon(attr, a);
+                if (a.JsonName is not null) attr.NameInJSON = a.JsonName;
                 created.Add($"attribute {s.Name}.{a.Name}");
             }
         }
@@ -392,6 +396,7 @@ static class Apply
             if (builder.Unchanged.Count > 0 && skipEdits is not { Count: > 0 }) throw new UnchangedWidgets(builder.Unchanged);
             warnings.AddRange(builder.Warnings);
             changed.AddRange(builder.Changed);
+            notices.AddRange(builder.RestNotices.Select(n => (n.id, n.owner, n.message, 1)));
         }
 
         Timings.Measure("content", () => Content.After(m, spec, created, existing, problems));
@@ -528,6 +533,22 @@ static class Apply
             id = g.Key, count = g.Sum(n => n.count), hint = WarningTable.Hint(g.Key), // rows in warnings.md, so `oml explain-warning` finds them too
             samples = g.Take(12).Select(n => new { message = n.message, detail = (string?)null, owner = n.owner == "" ? null : n.owner }),
         });
+
+    // Protect, Delete or Ignore, on a reference attribute only. False (and a problem) for anything else.
+    internal static bool SetDeleteRule(IEntityAttribute attr, IBasicType type, AttrSpec a, string where, List<string> problems)
+    {
+        if (type is not IIdentifierType)
+        {
+            if (a.DeleteRule is null) return true;
+            attr.Delete();
+            problems.Add($"{where}: deleteRule applies only to a reference attribute (type '<Entity> Identifier')");
+            return false;
+        }
+        if (Enum.TryParse<DeleteRule>(a.DeleteRule ?? "Protect", ignoreCase: true, out var rule)) { attr.DeleteRule = rule; return true; }
+        attr.Delete();
+        problems.Add($"{where}: deleteRule '{a.DeleteRule}' is not Protect, Delete or Ignore");
+        return false;
+    }
 
     internal static void SetCommon(IAttribute attr, AttrSpec a)
     {

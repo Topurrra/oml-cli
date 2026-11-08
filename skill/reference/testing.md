@@ -1,5 +1,6 @@
 # Testing with BDDFramework
 
+A guard (masking, permission, approval) is tested by input it must stop, in the running app. That the code ran proves nothing: a broken pattern runs without error.
 Read this when the user asks for automated tests of an O11 module. oml does not run tests. It can build the test screen: screen actions with `assign` and `execute` nodes, locals, and framework block instances with inputs and placeholders. The user must install the Forge component, publish, open the screen and read the results.
 
 ## What BDDFramework is

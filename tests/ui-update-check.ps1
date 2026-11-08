@@ -177,12 +177,12 @@ Refused $m '{ "edits": [{ "op": "replaceWidgets", "at": "Home/Contact", "widgets
 # set targetWidget takes a widget name; then the old target can go. Two replaceWidgets on one element: one "changed" entry.
 $null = Changed $m '{ "edits": [{ "op": "set", "element": "Home/EmailLabel", "properties": { "targetWidget": "NameInput" } },
   { "op": "replaceWidgets", "at": "Home/Contact", "widgets": [{ "type": "Text", "text": "No email" }] },
-  { "op": "replaceWidgets", "at": "Home/Contact", "widgets": [{ "type": "Text", "text": "Still no email" }] }] }' @('widgets of Home/Contact') 'set targetWidget, then replaceWidgets twice'
+  { "op": "replaceWidgets", "at": "Home/Contact", "widgets": [{ "type": "Text", "text": "Still no email" }] }] }' @('Home/EmailLabel: targetWidget', 'widgets of Home/Contact') 'set targetWidget, then replaceWidgets twice'
 Refused $m '{ "edits": [{ "op": "set", "element": "Home/EmailLabel", "properties": { "targetWidget": "NoSuchInput" } }] }' @("no widget named 'NoSuchInput'") 'targetWidget naming no widget'
 # describe and tree show a Label's target; an empty targetWidget clears it, and then the old target can go.
 Require ((Text $m Home).Contains('Label EmailLabel targetWidget=EmailInput') -and ((& $Oml tree $m Home) -join '').Contains('"targetWidget":"EmailInput"')) 'describe or tree does not show targetWidget'
 $cl = Changed $m '{ "edits": [{ "op": "set", "element": "Home/EmailLabel", "properties": { "targetWidget": "" } },
-  { "op": "replaceWidgets", "at": "Home/Contact", "widgets": [{ "type": "Text", "text": "No email" }] }] }' @('widgets of Home/Contact') 'clear targetWidget, then replaceWidgets'
+  { "op": "replaceWidgets", "at": "Home/Contact", "widgets": [{ "type": "Text", "text": "No email" }] }] }' @('Home/EmailLabel: targetWidget', 'widgets of Home/Contact') 'clear targetWidget, then replaceWidgets'
 Require (-not (Text $cl.Out Home).Contains('targetWidget=EmailInput')) 'an empty targetWidget did not clear the target'
 # Replacing a part that holds a Label and its input: a warning when no new Label restores the link, none when one does.
 $lw = Changed $m '{ "edits": [{ "op": "replaceWidgets", "at": "Home/LabelBox", "widgets": [{ "type": "Input", "name": "InnerInput", "variable": "Name" }] }] }' @('widgets of Home/LabelBox') 'replaceWidgets dropping a Label link'

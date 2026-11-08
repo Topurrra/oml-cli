@@ -35,17 +35,29 @@ static class Studio
             .Where(a => a?["isOpen"]?.GetValue<bool>() == true).Select(a => a!["name"]!.GetValue<string>()).ToList();
     });
 
-    public static int Publish(string target)
+    public static int Publish(string target, bool close = false)
     {
-        var r = PublishOne(target);
-        Cli.Emit(new { module = r.module, published = r.published, warning = r.warning, result = r.result, manualStep = r.published ? null : ManualPublish });
+        var r = PublishOne(target, close);
+        Cli.Emit(new { module = r.module, published = r.published, warning = r.warning, fileUpdated = r.fileUpdated, backup = r.backup, consumers = r.consumers, result = r.result, manualStep = r.published ? null : ManualPublish });
         return r.published ? 0 : 1;
     }
 
-    // One publish, without printing: `publish` prints it, and the batch publish (PublishBatch) collects it.
-    public static PublishBatch.PublishResult PublishOne(string target) => Guard("Publishing through Service Studio", ManualPublish, () =>
+    // `oml studio close <Module>`: closes that module's tab, only when its label is certain and it has no unsaved changes.
+    public static int CloseModule(string module) => Guard("Closing the module in Service Studio", "Close its tab in Service Studio.", () =>
     {
-        var (name, how, pushed) = OpenModule(target);
+        Connect();
+        if (StudioGuards.SameNameRefusal(Call("listApps", input: null), module) is { } refusal) throw new CliError(refusal, 2);
+        var open = OpenModuleNames();
+        if (!open.Contains(module)) throw new CliError($"Module '{module}' is not open in Service Studio.", 2);
+        StudioUi.Close(module, open, OpenModuleNames);
+        Cli.Emit(new { module, closed = true, stillOpen = OpenModuleNames() });
+        return 0;
+    });
+
+    // One publish, without printing: `publish` prints it, and the batch publish (PublishBatch) collects it.
+    public static PublishBatch.PublishResult PublishOne(string target, bool close = false) => Guard("Publishing through Service Studio", ManualPublish, () =>
+    {
+        var (name, how, pushed) = OpenModule(target, close: close);
         JsonNode? apps = null;
         try { apps = Call("listApps", input: null); } catch (CliError) { } // only for the warning: a failed lookup never blocks a publish
         var warnings = new List<string>();
@@ -64,9 +76,52 @@ static class Studio
         if (StudioPush.UploadSkipped(result))
             warnings.Add("Service Studio skipped the upload: the server already has this version, so nothing new was deployed." +
                          (how == "module" ? " If you installed a newer file, publish the file instead: oml publish <file.oml>." : ""));
+        if (StudioGuards.ConcurrentPublication(result))
+            warnings.Add($"Service Studio answered 'concurrent publication': this file was built from an older version of '{name}' than the server has. Get the current one (open it in Service Studio, then oml pull), apply the spec to that file and publish it.");
+        var published = Flag(result, "published", "omlPublish");
+        // The server now has the open copy: the file becomes that copy, so the next cycle starts from the server's version.
+        string? fileUpdated = null, backup = null;
+        if (published && how == "pushed")
+            try { (fileUpdated, backup) = WriteBack(Path.GetFullPath(target), name); }
+            catch (CliError e) { warnings.Add($"The published version was not written back to the file ({e.Message}). Before the next change, get it with: oml pull {name} --out <new.oml>."); }
+        var consumers = published ? Consumers(name, target, result, pushed, how) : [];
+        if (consumers.Count > 0)
+            warnings.Add($"Theme and script changes reach a consumer only when it is republished. Republish: {string.Join(", ", consumers.Select(c => c.module))}.");
         var warning = warnings.Count == 0 ? null : string.Join(" ", warnings);
-        return new PublishBatch.PublishResult(name, Flag(result, "published", "omlPublish"), warning, result);
+        return new PublishBatch.PublishResult(name, published, warning, result, fileUpdated, backup, consumers.Count == 0 ? null : consumers);
     });
+
+    // A copy of the module as it is open now (just published), over the file, with a backup. Service Studio can be busy right after a publish.
+    static (string file, string backup) WriteBack(string path, string name)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            var temp = Path.Combine(Path.GetTempPath(), "oml-cli", "writeback-" + Guid.NewGuid().ToString("N") + ".oml");
+            Directory.CreateDirectory(Path.GetDirectoryName(temp)!);
+            try
+            {
+                StartSession(name, "oml publish");
+                try { File.Copy(SessionSave(name, "eSpace => { }"), temp); }
+                finally { Call("endOmlEditSession", new JsonObject { ["eSpaceName"] = name }); }
+                return (path, StudioPush.ReplaceWithBackup(path, temp));
+            }
+            catch (CliError e) when (attempt < 4 && e.Message.Contains("busy", StringComparison.OrdinalIgnoreCase)) { Thread.Sleep(5000); }
+            finally { File.Delete(temp); }
+        }
+    }
+
+    // The consumers to republish: those the publish result names, and, after a theme or script push, the modules next to the file that reference this one.
+    static List<PublishBatch.Consumer> Consumers(string name, string target, JsonNode result, List<string> pushed, string how)
+    {
+        var named = StudioGuards.OutdatedConsumers(result, name);
+        var textChange = how == "pushed" && pushed.Any(p => p.StartsWith("theme ", StringComparison.Ordinal) || p.StartsWith("script ", StringComparison.Ordinal));
+        if (textChange && target.EndsWith(".oml", StringComparison.OrdinalIgnoreCase)) named = named.Union(StudioPush.ConsumersInFolder(Path.GetFullPath(target), name)).ToList();
+        if (named.Count == 0) return [];
+        List<string> open = [];
+        try { open = OpenModuleNames(); } catch (CliError) { } // only for the "next" text
+        return named.OrderBy(n => n, StringComparer.Ordinal).Select(n => new PublishBatch.Consumer(n, open.Contains(n),
+            open.Contains(n) ? $"oml publish {n}" : $"open {n} in Service Studio, then oml publish {n}")).ToList();
+    }
 
     static bool Busy(JsonNode result) => result.ToJsonString().Contains("busy", StringComparison.OrdinalIgnoreCase);
 
@@ -189,7 +244,7 @@ static class Studio
     // A module name must already be open ("module"). A file is opened in Service Studio first ("opened"). When a module
     // with the file's name is already open, publishing would act on that copy: if the file differs from it only in theme
     // style sheets and scripts, those texts are set in the open copy ("pushed", StudioPush); otherwise this refuses.
-    static (string name, string how, List<string> pushed) OpenModule(string target, bool push = true)
+    static (string name, string how, List<string> pushed) OpenModule(string target, bool push = true, bool close = false)
     {
         Connect();
         if (!target.EndsWith(".oml", StringComparison.OrdinalIgnoreCase))
@@ -205,7 +260,9 @@ static class Studio
             if (StudioGuards.SameNameRefusal(Call("listApps", input: null), name) is { } refusal) throw new CliError(refusal, 2);
             if (!push) throw new CliError($"A module named '{name}' is already open in Service Studio, so this file would not be the one used. " +
                                           $"Close it there and run again, or run with '{name}' to use the open copy.", 2);
-            return (name, "pushed", PushTexts(path, name));
+            if (PushTexts(path, name, closeIfNeeded: close) is { } pushedTexts) return (name, "pushed", pushedTexts);
+            var open = OpenModuleNames();
+            StudioUi.Close(name, open, OpenModuleNames);
         }
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); // .oml opens in Service Studio
         for (var waited = 0; waited < 180; waited += 2)
@@ -218,7 +275,8 @@ static class Studio
 
     // Sets the file's changed theme style sheets and script texts in the open module (see StudioPush). Refuses, with
     // nothing changed, when the file differs from the open copy in anything else.
-    static List<string> PushTexts(string path, string name)
+    // closeIfNeeded (--close): returns null when the module must be closed so the file can be opened.
+    static List<string>? PushTexts(string path, string name, bool closeIfNeeded = false)
     {
         StartSession(name, "oml publish");
         var temp = Path.Combine(Path.GetTempPath(), "oml-cli", "push-" + Guid.NewGuid().ToString("N"));
@@ -227,11 +285,20 @@ static class Studio
         {
             var openCopy = Path.Combine(temp, "open.oml");
             File.Copy(SessionSave(name, "eSpace => { }"), openCopy);
-            List<StudioPush.TextEdit> edits; List<string> other;
+            List<StudioPush.TextEdit> edits; List<string> other; string? stale;
             using (var open = Model.Load(openCopy))
             using (var file = Model.Load(path))
+            {
                 (edits, other) = StudioPush.Differences(open, file);
-            if (other.Count > 0) throw new CliError(StudioPush.Refusal(name, other), 2);
+                stale = other.Count == 0 ? null : StudioPush.StaleBase(name, ModuleHeader.Read(openCopy)?.GeneralHash, StudioPush.History(open), ModuleHeader.Read(path)?.GeneralHash, StudioPush.History(file));
+            }
+            // More than texts differ, so this file would be opened in Service Studio: a stale base would fail there.
+            if (stale is not null) throw new CliError(stale, 2);
+            if (other.Count > 0)
+            {
+                if (closeIfNeeded) return null;
+                throw new CliError(StudioPush.Refusal(name, other), 2);
+            }
             if (edits.Count == 0) return [];
             var edited = SessionSave(name, StudioPush.Code(edits), "OutSystems.Model");
             List<string> wrong;

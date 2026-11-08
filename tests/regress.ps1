@@ -206,6 +206,10 @@ Unit 'openapi-check' -After 'rest.json' {
 Unit 'platform.json' -Publish { Check-Case 'platform.json' $reactive | Out-Null }
 Unit 'web.json' -Publish { Check-Case 'web.json' $web | Out-Null }
 Unit 'references.json' -Publish { Check-Case 'references.json' $reactive | Out-Null }
+Unit 'improvements-check' {
+  try { & (Join-Path $tests 'improvements-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL 1.21.1 improvements: $_" }
+}
 Unit 'edits-check' -After 'logic.json','edits.json' {
   try { & (Join-Path $tests "edits-check.ps1") -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL edits checks: $_" }
@@ -420,7 +424,7 @@ Unit 'selftest' -Group selftest {
 
 # --- Smoke tier: -Smoke keeps only the quick units. The fixtures (tmp\base) are built once above, as for the full run. ---
 # Chosen for speed and breadth: text and parser checks, the spec and doc tooling, hooks, the usage log, encoding, and a few apply fixtures.
-$smokeUnits = 'corpus-check', 'map-check', 'scenarios-check', 'logic.json', 'service.json', 'web.json', 'datamodel.json', 'edits.json', 'edits-check', 'names-check', 'validate-check', 'parsers-check', 'encoding-check',
+$smokeUnits = 'improvements-check', 'corpus-check', 'map-check', 'scenarios-check', 'logic.json', 'service.json', 'web.json', 'datamodel.json', 'edits.json', 'edits-check', 'names-check', 'validate-check', 'parsers-check', 'encoding-check',
   'hooks-check', 'spec-check', 'doc-check', 'evolve-check', 'inspect-check', 'turns-check', 'log-check', 'aliases-check'
 if ($Smoke) {
   $unknown = @($smokeUnits | Where-Object { $n = $_; -not ($units | Where-Object { $_.Name -eq $n }) })

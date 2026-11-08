@@ -32,6 +32,7 @@ Also:
 - Confirm with the user before `install`, `publish`, `references`, `lifetime tag|deploy|abort|continue`, and data deletion. Restate the exact command and wait for a yes.
 - Before you use another module's element, run `oml find <Name> <module.oml> --in <producer folder|file.oml>`. Show the candidates and their parameters and ask which to use, even for one match. Use its `Module.Name`; never guess.
 - Publish and reference refresh use Service Studio's Beta MCP tools: tell the user before the first use. Its first call shows an `oml-cli` approval dialog. Do not repeat a blocked publish.
+- A running Service Studio: bring it forward with `oml studio focus`. Never use computer use's `open_application` for it: that opens a second, empty window.
 - Stop if the automatic self-test fails. Never bypass IPP, licence or load refusals.
 - Keep credentials out of commands, files, logs and messages.
 - Before a deployment, list the apps and show the user the tags, keys, environments and `isModified`. Never auto-continue an intervention; after a timeout, read the status before you repeat a change.

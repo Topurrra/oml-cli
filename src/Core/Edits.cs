@@ -34,8 +34,11 @@ partial class Builder
         foreach (var deletion in dataDeletes) Try(deletion.label, deletion.apply);
     }
 
+    int nestedEdits; // replaceNode runs delete and insertNodes through EditOne: only the replaceNode itself is reported
+
     void EditOne(JsonElement edit, string label)
     {
+        var applied = true;
         string Required(string key) => edit.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String
             ? v.GetString()! : throw new ModelError($"'{key}' is required");
         IObjectSignature Find(string key) => ElementPaths.Resolve(m, Required(key), write: true);
@@ -67,6 +70,7 @@ partial class Builder
                     && edit.TryGetProperty("flow", out var wanted) && wanted.ValueKind == JsonValueKind.Array && Present(action, wanted))
                 {
                     existing.Add($"nodes after {Required("after")} in {Required("action")} (already there)");
+                    applied = false;
                     break;
                 }
                 var after = ElementPaths.Resolve(action, Required("after"));
@@ -105,6 +109,14 @@ partial class Builder
                     throw new ModelError("element must be a node of an editable action flow (paths in 'oml tree')");
                 if (!edit.TryGetProperty("node", out var node) || node.ValueKind != JsonValueKind.Object)
                     throw new ModelError("'node' must be one flow node, as in a flow list");
+                // The same kind and name: the node is updated where it is. It keeps its key, so what reads its outputs stays valid.
+                if (ReplaceInPlace(owner, target, node, label, out var inPlaceName))
+                {
+                    var was = ReviewModel.Fingerprint(m, [target]);
+                    Change($"node {Required("element")}");
+                    replacements.Add((int.Parse(label[5..^1]), was, () => Elements(Reflect.Get(owner, "Nodes")).OfType<IObjectSignature>().Where(x => Model.NameOf(x) == inPlaceName && !x.WasDeleted).ToList()));
+                    break;
+                }
                 var edges = Edges(owner).ToList();
                 var incoming = edges.Where(e => ReferenceEquals(e.to, target)).ToList();
                 var outgoing = edges.Where(e => ReferenceEquals(e.from, target)).ToList();
@@ -113,12 +125,27 @@ partial class Builder
                 var (from, property) = ((IObjectSignature)incoming[0].from, incoming[0].property);
                 var name = node.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString()! : Model.NameOf(target);
                 var before = ReviewModel.Fingerprint(m, [target]);
-                var connector = new[] { "next", "true", "false", "cycle" }.First(c => ConnectorProperty(c) == property);
-                var actionPath = ElementPaths.PathTo(m, owner) ?? throw new ModelError("the action holding the node has no exact path");
-                var fromPath = ElementPaths.PathTo(owner, from) ?? throw new ModelError("the node before it has no exact path; give it a unique name");
-                EditOne(JsonDocument.Parse(JsonSerializer.Serialize(new { op = "delete", element = Required("element") })).RootElement, label);
-                using var insert = JsonDocument.Parse($$"""{"op":"insertNodes","action":{{JsonSerializer.Serialize(actionPath)}},"after":{{JsonSerializer.Serialize(fromPath)}},"connector":"{{connector}}","flow":[{{node.GetRawText()}}]}""");
-                EditOne(insert.RootElement.Clone(), label);
+                nestedEdits++;
+                try
+                {
+                    if (from is ISwitchCondition condition)
+                    {
+                        // A Switch branch: the new node goes on that condition's connector.
+                        var successor = outgoing[0].to;
+                        EditOne(JsonDocument.Parse(JsonSerializer.Serialize(new { op = "delete", element = Required("element") })).RootElement, label);
+                        Flow(owner, [node.Clone()], label, condition, "Target", successor);
+                    }
+                    else
+                    {
+                        var connector = new[] { "next", "true", "false", "cycle", "otherwise" }.First(c => ConnectorProperty(c) == property);
+                        var actionPath = ElementPaths.PathTo(m, owner) ?? throw new ModelError("the action holding the node has no exact path");
+                        var fromPath = ElementPaths.PathTo(owner, from) ?? throw new ModelError("the node before it has no exact path; give it a unique name");
+                        EditOne(JsonDocument.Parse(JsonSerializer.Serialize(new { op = "delete", element = Required("element") })).RootElement, label);
+                        using var insert = JsonDocument.Parse($$"""{"op":"insertNodes","action":{{JsonSerializer.Serialize(actionPath)}},"after":{{JsonSerializer.Serialize(fromPath)}},"connector":"{{connector}}","flow":[{{node.GetRawText()}}]}""");
+                        EditOne(insert.RootElement.Clone(), label);
+                    }
+                }
+                finally { nestedEdits--; }
                 Change($"node {Required("element")}");
                 if (name is not null)
                     replacements.Add((int.Parse(label[5..^1]), before, () => Elements(Reflect.Get(owner, "Nodes")).OfType<IObjectSignature>().Where(x => Model.NameOf(x) == name && !x.WasDeleted).ToList()));
@@ -313,6 +340,108 @@ partial class Builder
             default: throw new ModelError($"unknown edit op '{Required("op")}'");
         }
         created.Add(label);
+        if (applied && nestedEdits == 0 && EditReport(edit) is { } report) Change(report);
+    }
+
+    // What an applied edit changed, for the report's `changed`. replaceNode and replaceWidgets report themselves.
+    static string? EditReport(JsonElement edit)
+    {
+        string Text(string key) => edit.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString()! : "";
+        return Text("op") switch
+        {
+            "insertNodes" => $"nodes after {Text("after")} in {Text("action")}",
+            "addExceptionHandler" => $"exception handler in {Text("action")}",
+            "setAccess" => $"access of {Text("screen")}",
+            "addWidgets" => $"widgets added to {(Text("parent").Length > 0 ? Text("screen") + "/" + Text("parent") : Text("screen"))}",
+            "addVariables" => $"variables of {Text("action")}",
+            "addParts" => $"parts of {Text("screen")}",
+            "addToAggregate" => $"aggregate {Text("aggregate")}",
+            "setArgs" => $"arguments of {Text("element")}",
+            "set" => $"{Text("element")}: {string.Join(", ", edit.GetProperty("properties").EnumerateObject().Select(p => p.Name))}",
+            "rename" => $"{Text("element")} renamed to {Text("to")}",
+            "delete" => $"{Text("element")} deleted",
+            _ => null,
+        };
+    }
+
+    // replaceNode on a node of the same kind and name. The keys the spec gives are set on the node; an "assign" replaces
+    // its rows; next, true, false and cycle reconnect it. False when the node must be built again (another kind or name,
+    // another called action, or a kind with inner structure).
+    bool ReplaceInPlace(IObjectSignature owner, IObjectSignature target, JsonElement node, string label, out string name)
+    {
+        name = node.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString()! : Model.NameOf(target) ?? "";
+        if (name != Model.NameOf(target) || !node.TryGetProperty("kind", out var k) || k.ValueKind != JsonValueKind.String) return false;
+        var kind = k.GetString()!;
+        if (kind.ToLowerInvariant() is "aggregate" or "sql" or "switch" or "exceptionhandler" or "comment" or "sendemail" or "triggerevent" or "start" or "end") return false;
+        if (kind.Equals("execute", StringComparison.OrdinalIgnoreCase))
+        {
+            if (target is not (IExecuteServerActionNode or IExecuteClientActionNode)) return false;
+            if (!node.TryGetProperty("action", out var called) || called.ValueKind != JsonValueKind.String) return false;
+            if (Reflect.Get(target, "Action") is not { } current || called.GetString()!.Split('.')[^1] != Model.NameOf(current)) return false;
+        }
+        else
+        {
+            Type type;
+            try { type = NodeType(kind); } catch (ModelError) { return false; }
+            if (!type.IsInstanceOfType(target)) return false;
+        }
+        var nodeName = name;
+        var where = $"{label}/{nodeName}";
+        if (node.TryGetProperty("assign", out var assign) && assign.ValueKind == JsonValueKind.Object)
+            Defer(target, ($"{where}.assign", () =>
+            {
+                foreach (var row in Elements(Reflect.Get(target, "Assignments")).OfType<IObjectSignature>().ToList()) row.Delete();
+                foreach (var a in assign.EnumerateObject())
+                {
+                    var assignment = Reflect.Call(target, "CreateAssignment")!;
+                    Reflect.Call(assignment, "SetVariable", a.Name);
+                    Reflect.Call(assignment, "SetValue", a.Value.GetString());
+                }
+            }));
+        if (target is IExecuteServerActionNode or IExecuteClientActionNode && node.TryGetProperty("args", out var arguments))
+            Defer(target, ($"{where}.args", () => Arguments(target, arguments)));
+        if (kind.Equals("javaScript", StringComparison.OrdinalIgnoreCase))
+        {
+            List<VarSpec>? Vars(string key) => node.TryGetProperty(key, out var v)
+                ? JsonSerializer.Deserialize<List<VarSpec>>(v.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) : null;
+            ReuseVariables(target, where, null, ("inputs", "InputParameters", "CreateInputParameter", Vars("inputs")), ("outputs", "OutputParameters", "CreateOutputParameter", Vars("outputs")));
+        }
+        QueryNode(owner, target, node, kind, where);
+        foreach (var p in node.EnumerateObject().Where(p => !FlowKeys.Contains(p.Name))) Queue(where, m, target, p.Name, p.Value);
+        foreach (var (key, property) in new[] { ("next", "Target"), ("true", "TrueTarget"), ("false", "FalseTarget"), ("cycle", "CycleTarget") })
+            if (node.TryGetProperty(key, out var to) && to.ValueKind == JsonValueKind.String)
+            {
+                if (Reflect.Property(target, property, writable: true) is null) throw new ModelError($"node has no '{key}' connector");
+                var wanted = to.GetString()!;
+                var end = wanted == "End" ? NearestEnd(owner, target) ?? throw new ModelError($"{name}: this flow has no End node to connect to") : null;
+                targets.Add(($"{where}.{key}", () => Connect(target, property, end ?? NodeNamed(owner, wanted, nodeName))));
+            }
+        return true;
+    }
+
+    static object NodeNamed(IObjectSignature owner, string wanted, string from)
+    {
+        var hits = Elements(Reflect.Get(owner, "Nodes")).Where(x => Model.NameOf(x) == wanted).ToList();
+        if (hits.Count != 1) throw new ModelError(hits.Count == 0 ? $"{from}: no node named '{wanted}'" : $"ambiguous node target '{wanted}'");
+        return hits[0] is IExceptionHandlerNode or ICommentNode ? throw new ModelError($"{from}: cannot connect to an exception handler or comment") : hits[0];
+    }
+
+    // The End node reached first from a node, following connectors: the End of the main path from a node on the main
+    // path, and the handler's End from a node in a handler. Null when no End is reachable.
+    internal static object? NearestEnd(IObjectSignature action, object from)
+    {
+        List<(object from, object to, string property)> edges;
+        try { edges = Edges(action).ToList(); } catch (ModelError) { return null; }
+        var seen = new HashSet<object>(ReferenceEqualityComparer.Instance) { from };
+        var pending = new Queue<object>([from]);
+        while (pending.TryDequeue(out var node))
+        {
+            if (node is IEndNode) return node;
+            // A Switch branch starts at the condition, which belongs to the Switch node.
+            foreach (var e in edges.Where(e => ReferenceEquals(e.from is ISwitchCondition c ? c.Parent : e.from, node)))
+                if (seen.Add(e.to)) pending.Enqueue(e.to);
+        }
+        return null;
     }
 
     // What uses the widgets a replaceWidgets removes, from outside them. An expression finds a widget by name, so a new
@@ -405,6 +534,8 @@ partial class Builder
         var any = false;
         foreach (var step in flow.EnumerateArray())
         {
+            // The model stores no name on an End node: after a save they are all "End", so an End says nothing here.
+            if (step.TryGetProperty("kind", out var stepKind) && stepKind.ValueKind == JsonValueKind.String && stepKind.GetString()!.Equals("end", StringComparison.OrdinalIgnoreCase)) continue;
             if (step.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String)
             {
                 if (!nodes.Any(x => Model.NameOf(x) == name.GetString())) return false;
@@ -422,7 +553,7 @@ partial class Builder
 
     static string ConnectorProperty(string connector) => connector.ToLowerInvariant() switch
     {
-        "true" => "TrueTarget", "false" => "FalseTarget", "cycle" => "CycleTarget", "next" or "sequence" => "Target",
+        "true" => "TrueTarget", "false" => "FalseTarget", "cycle" => "CycleTarget", "next" or "sequence" => "Target", "otherwise" => "OtherwiseTarget",
         _ => throw new ModelError($"unknown connector '{connector}'"),
     };
 
@@ -430,9 +561,18 @@ partial class Builder
     static IEnumerable<(object from, object to, string property)> Edges(IObjectSignature action)
     {
         foreach (var node in Elements(Reflect.Get(action, "Nodes")).OfType<IObjectSignature>().Where(n => n is not ICommentNode))
-        foreach (var edge in node.Children.Concat(Elements(Reflect.Get(node, "Connectors")).OfType<IObjectSignature>()).Distinct())
-            if (Reflect.Get(edge, "SourceNode") is { } from && Reflect.Get(edge, "TargetNode") is { } to)
+        {
+            var parts = node.Children.Concat(Elements(Reflect.Get(node, "Connectors")).OfType<IObjectSignature>()).Distinct().ToList();
+            // A Switch condition keeps its connector in Link: the edge is the condition, rewired through its Target.
+            var links = parts.Select(p => Reflect.Get(p, "Link")).Where(l => l is not null).ToHashSet(ReferenceEqualityComparer.Instance);
+            foreach (var edge in parts.Where(p => !links.Contains(p)))
             {
+                if (edge is ISwitchCondition)
+                {
+                    if ((Reflect.Get(edge, "Link") ?? edge) is { } link && Reflect.Get(link, "TargetNode") is { } branch) yield return (edge, branch, "Target");
+                    continue;
+                }
+                if (Reflect.Get(edge, "SourceNode") is not { } from || Reflect.Get(edge, "TargetNode") is not { } to) continue;
                 string property;
                 try { property = ConnectorProperty(edge.GetType().Name); }
                 catch (ModelError)
@@ -442,6 +582,7 @@ partial class Builder
                 }
                 yield return (from, to, property);
             }
+        }
     }
 
     static IEnumerable<(IObjectSignature comment, IObjectSignature arrow)> CommentArrows(IObjectSignature action) =>

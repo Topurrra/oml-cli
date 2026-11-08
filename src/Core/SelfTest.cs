@@ -199,6 +199,7 @@ static partial class SelfTest
             ReviewSelfTest.Run(blank, dir, failures);
             FieldMappingSelfTest.Run(blank, dir, failures);
             StudioCompareSelfTest.Run(blank, failures);
+            StudioUiSelfTest.Run(failures);
             PublishOrderSelfTest.Run(failures);
             HistoryTest(Path.Combine(dir, "built.oml"), dir, failures);
             ReadersTest(blank, failures);

@@ -1,10 +1,11 @@
 using System.Reflection;
 using System.Text.Json;
 using OutSystems.Model;
+using E = OutSystems.Model.Extensions;
 
 namespace OmlCli;
 
-record ReferenceSpec(string Producer, JsonElement Elements);
+record ReferenceSpec(string Producer, JsonElement Elements, string? Extension = null);
 
 static class ModuleReferences
 {
@@ -69,13 +70,19 @@ static class ModuleReferences
     internal static bool Same(IObjectSignature a, IObjectSignature b) => Equals(a.GlobalKey, b.GlobalKey);
 
     public static void Add(IESpace consumer, List<ReferenceSpec>? specs,
-        List<string> created, List<string> existing, List<string> problems)
+        List<string> created, List<string> existing, List<string> problems, List<string>? warnings = null)
     {
         foreach (var spec in specs ?? new())
         {
             var label = $"reference {spec.Producer}";
             try
             {
+                // Extensions: from their .xif, or (platform extensions have no local .xif) from another module that references them.
+                if (spec.Extension is not null || spec.Producer.EndsWith(".xif", StringComparison.OrdinalIgnoreCase))
+                {
+                    AddExtension(consumer, spec, created, existing, problems, warnings);
+                    continue;
+                }
                 // LoadESpace reads bytes, so the producer never has a writable file path.
                 using var producer = Model.Load(Path.GetFullPath(spec.Producer));
                 if (Equals(producer.ObjectKey, consumer.ObjectKey)) throw new ModelError("a module cannot reference itself");
@@ -123,6 +130,110 @@ static class ModuleReferences
             }
             catch (Exception e) { problems.Add($"{label}: {Reason(e)}"); }
         }
+    }
+
+    static void AddExtension(IESpace consumer, ReferenceSpec spec, List<string> created, List<string> existing, List<string> problems, List<string>? warnings)
+    {
+        var path = Path.GetFullPath(spec.Producer);
+        if (spec.Producer.EndsWith(".xif", StringComparison.OrdinalIgnoreCase))
+        {
+            if (spec.Extension is not null) throw new ModelError("\"extension\" names a reference inside another .oml; a .xif producer is the extension itself");
+            using var extension = (E.IExtension)Reflect.Call(Model.Services(), "LoadExtension", File.ReadAllBytes(path))!;
+            AddActions(consumer, extension, Names(spec.Elements, () => extension.Actions.Select(a => a.Name)), created, existing, problems);
+            return;
+        }
+        using var source = Model.Load(path);
+        var reference = source.References.FirstOrDefault(r => r.Name == spec.Extension && r.Kind == OutSystems.Model.Enumerations.ReferenceKind.Extension)
+            ?? throw new ModelError($"{Path.GetFileName(path)} has no reference to an extension named '{spec.Extension}'");
+        var names = Names(spec.Elements, () => reference.ServerActions.Select(a => a.Name!));
+        foreach (var name in names.Where(n => !reference.ServerActions.Any(a => a.Name == n)))
+            throw new ModelError($"{Path.GetFileName(path)} references '{spec.Extension}' without an action named '{name}'. Only the actions it uses can be copied: {string.Join(", ", reference.ServerActions.Select(a => a.Name))}");
+        E.IExtension standIn;
+        try { standIn = StandIn(source, reference, names); }
+        catch (ModelError e) when (e.Message.Contains("reserved", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ModelError($"'{spec.Extension}' is a platform extension: Service Studio reserves its key, so oml cannot make the reference from {Path.GetFileName(path)}, and platform extensions have no .xif to read. "
+                + $"Add it once by hand: Manage Dependencies in Service Studio, select {spec.Extension} and its actions, then apply the spec to that module.");
+        }
+        using var _ = standIn;
+        AddActions(consumer, standIn, names, created, existing, problems);
+        warnings?.Add($"reference {spec.Extension}: copied from the reference in {Path.GetFileName(path)}, with the extension's own keys. Run 'oml references <module>' (Refresh All) in Service Studio, or publish it there, to check it against the extension on the server.");
+    }
+
+    static List<string> Names(JsonElement elements, Func<IEnumerable<string>> all)
+    {
+        if (elements.ValueKind == JsonValueKind.String && elements.GetString() == "*") return all().ToList();
+        if (elements.ValueKind != JsonValueKind.Array) throw new ModelError("elements must be an array of names or \"*\"");
+        return elements.EnumerateArray().Select(v => v.ValueKind == JsonValueKind.String ? v.GetString()! : throw new ModelError("elements must contain names")).ToList();
+    }
+
+    static void AddActions(IESpace consumer, E.IExtension extension, List<string> names, List<string> created, List<string> existing, List<string> problems)
+    {
+        var module = ((OutSystems.Model.Applications.IModule)extension).Name;
+        foreach (var name in names.Distinct())
+        {
+            var where = $"reference {module}.{name}";
+            try
+            {
+                var action = extension.Actions.FirstOrDefault(a => a.Name == name)
+                    ?? throw new ModelError($"the extension has no action named '{name}' (only actions can be referenced; it has: {string.Join(", ", extension.Actions.Select(a => a.Name))})");
+                if (consumer.References.Any(r => Equals(r.ModuleKey, ((OutSystems.Model.Applications.IModule)extension).Key) && r.ServerActions.Any(a => a.Name == name)))
+                { existing.Add(where); continue; }
+                if (consumer.AddDependency(action) is not { } added || Model.NameOf(added) != name)
+                    throw new ModelError("AddDependency did not return the requested action");
+                // The model drops the Function flag on the reference; without it an expression cannot call the action.
+                if (action.Function && Reflect.Property(added, "IsFunction", writable: true) is { } function) function.SetValue(added, true);
+                created.Add(where);
+            }
+            catch (Exception e) { problems.Add($"{where}: {Reason(e)}"); }
+        }
+    }
+
+    // A platform extension has no local .xif, but a module that references it holds its signature and its keys. An
+    // extension with those keys, made in memory, gives the consumer the same reference Service Studio would make.
+    static E.IExtension StandIn(IESpace source, IReference reference, List<string> names)
+    {
+        var services = Model.Services();
+        var extension = (E.IExtension)Reflect.Call(services, "CreateExtension", reference.Name, "", reference.ModuleKey)!;
+        var structures = new Dictionary<string, E.IStructure>(StringComparer.Ordinal);
+        E.IType Type(OutSystems.Model.Types.ITypeSignature? type)
+        {
+            if (type is OutSystems.Model.Types.IListType list) return (E.IType)Reflect.Call(extension, "GetOrCreateListType", Type(list.ElementType))!;
+            if (type is OutSystems.Model.Data.IStructureSignature s && Reference(s) == reference)
+            {
+                if (structures.TryGetValue(s.Name, out var made)) return made;
+                var copy = (E.IStructure)Reflect.Call(extension, "CreateStructure", s.Name, s.ObjectKey)!;
+                structures[s.Name] = copy;
+                foreach (var a in s.Attributes)
+                {
+                    var attribute = (E.IStructureAttribute)Reflect.Call(copy, "CreateAttribute", a.Name, a.ObjectKey)!;
+                    Reflect.Property(attribute, "DataType", true)!.SetValue(attribute, Type(a.DataType));
+                    Reflect.Property(attribute, "IsMandatory", true)?.SetValue(attribute, a.IsMandatory);
+                }
+                return copy;
+            }
+            var basic = Model.Describe(source, type);
+            return Extensions.Resolve(extension, basic);
+        }
+        foreach (var signature in reference.ServerActions.Where(a => names.Contains(a.Name!)))
+        {
+            var action = (E.IAction)Reflect.Call(extension, "CreateAction", signature.Name, signature.ObjectKey)!;
+            if (Reflect.Get(signature, "IsFunction") is true || Reflect.Get(signature, "Function") is true) Reflect.Property(action, "Function", true)?.SetValue(action, true);
+            foreach (var (collection, factory) in new[] { ("InputParameters", "CreateInputParameter"), ("OutputParameters", "CreateOutputParameter") })
+                foreach (var p in ((System.Collections.IEnumerable)Reflect.Get(signature, collection)!).Cast<IObjectSignature>())
+                {
+                    var parameter = Reflect.Call(action, factory, Model.NameOf(p), p.ObjectKey)!;
+                    Reflect.Property(parameter, "DataType", true)!.SetValue(parameter, Type(Reflect.Get(p, "DataType") as OutSystems.Model.Types.ITypeSignature));
+                    if (parameter is E.IInputParameter) Reflect.Property(parameter, "IsMandatory", true)?.SetValue(parameter, Reflect.Get(p, "IsMandatory") is true);
+                }
+        }
+        return extension;
+    }
+
+    static IReference? Reference(IObjectSignature element)
+    {
+        for (var p = element.Parent; p is not null; p = p.Parent) if (p is IReference r) return r;
+        return null;
     }
 
     static string Reason(Exception e)

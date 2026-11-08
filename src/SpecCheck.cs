@@ -384,6 +384,7 @@ sealed class SpecChecker
             if (name.Length > 0 && !isEnd && !seen.Add(name)) Add(Key(at, "name"), $"duplicate node name '{name}'; give each node in a flow a unique name");
             nodes.Add((n, at, name));
         }
+        HandlerNames(nodes);
         if (!targets) return;
         var names = nodes.Select(x => x.name).Concat(new[] { "Start", "End" }).ToHashSet();
         foreach (var (n, at, _) in nodes)
@@ -404,6 +405,29 @@ sealed class SpecChecker
                     if (one.TryGetProperty("condition", out var cond)) Expression(Key(cat, "condition"), cond);
                 }
             }
+        }
+    }
+
+    // In a handler's path the exception is read through the handler's name; "AllExceptions" is the exception, not a node.
+    void HandlerNames(List<(JsonElement node, string at, string name)> nodes)
+    {
+        static bool IsHandler(JsonElement n) => n.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.String && k.GetString()!.Equals("exceptionHandler", StringComparison.OrdinalIgnoreCase);
+        if (nodes.Any(n => IsHandler(n.node) && n.name == "AllExceptions")) return; // a handler may really be named so
+        string? handler = null;
+        foreach (var (node, at, name) in nodes)
+        {
+            if (IsHandler(node)) { handler = name; continue; }
+            if (handler is null) continue;
+            void Scan(JsonElement v, string path)
+            {
+                if (v.ValueKind == JsonValueKind.String)
+                {
+                    if (System.Text.RegularExpressions.Regex.IsMatch(v.GetString()!, @"\bAllExceptions\."))
+                        Add(path, $"'AllExceptions.' is not a name in this flow. In this handler's path write {handler}.ExceptionMessage");
+                }
+                else if (v.ValueKind == JsonValueKind.Object) foreach (var p in v.EnumerateObject()) Scan(p.Value, Key(path, p.Name));
+            }
+            foreach (var p in node.EnumerateObject().Where(p => p.Name is not ("kind" or "name" or "next"))) Scan(p.Value, Key(at, p.Name));
         }
     }
 

@@ -21,7 +21,7 @@ boolean: boolean, booleans
 branch: branch, branches
 build: build, building
 button: button, buttons
-call: call, calling, calls
+call: call, called, calling, calls
 cas: case, cases
 cell: cell, cells
 chang: change, changed, changes, changing
@@ -86,6 +86,7 @@ handler: handler, handlers
 hold: hold, holds
 http: http, https
 identifier: identifier, identifiers
+ignor: ignore, ignores
 imag: image, images
 includ: include, including
 index: index, indexed, indexes
@@ -138,7 +139,7 @@ position: position, positions
 problem: problem, problems
 process: process, processes
 property: properties, property
-protect: protect, protected
+protect: protect, protected, protects
 publish: publish, published, publishing
 query: queries, query
 rais: raise, raises

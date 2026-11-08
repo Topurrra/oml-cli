@@ -60,6 +60,43 @@ static class StudioGuards
             : null;
     }
 
+    internal static bool ConcurrentPublication(JsonNode? result) =>
+        result?.ToJsonString().Contains("concurrent publication", StringComparison.OrdinalIgnoreCase) == true;
+
+    // The modules a publish result names as outdated consumers: a quoted name in the message, or an object's name field
+    // or extra info ("Name;Key"). Any other reply shape gives an empty list.
+    internal static List<string> OutdatedConsumers(JsonNode? result, string producer)
+    {
+        var found = new SortedSet<string>(StringComparer.Ordinal);
+        static bool Outdated(string s) => s.Contains("outdated consumer", StringComparison.OrdinalIgnoreCase);
+        void Quoted(string s)
+        {
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(s, "['\"]([A-Za-z_][A-Za-z0-9_ ]*)['\"]")) found.Add(m.Groups[1].Value);
+        }
+        void Walk(JsonNode? node)
+        {
+            switch (node)
+            {
+                case JsonValue v when v.TryGetValue<string>(out var text) && Outdated(text): Quoted(text); break;
+                case JsonArray a: foreach (var x in a) Walk(x); break;
+                case JsonObject o:
+                    var texts = o.Where(p => p.Value is JsonValue).Select(p => (p.Key, value: p.Value is JsonValue j && j.TryGetValue<string>(out var t) ? t : null)).Where(p => p.value is not null).ToList();
+                    if (texts.Any(p => Outdated(p.value!)))
+                        foreach (var (key, value) in texts)
+                        {
+                            if (key.Equals("extraInfo", StringComparison.OrdinalIgnoreCase)) found.Add(value!.Split(';')[0]);
+                            else if (key.Equals("module", StringComparison.OrdinalIgnoreCase) || key.Equals("eSpaceName", StringComparison.OrdinalIgnoreCase)) found.Add(value!);
+                            else if (Outdated(value!)) Quoted(value!);
+                        }
+                    else foreach (var p in o) Walk(p.Value);
+                    break;
+            }
+        }
+        Walk(result);
+        found.Remove(producer);
+        return found.ToList();
+    }
+
     // Service Studio answers "Service Studio is busy..." in a normal reply when it refreshed nothing. Only a text field at
     // the top of the reply counts: a deeper text (an element or message name) must not turn a real refresh into a failure.
     internal static (bool refreshed, string? message) RefreshOutcome(JsonNode? result)

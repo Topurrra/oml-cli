@@ -77,6 +77,50 @@ static class StudioPush
         $"Service Studio's MCP cannot load a file into an open module. Close '{module}' in Service Studio and run again (oml then opens the file), " +
         $"or run 'oml publish {module}' to publish the open copy as it is.";
 
+    // The hashes of the module's saved versions, newest first. Service Studio compares the server's hash with this list:
+    // a file whose list lacks it is older than the server ("A concurrent publication was detected").
+    internal static List<string> History(IESpace module)
+    {
+        var oml = module.GetType().GetProperty("Oml")?.GetValue(module);
+        var versions = oml?.GetType().GetMethod("GetVersions", Type.EmptyTypes)?.Invoke(oml, null) as System.Xml.Linq.XElement;
+        return versions?.Elements().Select(v => v.Attribute("GeneralHash")?.Value).OfType<string>().ToList() ?? [];
+    }
+
+    // Null when the file holds the open module's last saved version, or when that cannot be told. An edit-session copy's
+    // own save is the newest entry of its list and was never on the server, so it does not count.
+    internal static string? StaleBase(string module, string? openHash, IReadOnlyList<string> openHistory, string? fileHash, IReadOnlyList<string> fileHistory)
+    {
+        if (fileHistory.Count == 0) return null;
+        var last = openHistory.FirstOrDefault(h => h != openHash);
+        if (last is null || last == fileHash || fileHistory.Contains(last)) return null;
+        return $"This file was built from an older version of '{module}' than the one open in Service Studio: it does not contain the open module's last saved version. " +
+               $"Service Studio would answer 'A concurrent publication was detected'. Run: oml pull {module} --out <new.oml>, apply the spec to that file, and publish it. Nothing was changed.";
+    }
+
+    // Puts a new copy over a file, after a backup next to it (as oml install names them). Returns the backup's path.
+    internal static string ReplaceWithBackup(string target, string copy)
+    {
+        var backup = $"{target}.{DateTime.Now:yyyyMMdd-HHmmss}.bak";
+        for (var n = 1; File.Exists(backup); n++) backup = $"{target}.{DateTime.Now:yyyyMMdd-HHmmss}-{n}.bak";
+        File.Copy(target, backup);
+        File.Copy(copy, target, overwrite: true);
+        return backup;
+    }
+
+    // Modules in the file's folder that reference this one (.oml files only, the first 40). Unreadable files are skipped.
+    internal static List<string> ConsumersInFolder(string file, string module)
+    {
+        var found = new List<string>();
+        foreach (var path in Directory.EnumerateFiles(Path.GetDirectoryName(file)!, "*.oml").Where(p => !string.Equals(p, file, StringComparison.OrdinalIgnoreCase)).Take(40))
+            try
+            {
+                using var m = Model.Load(path);
+                if (m.References.Any(r => r.Name == module)) found.Add(((OutSystems.Model.Applications.IModule)m).Name);
+            }
+            catch (Exception e) when (e is CliError or InvalidOperationException or InvalidDataException or IOException) { }
+        return found;
+    }
+
     // Service Studio's publish messages say "Upload Skipped" when the server already has this version: nothing new deployed.
     internal static bool UploadSkipped(System.Text.Json.Nodes.JsonNode? result) =>
         result?["messages"] is System.Text.Json.Nodes.JsonArray messages

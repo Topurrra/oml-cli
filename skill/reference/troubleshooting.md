@@ -33,6 +33,8 @@ Symptoms of oml itself (apply, install, publish, LifeTime, fonts and images), th
 
 ## Publish and Service Studio
 
+- Closing a tab marked `* ` opens a dialog no tool can answer. Publish the open copy, then pull, apply, close and publish the file.
+- Keep a module open from the server while changing it, and pull before every apply. After a push publish, a file made earlier is stale.
 | Symptom | Cause | Fix |
 |---|---|---|
 | Publish fails with "Invalid compiler output. Object reference not set to an instance of an object" | On 11.55.92, generic Identifier types on Id caused this failure. | Use LongIntegerType for entity Id and IntegerType for static Id. Current CLI uses these types. |
@@ -67,6 +69,9 @@ Symptoms of oml itself (apply, install, publish, LifeTime, fonts and images), th
 
 ## Symptoms in the running app
 
+- A producer's change has no effect: consumers run their own copy of server actions and themes (strong dependencies). Republish each module named under Outdated Consumer.
+- "The connection has timed out" and a busy state that never ends: a client's server call waits 10 s by default. Set `serverRequestTimeout` on the execute node, and add an exception handler that ends the busy state.
+- Answers with `â€™` instead of `'`: the API sent no charset. Run TextToBinaryData with `iso-8859-1`, then BinaryDataToText with `utf-8`.
 Failures of the published app. First find where the code runs: browser or server.
 
 | Symptom | Where to look | Cause and fix |

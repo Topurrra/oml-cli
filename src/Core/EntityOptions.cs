@@ -8,7 +8,8 @@ namespace OmlCli;
 record IndexSpec(List<string> Attributes, string? Name = null, bool Unique = false);
 record EntitySpec(string Name, List<AttrSpec>? Attributes = null, bool? Public = null, string? Description = null,
     string? Identifier = null, bool? AutoNumber = null, string? LabelAttribute = null, string? OrderByAttribute = null,
-    string? IsActiveAttribute = null, bool? ExposeReadOnly = null, string? UpdateBehavior = null, List<IndexSpec>? Indexes = null)
+    string? IsActiveAttribute = null, bool? ExposeReadOnly = null, string? UpdateBehavior = null, List<IndexSpec>? Indexes = null,
+    bool? MultiTenant = null, bool? ExposeProcessEvents = null)
     : RecordSpec(Name, Attributes, Public, Description);
 
 /// Entity options and indexes. A new entity takes every option. An existing entity only gets new indexes
@@ -61,6 +62,8 @@ static class EntityOptions
             if (isActive is not null) e.IsActiveAttribute = isActive;
             if (s.ExposeReadOnly is { } readOnly) e.ExposeReadOnly = readOnly;
             if (update is { } u) e.UpdateBehavior = u;
+            if (s.MultiTenant is { } tenant) e.IsMultiTenant = tenant ? BooleanWithInheritance.Yes : BooleanWithInheritance.No;
+            if (s.ExposeProcessEvents is { } events) e.ExposeProcessEvents = events;
         }
         else
         {
@@ -75,6 +78,8 @@ static class EntityOptions
             Same(isActive is not null, ReferenceEquals(e.IsActiveAttribute, isActive), "is active attribute");
             Same(s.ExposeReadOnly is not null, e.ExposeReadOnly == s.ExposeReadOnly, "expose read only setting");
             Same(update is not null, e.UpdateBehavior == update, "update behavior");
+            Same(s.MultiTenant is not null, e.IsMultiTenant.ToString() == (s.MultiTenant == true ? "Yes" : "No"), "multi-tenant setting");
+            Same(s.ExposeProcessEvents is not null, e.ExposeProcessEvents == s.ExposeProcessEvents, "expose process events setting");
         }
 
         foreach (var ix in s.Indexes ?? new()) Index(e, s.Name, ix, isNew, created, existing, problems, warnings);

@@ -95,8 +95,9 @@ Any problem prevents saving. `inspect.module` reports the values and icon byte s
 |---|---|---|
 | Root | `entities`, `structures` | Arrays of record definitions. |
 | Record | `name`, `attributes`, `public`, `description` | Name; attribute array; public (new records: model default, private); optional description. |
-| Attribute | `name`, `type`, `length`, `decimals`, `mandatory`, `default`, `description`, `deleteRule` | Type defaults Text; mandatory defaults false; default is an expression. Identifier delete rule accepts Protect, Delete, or Ignore; defaults Protect. |
-| Entity | `identifier`, `autoNumber`, `labelAttribute`, `orderByAttribute`, `isActiveAttribute`, `exposeReadOnly`, `updateBehavior` | New entities; on an existing entity they must equal its values. Attribute names, booleans, and `changedAttributes` or `allAttributes`. |
+| Attribute | `name`, `type`, `length`, `decimals`, `mandatory`, `default`, `description`, `deleteRule`, `label` | Type defaults Text; mandatory defaults false; default is an expression. Delete rule is for reference attributes only: Protect (default), Delete or Ignore. |
+| Structure attribute | `jsonName`, `sendDefault` | `jsonName`: Name in JSON. `sendDefault`: Send Default Value, true or false; it is applied to the copy of the structure in a consumed REST API, and a structure no REST method of the spec uses gets a warning. |
+| Entity | `identifier`, `autoNumber`, `labelAttribute`, `orderByAttribute`, `isActiveAttribute`, `exposeReadOnly`, `updateBehavior`, `multiTenant`, `exposeProcessEvents` | New entities; on an existing entity they must equal its values. Attribute names, booleans, and `changedAttributes` or `allAttributes`. |
 | Entity | `indexes` | Array of `{ "name", "attributes", "unique" }`. Name defaults to `IX_<A>_<B>`; unique defaults false. |
 | Root | `exceptions` | Array of user exception names. |
 | Variable | `name`, `type`, `mandatory`, `default`, `description` | Shared variable shape. Type defaults Text. An input without `mandatory` is mandatory, as in Service Studio; set `"mandatory": false` for an optional input. Process inputs and extension parameters are optional unless set. Locals ignore `mandatory`. |
@@ -161,12 +162,14 @@ Use `<StaticEntity> Identifier`, such as `Status Identifier`, and record express
 }
 ```
 
+A new static entity takes the shape of an `Id` attribute in the spec: Integer (default), Long Integer or Text. With a Text `Id`, a record's id is its `identifier`.
+
 ### References and aliases
 
 | Scope | Keys | Meaning |
 |---|---|---|
 | Root | `references` | Import public elements before resolving types and building logic. |
-| Import | `producer`, `elements` | Producer path; exact name array, or `"*"` for all supported public elements. |
+| Import | `producer`, `elements`, `extension` | Producer path; exact name array, or `"*"` for all supported public elements. A `.xif` producer imports extension actions; call them with `execute` or, for a function, in an expression. `extension`: the name of a non-platform extension referenced by the `.oml` producer, to copy that reference. A platform extension (BinaryData, HTTPRequestHandler, ...) has no `.xif` and a reserved key: add it once in Manage Dependencies. |
 | Root | `referenceAliases` | Map qualified referenced names to new local names before creating data. |
 
 ```json
@@ -383,7 +386,8 @@ or expanded comments can extend beyond the reserved space.
 | Refresh Data | `dataSource`, `args` | Aggregate or data action in the owning screen/block; optional data-action inputs. |
 | Destination | `screen`, `args` | Navigation target and inputs; terminates the path. |
 | Raise Exception | `exception`, `message` | Exception reference and message expression; terminates the path. |
-| JSON nodes | `dataType`, `jsonString`, `variable` | Reflected properties for jsonDeserialize / jsonSerialize, where supported by the installed node. |
+| JSON nodes | jsonDeserialize: `jsonString`, `dataType` (a structure or entity, not a basic type). jsonSerialize: `data` | Outputs: `<Node>.Data` for jsonDeserialize, `<Node>.JSON` for jsonSerialize. Example: `{ "kind": "jsonDeserialize", "name": "Parse", "jsonString": "Body", "dataType": "ChatResponse" }`, then `Parse.Data.Id`; `{ "kind": "jsonSerialize", "name": "ToText", "data": "Request" }`, then `ToText.JSON`. |
+| Exception handler | `exception` | In the handler's path read the error as `<Handler>.ExceptionMessage` (the node's name), not `AllExceptions.ExceptionMessage`; `oml spec check` flags that. |
 | JavaScript | `javaScript`, `inputs`, `outputs`, `args` | Raw script, typed variables, and input expressions. |
 
 Node kinds include `assign`, `if`, `forEach`, `switch`, `aggregate`, `sql`, `execute`, `refreshData`, `destination`,
@@ -524,7 +528,9 @@ Export exposed API documentation with `oml openapi`; see `oml doc commands#opena
 |---|---|---|
 | Root | `restClients`, `restServices` | Consumed and exposed REST integrations. |
 | Integration | `name`, `baseUrl`, `actions` | Optional base URL; method definitions. |
-| Method | `name`, `method`, `url`, `inputs`, `outputs`, `flow` | HTTP verb defaults GET. Exposed methods support action flows. |
+| Exposed integration | `authentication`, `internalAccessOnly`, `onAuthentication` | `none` (default), `basic` or `custom`. Basic gets an `OnAuthentication` with Username and Password inputs. In a module that references Users, Basic must be set in Service Studio (it fills the flow from a template the headless model lacks); apply refuses it there. `onAuthentication`: `{ "locals", "flow" }`. Apply warns when a new API leaves `authentication` out and is not internal only; `"none"` records the decision. An existing API keeps its settings (rule 7). |
+| Consumed integration | `onBeforeRequest`, `onAfterResponse` | `{ "locals", "flow" }`. The flows read `Request` and set `CustomizedRequest`, or read `Response` and set `CustomizedResponse`. |
+| Method | `name`, `method`, `url`, `inputs`, `outputs`, `flow`, `locals` | HTTP verb defaults GET. Exposed methods support action flows and local variables. |
 | Parameter | `name`, `type`, `location`, `headerName`, `mandatory` | Type defaults Text; mandatory defaults false, except URL inputs. |
 
 Input locations: url, query (default), header, body. Output locations: body (default), header.
@@ -555,6 +561,7 @@ Other installed HTTP verbs, including POST, PUT, and DELETE, are supported.
 Types resolve after the data phase, including same-spec structures.
 On Service Studio 11.55.92, consumed structures must be client-owned.
 The CLI recursively copies structures and lists as `<Client><Structure>` DTOs and refuses global name clashes.
+Variables can use these structures: `"type": "WeatherForecastDto"`, or `"Weather.WeatherForecastDto"` when two clients have the name.
 Exposed parameters use resolved types directly.
 Call consumed methods with execute using `Client.Method`; the default node name remains `Method`.
 A unique method name works if no ordinary action has that name.
@@ -568,8 +575,7 @@ Inspect an exposed method's flow with:
 oml tree <module.oml> Api/Method
 ```
 
-Exposed APIs retain plugin defaults, including Authentication=None.
-Authentication callbacks, Swagger import, and other REST settings are outside these spec keys.
+Swagger import and other REST settings are outside these spec keys.
 Creation does not contact the remote API.
 
 ### Platform elements
@@ -794,6 +800,7 @@ Inspect lists Web screens. Tree shows Preparation connectors, CRUD and event tar
 | Key | Meaning |
 |---|---|
 | `layout` | Block name in this module or its references. |
+| `layoutArgs` | The layout block's inputs: `{ "AppName": "\"Northwind\"", "HasAside": "True" }` (expressions, as block `args`). |
 | `widgets` | Fills MainContent when a layout is selected. |
 | `title` | Widget array fills Title; string sets the screen title expression. |
 | `placeholders` | Dictionary of actual placeholder names to widget arrays. Overrides convenience aliases. |
@@ -930,7 +937,7 @@ every candidate; copy one. At the end of a path, directly under an action, an in
 of the same name (`Pick/Response` is the parameter); write `Pick/Assign:Response` for the node. Edits refuse elements of referenced modules. Tree accepts the same paths. See `oml doc commands#element-paths`.
 Unnamed elements use `Kind[index]`, indexed from zero among siblings of that kind. An unnamed Refresh Data node also answers to `refresh <DataSource>`, as `describe` prints it (`Home/LoadAll/refresh GetOrders`); `describe` adds `[path ...]` when that form is not unique.
 For example: `Orders/Header/Button[0]/Text[0]`. Copy the emitted path; indexes can change after edits. Flow nodes and action or instance arguments have a fixed order on every load.
-Labels persist where supported. Raise Exception on Service Studio 11.55.92 needs an index path after reopening.
+Labels persist where supported. Raise Exception on Service Studio 11.55.92 needs an index path after reopening. `replaceNode` on a node of the same kind and name changes it where it is: it keeps its key, so what reads its outputs stays valid. The keys you give are set, others stay; `assign` replaces all rows; `next`, `true`, `false` and `cycle` reconnect it. Another kind or name, another called action, and aggregates and SQL nodes are built again (one connector in, one out; a Switch branch counts). `next: "End"` means the End reached from that place: the main path's, or the handler's inside a handler. The model stores no names on End nodes: after a save they are all `End`, and `insertNodes` with `ifMissing` ignores them. Every applied edit is listed in `changed`.
 
 ### Deletion
 

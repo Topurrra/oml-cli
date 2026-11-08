@@ -86,6 +86,9 @@ export const cookbook = [
   ] },
   { group: 'Service Studio', items: [
     ['oml studio', 'Check that Service Studio\'s MCP server answers and list the open modules.'],
+    ['oml studio tabs', 'List the module tabs in Service Studio.'],
+    ['oml studio focus', 'Bring the Service Studio window with module tabs to the front.'],
+    ['oml studio close Orders', 'Close a saved module tab in Service Studio.'],
     ['oml pull Orders --out C:\\Work\\Orders.oml', 'Save the module open in Service Studio to a file.'],
     ['oml publish C:\\Work\\Orders.oml', '1-Click Publish through Service Studio. Ask before you publish.'],
     ['oml references Orders', 'Refresh All references through Service Studio.'],

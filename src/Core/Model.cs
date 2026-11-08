@@ -274,7 +274,9 @@ static class Model
         var name = isId ? spec[..^" Identifier".Length] : spec;
         // Same rules as element names: "Module.Entity" qualifies, ambiguity across references is refused.
         var records = Refs.All(module).Where(c => c.element is IEntitySignature || (!isId && c.element is IStructureSignature))
-            .Select(c => (c.owner, element: (ITypeSignature)c.element)).ToList();
+            .Select(c => (c.owner, element: (ITypeSignature)c.element))
+            // A consumed REST API's structures: "MistralChatRequest", or "Mistral.MistralChatRequest".
+            .Concat(isId ? [] : RestModel.Structures(module).Select(s => (owner: s.client, element: (ITypeSignature)s.structure))).ToList();
         var record = Refs.Pick(module, name, isId ? "entity" : "entity or structure", records, missingIsNull: true);
         // A freshly created entity has no IdentifierType yet; its Id attribute already carries the type.
         if (isId) return record is IEntitySignature entity ? (ITypeSignature?)entity.IdentifierType ?? entity.IdentifierAttribute?.DataType : null;

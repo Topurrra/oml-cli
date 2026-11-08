@@ -315,9 +315,25 @@ partial class Builder
             if (Reuse.Has(raw, "method") && !string.Equals(Reflect.Get(old, "HTTPMethod")?.ToString(), a.Method, StringComparison.OrdinalIgnoreCase)) changed.Add("method");
             if (Reuse.Has(raw, "url") && (Reflect.Get(old, "URLPath")?.ToString() ?? "") != RestUrl(a, service)) changed.Add("url");
             if (changed.Count > 0) problems.Add(Reuse.Changed($"{label}.{a.Name}", changed, "Add a new method instead, or change it by hand in Service Studio."));
-            if (service) ReuseFlow(old, a.Flow, $"{label}.{a.Name}");
+            if (service)
+            {
+                ReuseVariables(old, $"{label}.{a.Name}", raw, ("locals", "LocalVariables", "CreateLocalVariable", a.Locals));
+                ReuseFlow(old, a.Flow, $"{label}.{a.Name}");
+            }
             existing.Add($"{label}.{a.Name}");
         }
+        if (service) ReuseRestSecurity(integration, s, label);
+        else RestCallbacks(integration, s, label);
+    }
+
+    // An existing exposed API keeps its security settings (rule 7): a spec value that differs is a problem.
+    void ReuseRestSecurity(object integration, RestSpec s, string label)
+    {
+        var changed = new List<string>();
+        if (s.Authentication is { } auth && !string.Equals(auth, Reflect.Get(integration, "Authentication")?.ToString(), StringComparison.OrdinalIgnoreCase)) changed.Add("authentication");
+        if (s.InternalAccessOnly is { } only && (Reflect.Get(integration, "InternalAccess")?.ToString() == "Yes") != only) changed.Add("internalAccessOnly");
+        if (changed.Count > 0) problems.Add(Reuse.Changed(label, changed, "oml never changes the security of an existing exposed API (rule 7); change it by hand in Service Studio."));
+        if (s.OnAuthentication is { } callback && OnAuthenticationFlow(integration) is { } flow) ReuseFlow(flow, callback.Flow, $"{label}.onAuthentication");
     }
 
     // Client and session variables: type and default must match.

@@ -11,6 +11,8 @@ Lifecycle, block events, forms, tables, CSS, responsive and accessibility rules 
 
 ## Lifecycle
 
+- JavaScript that needs a value back: `$actions.X()` returns a promise, but Screen Actions have no outputs. Use a module client action, with Text, number or Boolean outputs.
+- Pages use AMD, which captures UMD libraries. Load one with `define` hidden while its script runs. A consumer serves only scripts a block requires: load others from `/<Module>/scripts/<Module>.<Script>.js`.
 First load: OnInitialize; all aggregates and data actions start in parallel; OnReady; OnRender. Each finished fetch runs its OnAfterFetch, then OnRender again.
 
 | Event | Use it for | Never |
@@ -57,7 +59,7 @@ First load: OnInitialize; all aggregates and data actions start in parallel; OnR
 - Paging: Integer locals `StartIndex` (0) and `MaxRecords` feed the aggregate's Start Index and Max Records; the total is `<Agg>.Count`. The OutSystems UI Pagination handler gets `NewStartIndex`: assign it to `StartIndex`, then `refreshData`. Reset `StartIndex` to 0 when a filter changes.
 - Sorting: give sortable header cells a sort attribute. The table's On Sort handler gets the clicked column; keep it in a Text local, append `" DESC"` on a second click, use the local as the aggregate's dynamic sort (`"dynamic": true`), then `refreshData`. Sort attributes and On Sort are Service Studio only: tell the user to add them; the dynamic sort and its local work in the spec.
 - Inputs inside a table bind through `<Agg>.List.Current`.
-- The List widget renders only visible rows; the attribute `disable-virtualization` turns that off for items with blocks or JavaScript widgets.
+- Chat rows parked at `top: -10000px` mean virtualization. The List widget renders only visible rows; the attribute `disable-virtualization` turns that off for items with blocks or JavaScript widgets.
 - Recipe: `list-search-paging.jsonc`.
 
 ## Popups

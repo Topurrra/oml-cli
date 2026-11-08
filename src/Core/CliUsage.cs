@@ -78,8 +78,9 @@ static class CliUsage
         oml install --batch <index.json> [--allow-existing-errors]   (items {staged,target}; checks all first, installs none if any is refused)
 
         oml studio                          (Service Studio's MCP server: reachable? open modules)
+        oml studio tabs | focus | close <Module>   (Studio's module tabs; bring it forward; close a saved tab)
         oml pull [Module] [--out file.oml]  (save the module open in Service Studio to a file; needs 11.55.93+)
-        oml publish <Module | file.oml>     (1-Click Publish through Service Studio)
+        oml publish <Module | file.oml> [--close]   (1-Click Publish through Service Studio)
         oml publish --in <folder> --order <order.json>   (publish many modules in that order; stops at the first failure)
         oml references <Module | file.oml>  (Refresh All references through Service Studio)
         oml lifetime environments|teams|team-apps|apps|download|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lifetime' for usage)

@@ -8,7 +8,7 @@ record ExtensionSpec(List<RecordSpec>? Structures = null, List<ActionSpec>? Acti
 
 static class Extensions
 {
-    static E.IType Resolve(E.IExtension extension, string name)
+    internal static E.IType Resolve(E.IExtension extension, string name)
     {
         if (name.StartsWith("List of ", StringComparison.OrdinalIgnoreCase))
             return (E.IType)Reflect.Call(extension, "GetOrCreateListType", Resolve(extension, name[8..]))!;

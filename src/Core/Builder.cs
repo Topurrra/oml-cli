@@ -16,7 +16,8 @@ record ScreenSpec(string Name, string Flow = "MainFlow", JsonElement? Title = nu
     string? Layout = null, Dictionary<string, List<JsonElement>>? Placeholders = null, string? Template = null, string? Entity = null,
     AccessSpec? Access = null, List<JsonElement>? Preparation = null, string? StyleSheet = null, bool IsDefault = false,
     List<string>? RequiredScripts = null,
-    List<EventSpec>? Events = null, string? OnParametersChanged = null, bool? Public = null, string? Description = null);
+    List<EventSpec>? Events = null, string? OnParametersChanged = null, bool? Public = null, string? Description = null,
+    Dictionary<string, string>? LayoutArgs = null);
 
 /// Builds actions, flows, screens and widgets in the order the model needs (skill §9.2):
 /// create everything -> wire references and types -> wire connectors -> widgets -> expressions and arguments.
@@ -181,10 +182,15 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         var byName = named.Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.Single());
         var ambiguous = named.Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet();
         if (start is not null) byName.TryAdd("Start", start);
+        // The model stores no name on an End node: after a save a flow with a handler has several Ends, all "End".
+        // "End" means the End reached from where this flow is inserted: the main path's, or the handler's in a handler.
+        // Worked out now, while the connectors around the insertion are still in place.
+        var ends = nodes.OfType<OutSystems.Model.Logic.Nodes.IEndNode>().ToList();
+        var nearestEnd = ends.Count > 1 && action is IObjectSignature flowOwner && (after ?? start) is { } origin ? NearestEnd(flowOwner, origin) : null;
         object End()
         {
             if (byName.TryGetValue("End", out var e)) return e;
-            return byName["End"] = nodes.OfType<OutSystems.Model.Logic.Nodes.IEndNode>().FirstOrDefault()
+            return byName["End"] = nearestEnd ?? ends.FirstOrDefault()
                    ?? Reflect.CallGeneric(action, "CreateNode", typeof(OutSystems.Model.Logic.Nodes.IEndNode), "End", services.NewKey())!;
         }
 
@@ -491,7 +497,10 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
             var content = new Dictionary<string, List<JsonElement>>(s.Placeholders ?? new(), StringComparer.OrdinalIgnoreCase);
             if (s.Widgets is not null) content.TryAdd("MainContent", s.Widgets);
             if (s.Title is { ValueKind: JsonValueKind.Array } items) content.TryAdd("Title", items.EnumerateArray().ToList());
-            Widget(screen, JsonSerializer.SerializeToElement(new { type = "BlockInstance", sourceBlock = s.Layout, placeholders = content }), label, screenActions);
+            // layoutArgs: the layout block's inputs (expressions), as args on any block instance.
+            var instance = new Dictionary<string, object?> { ["type"] = "BlockInstance", ["sourceBlock"] = s.Layout, ["placeholders"] = content };
+            if (s.LayoutArgs is { Count: > 0 }) instance["args"] = s.LayoutArgs;
+            Widget(screen, JsonSerializer.SerializeToElement(instance), label, screenActions);
         }));
     }
 

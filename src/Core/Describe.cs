@@ -212,7 +212,9 @@ static class Describe
             else if (List(root, "Attributes").Any())
             {
                 foreach (var attr in List(root, "Attributes"))
-                    Line(indent + 1, Name(attr) + ": " + TypeOf(attr) + (Reflect.Get(attr, "IsMandatory") is true ? " [mandatory]" : ""));
+                    Line(indent + 1, Name(attr) + ": " + TypeOf(attr) + (Reflect.Get(attr, "IsMandatory") is true ? " [mandatory]" : "")
+                        + (Reflect.Get(attr, "DataType") is OutSystems.Model.Types.IIdentifierType && Reflect.Get(attr, "DeleteRule") is { } rule && rule.ToString() is "Delete" or "Ignore" ? $" [delete rule: {Reflect.Get(attr, "DeleteRule")}]" : "")
+                        + (Reflect.Get(attr, "NameInJSON") is string { Length: > 0 } json && json != Name(attr) ? $" [JSON: {json}]" : ""));
                 if (root is OutSystems.Model.Data.IEntitySignature entity && entity.EntityKind.ToString() != "Static") Part("entity options", () => EntityOptions(entity, indent + 1), indent + 1);
                 if (Reflect.Get(root, "EntityKind")?.ToString() == "Static")
                     foreach (var record in List(root, "Records").OrderBy(r => Reflect.Get(r, "Identifier")?.ToString(), StringComparer.Ordinal))

@@ -31,6 +31,7 @@ Exposed and consumed REST APIs: URLs, errors, status codes, authentication, type
 
 ## Consumed APIs
 
+- Polymorphic JSON (file parts, tool calls): send a Text body with a `Content-Type` header input, and build it with JSON Serialize and JSON-escaped strings. Put fields the caller must not override last.
 - A consumed method is called like a server action: `execute` with `Client.Method`.
 - Every response with status 400 or higher raises an exception. Put an AllExceptions handler around the call and read the message.
 - OnAfterResponse can read the status and body before the exception, and can change them.

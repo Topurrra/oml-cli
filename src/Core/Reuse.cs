@@ -43,6 +43,7 @@ static class Reuse
         var other = new List<string>();
         if (a.Default is not null && Norm(a.Default) != Norm(old.DefaultValue?.Text)) other.Add("default");
         if (a.DeleteRule is not null && old.DataType is IIdentifierType && !(Reflect.Get(old, "DeleteRule")?.ToString() ?? "").Equals(a.DeleteRule, StringComparison.OrdinalIgnoreCase)) other.Add("deleteRule");
+        if (a.JsonName is not null && Reflect.Property(old, "NameInJSON") is not null && (Reflect.Get(old, "NameInJSON") as string ?? "") != a.JsonName) other.Add("jsonName");
         if (other.Count > 0) problems.Add(Changed($"{where}: attribute", other, "Change it with an edits \"set\" op, or by hand in Service Studio."));
         // A description is documentation only: it is applied, as for the entity itself.
         if (a.Description is not null) old.Description = a.Description;
@@ -67,6 +68,10 @@ static class Reuse
     // Texts that differ only in line endings (Service Studio saves CRLF) or trailing white space are the same text:
     // setting one would be a change that review, merge and publish then report for nothing.
     internal static bool SameText(string? a, string? b) => Lines(a) == Lines(b);
+
+    // JavaScript for comparison: comments and blank lines removed, as the saved module keeps it.
+    internal static string Code(string? js) =>
+        string.Join('\n', Minify.Js(js ?? "").Replace("\r\n", "\n").Split('\n').Select(l => l.TrimEnd()).Where(l => l.Length > 0));
     static string Lines(string? text) =>
         string.Join('\n', (text ?? "").Replace("\r\n", "\n").Split('\n').Select(l => l.TrimEnd())).TrimEnd();
 

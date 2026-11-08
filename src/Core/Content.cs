@@ -95,7 +95,11 @@ static class Content
             }
             catch (Exception e) when (e is NotImplementedException || e.Message.Contains("Not implemented", StringComparison.OrdinalIgnoreCase) || e.Message.Contains("IPP", StringComparison.OrdinalIgnoreCase))
             {
-                throw new ModelError("Clipboard refused or requires a headless dialog (possible IPPErrorNotConnected / different activation codes). Use an authorized export and connect to the source infrastructure in Service Studio. " + e.Message);
+                // Service Studio's paste checks the activation codes of both modules (IP protection: ClipboardManager.IPPCanPaste,
+                // ServerLicensingInfo.CheckLocalForeignCodes). They differ when the modules come from different infrastructures
+                // (a personal environment and a company one), and Service Studio then shows a message and refuses the paste;
+                // headless there is no dialog, so it throws "not implemented".
+                throw new ModelError($"Service Studio refuses this paste: {Path.GetFileName(copy.From)} and this module come from different infrastructures (their activation codes differ), and copy-paste between infrastructures is blocked by IP protection, in Service Studio too. Copy between modules of the same infrastructure, or rebuild the elements from a spec (oml apply) in this module. ({e.Message})");
             }
         });
         foreach (var group in new[] { (spec.Images, "Images", "image"), (spec.Scripts, "Scripts", "script"), (spec.Resources, "Resources", "resource") })
@@ -105,8 +109,10 @@ static class Content
                 {
                     // As for other elements: public may be given; ProductionRules refuses public to private (rule 4).
                     if (file.Public is { } makePublic) Set(found, "Public", makePublic);
-                    // A script's code is UI (rule 3): the spec's file replaces it when it differs (not only in line endings).
-                    if (group.Item3 == "script" && System.IO.File.ReadAllText(file.File) is var code && !Reuse.SameText(Reflect.Get(found, "JavaScript") as string, code))
+                    // A script's code is UI (rule 3): the spec's file replaces it when it differs. The saved module keeps the
+                    // code without comments and blank lines, so both sides are compared that way (and without line endings).
+                    if (group.Item3 == "script" && System.IO.File.ReadAllText(file.File) is var code
+                        && !Reuse.SameText(Reuse.Code(Reflect.Get(found, "JavaScript") as string), Reuse.Code(code)))
                     {
                         Set(found, "JavaScript", code);
                         changed.Add($"javaScript of script {file.Name}");
