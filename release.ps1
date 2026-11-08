@@ -168,7 +168,7 @@ Unsigned executables may be blocked by company policy. Teams can build from sour
     if ($Publish) {
         $repoJson = Invoke-Checked gh @('repo', 'view', '--json', 'nameWithOwner')
         $repo = ($repoJson | ConvertFrom-Json).nameWithOwner
-        $answer = Read-Host "Create and push tag $tag and publish to $repo with files $zip and $checksum, using notes $notes? Type $tag to confirm"
+        $answer = Read-Host "Create and push tag $tag and publish to $repo with files $zip and $checksum, using notes ${notes}? Type $tag to confirm"
         if ($answer -cne $tag) { throw 'Publishing cancelled; local artifacts are ready.' }
         Assert-CleanTree
         Assert-TagAbsent
