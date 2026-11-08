@@ -23,6 +23,7 @@ First load: OnInitialize; all aggregates and data actions start in parallel; OnR
 | OnDestroy | remove listeners, timers, widgets | slow work (it delays the next screen) |
 
 - Child blocks run OnReady and OnRender before the parent; OnDestroy runs from the screen down.
+- Polling block: OnReady starts a JavaScript timer that calls a block client action (`$actions.Tick()`), which refreshes or triggers the event; OnDestroy stops it.
 - Assign variables used by aggregate filters in OnInitialize.
 - A changed local re-renders its widgets. Aggregates do not run again by themselves: use `refreshData` (it waits for the fetch).
 - `<Agg>.IsDataFetched` gives the loading state; `<Agg>.HasFetchError` the failed state.

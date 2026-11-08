@@ -112,6 +112,31 @@ static class ReviewModel
         return snap;
     }
 
+    // A widget subtree as text: kinds, names and readable properties, without keys. replaceWidgets compares the widgets it
+    // removes with the ones it built: equal text means the spec asked for what the module already has.
+    internal static string Fingerprint(IESpace m, IEnumerable<IObjectSignature> roots)
+    {
+        var snap = new Snapshot { Module = "", Key = "" };
+        // Widgets keep their order; other children (a block instance's event handlers) are sorted, as their order means nothing.
+        string Walk(IObjectSignature o, int depth)
+        {
+            if (Folded(o) || Generated(o)) return "";
+            var item = new Item { Key = "", Kind = Kind(o), Name = Model.NameOf(o), Unit = "" };
+            Fill(m, o, item, snap);
+            var text = new System.Text.StringBuilder().Append(depth).Append('|').Append(item.Kind).Append('|').Append(item.Name);
+            // An unnamed event handler is keyed by its element key in Fill: compare its value only.
+            static bool Keyed(string key) => !key.Contains(' ') && !System.Text.RegularExpressions.Regex.IsMatch(key, "^[A-Za-z]+$");
+            foreach (var (key, value) in item.Props.OrderBy(p => Keyed(p.Key) ? "~event " + p.Value : p.Key, StringComparer.Ordinal))
+                text.Append('|').Append(Keyed(key) ? "event" : key).Append('=').Append(value);
+            text.AppendLine();
+            var children = Children(o, snap);
+            foreach (var child in children.Where(c => c is OutSystems.Model.UI.IWidgetSignature)) text.Append(Walk(child, depth + 1));
+            foreach (var other in children.Where(c => c is not OutSystems.Model.UI.IWidgetSignature).Select(c => Walk(c, depth + 1)).Order(StringComparer.Ordinal)) text.Append(other);
+            return text.ToString();
+        }
+        return string.Concat(roots.Select(r => Walk(r, 0)));
+    }
+
     // A reference lists the elements this module uses from another module, by name: their insides belong to the producer.
     // Screens and blocks sit inside the reference's UI flows (and folders), so those are walked through, not listed.
     static void References(IObjectSignature reference, string key, Snapshot snap)

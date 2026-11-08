@@ -57,7 +57,7 @@ static class QaCommand
         public int Int(string name, int fallback) => Get(name) is { } v ? int.TryParse(v, out var n) && n > 0 ? n : throw new QaUsage($"{name} takes a positive number.") : fallback;
     }
 
-    public static readonly string[] Valued = ["--base-url", "--width", "--height", "--timeout", "--out", "--screenshot", "--engine", "--save", "--css"];
+    public static readonly string[] Valued = ["--base-url", "--width", "--height", "--timeout", "--out", "--screenshot", "--engine", "--save", "--css", "--style-conflicts"];
     static readonly string[] Flags = ["--headed", "--continue", "--no-session"];
 
     public static Settings Options(string[] args)
@@ -193,6 +193,9 @@ static class QaCommand
                 .. browser.Network.FailedSince(seq).Select(r => (JsonNode)$"request failed: {r.Call ?? QaNetwork.Short(r.Url)} {r.Failed ?? "HTTP " + r.Status}")]);
             if (console.Count > 0) page["console"] = new JsonArray([.. console.Take(10).Select(c => (JsonNode)c)]);
             if (o.Get("--screenshot") is { } shot) page["screenshot"] = await browser.Screenshot(shot);
+            if (o.Get("--style-conflicts") is { } prefix)
+                page["styleConflicts"] = browser is CdpEngine cdp ? await QaStyle.Conflicts(cdp.Cdp, prefix)
+                    : new JsonObject { ["error"] = "--style-conflicts needs DevTools; this browser runs under UI Automation (a policy blocks DevTools)." };
             page["session"] = shared is null ? null : true;
             page["readyMs"] = ready;
             page["ms"] = clock.ElapsedMilliseconds;

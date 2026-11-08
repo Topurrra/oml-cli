@@ -139,9 +139,14 @@ $form = '{ "edits": [{ "op": "replaceWidgets", "at": "Home/EditForm", "widgets":
 $f = Changed $m $form @('widgets of Home/EditForm') 'replaceWidgets on a form'
 $homeText = Text $f.Out Home
 Require ($homeText.Contains('New label') -and $homeText.Contains('Save now') -and -not $homeText.Contains('Old label')) "form widgets not replaced: $homeText"
-# Applied again on its result: the same widgets again.
-$again = Changed $f.Out $form @('widgets of Home/EditForm') 'replaceWidgets again'
+# Applied again on its result: the widgets already match, so they are kept (no change, listed under existing).
+$again = Changed $f.Out $form @() 'replaceWidgets again'
 Require ((Text $again.Out Home) -ceq $homeText) 'replaceWidgets again gave other widgets'
+Require ((@($again.Report.existing) -join '|').Contains('widgets of Home/EditForm (already as in the spec)')) "replaceWidgets again did not keep the matching widgets: $($again.Text)"
+# Widget keys the platform refuses late, or a natural guess that is wrong: refused at once, naming what to use.
+Refused $m '{ "edits": [{ "op": "addWidgets", "screen": "Home", "widgets": [{ "type": "AdvancedHtml", "tag": "svg" }] }] }' @("an HTML Element cannot be 'svg'", 'mask-image') 'HTML Element svg'
+Refused $m '{ "edits": [{ "op": "addWidgets", "screen": "Home", "widgets": [{ "type": "AdvancedHtml", "tag": "dialog" }] }] }' @("an HTML Element cannot be 'dialog'", 'popover') 'HTML Element dialog'
+Refused $m '{ "edits": [{ "op": "addWidgets", "screen": "Home", "widgets": [{ "type": "Upload", "variable": "Name" }] }] }' @('fileContent', 'fileName') 'Upload variable'
 # Removing NameInput is refused, naming the widget and where it is used; nothing is saved.
 Refused $m '{ "edits": [{ "op": "replaceWidgets", "at": "Home/EditForm", "widgets": [{ "type": "Text", "text": "Gone" }] }] }' @("refused: replaceWidgets at 'Home/EditForm'", 'NameInput (used by MainFlow/Home/Save/Mark)', 'same name') 'replaceWidgets removing a used widget'
 # A usage in an unnamed widget: the path in the refusal is one that tree and edits read, and it names that widget.

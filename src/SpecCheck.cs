@@ -72,7 +72,8 @@ static class SpecShapes
     {
         ["addExceptionHandler"] = new(new[] { "action", "flow" }, new string[0]),
         ["setAccess"] = new(new[] { "screen" }, new string[0], "AccessSpec"),
-        ["insertNodes"] = new(new[] { "action", "after", "flow" }, new[] { "connector" }),
+        ["insertNodes"] = new(new[] { "action", "after", "flow" }, new[] { "connector", "ifMissing" }),
+        ["replaceNode"] = new(new[] { "element", "node" }, new string[0]),
         ["addWidgets"] = new(new[] { "screen", "widgets" }, new[] { "parent", "area", "index" }),
         ["replaceWidgets"] = new(new[] { "at", "widgets" }, new[] { "area" }),
         ["addVariables"] = new(new[] { "action" }, new string[0], "ActionSpec"),
@@ -88,7 +89,7 @@ static class SpecShapes
     public static readonly Dictionary<string, JsonValueKind> EditValueKinds = new()
     {
         ["flow"] = JsonValueKind.Array, ["widgets"] = JsonValueKind.Array, ["properties"] = JsonValueKind.Object,
-        ["index"] = JsonValueKind.Number, ["allowDataLoss"] = JsonValueKind.True, ["args"] = JsonValueKind.Object,
+        ["index"] = JsonValueKind.Number, ["allowDataLoss"] = JsonValueKind.True, ["ifMissing"] = JsonValueKind.True, ["node"] = JsonValueKind.Object, ["args"] = JsonValueKind.Object,
         ["sources"] = JsonValueKind.Array, ["joins"] = JsonValueKind.Array, ["filters"] = JsonValueKind.Array, ["sorts"] = JsonValueKind.Array,
         ["groupBy"] = JsonValueKind.Array, ["aggregates"] = JsonValueKind.Array, ["calculated"] = JsonValueKind.Array,
         ["groupFilters"] = JsonValueKind.Array, ["groupSorts"] = JsonValueKind.Array, ["groupCalculated"] = JsonValueKind.Array,
@@ -140,8 +141,50 @@ sealed class SpecChecker
         catch (JsonException e) { return new[] { ("$", $"Invalid spec JSON: {e.Message}") }; }
         if (JsonOutput.UnpairedSurrogatePath(System.Text.Json.Nodes.JsonNode.Parse(text, documentOptions: new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip })) is { } bad) // the same check as apply
         { doc.Dispose(); return new[] { (bad, JsonOutput.UnpairedSurrogate) }; }
-        using (doc) checker.Record(doc.RootElement, SpecModel.Root, "", root: true);
+        using (doc)
+        {
+            checker.Record(doc.RootElement, SpecModel.Root, "", root: true);
+            checker.Lint(doc.RootElement, "");
+            checker.Indexes(doc.RootElement);
+        }
         return checker.Problems;
+    }
+
+    // Values the shape check accepts but apply or the platform refuses, with the fix: a flow node named Start or End
+    // (the flow's own nodes have those names), and "id" among a widget's HTML attributes (a reserved keyword).
+    void Lint(JsonElement v, string path)
+    {
+        if (v.ValueKind == JsonValueKind.Array) { var i = 0; foreach (var e in v.EnumerateArray()) Lint(e, Item(path, i++)); return; }
+        if (v.ValueKind != JsonValueKind.Object) return;
+        if (v.TryGetProperty("kind", out var kind) && kind.ValueKind == JsonValueKind.String && v.TryGetProperty("name", out var name)
+            && name.ValueKind == JsonValueKind.String && name.GetString() is { } n && (n.Equals("Start", StringComparison.OrdinalIgnoreCase) || n.Equals("End", StringComparison.OrdinalIgnoreCase))
+            && !kind.GetString()!.Equals(n, StringComparison.OrdinalIgnoreCase))
+            Add(Key(path, "name"), $"'{n}' is the name of the flow's own {n} node; give this {kind.GetString()} node another name (for example '{n}Work')");
+        foreach (var p in v.EnumerateObject())
+        {
+            if (p.Name.Equals("attributes", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.Object && v.TryGetProperty("type", out _))
+                foreach (var a in p.Value.EnumerateObject().Where(a => a.Name.Equals("id", StringComparison.OrdinalIgnoreCase)))
+                    Add(Key(Key(path, p.Name), a.Name), "'id' is reserved (error InvalidHTMLAttribute_Id): the platform sets a widget's id. Give the widget a name and use Name.Id in expressions, or use a data- attribute");
+            Lint(p.Value, Key(path, p.Name));
+        }
+    }
+
+    // An index whose first column is a single reference attribute repeats the index the platform makes for every
+    // foreign key: apply then saves nothing (error InvalidEntityIndex_DupIndexes).
+    void Indexes(JsonElement root)
+    {
+        foreach (var (i, entity) in ArrayItems(root, "entities"))
+        {
+            var references = ArrayItems(entity, "attributes")
+                .Where(a => a.v.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String && t.GetString()!.Trim().EndsWith(" Identifier", StringComparison.OrdinalIgnoreCase)
+                            && a.v.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
+                .Select(a => a.v.GetProperty("name").GetString()!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var (j, index) in ArrayItems(entity, "indexes"))
+                if (index.TryGetProperty("attributes", out var cols) && cols.ValueKind == JsonValueKind.Array && cols.GetArrayLength() == 1
+                    && cols[0].ValueKind == JsonValueKind.String && references.Contains(cols[0].GetString()!)
+                    && !(index.TryGetProperty("unique", out var u) && u.ValueKind == JsonValueKind.True))
+                    Add($"entities[{i}].indexes[{j}]", $"'{cols[0].GetString()}' is a reference: the platform already indexes it, and a second index on it alone is refused (InvalidEntityIndex_DupIndexes). Remove this index, or add more attributes to it");
+        }
     }
 
     // ---- typed values ----

@@ -62,7 +62,7 @@ Common errors and warnings. Look one up with `oml explain-warning <id or title w
 | `UnusedEventHandler`, `UnusedArgument`, `UnusedPlaceholderArgument` | Unused Event Handler, Unused Argument, Unused Placeholder Content | Value for an event, input or placeholder that does not exist. | Fix the name or remove the value. |
 | `WebBlock_CustomEventNotTriggered` | Unused Block Event | Block event that nothing fires. | Fire it with `triggerEvent`, or drop it from `events`. |
 | `ConsecutiveServerInteractions`, `IteratedServerInteraction` | Performance Warning | Client action calls the server often or in a loop. | Do the work in one server action. |
-| `ClientActionWithServerRequestsOnLifecycleEvent` | Performance Warning | Server call in OnInitialize. | Fetch with an aggregate or data action. |
+| `ClientActionWithServerRequestsOnLifecycleEvent`, `Block_ClientActionWithServerRequestsOnLifecycleEvent` | Performance Warning | A lifecycle action calls the server, triggers an event, or runs JavaScript. | Fetch with an aggregate or data action. Polling: `oml doc ui-reactive#lifecycle`. |
 | `ClientActionWithModelAssignmentOnLifecycleEvent`, `SelfRefreshingAggregate` | Potential Loop at runtime | OnRender changes data, or OnAfterFetch refreshes its source. | Remove that assignment or refresh. |
 | `ClientActionWithScreenDataAccessesOnLifecycleEvent` | Coherence Suggestion | OnInitialize or OnReady reads fetched data. | Read it in `onAfterFetch`. |
 | `ClientActionWithVariablesUsedInScreenDataOnLifecycleEvent` | Coherence Suggestion | Filter variable set after the fetch. | Assign it in OnInitialize. |

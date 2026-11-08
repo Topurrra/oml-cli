@@ -15,6 +15,17 @@ static class Describe
         if (key == "OutputParameters" && o is OutSystems.Model.UI.Mobile.IScreenAction) return [];
         return Reflect.Get(o, key) is IEnumerable xs ? Unreadable.Try(() => key + " of " + Unreadable.Where(o), () => xs.Cast<object>().ToArray(), []) : [];
     }
+    // The edits path of a refresh node when it differs from "refresh <data source>" (which works when it is unique).
+    static string RefreshHandle(object node)
+    {
+        if (node is not IObjectSignature n || n.Parent is not { } owner) return "";
+        if (Model.NameOf(n) is { Length: > 0 } named) return "  [path " + named + "]";
+        var alias = "refresh " + Name(Reflect.Get(n, "DataSource"));
+        var same = ElementPaths.Children(owner).Count(c => c is OutSystems.Model.Logic.Nodes.IRefreshDataNode && Model.NameOf(c) is null
+                                                            && "refresh " + Name(Reflect.Get(c, "DataSource")) == alias);
+        return same == 1 ? "" : "  [path " + ElementPaths.Segment(n, owner) + "]";
+    }
+
     static string Name(object? o) => o is null ? "?" : Model.NameOf(o) ?? Reflect.Get(o, "DisplayName") as string ?? ElementPaths.Kind(o);
     static string Expr(object o, string key) => Text(Reflect.Get(o, key));
     static string Text(object? o) => o is IExpression e ? e.Text : o as string ?? "";
@@ -303,7 +314,8 @@ static class Describe
             else if (kind == "TriggerNode") Line(indent, "trigger " + Name(Reflect.Get(node, "Event")) + "(" + Args(node) + ")");
             else if (kind == "SendEmailNode" || Reflect.Property(node, "EmailScreen") is not null)
                 Line(indent, "send email " + Name(Reflect.Get(node, "Email") ?? Reflect.Get(node, "EmailScreen")) + " from " + Expr(node, "From") + " to " + Expr(node, "To") + "(" + Args(node) + ")");
-            else if (kind == "RefreshDataNode") Line(indent, "refresh " + Name(Reflect.Get(node, "DataSource")));
+            // A refresh node usually has no name: its path is "refresh <data source>" (or the index form shown when that repeats).
+            else if (kind == "RefreshDataNode") Line(indent, "refresh " + Name(Reflect.Get(node, "DataSource")) + RefreshHandle(node));
             else if (kind == "JavaScriptNode")
             {
                 var outputs = string.Join(", ", List(node, "OutputParameters").Select(p => Name(p) + ": " + TypeOf(p)));
@@ -398,6 +410,7 @@ static class Describe
                 if (Reflect.Get(o, "CustomStyle") is string inline && inline.Trim().Length > 0) properties.Add("inlineStyle=\"" + inline.Trim() + "\"");
                 if (Reflect.Get(o, "Tag") is string tag && tag.Length > 0) properties.Add("tag=" + tag);
                 if (Reflect.Get(o, "Icon") is string icon && icon.Length > 0) properties.Add("icon=" + icon);
+                if (Reflect.Get(o, "MarginLeft") is { } marginLeft && marginLeft.ToString() is { Length: > 0 } ml) properties.Add("marginLeft=" + ml);
                 if (Reflect.Property(o, "InputType") is not null && Reflect.Get(o, "InputType")?.ToString() is { } inputType && inputType != "Text") properties.Add("type=" + inputType);
                 if (Expr(o, "Prompt") is { Length: > 0 } prompt) properties.Add("prompt=" + prompt);
                 if (Expr(o, "Mandatory") is { Length: > 0 } mandatory && !mandatory.Equals("False", StringComparison.OrdinalIgnoreCase)) properties.Add("mandatory=" + mandatory);

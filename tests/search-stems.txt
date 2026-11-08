@@ -49,7 +49,9 @@ default: default, defaults
 delet: delete, deleted, deleting
 dependency: dependencies, dependency
 detail: detail, details
+differ: differ, differs
 doc: doc, docs
+drop: drop, drops
 edit: edit, editable, edits
 element: element, elements
 email: email, emails
@@ -143,7 +145,7 @@ rais: raise, raises
 read: read, reads
 record: record, records
 referenc: reference, referenced, references
-refresh: refresh, refreshed
+refresh: refresh, refreshed, refreshes
 refus: refuse, refused, refuses
 refus: refused, refuses
 remov: remove, removed, removes
@@ -175,6 +177,7 @@ show: show, shows
 sign: sign, signed
 signatur: signature, signatures
 skill: skill, skills
+skip: skip, skips
 sort: sort, sorting, sorts
 sourc: source, sources
 spec: spec, specs

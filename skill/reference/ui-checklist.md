@@ -17,6 +17,9 @@ Never report UI work as done without at least one screenshot that you looked at:
 - **Motion:** `@media (prefers-reduced-motion: reduce)` stops animation.
 - **JavaScript scope:** Query inside your root (`document.getElementById($parameters.RootId)`), never the whole page. No globals.
 - **JavaScript cleanup:** Every `window` or `document` listener, timer, observer and animation frame is removed in `OnDestroy`.
+- **Lists:** List items are direct children of the list, after a `<script>`: style `.my-list > *`; in a grid hide `[data-list] > script`.
+- **CSS variables:** Reactive drops `--name` from a style attribute: set them from a Script (`style.setProperty`).
+- **Platform widgets:** Restyle Switch, Checkbox, Dropdown and Input with OutSystems UI's selector plus your class (`input[data-switch].my-switch`); check with `oml qa page --style-conflicts`.
 
 ## The loop
 

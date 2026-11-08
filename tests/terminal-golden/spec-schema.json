@@ -1272,6 +1272,9 @@
             },
             "connector": {
               "type": "string"
+            },
+            "ifMissing": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -1279,6 +1282,24 @@
             "action",
             "after",
             "flow"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "replaceNode"
+            },
+            "element": {
+              "type": "string"
+            },
+            "node": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "op",
+            "element",
+            "node"
           ]
         },
         {

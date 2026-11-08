@@ -53,7 +53,20 @@ partial class SelfTest
                 { "name": "Bump", "flow": [ { "kind": "assign", "name": "Up", "assign": { "Count": "Count + 1" } } ] } ],
               "widgets": [ { "type": "Container", "name": "AssignRoot", "children": [
                 { "type": "Expression", "name": "Sum", "value": "Count + 1" }, { "type": "Expression", "name": "Joined", "value": "Label + Count" },
-                { "type": "Link", "name": "BumpLink", "onClick": "Bump", "children": [ { "type": "Text", "text": "Add one" } ] } ] } ] }
+                { "type": "Link", "name": "BumpLink", "onClick": "Bump", "children": [ { "type": "Text", "text": "Add one" } ] } ] } ] },
+            { "name": "PvList", "onInitialize": "Fill",
+              "locals": [ { "name": "I", "type": "Integer" }, { "name": "Last", "type": "Text" }, { "name": "Tags", "type": "List of Text" } ],
+              "actions": [ { "name": "Fill", "flow": [
+                { "kind": "assign", "name": "Reset", "assign": { "I": "0" } },
+                { "kind": "if", "name": "More", "condition": "I < 3", "true": "Step", "false": "Read" },
+                { "kind": "assign", "name": "Step", "assign": { "I": "I + 1" }, "next": "More" },
+                { "kind": "jsonDeserialize", "name": "Read", "jsonString": "\"[\"\"a\"\",\"\"b\"\"]\"", "dataType": "List of Text" },
+                { "kind": "assign", "name": "Keep", "assign": { "Tags": "Read.Data" } },
+                { "kind": "forEach", "name": "EachTag", "recordList": "Tags", "cycle": "Remember", "next": "End" },
+                { "kind": "assign", "name": "Remember", "assign": { "Last": "Tags.Current" }, "next": "EachTag" } ] } ],
+              "widgets": [ { "type": "Container", "name": "ListRoot", "children": [
+                { "type": "Expression", "name": "Counted", "value": "\"i=\" + I" }, { "type": "Expression", "name": "LastTag", "value": "\"last=\" + Last" },
+                { "type": "List", "name": "TagList", "source": "Tags", "children": [ { "type": "Expression", "name": "TagText", "value": "\"#\" + Tags.Current" } ] } ] } ] }
           ],
           "edits": [ { "op": "addWidgets", "screen": "PvBad", "parent": "BadLink", "widgets": [ { "type": "Text", "text": "Copy spec" } ] } ]
         }
@@ -105,7 +118,7 @@ partial class SelfTest
             && Preview.Condition("Mode = \"bar\"", scope, kinds) == true && Preview.Condition("Mode = \"baz\"", scope, kinds) == false, "flow If: case, kinds");
         Check(Preview.Condition("True", scope) == true && Preview.Condition("On", scope) == true && Preview.Condition("Mode = \"bar\"", scope) == true
             && Preview.Condition("Mode <> \"bar\"", scope) == false && Preview.Condition("not (Count = 3)", scope) == false && Preview.Condition("(Count = 3.0)", scope) == true
-            && Preview.Condition("\"a=b\" = \"a=b\"", scope) == true && Preview.Condition("Mode", scope) is null && Preview.Condition("Length(Mode) > 2", scope) is null
+            && Preview.Condition("\"a=b\" = \"a=b\"", scope) == true && Preview.Condition("Mode", scope) is null && Preview.Condition("IsPhone()", scope) is null && Preview.Condition("Length(Mode) > 2", scope) == true
             && Preview.Condition("Mode = \"bar\" and Count = 3", scope) == true && Preview.Condition("Mode = \"baz\" or Count = 3", scope) == true
             && Preview.Condition("Mode = \"baz\" and Local = 1", scope) == false && Preview.Condition("Mode = \"bar\" and Local = 1", scope) is null
             && Preview.Condition("Local = 1", scope) is null && Preview.Condition("Empty = 1", scope) is null
@@ -126,7 +139,11 @@ partial class SelfTest
         // An input that an Assign of the block changes is not used to pick an If branch; a + with no text is a sum, not a join.
         var assign = Preview.Render(module, "PvAssign", none, "light", 1200);
         Check(assign.Html.Contains("ThreeJs") && assign.Html.Contains("OtherJs") && assign.Notes.Any(n => n.StartsWith("If IsThree in PvAssign.OnReady cannot be evaluated")), "an assigned input picked an If branch");
-        Check(assign.Html.Contains(">{Count + 1}<") && !assign.Html.Contains(">31<") && assign.Html.Contains(">n=3<"), "Count + 1 shown as a text join");
+        Check(assign.Html.Contains(">4<") && !assign.Html.Contains(">31<") && assign.Html.Contains(">n=3<"), "Count + 1 shown as a text join");
+        // OnInitialize fills lists the preview can compute: a counted loop with ListAppend, and JSON Deserialize of a text.
+        var lists = Preview.Render(module, "PvList", none, "light", 1200).Html;
+        Check(lists.Contains(">i=3<") && lists.Contains(">last=b<") && lists.Contains(">#a<") && lists.Contains(">#b<") && Regex.Matches(lists, "id=\"TagText").Count == 2,
+            "OnInitialize: counted loop, JSON Deserialize list, For Each, one List row per item");
         var bad = Preview.Render(module, "PvBad", none, "light", 1200).Checklist.ToDictionary(c => c.id, c => c.ok);
         Check(bad.Values.All(ok => !ok), "PvBad should fail every check: " + string.Join(",", bad.Where(p => p.Value).Select(p => p.Key)));
 

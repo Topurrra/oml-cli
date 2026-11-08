@@ -28,8 +28,15 @@ static class Preview
 
     sealed class Frame
     {
+        static int next;
+        public readonly int Key = System.Threading.Interlocked.Increment(ref next); // for <Widget>.Id references rendered before the widget
+        public static readonly Dictionary<int, Frame> All = new();
+        public Frame() { lock (All) All[Key] = this; }
         public readonly Dictionary<string, string?> Scope = new(StringComparer.Ordinal);
         public readonly Dictionary<string, string> Kinds = new(StringComparer.Ordinal); // input name -> text, number or bool
+        // Lists that OnInitialize fills where the preview can compute it: each item is its fields ("" for a basic value).
+        public readonly Dictionary<string, List<Dictionary<string, string?>>> Lists = new(StringComparer.Ordinal);
+        public readonly HashSet<string> ListLocals = new(StringComparer.Ordinal), RecordLocals = new(StringComparer.Ordinal);
         public readonly Dictionary<string, string> Ids = new(StringComparer.Ordinal);
         public readonly Dictionary<string, (List<object> widgets, Frame caller)> Slots = new(StringComparer.OrdinalIgnoreCase);
         public List<object> Stack = new();
@@ -201,7 +208,7 @@ static class Preview
         readonly List<(string owner, string text)> literals = new();
         readonly List<(string owner, List<string> rootClasses, bool hasRoot)> roots = new();
         readonly List<IObjectSignature> localBlocks = Inspect.Screens(m).Where(s => Inspect.IsBlock(s.screen)).Select(s => s.screen).ToList();
-        int ifCount, depthLimited;
+        int ifCount, depthLimited, iconCount, repeated;
 
         public Result Run(IObjectSignature element, IReadOnlyDictionary<string, string> overrides, string theme, int width, List<Step> steps)
         {
@@ -226,12 +233,15 @@ static class Preview
                     frame.Scope[pn] = DefaultLiteral(p) ?? kindOf switch { "bool" => "False", "text" => "\"\"", "number" => "0", _ => null };
             }
             AddLocals(element, frame);
+            InitialAssigns(element, frame);
 
             // Module scripts first, as the app loads them for every screen: the module's required scripts, then its JavaScript.
             foreach (var s in Content.Items(m, "RequiredScripts")) Require(s);
             if (Reflect.Get(m, "JavaScript") is string moduleJs && moduleJs.Trim().Length > 0) scripts.Add(("(module JavaScript)", moduleJs));
             var pre = preOrder++;
             var body = Body(element, frame);
+            body = Regex.Replace(body, "\u0002(\\d+):(\\w+)\u0003", r => Frame.All.TryGetValue(int.Parse(r.Groups[1].Value), out var owner)
+                && owner.Ids.TryGetValue(r.Groups[2].Value, out var found) ? Enc(found) : Enc(r.Groups[2].Value));
             Scripts(element, frame, pre);
             var sb = new StringBuilder();
             sb.Append("<!doctype html>\n<html lang=\"en\" data-theme=\"").Append(theme).Append("\">\n<head>\n<meta charset=\"utf-8\">\n")
@@ -242,7 +252,14 @@ static class Preview
             if (themeCss is not null) styles.Insert(0, ("(theme)", themeCss));
             foreach (var (owner, css) in styles)
                 sb.Append("<style data-source=\"").Append(Enc(owner)).Append("\">\n").Append(css.Replace("</style", "<\\/style", StringComparison.OrdinalIgnoreCase)).Append("\n</style>\n");
-            sb.Append(Runtime).Append("</head>\n<body>\n");
+            sb.Append(Runtime);
+            // Theme scripts often read prefers-color-scheme and set data-theme themselves: make the media query answer
+            // with --theme, so they keep the theme the preview was asked for.
+            sb.Append("<script>(function(t){var mm=window.matchMedia&&window.matchMedia.bind(window);if(!mm)return;window.matchMedia=function(q){var r=mm(q);")
+              .Append("if(!/prefers-color-scheme/.test(String(q)))return r;var m=/dark/.test(String(q))===(t==='dark');")
+              .Append("return {matches:m,media:String(q),onchange:null,addListener:function(){},removeListener:function(){},addEventListener:function(){},removeEventListener:function(){},dispatchEvent:function(){return false;}};};})(")
+              .Append(Json(theme)).Append(");</script>\n");
+            sb.Append("</head>\n<body>\n");
             // Scripts run at the top of <body>, before the widgets exist, as in the app. The marker names the script in a syntax error.
             foreach (var (label, code) in scripts)
                 sb.Append("<script>__omlAt(").Append(Json("script " + label)).Append(");</script>\n<script data-oml-script=\"").Append(Enc(label)).Append("\">\n")
@@ -298,9 +315,10 @@ static class Preview
             notes.Insert(0, "OutSystems UI styles, fonts and JavaScript (OSUI, OutSystems.*) are not available. Classes such as card or btn are not styled here, and code that calls OutSystems UI fails here; check them in the published app.");
             notes.Add($"data-theme=\"{theme}\" is set on <html>. Only CSS that reads it (or CSS variables) changes with the theme.");
             if (ifCount > 0) notes.Add($"{ifCount} If widget(s) rendered as the true branch.");
+            if (iconCount > 0) notes.Add($"{iconCount} Icon widget(s) are shown as a small box with the icon's first letter: Font Awesome is not loaded here.");
             if (externalBlocks.Count > 0) notes.Add("Blocks from other modules are shown as a div with the block name as class, with their placeholder content: " + string.Join(", ", externalBlocks) + ".");
             if (depthLimited > 0) notes.Add($"{depthLimited} nested block(s) not expanded (more than {MaxDepth} levels deep, or a cycle).");
-            notes.Add("List and table rows repeat the row template 3 times. Expressions that depend on data show as {expression}.");
+            if (repeated > 0) notes.Add("List and table rows repeat the row template 3 times. Expressions that depend on data show as {expression}.");
             if (jsNodes.Count > 0) notes.Add("JavaScript nodes of OnInitialize, OnReady and OnRender run in flow order, once per rendered instance, after the page loaded (OnInitialize too). $actions, $roles, $public and controller are stubs that log their calls in stubbed. Client actions called from those actions are not followed.");
             if (steps > 0) notes.Add("The interaction steps are in the HTML file too, so they run again when you open it.");
         }
@@ -341,6 +359,7 @@ static class Preview
 
         string Repeat(object w, Frame f, string owner, int times = 3)
         {
+            repeated++;
             var sb = new StringBuilder();
             for (var i = 0; i < times; i++) sb.Append(Kids(w, f, owner));
             return sb.ToString();
@@ -388,7 +407,13 @@ static class Preview
                     return Tag("button", Kids(w, f, owner), " type=\"button\"" + (Condition(Text(Reflect.Get(w, "Enabled")), f.Scope, f.Kinds) == false ? " disabled" : ""));
                 case "Image": return Image(w, f, A);
                 case "Icon":
-                    return $"<i{(id is null ? "" : $" id=\"{Enc(id)}\"")} class=\"{Enc((classes + " " + (Reflect.Get(w, "Icon") as string)).Trim())}\" aria-hidden=\"true\"{hidden}></i>";
+                {
+                    // Font Awesome is not loaded here: the icon shows as a small box with its first letter (BaseCss).
+                    var icon = Reflect.Get(w, "Icon") as string ?? "";
+                    var letter = Regex.Match(icon.Replace("fa-", ""), "[A-Za-z]").Value.ToUpperInvariant();
+                    iconCount++;
+                    return $"<i{(id is null ? "" : $" id=\"{Enc(id)}\"")} class=\"{Enc((classes + " " + icon).Trim())}\" data-oml-icon=\"{Enc(letter)}\" aria-hidden=\"true\"{hidden}></i>";
+                }
                 case "Input":
                 {
                     var type = (Reflect.Get(w, "InputType")?.ToString() ?? "").ToLowerInvariant() switch
@@ -408,7 +433,7 @@ static class Preview
                 case "ButtonGroupItem": return Tag("button", Kids(w, f, owner), " type=\"button\"");
                 case "Label": return Tag("label", Kids(w, f, owner));
                 case "Form": return Tag("form", Kids(w, f, owner));
-                case "List": return Tag("div", Repeat(w, f, owner));
+                case "List": return Tag("div", ListRows(w, f, owner) ?? Repeat(w, f, owner));
                 case "ListItem": return Tag("div", string.Concat(Kids(w).Select(k => W(k, f, owner))), " data-oml=\"list-item\"");
                 case "If":
                 {
@@ -456,7 +481,11 @@ static class Preview
             {
                 var name = Reflect.Get(p, "Property") as string ?? "";
                 if (!Regex.IsMatch(name, @"^[a-zA-Z_:][-a-zA-Z0-9_:.]*$") || name.StartsWith("on", StringComparison.OrdinalIgnoreCase)
-                    || name.Equals("id", StringComparison.OrdinalIgnoreCase) || Eval(Text(Reflect.Get(p, "Value")), f.Scope) is not { Literal: not null } v) continue;
+                    || name.Equals("id", StringComparison.OrdinalIgnoreCase)) continue;
+                // <Widget>.Id (a popovertarget, aria-controls, ...): the widget's id in the page, filled in after the body is drawn.
+                if (Regex.Match(Text(Reflect.Get(p, "Value")).Trim(), @"^([A-Za-z_]\w*)\.Id$") is { Success: true } idRef)
+                { sb.Append($" {name}=\"\u0002{f.Key}:{idRef.Groups[1].Value}\u0003\""); continue; }
+                if (Eval(Text(Reflect.Get(p, "Value")), f.Scope) is not { Literal: not null } v) continue;
                 if (name.Equals("class", StringComparison.OrdinalIgnoreCase)) cssClass += " " + v.Display;
                 else sb.Append($" {name}=\"{Enc(v.Display)}\"");
             }
@@ -511,6 +540,7 @@ static class Preview
                     : DefaultLiteral(p) ?? kindOf switch { "bool" => "False", "text" => "\"\"", "number" => "0", _ => null };
             }
             AddLocals(local, inner);
+            InitialAssigns(local, inner);
             foreach (var pc in slotsHere)
                 if (Model.NameOf(Reflect.Get(pc, "Placeholder") ?? pc) is { } slotName)
                     inner.Slots[slotName] = (Kids(pc).ToList(), f);
@@ -639,14 +669,163 @@ static class Preview
         // ---- expressions ----
 
         // Local variables start at their default (or the type's default): the screen as it first renders.
+        // OnInitialize runs here as far as the preview can compute it: Assign nodes (also record fields such as Cell.Day),
+        // ListAppend and ListClear, JSON Deserialize of a known text, If with a known condition, For Each over a known list,
+        // and the screen's or block's own client actions it calls. It stops at the first If it cannot decide. Widgets then
+        // show the values, and a List shows one row per item of a list filled this way.
+        int budget;
+        void InitialAssigns(object owner, Frame frame)
+        {
+            if (Reflect.Get(owner, "OnInitialize") is not { } evt || Reflect.Get(evt, "Destination") is not { } action) return;
+            budget = 5000;
+            var before = frame.Lists.Count;
+            var set = Walk(Start(action), null, owner, frame, 0, out var changed);
+            if (frame.Lists.Count > before) Note("Lists that OnInitialize fills with values the preview can compute (ListAppend, JSON Deserialize of a known text) show one row per item; other lists repeat their row template 3 times.");
+            else if (changed > 0) Note("Values that OnInitialize assigns from literals or simple expressions are used here.");
+            if (set == WalkEnd.Stopped && budget <= 0) Note("OnInitialize ran more than 5000 steps here; the preview stopped it.");
+        }
+
+        enum WalkEnd { End, Reached, Stopped }
+
+        static object? Start(object action) => Describe.List(action, "Nodes").FirstOrDefault(n => ElementPaths.Kind(n) is "Start" or "StartNode");
+
+        WalkEnd Walk(object? node, object? stopAt, object owner, Frame f, int depth, out int changed)
+        {
+            changed = 0;
+            while (node is IObjectSignature o)
+            {
+                if (ReferenceEquals(node, stopAt)) return WalkEnd.Reached;
+                if (--budget < 0) return WalkEnd.Stopped;
+                if (node is OutSystems.Model.Logic.Nodes.IEndNode) return WalkEnd.End;
+                var kind = ElementPaths.Kind(node);
+                if (node is OutSystems.Model.Logic.Nodes.IAssignNode)
+                    foreach (var a in Describe.List(node, "Assignments")) changed += Assign(Text(Reflect.Get(a, "Variable")).Trim(), Text(Reflect.Get(a, "Value")), f);
+                else if (Reflect.Property(node, "JSONString") is not null && Model.NameOf(node) is { } reader
+                         && Eval(Text(Reflect.Get(node, "JSONString")), f.Scope) is { Literal: not null } json)
+                {
+                    var items = JsonItems(json.Display);
+                    if (items is not null) { f.Lists[reader + ".Data"] = items; changed++; }
+                }
+                else if (Reflect.Get(node, "Action") is { } called)
+                {
+                    var args = Describe.List(node, "Arguments").Where(a => Reflect.Get(a, "Parameter") is { } p && Model.NameOf(p) is not null)
+                        .ToDictionary(a => Model.NameOf(Reflect.Get(a, "Parameter")!)!, a => Text(Reflect.Get(a, "Value")).Trim());
+                    var name = Model.NameOf(called);
+                    if (name == "ListAppend" && args.TryGetValue("List", out var list) && args.TryGetValue("Element", out var element) && f.ListLocals.Contains(list))
+                    {
+                        if (!f.Lists.TryGetValue(list, out var items)) f.Lists[list] = items = new();
+                        items.Add(f.RecordLocals.Contains(element)
+                            ? f.Scope.Where(p => p.Key.StartsWith(element + ".", StringComparison.Ordinal)).ToDictionary(p => p.Key[(element.Length + 1)..], p => p.Value)
+                            : new Dictionary<string, string?> { [""] = Eval(element, f.Scope).Literal });
+                        changed++;
+                    }
+                    else if (name == "ListClear" && args.TryGetValue("List", out var cleared) && f.ListLocals.Contains(cleared)) { f.Lists[cleared] = new(); changed++; }
+                    // The screen's or block's own client action: run its flow too (no inputs passed).
+                    else if (called is IObjectSignature own && ReferenceEquals(own.Parent, owner) && depth < 4)
+                    {
+                        var end = Walk(Start(called), null, owner, f, depth + 1, out var inner);
+                        changed += inner;
+                        if (end == WalkEnd.Stopped) return end;
+                    }
+                }
+                var connectors = ElementPaths.Children(o).Where(c => Reflect.Get(c, "TargetNode") is not null).ToList();
+                if (node is OutSystems.Model.Logic.Nodes.IIfNode)
+                {
+                    if (Condition(Text(Reflect.Get(node, "Condition")), f.Scope, f.Kinds) is not bool b) return WalkEnd.Stopped;
+                    connectors = connectors.Where(c => ElementPaths.Kind(c).Equals(b ? "True" : "False", StringComparison.OrdinalIgnoreCase)).ToList();
+                }
+                else if (Reflect.Property(node, "RecordList") is not null)
+                {
+                    var cycle = connectors.FirstOrDefault(c => ElementPaths.Kind(c).Equals("Cycle", StringComparison.OrdinalIgnoreCase));
+                    var listName = Text(Reflect.Get(node, "RecordList")).Trim();
+                    if (cycle is null || !f.Lists.TryGetValue(listName, out var source)) return WalkEnd.Stopped;
+                    foreach (var item in source.ToList())
+                    {
+                        SetCurrent(listName, item, f);
+                        var end = Walk(Reflect.Get(cycle, "TargetNode"), node, owner, f, depth, out var inner);
+                        changed += inner;
+                        if (end != WalkEnd.Reached) return end == WalkEnd.End ? WalkEnd.End : WalkEnd.Stopped;
+                    }
+                    connectors = connectors.Where(c => !ReferenceEquals(c, cycle)).ToList();
+                }
+                if (connectors.Count != 1) return WalkEnd.Stopped;
+                node = Reflect.Get(connectors[0], "TargetNode");
+            }
+            return WalkEnd.End;
+        }
+
+        // One assignment: a basic local or input, a field of a record local (Cell.Day), or a list local from a known list.
+        // A value the preview cannot compute makes the variable unknown, so it shows as {expression}, never a stale value.
+        static int Assign(string variable, string value, Frame f)
+        {
+            var dot = variable.IndexOf('.');
+            if (dot < 0 && f.ListLocals.Contains(variable))
+            {
+                if (!f.Lists.TryGetValue(value.Trim(), out var from)) return 0;
+                f.Lists[variable] = from.Select(x => new Dictionary<string, string?>(x)).ToList();
+                return 1;
+            }
+            if (dot < 0 ? !f.Scope.ContainsKey(variable) : !f.RecordLocals.Contains(variable[..dot])) return 0;
+            if (!Regex.IsMatch(variable, @"^[A-Za-z_]\w*(\.[A-Za-z_]\w*)?$")) return 0;
+            f.Scope[variable] = Eval(value, f.Scope).Literal;
+            return 1;
+        }
+
+        // A JSON array of basic values or flat objects, as JSON Deserialize reads it into a list.
+        static List<Dictionary<string, string?>>? JsonItems(string json)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.ValueKind != JsonValueKind.Array) return null;
+                static string? Literal(JsonElement v) => v.ValueKind switch
+                {
+                    JsonValueKind.String => Quote(v.GetString() ?? ""), JsonValueKind.Number => v.GetRawText(),
+                    JsonValueKind.True => "True", JsonValueKind.False => "False", _ => null,
+                };
+                return doc.RootElement.EnumerateArray().Take(MaxListItems).Select(v => v.ValueKind == JsonValueKind.Object
+                    ? v.EnumerateObject().ToDictionary(p => p.Name, p => Literal(p.Value))
+                    : new Dictionary<string, string?> { [""] = Literal(v) }).ToList();
+            }
+            catch (JsonException) { return null; }
+        }
+
+        const int MaxListItems = 60;
+
+        // <List>.Current (a basic item) or <List>.Current.<Field> (a record item) in the scope, for one item.
+        static void SetCurrent(string list, Dictionary<string, string?> item, Frame f)
+        {
+            foreach (var key in f.Scope.Keys.Where(k => k.StartsWith(list + ".Current", StringComparison.Ordinal)).ToList()) f.Scope.Remove(key);
+            foreach (var (field, value) in item) f.Scope[field.Length == 0 ? list + ".Current" : $"{list}.Current.{field}"] = value;
+        }
+
+        // A List bound to a list that OnInitialize filled here: one row per item (up to MaxListItems), with .Current set.
+        string? ListRows(object w, Frame f, string owner)
+        {
+            var source = Text(Reflect.Get(w, "Source")).Trim();
+            if (source.Length == 0 || !f.Lists.TryGetValue(source, out var items)) return null;
+            var saved = f.Scope.Where(p => p.Key.StartsWith(source + ".Current", StringComparison.Ordinal)).ToList();
+            var sb = new StringBuilder();
+            foreach (var item in items.Take(MaxListItems)) { SetCurrent(source, item, f); sb.Append(Kids(w, f, owner)); }
+            SetCurrent(source, [], f);
+            foreach (var (key, value) in saved) f.Scope[key] = value;
+            return sb.ToString();
+        }
+
         void AddLocals(object owner, Frame frame)
         {
             foreach (var v in Describe.List(owner, "LocalVariables"))
             {
                 var vn = Model.NameOf(v);
                 if (vn is null || frame.Scope.ContainsKey(vn)) continue;
-                var kindOf = TypeKind(Model.Describe(m, Reflect.Get(v, "DataType") as OutSystems.Model.Types.ITypeSignature));
-                if (kindOf is null) continue;
+                var described = Model.Describe(m, Reflect.Get(v, "DataType") as OutSystems.Model.Types.ITypeSignature);
+                var kindOf = TypeKind(described);
+                if (kindOf is null)
+                {
+                    if (described?.StartsWith("List of ", StringComparison.Ordinal) == true) frame.ListLocals.Add(vn);
+                    else if (described is { Length: > 0 } && Ident.IsMatch(described.Replace(".", ""))) frame.RecordLocals.Add(vn);
+                    continue;
+                }
                 frame.Kinds[vn] = kindOf;
                 frame.Scope[vn] = DefaultLiteral(v) ?? kindOf switch { "bool" => "False", "text" => "\"\"", _ => "0" };
             }
@@ -666,11 +845,54 @@ static class Preview
     internal static readonly Regex Str = new("^\"((?:[^\"]|\"\")*)\"$", RegexOptions.Singleline);
     static readonly Regex Num = new(@"^-?\d+(\.\d+)?$");
     static readonly Regex Ident = new(@"^[A-Za-z_]\w*$");
+    static readonly Regex Dotted = new(@"^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$");
     internal static string Enc(string s) => WebUtility.HtmlEncode(s);
     static string Quote(string s) => "\"" + s.Replace("\"", "\"\"") + "\"";
     internal static string Text(object? o) => o is IExpression e ? e.Text : o as string ?? "";
 
     // Class names in a Style expression: every quoted piece, so "card " + If(x, "a", "b") still yields card, a and b.
+    static Val Number(decimal n)
+    {
+        var text = n.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (text.Contains('.')) text = text.TrimEnd('0').TrimEnd('.');
+        return new Val(text, text, false);
+    }
+
+    static Val TextVal(string s) => new(s, Quote(s), false);
+
+    // Pure built-in functions on literal arguments: text (Length, Index, Substr, Trim, ToUpper, ToLower, Replace),
+    // conversions to text, and numbers (Abs, Min, Max, Round, FormatDecimal). Null when a name or an argument is unknown.
+    static Val? Function(string name, string argText, Dictionary<string, string?>? scope)
+    {
+        var args = argText.Trim().Length == 0 ? new List<Val>() : SplitTop(argText, ',').Select(a => Eval(a, scope)).ToList();
+        if (args.Any(a => a.Literal is null)) return null;
+        string S(int i) => args[i].Display;
+        decimal? D(int i) => Num.IsMatch(args[i].Literal!) ? decimal.Parse(args[i].Literal!, System.Globalization.CultureInfo.InvariantCulture) : null;
+        int? I(int i) => D(i) is { } d && d == Math.Floor(d) ? (int)d : null;
+        switch (name.ToLowerInvariant())
+        {
+            case "length" when args.Count == 1: return Number(S(0).Length);
+            case "index" when args.Count is 2 or 3: return Number(S(0).IndexOf(S(1), args.Count == 3 && I(2) is int from ? Math.Clamp(from, 0, S(0).Length) : 0, StringComparison.Ordinal));
+            case "substr" when args.Count == 3 && I(1) is int start && I(2) is int length:
+                return start < 0 || start > S(0).Length ? TextVal("") : TextVal(S(0).Substring(start, Math.Clamp(length, 0, S(0).Length - start)));
+            case "trim" when args.Count == 1: return TextVal(S(0).Trim());
+            case "toupper" when args.Count == 1: return TextVal(S(0).ToUpperInvariant());
+            case "tolower" when args.Count == 1: return TextVal(S(0).ToLowerInvariant());
+            case "replace" when args.Count == 3: return TextVal(S(1).Length == 0 ? S(0) : S(0).Replace(S(1), S(2), StringComparison.Ordinal));
+            case "integertotext" or "longintegertotext" or "decimaltotext" when args.Count == 1 && D(0) is { } n: return TextVal(Number(n).Display);
+            case "abs" when args.Count == 1 && D(0) is { } a: return Number(Math.Abs(a));
+            case "min" when args.Count == 2 && D(0) is { } x && D(1) is { } y: return Number(Math.Min(x, y));
+            case "max" when args.Count == 2 && D(0) is { } x2 && D(1) is { } y2: return Number(Math.Max(x2, y2));
+            case "round" when args.Count is 1 or 2 && D(0) is { } r: return Number(Math.Round(r, args.Count == 2 && I(1) is int digits ? Math.Clamp(digits, 0, 10) : 0, MidpointRounding.AwayFromZero));
+            case "formatdecimal" when args.Count == 4 && D(0) is { } v && I(1) is int places:
+            {
+                var formatted = Math.Round(v, Math.Clamp(places, 0, 10), MidpointRounding.AwayFromZero).ToString("N" + Math.Clamp(places, 0, 10), System.Globalization.CultureInfo.InvariantCulture);
+                return TextVal(formatted.Replace(",", "\u0001").Replace(".", S(2)).Replace("\u0001", S(3)));
+            }
+            default: return null;
+        }
+    }
+
     // An expression the preview cannot compute shows as {expression}; a long one is cut so it does not cover the layout.
     static string Unknown(string e) => "{" + (e.Length <= 40 ? e : e[..37] + "...") + "}";
 
@@ -684,21 +906,35 @@ static class Preview
         if (e.Length == 0) return new Val("", null, false);
         if (Str.Match(e) is { Success: true } s) return new Val(s.Groups[1].Value.Replace("\"\"", "\""), e, false);
         if (Num.IsMatch(e) || e.Equals("True", StringComparison.OrdinalIgnoreCase) || e.Equals("False", StringComparison.OrdinalIgnoreCase)) return new Val(e, e, false);
-        if (Ident.IsMatch(e) && scope is not null && scope.TryGetValue(e, out var value))
+        if (Dotted.IsMatch(e) && scope is not null && scope.TryGetValue(e, out var value))
             return value is null ? new Val(Unknown(e), null, true) : Eval(value, null);
         // If(condition, a, b) with a condition the preview can decide: the chosen branch.
         if (Regex.Match(e, @"^If\s*\((.*)\)$", RegexOptions.IgnoreCase | RegexOptions.Singleline) is { Success: true } call
             && Outer(call.Groups[1].Value).balanced && SplitTop(call.Groups[1].Value, ',') is { Count: 3 } args
             && Condition(args[0], scope) is bool chosen)
             return Eval(chosen ? args[1] : args[2], scope);
+        // A built-in text or number function whose arguments the preview can compute.
+        if (Regex.Match(e, @"^([A-Za-z]\w*)\s*\((.*)\)$", RegexOptions.Singleline) is { Success: true } fn
+            && Outer(fn.Groups[2].Value).balanced && Function(fn.Groups[1].Value, fn.Groups[2].Value, scope) is { } result)
+            return result;
+        // A - B between numbers.
+        if (SplitTop(e, '-') is { Count: 2 } diff && diff[0].Trim().Length > 0
+            && Eval(diff[0], scope) is { Literal: { } l } && Num.IsMatch(l) && Eval(diff[1], scope) is { Literal: { } r } && Num.IsMatch(r))
+            return Number(decimal.Parse(l, System.Globalization.CultureInfo.InvariantCulture) - decimal.Parse(r, System.Globalization.CultureInfo.InvariantCulture));
         var parts = SplitPlus(e);
         if (parts.Count > 1)
         {
-            // A text join only when a part is text: Count + 1 is a sum, and showing "31" would be wrong.
+            // A text join when a part is text; a sum when every part is a number.
             var values = parts.Select(p => Eval(p, scope)).ToList();
             if (values.All(v => v.Literal is not null) && values.Any(v => Str.IsMatch(v.Literal!)))
             { var joined = string.Concat(values.Select(v => v.Display)); return new Val(joined, Quote(joined), false); }
+            if (values.All(v => v.Literal is not null && Num.IsMatch(v.Literal)))
+            { var sum = values.Sum(v => decimal.Parse(v.Literal!, System.Globalization.CultureInfo.InvariantCulture)); return Number(sum); }
         }
+        // A comparison used as a value (an IsActive argument): True or False when the preview can decide it.
+        if ((Outer(e) is { balanced: true, at: >= 0 } || Relational(e) is not null || SplitWord(e, "and").Count > 1 || SplitWord(e, "or").Count > 1
+             || Regex.IsMatch(e, @"^not\s", RegexOptions.IgnoreCase)) && Condition(e, scope) is bool decided)
+            return new Val(decided ? "True" : "False", decided ? "True" : "False", false);
         return new Val(Unknown(e), null, true);
     }
 
@@ -720,12 +956,12 @@ static class Preview
                 return results.All(r => r is not null) ? !stop : null;
             }
         var o = Outer(e);
-        if (o.balanced && o.unsupported && Regex.Match(e, @"^([^<>=""]+?)\s*(<=|>=|<|>)\s*([^<>=""]+)$") is { Success: true } cmp
-            && Side(cmp.Groups[1].Value, scope, kinds) is { } l1 && Side(cmp.Groups[3].Value, scope, kinds) is { } r1
+        if (o.balanced && o.unsupported && Relational(e) is { } cmp
+            && Side(e[..cmp.at], scope, kinds) is { } l1 && Side(e[(cmp.at + cmp.op.Length)..], scope, kinds) is { } r1
             && LiteralKind(l1) == "number" && LiteralKind(r1) == "number")
         {
             var (a, b) = (decimal.Parse(l1, System.Globalization.CultureInfo.InvariantCulture), decimal.Parse(r1, System.Globalization.CultureInfo.InvariantCulture));
-            return cmp.Groups[2].Value switch { "<" => a < b, ">" => a > b, "<=" => a <= b, _ => a >= b };
+            return cmp.op switch { "<" => a < b, ">" => a > b, "<=" => a <= b, _ => a >= b };
         }
         if (!o.balanced || o.unsupported) return null;
         if (o.at < 0) return Side(e, scope, kinds) is { } l && LiteralKind(l) == "bool" ? bool.Parse(l) : null;
@@ -788,6 +1024,31 @@ static class Preview
             else if (char.IsWhiteSpace(c) && Regex.IsMatch(e[i..], @"^\s+(and|or)\s", RegexOptions.IgnoreCase)) unsupported = true;
         }
         return (depth == 0 && !quoted, at, length, unsupported);
+    }
+
+    // The one top-level <, >, <= or >= (outside quotes and brackets); null when there is none or more than one.
+    static (int at, string op)? Relational(string e)
+    {
+        int depth = 0;
+        var quoted = false;
+        (int at, string op)? found = null;
+        for (var i = 0; i < e.Length; i++)
+        {
+            var c = e[i];
+            if (c == '"') quoted = !quoted;
+            else if (quoted) continue;
+            else if (c == '(') depth++;
+            else if (c == ')') depth--;
+            else if (depth == 0 && c is '<' or '>')
+            {
+                if (c == '<' && i + 1 < e.Length && e[i + 1] == '>') return null;
+                if (found is not null) return null;
+                var op = i + 1 < e.Length && e[i + 1] == '=' ? c + "=" : c.ToString();
+                found = (i, op);
+                i += op.Length - 1;
+            }
+        }
+        return found;
     }
 
     // Splits at a character outside quotes and brackets (the commas of a function call).
@@ -860,7 +1121,8 @@ static class Preview
         :where(input:not([type=checkbox]):not([type=radio]),select,textarea){padding:.35em .5em;border:1px solid #8a919a;border-radius:4px;background:transparent}
         table{border-collapse:collapse}th,td{padding:.4em .7em;border-bottom:1px solid #c8ccd2;text-align:left}
         :where(html[data-theme=dark] th,html[data-theme=dark] td){border-color:#3a4049}
-        i[class*="fa-"]::before{content:"\25A0";font-size:.8em;opacity:.6}
+        :where(i[data-oml-icon]){display:inline-flex;align-items:center;justify-content:center;width:1.2em;height:1.2em;border:1px solid currentColor;border-radius:3px;font:600 .7em/1 system-ui,sans-serif;font-style:normal;opacity:.7;vertical-align:middle}
+        :where(i[data-oml-icon])::before{content:attr(data-oml-icon)}
         .oml-muted{opacity:.6;font-style:italic}
         .oml-placeholder{border:1px dashed #8a919a;padding:8px;opacity:.85}
         .oml-unknown{border:1px solid #d97706;padding:6px}

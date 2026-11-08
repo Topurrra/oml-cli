@@ -55,7 +55,7 @@ Several commands = ONE tool call: chain with `;` or use an `oml batch` file.
    `{ "steps": [ ["inspect","<module.oml>","--own","--only","entities,actions,screens,blocks"], ["describe","<module.oml>","<ElementToChange>","<OtherElement>"] ] }`
    Describe only elements you change or call. Producer files: add `--in <folder|file.oml>`. Another module's element: add a `find` step. New entities, screens or flows without a recipe: add `; oml doc best-practices` to this call.
    `.oml/memory/` exists? Add step `["memory","recall","<task words>","--module","<Module>"]`; at the end, follow its `write` field.
-2. **Write the spec (no doc reads if a recipe fits).** Copy the closest recipe. For a key no recipe shows, run `oml spec <key>` (never read `reference/spec.md` whole). Put ALL requested elements in one spec; generate many similar elements with a small script.
+2. **Write the spec (no doc reads if a recipe fits).** Copy the closest recipe. For a key no recipe shows, run `oml spec <key>` (never read `reference/spec.md` whole). Put ALL requested elements in one spec; generate many similar elements with a small script file (not an inline heredoc: it breaks escaped quotes and `\n`).
 3. **Check, apply and see the result (1 call):**
    `oml spec check <spec.json>; oml apply <source.oml> <spec.json> <new-staged.oml> --describe-created`
    Read `summary` first, then its lists. After a good apply, do not run `validate`, `inspect` or `describe` again.

@@ -34,6 +34,21 @@ static class Content
     static void Set(object owner, string property, object? value) =>
         (Reflect.Property(owner, property, true) ?? throw new ModelError($"no writable {property} on {owner.GetType().Name}")).SetValue(owner, value);
 
+    // Theme Editor's part at the start of a style sheet: its banner, its :root block and the blank lines after it; ""
+    // when there is none. The model keeps that part from the theme's Theme Editor values and writes it again on save,
+    // so a style sheet set without it still has it after the save.
+    internal static string ThemeEditorPart(string current)
+    {
+        var banner = current.IndexOf("created using Theme Editor", StringComparison.Ordinal);
+        if (!current.TrimStart().StartsWith("/*", StringComparison.Ordinal) || banner is < 0 or > 400) return "";
+        var root = current.IndexOf(":root", banner, StringComparison.Ordinal);
+        var close = root < 0 ? -1 : current.IndexOf("\n}", root, StringComparison.Ordinal);
+        if (close < 0) return "";
+        var end = close + 2;
+        while (end < current.Length && char.IsWhiteSpace(current[end])) end++;
+        return current[..end];
+    }
+
     // changed: UI settings replaced on existing elements (an existing theme's styleSheet).
     public static void Before(IESpace m, Spec spec, List<string> created, List<string> existing, List<string> changed, List<string> problems)
     {
@@ -90,6 +105,12 @@ static class Content
                 {
                     // As for other elements: public may be given; ProductionRules refuses public to private (rule 4).
                     if (file.Public is { } makePublic) Set(found, "Public", makePublic);
+                    // A script's code is UI (rule 3): the spec's file replaces it when it differs (not only in line endings).
+                    if (group.Item3 == "script" && System.IO.File.ReadAllText(file.File) is var code && !Reuse.SameText(Reflect.Get(found, "JavaScript") as string, code))
+                    {
+                        Set(found, "JavaScript", code);
+                        changed.Add($"javaScript of script {file.Name}");
+                    }
                     existing.Add($"{group.Item3} {file.Name}");
                     return;
                 }
@@ -116,7 +137,17 @@ static class Content
             if (item is not null)
             {
                 // A style sheet and a base theme are UI (rule 3): what the spec gives replaces the theme's; what it leaves out stays.
-                if (css is not null && Reuse.Css(Reflect.Get(item, "StyleSheet") as string) != Reuse.Css(css)) { Set(item, "StyleSheet", css); changed.Add($"styleSheet of theme {theme.Name}"); }
+                if (css is not null)
+                {
+                    // A theme made with Theme Editor: the model puts Theme Editor's part before any text set, and the
+                    // style sheet read back (describe --css) holds it. A spec made from that text holds it too: drop it
+                    // there, and compare with what the model will hold (that part, then the spec's CSS).
+                    var current = Reflect.Get(item, "StyleSheet") as string ?? "";
+                    var editor = ThemeEditorPart(current);
+                    css = Reuse.WithoutPrefix(css, editor);
+                    var result = editor + css;
+                    if (!Reuse.SameText(current, result) && Reuse.Css(current) != Reuse.Css(result)) { Set(item, "StyleSheet", css); changed.Add($"styleSheet of theme {theme.Name}"); }
+                }
                 if (theme.BaseTheme is { } newBase && Reflect.Property(item, "BaseTheme", true) is { } baseProperty
                     && Refs.Find(m, newBase, baseProperty.PropertyType) is var target && !ReferenceEquals(target, baseProperty.GetValue(item)))
                 { baseProperty.SetValue(item, target); changed.Add($"baseTheme of theme {theme.Name}"); }

@@ -160,6 +160,7 @@ export const cookbook = [
   ] },
   { group: 'Change walkthroughs', items: [
     ['oml create falcon --in C:\\Downloads\\falcon', 'Start a project: folders, memory, the agent\'s skill and hooks, the modules and the application map.'],
+    ['oml skill refresh', 'Bring the project\'s skill/ and AGENTS.md up to this oml (oml doctor says when they are older); your own files stay.'],
     ['oml map build falcon --in C:\\Work\\falcon-apps', 'An application map of every module of a project (once; later builds read only the changed files).'],
     ['oml map overview', 'The project\'s applications, modules and consumed APIs, in a few lines.'],
     ['oml map uses GetClientInfo', 'Where an element is defined and every flow that calls or reads it, across all applications.'],

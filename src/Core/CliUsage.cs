@@ -7,6 +7,7 @@ static class CliUsage
     public const string Text = """
         oml version
         oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--no-skill] [--no-hooks]   (start a project: folders, memory, the agent's skill and hooks, .gitignore; with --in, the modules and the application map)
+        oml skill refresh [--dir <project>]   (update a project's skill/ and AGENTS.md to this oml)
         oml new <out.oml> [--name N] [--kind WebResponsive|Mobile|Service|ReactiveLibrary|...]
         oml new <out.oml> --template <name-or-exported.oml> [--name N]
         oml new <out.oml> --from-template <template.oml> [--name N] [--kind K]
@@ -82,7 +83,7 @@ static class CliUsage
         oml publish --in <folder> --order <order.json>   (publish many modules in that order; stops at the first failure)
         oml references <Module | file.oml>  (Refresh All references through Service Studio)
         oml lifetime environments|teams|team-apps|apps|download|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lifetime' for usage)
-        oml qa page <url> [--headed] [--width N] [--height N] [--timeout <ms>] [--screenshot <file.png>] [--engine auto|cdp|uia] [--no-session]   (test a running app: what the screen shows, compactly: actions, inputs, tables, messages, layout, the OutSystems calls it made, errors)
+        oml qa page <url> [--headed] [--width N] [--height N] [--timeout <ms>] [--screenshot <file.png>] [--style-conflicts <class prefix>] [--engine auto|cdp|uia] [--no-session]   (test a running app: what the screen shows, compactly: actions, inputs, tables, messages, layout, the OutSystems calls it made, errors)
         oml qa run <qa.json> [--save <new.json>] [--base-url <url>] [--headed] [--width N] [--height N] [--timeout <ms>] [--out <folder>] [--continue] [--engine auto|cdp|uia] [--no-session]   (run QA steps like a manual tester: open, click, fill, select, press, wait, expect; exit 1 when a step fails)
         oml qa record <url> [--out <qa.jsonc>] [--engine auto|cdp|uia] [--width N] [--height N]   (open the app in a window and write a QA file from what you click and type; close the window or press Ctrl+C to finish)
         oml qa start [--engine auto|cdp|uia] [--headed] [--width N] [--height N]   (keep one browser open: later qa run and qa page skip the browser start and keep the login)

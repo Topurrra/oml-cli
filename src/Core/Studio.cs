@@ -45,17 +45,34 @@ static class Studio
     // One publish, without printing: `publish` prints it, and the batch publish (PublishBatch) collects it.
     public static PublishBatch.PublishResult PublishOne(string target) => Guard("Publishing through Service Studio", ManualPublish, () =>
     {
-        var name = OpenModule(target);
+        var (name, how, pushed) = OpenModule(target);
         JsonNode? apps = null;
         try { apps = Call("listApps", input: null); } catch (CliError) { } // only for the warning: a failed lookup never blocks a publish
-        var warning = StudioGuards.PublishWarning(name, StudioGuards.FindApp(apps, name));
+        var warnings = new List<string>();
+        if (StudioGuards.PublishWarning(name, StudioGuards.FindApp(apps, name)) is { } zero) warnings.Add(zero);
         var result = Call("omlPublish", new JsonObject { ["eSpaceName"] = name });
+        // A file Service Studio has just opened can still be loading: its first publish answers "busy". Wait and try again.
+        for (var waited = 0; how == "opened" && waited < 120 && !Flag(result, "published", "omlPublish") && Busy(result); waited += 5)
+        {
+            Thread.Sleep(5000);
+            result = Call("omlPublish", new JsonObject { ["eSpaceName"] = name });
+        }
+        if (how == "pushed")
+            warnings.Add(pushed.Count == 0
+                ? $"'{name}' was open in Service Studio and already matched this file; the open copy was published."
+                : $"'{name}' was open in Service Studio, so these texts were set in the open copy from the file, then it was published: {string.Join(", ", pushed)}.");
+        if (StudioPush.UploadSkipped(result))
+            warnings.Add("Service Studio skipped the upload: the server already has this version, so nothing new was deployed." +
+                         (how == "module" ? " If you installed a newer file, publish the file instead: oml publish <file.oml>." : ""));
+        var warning = warnings.Count == 0 ? null : string.Join(" ", warnings);
         return new PublishBatch.PublishResult(name, Flag(result, "published", "omlPublish"), warning, result);
     });
 
+    static bool Busy(JsonNode result) => result.ToJsonString().Contains("busy", StringComparison.OrdinalIgnoreCase);
+
     public static int References(string target) => Guard("Refreshing references through Service Studio", ManualRefresh, () =>
     {
-        var name = OpenModule(target);
+        var name = OpenModule(target, push: false).name;
         var result = Call("omlRefreshReferences", new JsonObject { ["eSpaceName"] = name });
         var (refreshed, busy) = StudioGuards.RefreshOutcome(result);
         if (!refreshed)
@@ -97,25 +114,8 @@ static class Studio
         if (File.Exists(path)) throw new CliError($"Output already exists: {path}. Use a new output path, or delete that file first.", 2);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!); // before the session, so a bad path costs nothing
 
-        var session = new JsonObject { ["eSpaceName"] = name };
-        try { Call("startOmlEditSession", session); }
-        catch (CliError e) when (e.Message.Contains("already", StringComparison.OrdinalIgnoreCase))
-        {
-            // Never end a session another agent started: it would discard that agent's unmerged work.
-            throw new CliError($"Another agent already has an edit session on '{name}', and Service Studio allows only one. " +
-                               "Wait until it ends, then run oml pull again.", 2);
-        }
-        try
-        {
-            var applied = Call("applyModelApiCode", new JsonObject
-            {
-                ["eSpaceName"] = name, ["code"] = "eSpace => { }", ["imports"] = new JsonArray(),
-            });
-            var saved = applied["mutatedOmlPath"]?.GetValue<string>();
-            if (string.IsNullOrEmpty(saved) || !File.Exists(saved))
-                throw new CliError($"applyModelApiCode returned no saved file (got: {Shorten(applied.ToJsonString())}).", 2);
-            File.Copy(saved, path);
-        }
+        StartSession(name, "oml pull");
+        try { File.Copy(SessionSave(name, "eSpace => { }"), path); }
         finally { Call("endOmlEditSession", new JsonObject { ["eSpaceName"] = name }); }
 
         string pulled;
@@ -186,29 +186,94 @@ static class Studio
 
     static string Shorten(string text) => text.Length <= 300 ? text : text[..300] + "...";
 
-    // A module name must already be open. A file is opened in Service Studio first, unless a module with
-    // the same name is already open: then publishing would act on that copy, not on this file.
-    static string OpenModule(string target)
+    // A module name must already be open ("module"). A file is opened in Service Studio first ("opened"). When a module
+    // with the file's name is already open, publishing would act on that copy: if the file differs from it only in theme
+    // style sheets and scripts, those texts are set in the open copy ("pushed", StudioPush); otherwise this refuses.
+    static (string name, string how, List<string> pushed) OpenModule(string target, bool push = true)
     {
         Connect();
         if (!target.EndsWith(".oml", StringComparison.OrdinalIgnoreCase))
             return StudioGuards.SameNameRefusal(Call("listApps", input: null), target) is { } refusal ? throw new CliError(refusal, 2)
-                : IsOpen(target) ? target : throw new CliError($"Module '{target}' is not open in Service Studio. Open it, or pass its .oml file.", 2);
+                : IsOpen(target) ? (target, "module", []) : throw new CliError($"Module '{target}' is not open in Service Studio. Open it, or pass its .oml file.", 2);
 
         var path = Path.GetFullPath(target);
         if (!File.Exists(path)) throw new CliError($"File not found: {path}", 2);
         string name;
         using (var m = Model.Load(path)) name = ((OutSystems.Model.Applications.IModule)m).Name;
         if (IsOpen(name))
-            throw new CliError($"A module named '{name}' is already open in Service Studio, so this file would not be the one used. " +
-                               $"Close it there and run again, or run 'oml publish {name}' to use the open copy.", 2);
+        {
+            if (StudioGuards.SameNameRefusal(Call("listApps", input: null), name) is { } refusal) throw new CliError(refusal, 2);
+            if (!push) throw new CliError($"A module named '{name}' is already open in Service Studio, so this file would not be the one used. " +
+                                          $"Close it there and run again, or run with '{name}' to use the open copy.", 2);
+            return (name, "pushed", PushTexts(path, name));
+        }
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); // .oml opens in Service Studio
         for (var waited = 0; waited < 180; waited += 2)
         {
             Thread.Sleep(2000);
-            if (IsOpen(name)) return name;
+            if (IsOpen(name)) return (name, "opened", []);
         }
         throw new CliError($"Service Studio did not open '{name}' within 3 minutes.", 2);
+    }
+
+    // Sets the file's changed theme style sheets and script texts in the open module (see StudioPush). Refuses, with
+    // nothing changed, when the file differs from the open copy in anything else.
+    static List<string> PushTexts(string path, string name)
+    {
+        StartSession(name, "oml publish");
+        var temp = Path.Combine(Path.GetTempPath(), "oml-cli", "push-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temp);
+        try
+        {
+            var openCopy = Path.Combine(temp, "open.oml");
+            File.Copy(SessionSave(name, "eSpace => { }"), openCopy);
+            List<StudioPush.TextEdit> edits; List<string> other;
+            using (var open = Model.Load(openCopy))
+            using (var file = Model.Load(path))
+                (edits, other) = StudioPush.Differences(open, file);
+            if (other.Count > 0) throw new CliError(StudioPush.Refusal(name, other), 2);
+            if (edits.Count == 0) return [];
+            var edited = SessionSave(name, StudioPush.Code(edits), "OutSystems.Model");
+            List<string> wrong;
+            using (var check = Model.Load(edited)) wrong = StudioPush.Mismatches(check, edits);
+            if (wrong.Count > 0)
+                throw new CliError($"Setting the texts in the open '{name}' did not take for: {string.Join(", ", wrong)}. Nothing was merged; close '{name}' in Service Studio and run again.", 2);
+            var merged = Call("omlMerge", new JsonObject { ["eSpaceName"] = name, ["mutatedOmlPath"] = edited });
+            if (merged["merged"] is JsonValue ok && ok.TryGetValue<bool>(out var done) && !done)
+                throw new CliError($"Service Studio did not merge the texts into '{name}' ({Shorten(merged.ToJsonString())}).", 2);
+            return edits.Select(e => $"{e.Kind} {e.Name}").ToList();
+        }
+        finally
+        {
+            try { Call("endOmlEditSession", new JsonObject { ["eSpaceName"] = name }); } catch (CliError) { }
+            try { Directory.Delete(temp, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    static void StartSession(string name, string command)
+    {
+        try { Call("startOmlEditSession", new JsonObject { ["eSpaceName"] = name }); }
+        catch (CliError e) when (e.Message.Contains("already", StringComparison.OrdinalIgnoreCase))
+        {
+            // Never end a session another agent started: it would discard that agent's unmerged work.
+            throw new CliError($"Another agent already has an edit session on '{name}', and Service Studio allows only one. " +
+                               $"Wait until it ends, then run {command} again.", 2);
+        }
+    }
+
+    // Runs Model API code in the open edit session; returns the file Service Studio saved.
+    static string SessionSave(string name, string code, params string[] imports)
+    {
+        var applied = Call("applyModelApiCode", new JsonObject
+        {
+            ["eSpaceName"] = name, ["code"] = code, ["imports"] = new JsonArray(imports.Select(i => (JsonNode?)i).ToArray()),
+        });
+        if (applied["exceptionMessage"] is JsonValue ex && ex.TryGetValue<string>(out var message) && message.Length > 0)
+            throw new CliError($"applyModelApiCode failed: {Shorten(message)}", 2);
+        var saved = applied["mutatedOmlPath"]?.GetValue<string>();
+        if (string.IsNullOrEmpty(saved) || !File.Exists(saved))
+            throw new CliError($"applyModelApiCode returned no saved file (got: {Shorten(applied.ToJsonString())}).", 2);
+        return saved;
     }
 
     static bool IsOpen(string name) =>

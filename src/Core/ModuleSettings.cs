@@ -12,7 +12,7 @@ static class ModuleSettings
         defaultTheme = Theme(m) is { } t ? Model.NameOf(t) : null
     };
     static object? Theme(IESpace m) => Reflect.Get(m, WebUi.IsTraditional(m) ? "DefaultWebTheme" : "DefaultMobileTheme");
-    internal static void Apply(IESpace m, JsonElement? settings, List<string> problems)
+    internal static void Apply(IESpace m, JsonElement? settings, List<string> problems, List<string>? warnings = null)
     {
         if (settings is null) return;
         if (settings.Value.ValueKind != JsonValueKind.Object) { problems.Add("module: expected object"); return; }
@@ -36,6 +36,9 @@ static class ModuleSettings
                 throw new ModelError("a module has no style sheet of its own; put module-wide CSS in one of its themes: \"themes\": [{ \"name\": \"<Theme>\", \"styleSheet\": \"...\" }] replaces the styleSheet of an existing theme or creates the theme; \"module\": { \"defaultTheme\": \"<Theme>\" } selects it");
             } else {
                 if (p.Name is not ("description" or "javaScript" or "isUserProvider" or "isMultiTenant")) throw new ModelError($"unsupported setting '{p.Name}'");
+                // A Reactive or Mobile module stores this text but never loads it in the app (no window object appears).
+                if (p.Name == "javaScript" && !WebUi.IsTraditional(m) && m.Kind.ToString() != "Service" && p.Value.ValueKind == JsonValueKind.String && p.Value.GetString()!.Trim().Length > 0)
+                    warnings?.Add("module.javaScript: a Reactive or Mobile module never runs module JavaScript in the app. Put the code in a Script (scripts: [{ name, file }]) and list it in requiredScripts of each screen or block that needs it");
                 if (p.Name is "isUserProvider" or "isMultiTenant") {
                     if (p.Value.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) throw new ModelError("expected boolean");
                 } else if (p.Value.ValueKind != JsonValueKind.String) throw new ModelError("expected string");

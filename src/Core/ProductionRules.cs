@@ -91,6 +91,11 @@ sealed class ProductionRules
         "server" => "public server or service action", "client" => "public client action",
         "reactive" => "public Reactive or Mobile block or screen", _ => "public Traditional Web block or screen",
     };
+    // A Reactive block or screen of a library still in development may have no consumer yet: say how to change it then.
+    static string InDevelopment(string kind, string name) => kind == "reactive"
+        ? $" If no module uses it yet (check: oml map uses {name}), apply the library spec to the module from before the library instead, so '{name}' is new there."
+        : "";
+
     // Each change that breaks the modules using a public element (rule 4), worded by its direction.
     static IEnumerable<string> SignatureProblems(string name, Contract before, Contract after, string? start = null)
     {
@@ -101,10 +106,10 @@ sealed class ProductionRules
             if (!before.inputs.TryGetValue(input, out var old))
             {
                 if (mandatory) yield return $"{start} A new mandatory input '{input}' breaks every module that uses it (rule 4). {(fixedInputs ? "Create a new element instead." : "Add it as optional (\"mandatory\": false), or create a new element.")}";
-                else if (fixedInputs) yield return $"{start} Any new input, even an optional one ('{input}'), breaks the modules that use it (rule 4). Create a new element instead.";
+                else if (fixedInputs) yield return $"{start} Any new input, even an optional one ('{input}'), breaks the modules that use it (rule 4). Create a new element instead.{InDevelopment(before.kind, name)}";
                 continue;
             }
-            if (old.type != type) yield return $"{start} Changing the type of input '{input}' ({old.type} to {type}) breaks the modules that use it (rule 4). Add a new input or element instead.";
+            if (old.type != type) yield return $"{start} Changing the type of input '{input}' ({old.type} to {type}) breaks the modules that use it (rule 4). Add a new input or element instead.{InDevelopment(before.kind, name)}";
             if (!old.mandatory && mandatory) yield return $"{start} Making input '{input}' mandatory breaks the modules that leave it out (rule 4). Keep it optional.";
             if (old.mandatory && !mandatory && fixedInputs) yield return $"{start} Making input '{input}' optional changes its signature and breaks the modules that use it (rule 4); that is allowed only on server and service actions and Traditional Web blocks and screens.";
         }
@@ -163,7 +168,10 @@ sealed class ProductionRules
         o.GetType().GetInterfaces().Any(i => (i.Namespace?.StartsWith("OutSystems.Model") == true
             || i.Namespace?.StartsWith("ServiceStudio.Plugin.") == true) && Contracts.Contains(i.Name))
         && (o is not IAttributeSignature || o.Parent is IEntitySignature or IStructureSignature)
-        && (o is not IParameterSignature || o.Parent is not OutSystems.Model.Logic.Nodes.IActionNode);
+        && (o is not IParameterSignature || o.Parent is not OutSystems.Model.Logic.Nodes.IActionNode)
+        // A widget's event handler parameter (a table's OnSort ClickedColumn, added by Service Studio on save) is part
+        // of the widget: replaceWidgets may remove it with the widget.
+        && (o is not IParameterSignature || o.Parent?.Parent is not OutSystems.Model.UI.IWidgetSignature);
     // Any change to an element of a referenced module (a proxy) is refused with this one message.
     internal static ModelError Consumed(IObjectSignature o)
     {

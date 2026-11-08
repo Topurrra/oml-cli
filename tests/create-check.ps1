@@ -29,6 +29,19 @@ try {
   } finally { Pop-Location }
   Write-Host 'ok   create: layout, memory, skill, AGENTS.md, CLAUDE.md, hooks, .gitignore, PROJECT.md'
 
+  # 1b. skill refresh: an older or edited copy is brought up to this oml; the project's own files stay.
+  $version = (Get-Content (Join-Path $root 'skill\.oml-version') -Raw).Trim()
+  Require ($version -match '^\d+\.\d+\.\d+$') "create did not stamp skill/.oml-version: $version"
+  Set-Content (Join-Path $root 'skill\.oml-version') '0.1.0'
+  Set-Content (Join-Path $root 'skill\SKILL.md') 'old'
+  Set-Content (Join-Path $root 'skill\mine.md') 'project note'
+  $s = Json skill refresh --dir $root
+  Require ($LASTEXITCODE -eq 0 -and $s.from -eq '0.1.0' -and $s.to -eq $version -and $s.updated -ge 1) "skill refresh: $($s | ConvertTo-Json -Compress)"
+  Require ((Get-Content (Join-Path $root 'skill\SKILL.md') -Raw).Trim() -ne 'old' -and (Test-Path (Join-Path $root 'skill\mine.md'))) 'skill refresh did not update SKILL.md or removed the project file'
+  $bad = Json skill refresh --dir $Tmp
+  Require ($LASTEXITCODE -eq 2) "skill refresh in a folder without skill/ was not refused: $($bad | ConvertTo-Json -Compress)"
+  Write-Host 'ok   skill refresh: older copy updated, project files kept, a folder without skill/ refused'
+
   # 2. With modules: copied in, and the map built under the project's name.
   & $Oml new (Join-Path $Tmp 'is-blank.oml') --name CrmIS --kind CrossDevice | Out-Null
   $src = Join-Path $Tmp 'src'; New-Item -ItemType Directory $src | Out-Null

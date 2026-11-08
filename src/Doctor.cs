@@ -110,6 +110,11 @@ static class Doctor
             : new Check("path", "warn", $"{folder} is not on PATH, so oml does not run from other folders.",
                 $"Add it for this session: $env:PATH = \"{folder};$env:PATH\". To keep it, add the folder to your user PATH in Windows Settings."));
 
+        // 9. skill: a project's skill/ copy from an older oml misses the newer rules and recipes.
+        if (CreateCommand.StaleSkill(Environment.CurrentDirectory) is { } stale)
+            checks.Add(new Check("skill", "warn", $"This project's skill/ is from oml {stale.version ?? "(unknown, older)"}; this oml is {CreateCommand.OmlVersion}, so agents read older rules and recipes.",
+                "Run: oml skill refresh   (the project's own files in skill/ stay)"));
+
         var ok = checks.All(c => c.Status != "fail");
         if (args.Contains("--text"))
         {

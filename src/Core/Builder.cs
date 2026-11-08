@@ -32,7 +32,22 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
             for (var i = 0; i < stage.Count; i++) // widgets append expressions while running
                 Try(stage[i].label, stage[i].apply);
         Edit(edits);
+        // Existing flows are compared after the edits, so a flow the edits patch to match the spec is no problem.
+        foreach (var check in flowChecks) check();
+        // A replaceWidgets whose new widgets equal the removed ones changed nothing but the widgets' keys.
+        foreach (var (index, before, made) in replacements)
+        {
+            var now = made();
+            if (now.Count > 0 && now.All(w => !w.WasDeleted) && ReviewModel.Fingerprint(m, now) == before) Unchanged.Add(index);
+        }
     }
+
+    readonly List<Action> flowChecks = new();
+    readonly List<(int index, string before, Func<List<IObjectSignature>> made)> replacements = new();
+    // The edits (by index) whose replaceWidgets or replaceNode built the same widgets or node the module had. Apply builds again without them
+    // (SkipEdits), so the module keeps its widgets and their keys: a review, a merge and a publish then see no change.
+    internal readonly HashSet<int> Unchanged = new();
+    internal HashSet<int> SkipEdits { get; init; } = new();
 
     void Defer(object owner, (string label, Action apply) step) => expressions.Add((step.label, () =>
     {
@@ -189,7 +204,17 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 if (kind.Equals("execute", StringComparison.OrdinalIgnoreCase))
                 {
                     var target = n.GetProperty("action").GetString()!;
-                    callee = Refs.Find(m, target, typeof(IObjectSignature));
+                    // A screen or block action calls another action of the same screen or block by its name.
+                    callee = (action as IObjectSignature)?.Parent is { } owner && Reflect.Get(owner, "ScreenActions") is System.Collections.IEnumerable siblings
+                        ? siblings.Cast<object>().FirstOrDefault(s => !ReferenceEquals(s, action) && Model.NameOf(s) == target) : null;
+                    callee ??= Refs.Find(m, target, typeof(IObjectSignature));
+                    // A client flow calls the client action when a client and a server action share the name
+                    // (System's ListAppend, ListClear, ...): the server one is a request per call.
+                    if (!callee.GetType().GetInterfaces().Any(i => i.Name == "IClientActionSignature")
+                        && action.GetType().GetInterfaces().Any(i => i.Name is "IClientActionSignature" or "IScreenActionSignature" || i.Name.Contains("ScreenAction"))
+                        && Refs.All(m).Select(r => r.element).FirstOrDefault(e => Model.NameOf(e) == Model.NameOf(callee)
+                            && e.GetType().GetInterfaces().Any(i => i.Name == "IClientActionSignature")) is { } clientTwin)
+                        callee = clientTwin;
                     var client = callee.GetType().GetInterfaces().Any(i => i.Name == "IClientActionSignature");
                     type = client ? typeof(OutSystems.Model.Logic.Nodes.IExecuteClientActionNode) : typeof(OutSystems.Model.Logic.Nodes.IExecuteServerActionNode);
                     if (!n.TryGetProperty("name", out _)) name = Model.NameOf(callee) ?? target;
@@ -507,6 +532,12 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         catch (ModelError e) { problems.Add($"{where}: {e.Message}"); return null; }
 
         if (name is not null && !Fresh(widget, name, where)) return null;
+        ReactiveChecks(type, w, where);
+        // A new widget's Margin Left is "Adaptive": the app then adds ThemeGrid_MarginGutter (a 20 px left margin) to
+        // each inline widget after another, which breaks gap-based layouts. No margin unless the spec sets marginLeft.
+        if (!w.TryGetProperty("marginLeft", out _) && Reflect.Property(widget, "MarginLeft", writable: true) is { PropertyType: var marginType } margin
+            && marginType == typeof(string) && margin.GetValue(widget) as string == "Adaptive")
+            try { margin.SetValue(widget, null); } catch (System.Reflection.TargetInvocationException) { }
         if (w.TryGetProperty("args", out var args))
             Defer(widget, ($"{where}.args", () => Arguments(
                 w.TryGetProperty("onClick", out var click) && click.ValueKind == JsonValueKind.String
@@ -553,7 +584,8 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                     Reflect.Property(evt, "Destination", writable: true)!.SetValue(evt, destination);
                     if (p.Value.TryGetProperty("args", out var eventArgs)) Defer(widget, ($"{where}.{p.Name}.args", () => Arguments(evt, eventArgs)));
                 });
-            // HTML attributes (Service Studio's Attributes list): { "aria-label": "\"Close\"", "style": "\"--value:\" + Value" }.
+            // HTML attributes (Service Studio's Attributes list): { "aria-label": "\"Close\"", "style": "\"width:\" + Value + \"%\"" }.
+            // Reactive drops CSS custom properties (--x) from style; ReactiveChecks warns.
             else if (p.Name.Equals("attributes", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.Object)
                 Try($"{where}.attributes", () => Attributes(widget, p.Value, where));
             else if (p.Name.Equals("targetWidget", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.String)
@@ -562,6 +594,34 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 Queue(where, m, widget, p.Name, p.Value, referencesDone: true);
         }
         return widget;
+    }
+
+    // Reactive settings the model stores but the app ignores or renders differently: refused, or warned, with the fix.
+    void ReactiveChecks(string type, JsonElement w, string where)
+    {
+        bool Has(string key) => w.EnumerateObject().Any(p => p.Name.Equals(key, StringComparison.OrdinalIgnoreCase));
+        if (type.Equals("Expression", StringComparison.OrdinalIgnoreCase) && Has("visible"))
+            Warnings.Add($"{where}: Reactive ignores Visible on an Expression (the app shows the text anyway). Put the Expression in a Container with \"visible\", or hide it with a style class");
+        if (type.Equals("BlockInstance", StringComparison.OrdinalIgnoreCase) && Has("visible"))
+            throw new ModelError("a BlockInstance has no Visible. Put it in a Container with \"visible\"");
+        // HTML Element tags the platform refuses at validation ("not a valid HTML tag"): say what to use instead.
+        if (type.Equals("AdvancedHtml", StringComparison.OrdinalIgnoreCase) && w.TryGetProperty("tag", out var tagValue) && tagValue.ValueKind == JsonValueKind.String
+            && tagValue.GetString()!.Trim('"', ' ').ToLowerInvariant() is var tag)
+        {
+            if (tag is "svg" or "path" or "circle" or "rect" or "line" or "polyline" or "polygon" or "g" or "use" or "symbol")
+                throw new ModelError($"an HTML Element cannot be '{tag}' (the platform refuses SVG tags). Draw icons with CSS: a span with mask-image: url(\"data:image/svg+xml,...\") and background: currentColor, or use an Icon widget");
+            if (tag is "dialog")
+                throw new ModelError("an HTML Element cannot be 'dialog'. Use a div with the popover attribute (\"attributes\": { \"popover\": \"\\\"auto\\\"\" }) and a Button with popovertarget = <Panel>.Id, or a Popup widget");
+        }
+        // A Button or Link without children keeps the platform's default text ("Button", "link") in the app.
+        if (type is "Button" or "Link" && !(w.TryGetProperty("children", out var kids) && kids.ValueKind == JsonValueKind.Array))
+            Warnings.Add($"{where}: a {type} without \"children\" shows the default text \"{(type == "Button" ? "Button" : "link")}\" in the app. Give it children: a Text, or an empty Expression for an icon-only or dot button ([{{ \"type\": \"Expression\", \"value\": \"\\\"\\\"\" }}])");
+        // Reactive drops CSS custom properties (--name: value) from a style attribute; plain properties (width:) stay.
+        if (w.TryGetProperty("attributes", out var attrs) && attrs.ValueKind == JsonValueKind.Object)
+            foreach (var a in attrs.EnumerateObject())
+                if (a.Name.Equals("style", StringComparison.OrdinalIgnoreCase) && a.Value.ValueKind == JsonValueKind.String
+                    && System.Text.RegularExpressions.Regex.IsMatch(a.Value.GetString()!, @"(^|[;""\s])--[A-Za-z]"))
+                    Warnings.Add($"{where}: Reactive drops CSS custom properties (--name) from the style attribute, so the app never gets them. Put the declarations in a data- attribute and set them from a Script with element.style.setProperty, or use plain properties (width, height) in style");
     }
 
     // A Label's target widget, by name: a widget of the same screen, block or email, found after every widget exists.

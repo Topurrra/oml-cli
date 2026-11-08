@@ -16,6 +16,12 @@ partial class Builder
         foreach (var edit in edits ?? new())
         {
             var label = $"edit[{index++}]";
+            if (SkipEdits.Contains(index - 1))
+            {
+                existing.Add(edit.TryGetProperty("at", out var at) ? $"widgets of {at.GetString()} (already as in the spec)"
+                    : $"node {(edit.TryGetProperty("element", out var e) ? e.GetString() : label)} (already as in the spec)");
+                continue;
+            }
             Try(label, () => EditOne(edit, label));
             // Finish topology before resolving the next edit, while keeping expressions last.
             foreach (var stage in new[] { flows, references, targets, widgets })
@@ -55,6 +61,14 @@ partial class Builder
             {
                 var action = Find("action");
                 if (!Reflect.Has(action, "CreateNode")) throw new ModelError("action must be an editable action or data action");
+                // ifMissing: a patch that may run again (a library synced every cycle) inserts only once. The flow is
+                // there when each named node exists in the action, and each unnamed refresh has a refresh of its data source.
+                if (edit.TryGetProperty("ifMissing", out var once) && once.ValueKind == JsonValueKind.True
+                    && edit.TryGetProperty("flow", out var wanted) && wanted.ValueKind == JsonValueKind.Array && Present(action, wanted))
+                {
+                    existing.Add($"nodes after {Required("after")} in {Required("action")} (already there)");
+                    break;
+                }
                 var after = ElementPaths.Resolve(action, Required("after"));
                 if (after is not IActionNode) throw new ModelError("after must be a flow node");
                 var branch = Reflect.Property(after, "TrueTarget") is not null || Reflect.Property(after, "CycleTarget") is not null;
@@ -79,6 +93,35 @@ partial class Builder
                     }
                 }
                 catch (ModelError) { } // placement is best effort; a full lay-out still covers it
+                break;
+            }
+            case "replaceNode":
+            {
+                // One flow node built again from "node" in the same place (one connector in, one out). Use it to update
+                // a node of an existing flow (an Assign's values, a call's arguments) where set cannot reach. When the
+                // new node equals the old one, apply keeps the old one (see Unchanged), so running it again changes nothing.
+                var target = Find("element");
+                if (target is not IActionNode || target.Parent is not IObjectSignature owner || !Reflect.Has(owner, "CreateNode"))
+                    throw new ModelError("element must be a node of an editable action flow (paths in 'oml tree')");
+                if (!edit.TryGetProperty("node", out var node) || node.ValueKind != JsonValueKind.Object)
+                    throw new ModelError("'node' must be one flow node, as in a flow list");
+                var edges = Edges(owner).ToList();
+                var incoming = edges.Where(e => ReferenceEquals(e.to, target)).ToList();
+                var outgoing = edges.Where(e => ReferenceEquals(e.from, target)).ToList();
+                if (incoming.Count != 1 || outgoing.Count != 1)
+                    throw new ModelError("replaceNode needs a node with exactly one incoming and one outgoing connector; for others use delete and insertNodes");
+                var (from, property) = ((IObjectSignature)incoming[0].from, incoming[0].property);
+                var name = node.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString()! : Model.NameOf(target);
+                var before = ReviewModel.Fingerprint(m, [target]);
+                var connector = new[] { "next", "true", "false", "cycle" }.First(c => ConnectorProperty(c) == property);
+                var actionPath = ElementPaths.PathTo(m, owner) ?? throw new ModelError("the action holding the node has no exact path");
+                var fromPath = ElementPaths.PathTo(owner, from) ?? throw new ModelError("the node before it has no exact path; give it a unique name");
+                EditOne(JsonDocument.Parse(JsonSerializer.Serialize(new { op = "delete", element = Required("element") })).RootElement, label);
+                using var insert = JsonDocument.Parse($$"""{"op":"insertNodes","action":{{JsonSerializer.Serialize(actionPath)}},"after":{{JsonSerializer.Serialize(fromPath)}},"connector":"{{connector}}","flow":[{{node.GetRawText()}}]}""");
+                EditOne(insert.RootElement.Clone(), label);
+                Change($"node {Required("element")}");
+                if (name is not null)
+                    replacements.Add((int.Parse(label[5..^1]), before, () => Elements(Reflect.Get(owner, "Nodes")).OfType<IObjectSignature>().Where(x => Model.NameOf(x) == name && !x.WasDeleted).ToList()));
                 break;
             }
             case "addWidgets":
@@ -122,13 +165,18 @@ partial class Builder
                 var (broken, rebound) = WidgetUsages(old, WidgetNames(given));
                 if (broken.Count > 0)
                     throw new ModelError($"refused: replaceWidgets at '{Required("at")}' would break what uses the widgets it removes: {string.Join("; ", broken)}. "
-                        + "Change those usages first (edits set or delete), or replace a smaller part with a deeper \"at\".");
+                        + "Change those usages first (edits set or delete), or replace a smaller part with a deeper \"at\"."
+                        + (old.Any(w => ElementPaths.Kind(w).Contains("Placeholder", StringComparison.Ordinal))
+                            ? " Screens fill this block's Placeholders, so those count as used: replace a widget inside the block that holds no Placeholder, or change single widgets with set on their paths (oml tree)." : ""));
                 // A removed Label's link to its input, unless a new Label in "widgets" names the same target.
                 var links = old.SelectMany(ProductionRules.Walk).Select(w => (label: w, target: Reflect.Get(w, "TargetWidget") as IObjectSignature))
                     .Where(l => l.target is not null).Select(l => (label: Model.NameOf(l.label) ?? "a Label", target: Model.NameOf(l.target!) ?? "")).ToList();
                 var targets = WidgetNames(given, "targetWidget");
                 foreach (var (labelName, targetName) in links.Where(l => !targets.Contains(l.target)))
                     Warnings.Add($"replaceWidgets at '{Required("at")}' removed the Label {labelName}, which pointed at {targetName}; no new Label has \"targetWidget\": \"{targetName}\", so that input lost its label link (screen readers use it)");
+                // Widgets lists nested widgets too: the fingerprint walks from the top ones.
+                var oldSet = old.ToHashSet(ReferenceEqualityComparer.Instance);
+                var fingerprint = ReviewModel.Fingerprint(m, old.Where(w => !Ancestors(w).Any(oldSet.Contains)));
                 foreach (var w in old) rules.Delete(w);
                 foreach (var w in old) w.Delete();
                 var handlers = Elements(Reflect.Get(screen, "ScreenActions")).ToDictionary(x => Model.NameOf(x)!, x => x);
@@ -142,6 +190,7 @@ partial class Builder
                         : $"{r.name} was {Article(r.kind)} {r.kind} and no new widget has that name; used by {r.users}").ToList();
                 if (retyped.Count > 0)
                     throw new ModelError($"refused: replaceWidgets at '{Required("at")}' gives a used widget name to another kind of widget: {string.Join("; ", retyped)}. Keep the kind; if the new kind is intended, rename the widget or update the usages in the same spec.");
+                replacements.Add((int.Parse(label[5..^1]), fingerprint, () => made));
                 // One entry per element, however the spec writes its path (Home/Box, MainFlow/Home/Box).
                 if (replacedAt.Add(at)) Change($"widgets of {Required("at")}");
                 break;
@@ -183,6 +232,9 @@ partial class Builder
                     // At once, not with the expressions: a later edit (replaceWidgets) must see the new target.
                     if (p.Name.Equals("targetWidget", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.String)
                         TargetWidget(target, p.Value.GetString()!);
+                    // A widget's HTML attributes: each named attribute is added or its value replaced; others stay.
+                    else if (p.Name.Equals("attributes", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.Object)
+                        Attributes(target, p.Value, label);
                     else Queue(label, m, target, p.Name, p.Value);
                 }
                 break;
@@ -344,6 +396,28 @@ partial class Builder
     static IEnumerable<IObjectSignature> Ancestors(IObjectSignature o)
     {
         for (var p = o.Parent; p is not null; p = p.Parent) yield return p;
+    }
+
+    // ifMissing: every named node of the flow exists in the action, and every unnamed refresh has a refresh of its source.
+    static bool Present(IObjectSignature action, JsonElement flow)
+    {
+        var nodes = Elements(Reflect.Get(action, "Nodes")).OfType<IObjectSignature>().ToList();
+        var any = false;
+        foreach (var step in flow.EnumerateArray())
+        {
+            if (step.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String)
+            {
+                if (!nodes.Any(x => Model.NameOf(x) == name.GetString())) return false;
+                any = true;
+            }
+            else if (step.TryGetProperty("dataSource", out var source) && source.ValueKind == JsonValueKind.String)
+            {
+                if (!nodes.OfType<IRefreshDataNode>().Any(x => Reflect.Get(x, "DataSource") is { } ds && Model.NameOf(ds) == source.GetString())) return false;
+                any = true;
+            }
+            else return false; // a node it cannot recognize: insert it
+        }
+        return any;
     }
 
     static string ConnectorProperty(string connector) => connector.ToLowerInvariant() switch

@@ -120,7 +120,7 @@ if ($browser) {
     $syntax = Run-Oml @('preview', $jsModule, 'PvTwice', '--out', (Join-Path $Tmp "pv-$id-twice1.html"), '--eval', '1')
     Require (@($syntax.Json.scriptErrors).Count -eq 1 -and $syntax.Json.scriptErrors[0].node -eq 'PvSyntax.OnReady.Broken' -and $syntax.Json.scriptErrors[0].message -match '^SyntaxError') "Syntax error per instance: $($syntax.Json.scriptErrors | ConvertTo-Json -Compress)"
 }
-Require (@($twice.Json.notes | Where-Object { $_ -eq 'If Long in PvFlow.OnReady cannot be evaluated here (Length(Mode) > 2), so the JavaScript nodes of both branches run.' }).Count -eq 1 -and @($twice.Json.notes | Where-Object { $_ -match '^Switch Pick in PvFlow.OnReady' }).Count -eq 1) 'If and Switch notes'
+Require (@($twice.Json.notes | Where-Object { $_ -eq 'If Long in PvFlow.OnReady cannot be evaluated here (EncodeHtml(Mode) = Mode), so the JavaScript nodes of both branches run.' }).Count -eq 1 -and @($twice.Json.notes | Where-Object { $_ -match '^Switch Pick in PvFlow.OnReady' }).Count -eq 1) 'If and Switch notes'
 
 if ($browser) {
     # Steps run in order after the lifecycle nodes; the eval step reads the text that the clicks and the typing produced.

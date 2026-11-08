@@ -65,11 +65,17 @@ partial class Builder
     static string Lower(bool value) => value ? "true" : "false";
 
     // An existing flow is not rebuilt. A spec flow with another number of nodes, or naming a node the flow lacks,
-    // is a problem. Comments do not count. Some nodes have no name in the model (Raise Exception, Refresh Data,
+    // is a problem, checked after the edits ran (insertNodes can bring the flow in line). Comments do not count. Some nodes have no name in the model (Raise Exception, Refresh Data,
     // Download): as many spec names as there are such nodes may go unmatched.
     void ReuseFlow(object action, List<JsonElement>? flow, string label)
     {
         if (flow is not { Count: > 0 }) return;
+        flowChecks.Add(() => CompareFlow(action, flow, label));
+    }
+
+    void CompareFlow(object action, List<JsonElement> flow, string label)
+    {
+        if (action is IObjectSignature o && o.WasDeleted) return;
         var nodes = Elements(Reflect.Get(action, "Nodes"))
             .Where(n => n is not OutSystems.Model.Logic.Nodes.IStartNode and not OutSystems.Model.Logic.Nodes.IEndNode
                 && !n.GetType().GetInterfaces().Any(i => i.Name == "IComment")).ToList();
@@ -80,7 +86,37 @@ partial class Builder
             .Where(n => n is not null && !names.Contains(n)).ToList();
         var what = given.Count != nodes.Count ? $"flow ({given.Count} nodes; module: {nodes.Count})"
             : missing.Count > unnamed ? $"flow (node {missing[0]} is not in it)" : null;
-        if (what is not null) problems.Add(Reuse.Changed(label, [what], "Change an existing flow with edits: insertNodes, set, delete."));
+        // Same nodes: their expressions must match too (Assign values, If conditions, call arguments), or the spec's
+        // change would be skipped without a word.
+        what ??= given.Select(n => ExpressionDifference(nodes, n)).FirstOrDefault(d => d is not null);
+        if (what is not null) problems.Add(Reuse.Changed(label, [what], "Change an existing flow with edits: replaceNode (one node built again), insertNodes, set, delete."));
+    }
+
+    // The first expression of a named spec node that differs from the module's node of that name, or null.
+    static string? ExpressionDifference(List<object> nodes, JsonElement spec)
+    {
+        if (!spec.TryGetProperty("name", out var nm) || nm.ValueKind != JsonValueKind.String) return null;
+        var name = nm.GetString()!;
+        if (nodes.FirstOrDefault(n => Model.NameOf(n) == name) is not { } node) return null;
+        static string Norm(string? text) => text is null ? "" : (Expressions.Canonical(text) ?? text).Trim();
+        static string Text(object? o) => o is OutSystems.Model.IExpression e ? e.Text ?? "" : "";
+        string? Differs(string what, string? specText, string? moduleText) =>
+            Norm(specText) == Norm(moduleText) ? null : $"node {name}: {what} is {Norm(moduleText)} in the module, {Norm(specText)} in the spec";
+        if (spec.TryGetProperty("assign", out var assign) && assign.ValueKind == JsonValueKind.Object)
+        {
+            var current = Elements(Reflect.Get(node, "Assignments"))
+                .Select(a => (variable: Norm(Text(Reflect.Get(a, "Variable"))), value: Text(Reflect.Get(a, "Value")))).ToList();
+            foreach (var p in assign.EnumerateObject())
+            {
+                if (p.Value.ValueKind != JsonValueKind.String) continue;
+                var match = current.FirstOrDefault(c => c.variable == Norm(p.Name));
+                if (match.variable is null) return $"node {name}: assigns {p.Name}, which the module's node does not";
+                if (Differs($"the value of {p.Name}", p.Value.GetString(), match.value) is { } d) return d;
+            }
+        }
+        if (spec.TryGetProperty("condition", out var condition) && condition.ValueKind == JsonValueKind.String && Reflect.Property(node, "Condition") is not null)
+            return Differs("the condition", condition.GetString(), Text(Reflect.Get(node, "Condition")));
+        return null;
     }
 
     // Screens and blocks: settings must match; new named parts go through the addParts path (rule 4 for events
@@ -104,7 +140,7 @@ partial class Builder
         if (s.Access is { } access && !SameAccess(screen, access)) changed.Add("access");
         if (s.IsDefault && !ReferenceEquals(Reflect.Get(m, "DefaultScreen"), screen)) changed.Add("isDefault");
         if (changed.Count > 0) problems.Add(Reuse.Changed(label, changed, "Change it with edits: set (lifecycle handlers, default screen), setAccess."));
-        if (s.StyleSheet is not null && Reuse.Css(Reflect.Get(screen, "StyleSheet") as string) != Reuse.Css(s.StyleSheet))
+        if (s.StyleSheet is not null && !Reuse.SameText(Reflect.Get(screen, "StyleSheet") as string, s.StyleSheet) && Reuse.Css(Reflect.Get(screen, "StyleSheet") as string) != Reuse.Css(s.StyleSheet))
         {
             Queue(label, m, screen, "StyleSheet", JsonSerializer.SerializeToElement(s.StyleSheet));
             Change($"styleSheet of {label}");

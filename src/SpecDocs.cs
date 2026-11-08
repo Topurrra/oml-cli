@@ -29,7 +29,7 @@ static class SpecDocs
         (new[] { "tidyFlows" }, "tidyFlows"),
         (new[] { "removeUnusedDependencies" }, "Remove unused dependencies"),
         (new[] { "file", "files", "fileValues" }, "Code from files"),
-        (new[] { "insertNodes", "addWidgets", "replaceWidgets", "addParts", "addVariables", "setAccess", "set", "rename", "addExceptionHandler", "addToAggregate", "setArgs" }, "Edits"),
+        (new[] { "insertNodes", "replaceNode", "ifMissing", "addWidgets", "replaceWidgets", "addParts", "addVariables", "setAccess", "set", "rename", "addExceptionHandler", "addToAggregate", "setArgs" }, "Edits"),
         (new[] { "attributes", "attribute", "types", "type", "indexes", "index", "unique", "identifier", "autoNumber", "updateBehavior",
                  "inputs", "locals" }, "Data model"),
         (new[] { "groupBy", "groupFilters", "groupSorts", "groupCalculated", "fetch", "cacheInMinutes", "aggregates", "dynamic" }, "Queries"),

@@ -70,6 +70,36 @@ $r = & $Oml apply (Join-Path $Fixtures 'out-logic.json.oml') $spec $out | Conver
 Require ($LASTEXITCODE -eq 1 -and -not $r.saved -and -not (Test-Path $out) -and ($r.problems -join ' ') -match 'ambiguous') 'ambiguous path was not refused'
 Write-Host 'ok   edits topology, widget order, paths, sequential saves and refusals'
 
+# Edits that may run again (a library synced every cycle): an equal replaceNode or replaceWidgets keeps the element and
+# its key (review shows no change), insertNodes with ifMissing inserts once, and a changed replaceNode rebuilds the node.
+$logic = Join-Path $Fixtures 'out-logic.json.oml'
+$prepare = @{ kind = 'assign'; name = 'Prepare'; assign = @{ 'Rec.CustomerId' = 'CustomerId'; 'Rec.Total' = 'Total' } }
+function Again($source, $name, $edits) {
+  $spec = Join-Path $Tmp "$name.json"; @{ edits = $edits } | ConvertTo-Json -Depth 10 | Set-Content $spec
+  $out = Join-Path $Tmp "$name.oml"
+  $r = & $Oml apply $source $spec $out | ConvertFrom-Json
+  Require ($LASTEXITCODE -eq 0 -and $r.saved) "$name did not save: $($r | ConvertTo-Json -Depth 6 -Compress)"
+  [pscustomobject]@{ Result = $r; Out = $out }
+}
+$same = Again $logic 'again-node-same' @(@{ op = 'replaceNode'; element = 'CreateOrderFor/Prepare'; node = $prepare })
+Require ((@($same.Result.existing) -join ' ') -match 'Prepare \(already as in the spec\)') "an equal replaceNode was not kept: $($same.Result | ConvertTo-Json -Depth 6 -Compress)"
+$rv = & $Oml review $logic $same.Out | ConvertFrom-Json
+Require ($rv.summary.changes -eq 0) "an equal replaceNode changed the module: $($rv.changes | ConvertTo-Json -Depth 6 -Compress)"
+$changedNode = $prepare.Clone(); $changedNode.assign = @{ 'Rec.CustomerId' = 'CustomerId'; 'Rec.Total' = 'Total + 1' }
+$diff = Again $logic 'again-node-diff' @(@{ op = 'replaceNode'; element = 'CreateOrderFor/Prepare'; node = $changedNode })
+Require ((@($diff.Result.changed) -join ' ') -match 'node CreateOrderFor/Prepare') "a changed replaceNode is not in changed: $($diff.Result | ConvertTo-Json -Depth 6 -Compress)"
+$text = ((& $Oml describe $diff.Out CreateOrderFor --depth 0 | ConvertFrom-Json).text) -replace "`r", ''
+Require ($text.Contains('set Rec.Total = Total + 1') -and $text.Contains('set OrderId = CreateOrder.Id')) "replaceNode did not rebuild the node in place: $text"
+$once = Again $logic 'again-insert' @(@{ op = 'insertNodes'; action = 'CreateOrderFor'; after = 'ValidTotal'; connector = 'true'; ifMissing = $true; flow = @(@{ kind = 'assign'; name = 'Prepare'; assign = @{ 'Rec.Total' = 'Total' } }) })
+Require ((@($once.Result.existing) -join ' ') -match 'already there') "insertNodes ifMissing inserted a node that exists: $($once.Result | ConvertTo-Json -Depth 6 -Compress)"
+$widgets = @(@{ type = 'Container'; name = 'AgainBox'; style = '"again"'; children = @(@{ type = 'Text'; text = 'Again' }) })
+$first = Again $logic 'again-widgets-1' @(@{ op = 'replaceWidgets'; at = 'Orders/Header'; widgets = $widgets })
+$second = Again $first.Out 'again-widgets-2' @(@{ op = 'replaceWidgets'; at = 'Orders/Header'; widgets = $widgets })
+Require ((@($second.Result.existing) -join ' ') -match 'widgets of Orders/Header \(already as in the spec\)') "an equal replaceWidgets was not kept: $($second.Result | ConvertTo-Json -Depth 6 -Compress)"
+$rv = & $Oml review $first.Out $second.Out | ConvertFrom-Json
+Require ($rv.summary.changes -eq 0) "an equal replaceWidgets changed the module: $($rv.changes | ConvertTo-Json -Depth 6 -Compress)"
+Write-Host 'ok   replaceNode, replaceWidgets and insertNodes ifMissing change nothing when the module already matches'
+
 # Per-field record mappings: a record passed to a parameter of another record type holds one mapping per target field.
 # They show in tree and describe, set changes one, review compares them, and a node that a mapping reads cannot be deleted.
 function Edit($source, $name, $edits) {

@@ -379,6 +379,10 @@ Unit 'live-preview-check' -Group browser {
   try { & (Join-Path $tests 'live-preview-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL live preview checks: $_" }
 }
+Unit 'style-conflicts-check' -Group browser {
+  try { & (Join-Path $tests 'style-conflicts-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL style conflicts checks: $_" }
+}
 Unit 'preview-check' -Group browser {
   try { & (Join-Path $tests 'preview-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL preview checks: $_" }

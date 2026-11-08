@@ -204,5 +204,21 @@ $notes = Join-Path $Tmp 'spec-notes.json'
 '{ "_note": "x", "$schema": "s.json", "entities": [ { "name": "A", "_why": "y", "attributes": [ { "name": "B" } ] } ] }' | Set-Content $notes
 $r = & $Oml spec check $notes | ConvertFrom-Json
 if (-not $r.ok) { Fail "spec check refused note keys: $($r.problems | ConvertTo-Json -Compress)" }
+# Values the shape accepts but apply refuses: a node named Start, an "id" attribute, an index on a reference alone.
+$lint = Join-Path $Tmp 'spec-lint.json'
+@'
+{ "entities": [{ "name": "OrderLine", "attributes": [{ "name": "OrderId", "type": "Order Identifier" }], "indexes": [{ "attributes": ["OrderId"] }] }],
+  "serverActions": [{ "name": "Go", "flow": [{ "kind": "assign", "name": "Start", "assign": {} }] }],
+  "screens": [{ "name": "S", "widgets": [{ "type": "Container", "attributes": { "id": "\"x\"" } }] }],
+  "edits": [{ "op": "replaceNode", "element": "Go/Step", "node": { "kind": "assign", "name": "Step", "assign": {} } },
+            { "op": "insertNodes", "action": "Go", "after": "Start", "ifMissing": true, "flow": [{ "kind": "assign", "name": "Once", "assign": {} }] }] }
+'@ | Set-Content $lint
+$r = & $Oml spec check $lint | ConvertFrom-Json
+$paths = @($r.problems | ForEach-Object path)
+foreach ($want in 'serverActions[0].flow[0].name', 'screens[0].widgets[0].attributes.id', 'entities[0].indexes[0]') {
+  if ($paths -notcontains $want) { Fail "spec check does not flag $want ($($r.problems | ConvertTo-Json -Compress))" }
+}
+if ($paths.Count -ne 3) { Fail "spec check flags more than the 3 lint problems (replaceNode, ifMissing must be known): $($r.problems | ConvertTo-Json -Compress)" }
+Write-Host 'ok   spec check: Start/End node names, attribute id, index on a reference alone; replaceNode and ifMissing known'
 Write-Host 'ok   oml spec: key lookup, check, schema'
 } finally { Remove-TestWorkFolder $Tmp }

@@ -262,6 +262,9 @@ static class Model
         spec = spec.Trim();
         if (spec.StartsWith("List of ", StringComparison.OrdinalIgnoreCase))
             return Resolve(module, spec[8..]) is { } element ? module.GetOrCreateListType(element) : null;
+        // Service Studio shows a list type as "Customer List": the same as "List of Customer".
+        if (spec.EndsWith(" List", StringComparison.OrdinalIgnoreCase) && spec.Length > 5)
+            return Resolve(module, spec[..^5]) is { } item ? module.GetOrCreateListType(item) : null;
 
         var basic = BasicTypes.FirstOrDefault(b =>
             string.Equals(b.name.Replace(" ", ""), spec.Replace(" ", ""), StringComparison.OrdinalIgnoreCase));

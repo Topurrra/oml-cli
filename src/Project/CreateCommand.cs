@@ -65,6 +65,7 @@ static class CreateCommand
             if (SkillFolder() is { } source)
             {
                 Copy(source, Path.Combine(root, "skill"));
+                File.WriteAllText(Path.Combine(root, "skill", VersionFile), OmlVersion + "\n");
                 File.Copy(Path.Combine(source, "AGENTS.md"), Path.Combine(root, "AGENTS.md"));
                 File.WriteAllText(Path.Combine(root, "CLAUDE.md"), "@AGENTS.md\n");
                 created.AddRange(["skill/", "AGENTS.md", "CLAUDE.md"]);
@@ -123,6 +124,55 @@ static class CreateCommand
                 ? new[] { $"cd {root}", "oml map overview", "Start your agent in this folder and give it a task." }
                 : new[] { $"cd {root}", "Put the project's .oap or .oml files in modules/ (oml lifetime download can fetch them).", $"oml map build {name} --in modules", "Start your agent in this folder and give it a task." },
         });
+        return 0;
+    }
+
+    // The oml version a project's skill/ copy came from; doctor compares it with the running oml.
+    internal const string VersionFile = ".oml-version";
+    internal static string OmlVersion => typeof(CreateCommand).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
+
+    // A project's skill/ copy is older than this oml: (folder, its version or null when unknown). Null when the folder
+    // has no skill/ copy, or it is current.
+    internal static (string folder, string? version)? StaleSkill(string folder)
+    {
+        var skill = Path.Combine(folder, "skill");
+        if (!File.Exists(Path.Combine(skill, "SKILL.md")) || SkillFolder() is not { } source
+            || string.Equals(Path.GetFullPath(skill), Path.GetFullPath(source), StringComparison.OrdinalIgnoreCase)) return null;
+        var stamp = Path.Combine(skill, VersionFile);
+        var version = File.Exists(stamp) ? File.ReadAllText(stamp).Trim() : null;
+        return version is not null && Version.TryParse(version, out var v) && Version.TryParse(OmlVersion, out var now) && v >= now ? null : (skill, version);
+    }
+
+    // `oml skill refresh [--dir <project>]`: the project's skill/ and AGENTS.md from this oml. Files of this oml's skill
+    // replace their copies; files only the project has (its own notes) stay. CLAUDE.md and the memory are not touched.
+    public static int Skill(string[] args)
+    {
+        if (args.Length == 0 || args[0] is "--help" or "-h" || args[0] != "refresh") { Console.WriteLine(CliUsage.For("skill")); return args.Length > 0 && args[0] is "--help" or "-h" ? 0 : 2; }
+        var dir = Path.GetFullPath(args.Length > 2 && args[1] == "--dir" ? args[2] : Environment.CurrentDirectory);
+        var target = Path.Combine(dir, "skill");
+        if (!File.Exists(Path.Combine(target, "SKILL.md")))
+            return Fail($"{dir} has no skill/ copy (skill/SKILL.md).", "Run it in a project made by oml create, or pass --dir <project>.");
+        if (SkillFolder() is not { } source) return Fail("The skill folder was not found next to oml.", "Use an oml release, which has skill/ beside bin/.");
+        if (string.Equals(Path.GetFullPath(target), Path.GetFullPath(source), StringComparison.OrdinalIgnoreCase))
+            return Fail("That skill/ is oml's own copy, not a project's.");
+        var stamp = Path.Combine(target, VersionFile);
+        var before = File.Exists(stamp) ? File.ReadAllText(stamp).Trim() : null;
+        int updated = 0, added = 0;
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var copy = Path.Combine(target, Path.GetRelativePath(source, file));
+            var exists = File.Exists(copy);
+            if (exists && File.ReadAllBytes(copy).AsSpan().SequenceEqual(File.ReadAllBytes(file))) continue;
+            Directory.CreateDirectory(Path.GetDirectoryName(copy)!);
+            File.Copy(file, copy, overwrite: true);
+            if (exists) updated++; else added++;
+        }
+        var agents = Path.Combine(dir, "AGENTS.md");
+        var agentsUpdated = File.Exists(Path.Combine(source, "AGENTS.md")) && (!File.Exists(agents) || File.ReadAllText(agents) != File.ReadAllText(Path.Combine(source, "AGENTS.md")));
+        if (agentsUpdated) File.Copy(Path.Combine(source, "AGENTS.md"), agents, overwrite: true);
+        File.WriteAllText(stamp, OmlVersion + "\n");
+        TerminalOutput.PrintObject(new { skill = target, from = before ?? "unknown", to = OmlVersion, updated, added, agentsMd = agentsUpdated ? "updated" : "unchanged",
+            note = "Files only this project has in skill/ were kept. Start a new agent session so it reads the new rules." });
         return 0;
     }
 

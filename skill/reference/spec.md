@@ -12,6 +12,7 @@ A refused setting names the key and the edit op to use; settings of roles, site 
 An existing flow is compared by node names and node count only (comments do not count). UI settings are replaced (rule 3), and the report's `changed` lists them: a different `styleSheet` of a screen, block, email or theme, a text `title` of a screen, and new `requiredScripts`. Widgets, placeholders, layout, processes and other email settings are not compared: the report's `warnings` name what was not applied and the op that changes it (`replaceWidgets`, `addWidgets`). A restated screen or block aggregate is compared by `sources`, `maxRecords`, `fetch`, `timeout` and `onAfterFetch`; change filters, joins and sorts with edits.
 An omitted `public` keeps the element's setting. `"public": true` makes an existing element public (also images, scripts and resources; a theme only through `edits.set`); `false` on any existing public element is refused (rule 4). The report's `changed` lists each existing element made public, by any path (`public of entity Sector`). A server action that becomes public, new or existing, adds a `PublicServerAction` new warning: confirm it with the user (rule 7). Service actions get no warning, because other modules call them by design; exposed REST methods have no public setting. A creation-list spec applied again on its own result saves and changes nothing.
 Rule 4 is checked on every path (creation lists, `addVariables`, `addParts`, `set`): on an existing public element apply refuses a new mandatory input, an input made mandatory, a type change, any input change on a public client action or Reactive or Mobile block or screen, a new output except on server and service actions, and a type change of an event input on a public block.
+A new library (blocks made public in this work, with no consumer yet) still counts as existing once it is in the source module: a second apply cannot add an input to a public block it made. While the library is in development, keep the module from before the library as the apply source and apply the whole library spec to it each time (one spec, or several parts in one apply). Check that nothing uses the block yet with `oml map uses <Block>` before you change a published one; once another module uses it, add a new block instead (rule 4).
 Edits are ordered operations. Repeating them is not an idempotent desired-state update.
 
 Field notation in this reference names a nested key or an accepted value:
@@ -671,6 +672,18 @@ oml widget-types
 
 Children use the widget or its first content placeholder.
 Other array keys name content areas, including `trueBranch`, `falseBranch`, `headerRow`, and `row`.
+
+Widgets whose keys are easy to get wrong (Reactive):
+
+| Widget | Keys | In the app |
+|---|---|---|
+| Upload | `fileContent` (a Binary Data variable), `fileName` (a Text variable), `onChange` | A `label[data-upload]` with a hidden file input inside: style the label, and make it cover your drop area to make the whole area clickable. There is no `variable` key. |
+| Button, Link | `children` | Without children they show the default text "Button" or "link". For an icon-only or dot button give `[{ "type": "Expression", "value": "\"\"" }]` and an `aria-label` attribute (apply warns). |
+| Expression | `value` | Reactive ignores Visible on an Expression (apply warns): put it in a Container with `visible`. |
+| BlockInstance | `sourceBlock`, `args`, `events`, `placeholders` | No Visible: wrap it in a Container with `visible`. |
+| AdvancedHtml (HTML Element) | `tag`, `attributes` | Refuses `svg`, `path`, `circle` and `dialog`. Icons: CSS `mask-image` with a data: URL (or an Icon widget). Dialogs and sheets: a div with the `popover` attribute and `popovertarget` on the opener. |
+| Dropdown | `variable`, `list`, `optionsText`, `optionsValue` | Its options must be a record list (an aggregate, or a list of a static entity or structure); a List of Text cannot name its labels and values. |
+| any | `attributes.style` | Reactive drops CSS custom properties (`--name: value`) from it (apply warns); plain properties such as `width` stay. Put the values in a `data-` attribute and set them with `element.style.setProperty` from a Script. `attributes.id` is refused: the platform sets the id (use `Name.Id`). |
 Text is plain text. Expression properties need quoted expressions for literals:
 
 ```json
@@ -843,7 +856,8 @@ Existing entity, static entity, and structure attributes cannot change DataType,
 
 | Operation | Keys | Behavior |
 |---|---|---|
-| `insertNodes` | action, after, connector, flow | Insert a nonempty flow at an outgoing connector. Final implicit next inherits the old successor. |
+| `insertNodes` | action, after, connector, flow, ifMissing | Insert a nonempty flow at an outgoing connector. Final implicit next inherits the old successor. `"ifMissing": true` skips the insert when the flow is already there (each named node exists; each unnamed `refreshData` has a refresh of its data source): use it in a patch that runs again on every sync. |
+| `replaceNode` | element, node | Build one flow node again from `node` (one node spec, as in a flow list) in the same place: one connector in, one out. Use it to update an existing node `set` cannot reach (an Assign's values). When the new node equals the old one, apply keeps the old one, so the edit can run on every sync. |
 | `addExceptionHandler` | action, flow | Add a separate handler entry and path. Flow must start with exceptionHandler. |
 | `addWidgets` | screen, parent, area, index, widgets | Append by default. Parent is relative to screen/block; area defaults children. Index is zero-based. |
 | `replaceWidgets` | at, area, widgets | Replaces all widgets inside the element at `at` (a screen, block, email, widget or placeholder path); that element stays. Same widget spec as creation. Area as in addWidgets. |
@@ -856,8 +870,7 @@ Existing entity, static entity, and structure attributes cannot change DataType,
 | `addToAggregate` | aggregate, sources, joins, filters, sorts, groupBy, aggregates, calculated, group keys | Adds parts to an existing aggregate with the query keys. |
 | `setArgs` | element, args | Sets arguments of a call, navigation or other node by parameter name. A number or true/false is used as the expression. |
 
-For If or For Each insertion, connector is required: true, false, cycle, or next (alias sequence), as supported.
-Explicit targets can name existing or inserted nodes. End and Raise Exception terminate normally.
+For If or For Each insertion, connector is required: true, false, cycle, or next (alias sequence), as supported. Explicit targets can name existing or inserted nodes. End and Raise Exception terminate normally.
 Widget area can be children, trueBranch, falseBranch, row, or headerRow; indexed insertion keeps list order. Absent parent means the screen/block root; for plugin widgets, children uses the first placeholder.
 
 ```json
@@ -878,7 +891,7 @@ Widget area can be children, trueBranch, falseBranch, row, or headerRow; indexed
 
 The example assumes the named action, nodes, screen, Header container, aggregate, and role already exist.
 
-`replaceWidgets` keeps the element at `at` (its name, style and events) and replaces every widget inside it. Use it to restyle or rebuild part of an existing screen without a rebuild; a deeper `at` replaces less. A layout placeholder's path has its name, for example `ContactForm/MainContent` (copy it from `oml tree`). The report's `changed` lists `widgets of <at>`.
+`replaceWidgets` keeps the element at `at` (its name, style and events) and replaces every widget inside it. Use it to restyle or rebuild part of an existing screen without a rebuild; a deeper `at` replaces less. A layout placeholder's path has its name, for example `ContactForm/MainContent` (copy it from `oml tree`). The report's `changed` lists `widgets of <at>`. When the new widgets equal the ones there, apply keeps them (`existing`: `widgets of <at> (already as in the spec)`), so a library synced every cycle shows only real changes in `review`.
 It is refused, before anything changes, when a removed widget is used outside the replaced part, for example `NameInput.Valid` in a screen action; the problem names each widget and where it is used. An expression finds a widget by name, so a new widget with the same name keeps that usage working: keep the name in `widgets`, or change the usage first. The new widget must be the same kind (an Input stays an Input): `NameInput.Valid` would mean something else, so a used name given to another kind is refused ("NameInput was an Input, now a Container"). Other references to a removed widget point at the widget itself and are always refused, for example a Label's target widget: first point the Label at another widget.
 A Label takes `"targetWidget": "<widget name>"` (`""` clears it), the input it describes, in a widget spec and in `set` (`{ "op": "set", "element": "Home/NameLabel", "properties": { "targetWidget": "NameInput" } }`). The name is looked up in the same screen, block or email, after all its widgets exist. `describe` and `tree` show it. When replaceWidgets removes a Label with a target and no new Label names that target, `warnings` says so.
 
@@ -915,7 +928,7 @@ when it does not hold the rest of the path, the path fails (it does not fall thr
 `Kind:Name` (`Screen:Orders`) and `Module.Name` qualify a name. An ambiguous path is refused with an exact path for
 every candidate; copy one. At the end of a path, directly under an action, an input or output parameter wins over a flow node
 of the same name (`Pick/Response` is the parameter); write `Pick/Assign:Response` for the node. Edits refuse elements of referenced modules. Tree accepts the same paths. See `oml doc commands#element-paths`.
-Unnamed elements use `Kind[index]`, indexed from zero among siblings of that kind.
+Unnamed elements use `Kind[index]`, indexed from zero among siblings of that kind. An unnamed Refresh Data node also answers to `refresh <DataSource>`, as `describe` prints it (`Home/LoadAll/refresh GetOrders`); `describe` adds `[path ...]` when that form is not unique.
 For example: `Orders/Header/Button[0]/Text[0]`. Copy the emitted path; indexes can change after edits. Flow nodes and action or instance arguments have a fixed order on every load.
 Labels persist where supported. Raise Exception on Service Studio 11.55.92 needs an index path after reopening.
 
@@ -962,7 +975,7 @@ Locales, translation imports, translation writes, and folders run after logic an
 | `translations` | `{ "import": "ModuleLanguage.ka-GE.resX" }` calls `LoadTextResources`. Refusals prevent saving. On 11.55.92 the headless host refuses ResX format detection, so file round trips are unavailable. Use `translate` for module resource IDs. |
 | `images` | `name`, `file`, optional `public` (false). Uses `CreateImage`. SVG and PNG were verified; the API also lists Jpg, Gif, and Ico. Invalid files are problems. Image widgets can reference the image in the same spec. |
 | `scripts` | `name`, `file`, optional `public` (false). Sets `JavaScript` to the file text. Screens and blocks accept `requiredScripts`, an array of script names. |
-| `themes` | `name`, optional `styleSheet` and `baseTheme`. `styleSheet` is CSS text, an existing file path, or `{ "file": ... }`; a value that looks like a path (`theme.css`, `css/app.css`) but names no file is refused. A new theme without `styleSheet` starts empty. On a theme made with Theme Editor, the model keeps the Theme Editor part (the CSS between its comment banners) apart: `styleSheet` replaces only the rest, so do not copy the Theme Editor part into it. Creates a Web theme in Traditional Web modules, otherwise a Mobile theme. Does not select the module default theme. |
+| `themes` | `name`, optional `styleSheet` and `baseTheme`. `styleSheet` is CSS text, an existing file path, or `{ "file": ... }`; a value that looks like a path (`theme.css`, `css/app.css`) but names no file is refused. A new theme without `styleSheet` starts empty. On a theme made with Theme Editor, the model keeps the Theme Editor part (its banner and `:root` block, first in `describe --css`) apart: `styleSheet` replaces only the rest. A `styleSheet` copied from `describe --css` may start with that part; apply drops it there, so it is never there twice. A text that differs only in line endings is not a change. Creates a Web theme in Traditional Web modules, otherwise a Mobile theme. Does not select the module default theme. |
 | `resources` | `name`, `file`, optional `public` (false). Stores the exact file bytes. |
 | `folders` | `name`, `area`, `elements` paths. Reuses folders with the same area and name. Moves elements by their typed `Folder` property. `entities` is an alias for `ServerEntities`. Other areas match installed `ESpaceTreeFolder` names without case sensitivity: `serverActions`, `clientActions`, `serviceActions`, `structures`, `images`, `resources`, `scripts`, `themes`, `siteProperties`, `timers`, `roles`, `processes`, and others listed by `oml model-types ESpaceTreeFolder`. Rejects elements outside the requested area. |
 

@@ -236,7 +236,10 @@ static class ElementPaths
         // A literal name may hold ':' (a node label "Note: x"), so it is also matched as written.
         var colon = part.IndexOf(':');
         var (kind, name) = colon > 0 ? (part[..colon], part[(colon + 1)..]) : ((string?)null, part);
-        bool Fits(IObjectSignature o) => Model.NameOf(o) is { } n && (n == part || kind is not null && n == name && KindIs(o, kind));
+        bool Fits(IObjectSignature o) => Model.NameOf(o) is { } n ? n == part || kind is not null && n == name && KindIs(o, kind)
+            // An unnamed refresh node answers to "refresh <data source>", as describe prints it.
+            : o is OutSystems.Model.Logic.Nodes.IRefreshDataNode && part.StartsWith("refresh ", StringComparison.OrdinalIgnoreCase)
+              && Reflect.Get(o, "DataSource") is { } source && string.Equals(Model.NameOf(source), part[8..].Trim(), StringComparison.Ordinal);
         if (first && ReferenceEquals(scope, root) && root is IESpace m)
         {
             var own = ((OutSystems.Model.Applications.IModule)m).Name;

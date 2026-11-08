@@ -106,7 +106,16 @@ static class Reflect
             return key.Equals("value", StringComparison.OrdinalIgnoreCase) && value.ValueKind == JsonValueKind.String
                 ? (Stage.Expression, () => FieldMappings.SetSource(o, value.GetString()!))
                 : throw new ModelError($"a field mapping takes only \"value\" (the expression for field {FieldMappings.Field(o)}), as a string");
-        // Exact setter, then exact writable property, then a fuzzy setter: "exception" must reach the Exception
+        // The key a widget takes instead of a natural guess, named in the refusal.
+    static string SettableHint(string type, string key) => (type, key.ToLowerInvariant()) switch
+    {
+        (var t, "variable") when t.Contains("Upload", StringComparison.Ordinal) =>
+            ". An Upload takes \"fileContent\" (a Binary Data variable) and \"fileName\" (a Text variable); it renders a label with a hidden file input",
+        (var t, "visible") when t.Contains("BlockInstance", StringComparison.Ordinal) => ". Put the BlockInstance in a Container with \"visible\"",
+        _ => "",
+    };
+
+    // Exact setter, then exact writable property, then a fuzzy setter: "exception" must reach the Exception
         // property, not SetExceptionMessage, while "message" may still find SetExceptionMessage.
         if (value.ValueKind == JsonValueKind.String && Setter(o, key, typeof(string), fuzzy: false) is { } set)
             return (Stage.Expression, () => Invoke(set, o, new object?[] { value.GetString() }));
@@ -115,7 +124,7 @@ static class Reflect
         var prop = Property(o, key, writable: true);
         if (prop is null && value.ValueKind == JsonValueKind.String && Setter(o, key, typeof(string), fuzzy: true) is { } near)
             return (Stage.Expression, () => Invoke(near, o, new object?[] { value.GetString() }));
-        if (prop is null) throw new ModelError($"{o.GetType().Name} has no settable '{key}' on this build");
+        if (prop is null) throw new ModelError($"{o.GetType().Name} has no settable '{key}' on this build{SettableHint(o.GetType().Name, key)}");
         var t = prop.PropertyType;
         var target = Nullable.GetUnderlyingType(t) ?? t;
         return (Stage.Reference, () =>

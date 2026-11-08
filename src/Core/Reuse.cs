@@ -64,6 +64,31 @@ static class Reuse
         return result.ToString();
     }
 
+    // Texts that differ only in line endings (Service Studio saves CRLF) or trailing white space are the same text:
+    // setting one would be a change that review, merge and publish then report for nothing.
+    internal static bool SameText(string? a, string? b) => Lines(a) == Lines(b);
+    static string Lines(string? text) =>
+        string.Join('\n', (text ?? "").Replace("\r\n", "\n").Split('\n').Select(l => l.TrimEnd())).TrimEnd();
+
+    // `text` without a leading `prefix` (compared line by line, ignoring line endings and trailing white space), and
+    // without the blank lines after it. `text` itself when it does not start with the prefix.
+    internal static string WithoutPrefix(string text, string prefix)
+    {
+        if (prefix.Trim().Length == 0) return text;
+        var want = prefix.Replace("\r\n", "\n").TrimEnd().Split('\n').Select(l => l.TrimEnd()).ToArray();
+        var at = 0; // walk the original text, so the rest keeps its own line endings
+        foreach (var line in want)
+        {
+            if (at > text.Length) return text;
+            var end = text.IndexOf('\n', at);
+            var got = (end < 0 ? text[at..] : text[at..end]).TrimEnd();
+            if (got != line) return text;
+            at = end < 0 ? text.Length : end + 1;
+        }
+        while (at < text.Length && char.IsWhiteSpace(text[at])) at++;
+        return text[at..];
+    }
+
     // CSS for comparison: comments removed as apply removes them; outside quoted strings, white space collapsed, none
     // around { } ; , and none around a declaration colon ("color : red"). A colon is a declaration colon when the next
     // { ; or } after it is not {; otherwise it is in a selector, where a space before it is a descendant selector

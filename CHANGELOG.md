@@ -2,6 +2,41 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.21.0
+
+Found while building the full OUI component library (181 blocks, 16 screens) with oml and publishing it cycle after cycle.
+
+### Added
+- `oml publish <file>` while the module is open in Service Studio: when the file differs from the open copy only in theme style sheets and script code, oml sets those texts in the open module through an edit session (`applyModelApiCode`, `omlMerge`), checks them, and publishes. No manual close. Any other difference is refused with nothing changed and the differences named.
+- `replaceNode` edit: builds one flow node again from a node spec in the same place (an Assign's values, a call's arguments), where `set` cannot reach.
+- `insertNodes` takes `"ifMissing": true`: a patch that runs on every sync inserts its nodes once.
+- `oml skill refresh [--dir <project>]` updates a project's `skill/` and `AGENTS.md` to this oml (the project's own files stay). `oml create` stamps `skill/.oml-version`; `oml doctor` warns when a project's copy is older.
+- `oml qa page <url> --style-conflicts <class prefix>`: for elements with that class prefix, the CSS properties your style sheets set where an OutSystems UI rule wins, with both selectors (needs DevTools).
+- `oml spec check` flags a flow node named Start or End, `id` in a widget's `attributes`, and an index on a reference attribute alone (InvalidEntityIndex_DupIndexes).
+- A type written `Customer List` (as Service Studio shows it) means `List of Customer`.
+- An unnamed Refresh Data node answers to the path `refresh <DataSource>`, as `describe` prints it.
+
+### Changed
+- `replaceWidgets` and `replaceNode` keep the existing widgets or node when the spec builds the same thing (kinds, names, properties, expressions): the module keeps their keys, `existing` lists them as "already as in the spec", and `review` shows only real changes. A library synced every cycle no longer re-creates every widget.
+- A theme `styleSheet` copied from `describe --css` may start with Theme Editor's part: apply drops it there, so it is never there twice. A style sheet or script that differs only in line endings is not a change.
+- A listed existing Script gets the spec's code when it differs, and `changed` says so (it was kept silently).
+- A listed existing flow whose nodes match by name is also compared by expression (Assign values, If conditions): a difference is a problem naming the node, not a silent skip.
+- `oml publish <file>`: a file Service Studio is still loading answers "busy"; publish tries again for up to 2 minutes. When Service Studio skipped the upload, `warning` says nothing new was deployed.
+- `oml preview` runs OnInitialize as far as it can compute it: Assign nodes (also record fields), ListAppend and ListClear, JSON Deserialize of a known text, If with a known condition, counted loops, For Each over a known list, and the screen's own client actions it calls. A List bound to a list filled this way shows one row per item with `.Current` set (a calendar block shows its 42 day cells), instead of 3 template rows.
+- `oml preview`: `matchMedia('(prefers-color-scheme: ...)')` answers with `--theme`, so theme scripts keep the asked theme; Font Awesome icons show as a small box with their first letter.
+
+### Fixed
+- A listed existing flow was compared before the spec's edits ran, so a flow an `insertNodes` brought in line still blocked the save.
+- `set` can change a widget's HTML `attributes` (a placeholder block cannot use `replaceWidgets`).
+- `replaceWidgets` no longer refuses the OnSort handler and ClickedColumn parameter Service Studio adds to every table on save.
+- New warnings at apply, each with the fix: a Button or Link without children (the app shows "Button" or "link"), CSS custom properties in a Reactive `style` attribute (Reactive drops them), module JavaScript in a Reactive or Mobile module (it never runs). `visible` on a Reactive Expression warns, and on a BlockInstance is refused, each with the fix (wrap it in a Container).
+- A `replaceWidgets` refused because screens fill the block's Placeholders now says so and names the way around.
+- Refusals that name the fix: an HTML Element with an SVG tag or `dialog` (refused at apply with the CSS mask or popover alternative, not at validation as "not a valid HTML tag"); `variable` on an Upload (use `fileContent` and `fileName`); an input change on a public Reactive block (if nothing uses it yet, `oml map uses <Block>`, apply the library to the module from before it).
+
+### Docs
+- Widgets whose keys are easy to get wrong: Upload (`fileContent`, `fileName`), Button and Link children, HTML Element tags (no `svg` or `dialog`: CSS masks and popovers instead), Dropdown over a record list, CSS variables in `style`.
+- UI checklist: List items are direct children; CSS variables; restyling OutSystems UI widgets. Polling blocks without the lifecycle warning. Generate specs with a script file, not an inline heredoc. Rule 4 while a new library is in development.
+
 ## 1.20.0
 
 Found while building a component library (23 blocks and a showcase screen) with oml.

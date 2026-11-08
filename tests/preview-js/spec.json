@@ -84,7 +84,7 @@
           { "kind": "switch", "name": "Pick", "cases": [ { "condition": "Mode = \"x\"", "next": "CaseJs" } ], "otherwise": "OtherJs" },
           { "kind": "javaScript", "name": "CaseJs", "javaScript": "window.pvFlow.push('case');", "next": "Long" },
           { "kind": "javaScript", "name": "OtherJs", "javaScript": "window.pvFlow.push('other');", "next": "Long" },
-          { "kind": "if", "name": "Long", "condition": "Length(Mode) > 2", "true": "YesJs", "false": "NoJs" },
+          { "kind": "if", "name": "Long", "condition": "EncodeHtml(Mode) = Mode", "true": "YesJs", "false": "NoJs" },
           { "kind": "javaScript", "name": "YesJs", "javaScript": "window.pvFlow.push('yes');", "next": "End" },
           { "kind": "javaScript", "name": "NoJs", "javaScript": "window.pvFlow.push('no');\nconsole.log('Olá ✓ ' + document.getElementById('FlowRoot').textContent);" }
         ] }

@@ -10,6 +10,7 @@ function Require($condition, $message) { if (-not $condition) { throw $message }
 # Not run, and why: these start a server, open a window, or reach the network, Service Studio's MCP server or LifeTime.
 $skip = [ordered]@{
   'create'         = 'makes a project folder in the current folder; tests/create-check.ps1 covers its bad inputs'
+  'skill'          = 'rewrites a project''s skill/ folder; tests/create-check.ps1 covers it'
   'dashboard'      = 'starts a web server'
   'show-change'    = 'starts a web server'
   'explorer-menu'  = 'writes Explorer registry entries'
@@ -58,6 +59,7 @@ $shapes = [ordered]@{
   'preview'                = @('preview {p} Foo')
   'test bdd'               = @('test bdd {p} Foo --bdd {p}')
   'test scenarios'         = @('test scenarios {p} {p}', 'test scenarios {p} {o}')
+
   'test data'              = @('test data module {p} --entity A:B:C', 'test data create Contact --file {p}')
   'flow'                   = @('flow {p} Foo')
   'tree'                   = @('tree {p} Foo')

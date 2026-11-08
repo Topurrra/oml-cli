@@ -145,12 +145,24 @@ static class Apply
         catch (JsonException e) { return (1, new { saved = false, phase = "spec", problems = new[] { SpecHelp.TypeProblem(e) } }); }
         specPhase?.Dispose();
 
-        var m = Model.Take(source);
-        // Every module this apply opens: the source and, after the scratch reload, the reloaded one. The source stays
-        // open to the end, because the production rules name its elements in their messages.
-        var opened = new List<IESpace> { m };
-        try { return Execute(spec, json, m, source, output, commentsRemoved, many ? specPaths : null, options, opened, pathWarnings, dryRun); }
-        finally { foreach (var module in opened) Timings.Measure("close", module.Dispose); }
+        var skip = new HashSet<int>();
+        while (true)
+        {
+            var m = Model.Take(source);
+            // Every module this apply opens: the source and, after the scratch reload, the reloaded one. The source stays
+            // open to the end, because the production rules name its elements in their messages.
+            var opened = new List<IESpace> { m };
+            try { return Execute(spec, json, m, source, output, commentsRemoved, many ? specPaths : null, options, opened, pathWarnings, dryRun, skip); }
+            // replaceWidgets edits that built exactly the widgets the module has: build once more without them, so those
+            // widgets keep their keys (no change for review, merge or publish). At most one retry: the set only grows once.
+            catch (UnchangedWidgets u) when (skip.Count == 0) { skip = u.Edits; }
+            finally { foreach (var module in opened) Timings.Measure("close", module.Dispose); }
+        }
+    }
+
+    sealed class UnchangedWidgets(HashSet<int> edits) : Exception
+    {
+        public HashSet<int> Edits { get; } = edits;
     }
 
     // Describes the named elements, then the created ones (capped), of the saved module.
@@ -175,7 +187,7 @@ static class Apply
     }
 
     // raw: the spec's JSON, to tell keys the spec sets on an existing element from record defaults (Reuse).
-    static (int code, object report) Execute(Spec spec, System.Text.Json.Nodes.JsonNode? raw, IESpace m, string source, string output, int commentsRemoved, IReadOnlyList<string>? specs, ApplyOptions? options, List<IESpace> opened, List<string>? pathWarnings = null, bool dryRun = false)
+    static (int code, object report) Execute(Spec spec, System.Text.Json.Nodes.JsonNode? raw, IESpace m, string source, string output, int commentsRemoved, IReadOnlyList<string>? specs, ApplyOptions? options, List<IESpace> opened, List<string>? pathWarnings = null, bool dryRun = false, HashSet<int>? skipEdits = null)
     {
         FlowLayout.BeginApply(); // marks are per apply: this run's placed/deleted flows
         var rules = Timings.Measure("rules snapshot", () => new ProductionRules(m));
@@ -195,7 +207,7 @@ static class Apply
         ModuleReferences.Add(m, spec.References, created, existing, problems);
         ModuleReferences.Alias(m, spec.ReferenceAliases, problems, rules);
 
-        ModuleSettings.Apply(m, spec.Module, problems);
+        ModuleSettings.Apply(m, spec.Module, problems, warnings);
         Timings.Measure("content", () => Content.Before(m, spec, created, existing, changed, problems));
         var staticEntities = StaticEntities.Create(m, spec.StaticEntities, created, existing, problems);
         // Warnings oml itself raises; the report lists them in newWarnings, next to the model's, so they are explained too.
@@ -366,7 +378,7 @@ static class Apply
             }
 
             using var logicPhase = Timings.Phase("build logic");
-            var builder = new Builder(m, services, created, existing, problems, rules) { Raw = raw };
+            var builder = new Builder(m, services, created, existing, problems, rules) { Raw = raw, SkipEdits = skipEdits ?? [] };
             builder.Rest(spec.RestClients, spec.RestServices);
             builder.Emails(spec.Emails);
             foreach (var a in spec.ServerActions ?? new()) builder.Action("serverAction", a);
@@ -377,6 +389,7 @@ static class Apply
             builder.PlatformLogic(spec);
             builder.LogicExtensions(spec);
             builder.Run(spec.Edits);
+            if (builder.Unchanged.Count > 0 && skipEdits is not { Count: > 0 }) throw new UnchangedWidgets(builder.Unchanged);
             warnings.AddRange(builder.Warnings);
             changed.AddRange(builder.Changed);
         }
