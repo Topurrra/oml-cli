@@ -92,7 +92,7 @@ try {
   Assert-Describe $detail CustomerOrders @('query FetchOrders: Order where Order.CustomerId = SelectedId order by Order.PlacedOn desc max 100 [on demand]', 'refresh FetchOrders', 'Link onClick=SelectCustomer(CustomerId = FetchCustomers.List.Current.Customer.Id)')
   Assert-Describe $detail Order @('index IX_CustomerId_PlacedOn(CustomerId, PlacedOn)')
   $states = Recipe 'loading-empty-error-states' $uiBase
-  Assert-Describe $states Products @('If LoadFailed condition=FetchProducts.HasFetchError', 'Button RetryButton onClick=Retry', 'If Loading condition=not FetchProducts.IsDataFetched', 'If NoProducts condition=FetchProducts.List.Empty', 'refresh FetchProducts')
+  Assert-Describe $states Products @('If LoadFailed condition=FetchProducts.HasFetchError', 'Button RetryButton style="btn btn-primary" onClick=Retry', 'If Loading condition=not FetchProducts.IsDataFetched', 'If NoProducts condition=FetchProducts.List.Empty', 'refresh FetchProducts')
   $api = Recipe 'expose-rest-api' $base
   Assert-Describe $api 'OrderApi/GetOrder' @('GET /orders/{Id}', 'call RecipeConsumer.Order_Get')
   Assert-Describe $api 'OrderApi/PlaceOrder' @('POST /orders', 'call RecipeConsumer.Order_Place')

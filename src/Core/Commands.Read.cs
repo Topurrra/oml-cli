@@ -123,7 +123,9 @@ public static partial class Cli
     static int? CmdDescribe(List<string> args)
     {
         if (args.Count < 3) return null;
-        var depth = 0;
+        // Depth 1 by default: the bodies of the actions it calls are printed too, as Service Studio shows them one click away.
+        var depth = 1;
+        var depthGiven = false;
         var history = false;
         var css = false;
         var all = false;
@@ -131,7 +133,7 @@ public static partial class Cli
         var names = new List<string>();
         for (var i = 2; i < args.Count; i++)
         {
-            if (args[i] == "--depth" && i + 1 < args.Count && int.TryParse(args[++i], out depth) && depth >= 0) continue;
+            if (args[i] == "--depth" && i + 1 < args.Count && int.TryParse(args[++i], out depth) && depth >= 0) { depthGiven = true; continue; }
             if (args[i] == "--in" && i + 1 < args.Count) { searchIn.Add(args[++i]); continue; }
             if (args[i] == "--history") { history = true; continue; }
             if (args[i] == "--css") { css = true; continue; }
@@ -142,12 +144,12 @@ public static partial class Cli
         // `describe <module> --css --all`: every style sheet (themes, screens, blocks); oml preview --live compares two modules with it.
         if (all)
         {
-            if (!css || names.Count > 0 || depth > 0 || searchIn.Count > 0 || history) throw new CliError("--all goes with --css only, without element names: describe <module.oml> --css --all.", 2);
+            if (!css || names.Count > 0 || depthGiven || searchIn.Count > 0 || history) throw new CliError("--all goes with --css only, without element names: describe <module.oml> --css --all.", 2);
             using var whole = Open(args[1]);
             return Emit(Describe.AllStyleSheets(whole.Module));
         }
         if (names.Count == 0) throw new CliError("describe needs at least one element name.", 2);
-        if (css && (depth > 0 || searchIn.Count > 0 || history)) throw new CliError("describe --css prints only style sheets: it takes no --depth, --in or --history.", 2);
+        if (css && (depthGiven || searchIn.Count > 0 || history)) throw new CliError("describe --css prints only style sheets: it takes no --depth, --in or --history.", 2);
         using var open = Open(args[1]); var module = open.Module;
         if (css)
         {

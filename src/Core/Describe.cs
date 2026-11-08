@@ -155,7 +155,15 @@ static class Describe
             + (Reflect.Get(o, "Fetch") is { } fetch ? (fetch.ToString() == "OnDemand" ? " [on demand]" : "")
                 + (Reflect.Get(o, "ServerRequestTimeout") is int timeout ? " timeout " + timeout + " s" : "") + AfterFetch(o) : ""); // data actions
         string AfterFetch(object o) => Reflect.Get(o, "OnAfterFetch") is { } evt && Reflect.Get(evt, "Destination") is { } handler ? " on after fetch -> " + Name(handler) : "";
-        string Args(object o) => string.Join(", ", List(o, "Arguments").Where(a => Expr(a, "Value").Length > 0).OrderBy(a => Name(Reflect.Get(a, "Parameter")), StringComparer.Ordinal).Select(a => Name(Reflect.Get(a, "Parameter")) + " = " + Expr(a, "Value") + FieldMappings.Suffix(a)));
+        string Args(object o) => string.Join(", ", List(o, "Arguments").Where(a => Expr(a, "Value").Length > 0).OrderBy(a => Name(Reflect.Get(a, "Parameter")), StringComparer.Ordinal).Select(a => Name(Reflect.Get(a, "Parameter")) + " = " + OneLine(Expr(a, "Value")) + FieldMappings.Suffix(a)));
+        // An expression typed over several lines in Service Studio stays on its describe line. A very long one (a big text
+        // literal) is cut, so one widget cannot fill the output: oml tree shows the whole expression.
+        static string OneLine(string text)
+        {
+            if (text.Contains('\n')) text = System.Text.RegularExpressions.Regex.Replace(text, @"\s*[\r\n]+\s*", " ").Trim();
+            const int max = 500;
+            return text.Length <= max ? text : text[..max] + " ... (" + (text.Length - max) + " more characters: oml tree)";
+        }
 
         public void Element(object root, int indent)
         {
@@ -182,14 +190,7 @@ static class Describe
                 foreach (var aggregate in List(root, "ScreenAggregates").OrderBy(Name, StringComparer.Ordinal))
                     Part("query " + Name(aggregate), () => Line(indent + 1, Query(aggregate)), indent + 1, aggregate);
                 foreach (var action in List(root, "DataActions").OrderBy(Name, StringComparer.Ordinal))
-                    Part("data action " + Name(action), () =>
-                    {
-                        // Keep the screen brief, but retain calls and uses found in the data action body.
-                        var length = Buffer.Length;
-                        Element(action, indent + 1);
-                        Buffer.Length = length;
-                        Line(indent + 1, Header(action));
-                    }, indent + 1, action);
+                    Part("data action " + Name(action), () => Element(action, indent + 1), indent + 1, action);
                 foreach (var action in List(root, "ScreenActions").OrderBy(Name, StringComparer.Ordinal))
                     Part("action " + Name(action), () => Element(action, indent + 1), indent + 1, action);
                 if (Reflect.Get(root, "Preparation") is { } preparation) Part("preparation", () => Element(preparation, indent + 1), indent + 1);
@@ -211,10 +212,21 @@ static class Describe
                 var visited = new HashSet<object>();
                 var start = nodes.FirstOrDefault(n => Kind(n) == "StartNode");
                 if (start is not null) Flow(start, indent + 1, visited);
-                else if (nodes.Length == 0) Line(indent + 1, "[signature only]");
+                else if (nodes.Length == 0 && Expr(root, "JavaScript").Length == 0 && Expr(root, "Statement").Length == 0) Line(indent + 1, "[signature only]");
                 // Exception handlers are separate entry points, not successors of Start.
                 foreach (var handler in ElementPaths.Ordered(nodes.OfType<IObjectSignature>().Where(n => Kind(n).Contains("ExceptionHandler"))))
-                    Part("exception handler " + Name(handler), () => { Line(indent + 1, "on exception " + Name(Reflect.Get(handler, "Exception"))); Flow(handler, indent + 2, visited); }, indent + 1, handler);
+                    Part("exception handler " + Name(handler), () =>
+                    {
+                        var options = (Reflect.Get(handler, "AbortTransaction") is false ? " [keep transaction]" : "") + (Reflect.Get(handler, "LogError") is false ? " [no log]" : "");
+                        Line(indent + 1, "on exception " + Name(Reflect.Get(handler, "Exception")) + options);
+                        Flow(handler, indent + 2, visited);
+                    }, indent + 1, handler);
+                // Comments are not connected to the flow: their text is the developer's own explanation.
+                foreach (var comment in nodes.Where(n => Kind(n).Contains("Comment")))
+                    if (CommentText(comment) is { Length: > 0 } note) Line(indent + 1, "comment: " + System.Text.RegularExpressions.Regex.Replace(note, @"\s+", " ").Trim());
+                // A JavaScript node, a Script element or a SQL node described on its own: its code.
+                foreach (var key in new[] { "JavaScript", "Statement" })
+                    if (start is null && Expr(root, key) is { Length: > 0 } code) { Line(indent + 1, key == "Statement" ? "sql:" : "javascript:"); Code(code, indent + 2); }
             }
         }
 
@@ -290,12 +302,39 @@ static class Describe
             else if (kind == "SendEmailNode" || Reflect.Property(node, "EmailScreen") is not null)
                 Line(indent, "send email " + Name(Reflect.Get(node, "Email") ?? Reflect.Get(node, "EmailScreen")) + " from " + Expr(node, "From") + " to " + Expr(node, "To") + "(" + Args(node) + ")");
             else if (kind == "RefreshDataNode") Line(indent, "refresh " + Name(Reflect.Get(node, "DataSource")));
-            else if (kind == "JavaScriptNode") Line(indent, "javascript " + Name(node) + "(" + Args(node) + ")");
+            else if (kind == "JavaScriptNode")
+            {
+                var outputs = string.Join(", ", List(node, "OutputParameters").Select(p => Name(p) + ": " + TypeOf(p)));
+                Line(indent, "javascript " + Name(node) + "(" + Args(node) + ")" + (outputs.Length > 0 ? " -> " + outputs : "") + (Reflect.Get(node, "IsAsynchronous") is true ? " [async]" : "") + ":");
+                Code(Expr(node, "JavaScript"), indent + 1);
+            }
+            else if (kind == "MessageNode") Line(indent, "message " + (Reflect.Get(node, "Type")?.ToString() ?? "Info") + ": " + Expr(node, "Message"));
+            else if (kind.Contains("ExceptionHandler")) { } // its "on exception" line says it
             else if (kind == "JSONSerializeNode") Line(indent, "json serialize " + Expr(node, "Data") + " -> " + Name(node));
             else if (kind == "JSONDeserializeNode") Line(indent, "json deserialize " + Expr(node, "JSONString") + " -> " + Model.Describe(m, Reflect.Get(node, "DataType") as ITypeSignature));
             else if (kind == "EndNode") Line(indent, "end");
             else Line(indent, kind + " " + Name(node));
             return false;
+        }
+
+        // Code as written (JavaScript, SQL), line by line under its node. Tabs become two spaces, blank lines at the ends go.
+        void Code(string code, int indent)
+        {
+            var lines = code.Replace("\r\n", "\n").Replace('\r', '\n').Replace("\t", "  ").Split('\n').Select(l => l.TrimEnd()).ToList();
+            while (lines.Count > 0 && lines[0].Length == 0) lines.RemoveAt(0);
+            while (lines.Count > 0 && lines[^1].Length == 0) lines.RemoveAt(lines.Count - 1);
+            if (lines.Count == 0) { Line(indent, "(empty)"); return; }
+            var common = lines.Where(l => l.Length > 0).Min(l => l.Length - l.TrimStart().Length);
+            const int max = 1000;
+            foreach (var l in lines.Take(max)) Line(indent, l.Length >= common ? l[common..] : l);
+            if (lines.Count > max) Line(indent, "... " + (lines.Count - max) + " more lines not shown");
+        }
+
+        static string CommentText(object comment)
+        {
+            foreach (var key in new[] { "Text", "Comment", "Label", "Description" })
+                if (Text(Reflect.Get(comment, key)) is { Length: > 0 } t) return t;
+            return "";
         }
 
         string Query(object node)
@@ -335,8 +374,11 @@ static class Describe
                 if (o is IWidgetSignature && !Unreadable.Try(() => "widget " + Unreadable.Where(o), () => lines.Add((depth, WidgetLine(o)))))
                     lines.Add((depth, ElementPaths.Kind(o) + " " + Name(o) + " [unreadable]"));
                 if (o is IWidgetSignature) depth++;
+                var at = lines.Count;
                 if (o is IObjectSignature obj)
                     foreach (var child in Unreadable.Try(() => "children of " + Unreadable.Where(o), () => ElementPaths.Children(obj).Where(c => c is not IExpression).ToArray(), [])) Walk(child, depth);
+                // An empty slot (a block's placeholder that holds nothing new) is noise.
+                if (lines.Count == at && at > 0 && ElementPaths.Kind(o) == "CustomPlaceholderWidget") lines.RemoveAt(at - 1);
             }
             string WidgetLine(object o)
             {
@@ -348,10 +390,29 @@ static class Describe
                         properties.Add(char.ToLowerInvariant(key[0]) + key[1..] + "=" + (Text(v).Length > 0 ? Text(v) : Name(v)));
                     }
                 if (Reflect.Get(o, "TargetWidget") is IObjectSignature target) properties.Add("targetWidget=" + Name(target));
+                // How it looks and behaves: classes, inline style, HTML tag and attributes, input options.
+                if (Reflect.Get(o, "Style") is IExpression styleClasses && styleClasses.Text is { Length: > 0 } classes && classes != "\"\"") properties.Add("style=" + classes);
+                else if (Text(Reflect.Get(o, "StyleClasses")) is { Length: > 0 } classNames && classNames != "\"\"") properties.Add("style=" + classNames);
+                if (Reflect.Get(o, "CustomStyle") is string inline && inline.Trim().Length > 0) properties.Add("inlineStyle=\"" + inline.Trim() + "\"");
+                if (Reflect.Get(o, "Tag") is string tag && tag.Length > 0) properties.Add("tag=" + tag);
+                if (Reflect.Property(o, "InputType") is not null && Reflect.Get(o, "InputType")?.ToString() is { } inputType && inputType != "Text") properties.Add("type=" + inputType);
+                if (Expr(o, "Prompt") is { Length: > 0 } prompt) properties.Add("prompt=" + prompt);
+                if (Expr(o, "Mandatory") is { Length: > 0 } mandatory && !mandatory.Equals("False", StringComparison.OrdinalIgnoreCase)) properties.Add("mandatory=" + mandatory);
+                if (Expr(o, "Enabled") is { Length: > 0 } enabled && !enabled.Equals("True", StringComparison.OrdinalIgnoreCase)) properties.Add("enabled=" + enabled);
+                if (Reflect.Get(o, "IsDefault") is true) properties.Add("[default button]");
+                if (Expr(o, "ConfirmationMessage") is { Length: > 0 } confirm) properties.Add("confirm=" + confirm);
+                if (ElementPaths.Kind(o) == "Image")
+                {
+                    if (Reflect.Get(o, "Image") is IObjectSignature image) properties.Add("image=" + Name(image));
+                    else if (Expr(o, "Url") is { Length: > 0 } url) properties.Add("url=" + url);
+                }
+                foreach (var attribute in List(o, "ExtendedProperties"))
+                    if (Reflect.Get(attribute, "Property") is string attributeName && attributeName.Length > 0) properties.Add("attr " + attributeName + "=" + Expr(attribute, "Value"));
                 var arguments = Args(o);
                 if (arguments.Length > 0) properties.Add("args=(" + arguments + ")");
                 var click = Reflect.Get(o, "OnClick");
                 if (click is not null && Reflect.Get(click, "Destination") is { } destination) properties.Add("onClick=" + Name(destination) + (Args(click) is { Length: > 0 } args ? "(" + args + ")" : ""));
+                if (Reflect.Get(o, "OnChange") is { } change && Reflect.Get(change, "Destination") is { } changeHandler) properties.Add("onChange=" + Name(changeHandler) + (Args(change) is { Length: > 0 } changeArgs ? "(" + changeArgs + ")" : ""));
                 foreach (var evt in List(o, "Events"))
                     if (Reflect.Get(evt, "Handler") is { } handler) properties.Add(Name(evt) + "=" + Name(handler));
                 foreach (var h in List(o, "EventHandlers"))
@@ -359,8 +420,10 @@ static class Describe
                 return ElementPaths.Kind(o) + (Model.NameOf(o) is { Length: > 0 } name ? " " + name : "") + (properties.Count > 0 ? " " + string.Join(" ", properties) : "");
             }
             foreach (var w in List(root, "Widgets")) Walk(w, 0);
-            foreach (var line in lines.Take(80)) Line(indent + line.depth, line.text);
-            if (lines.Count > 80) Line(indent, "... " + (lines.Count - 80) + " more");
+            // A big screen stays readable: past the cap, oml tree <Screen>/<path> reads the rest.
+            const int max = 500;
+            foreach (var line in lines.Take(max)) Line(indent + line.depth, line.text);
+            if (lines.Count > max) Line(indent, "... " + (lines.Count - max) + " more widgets: oml tree <module.oml> <Screen> --depth 2");
         }
 
         void TrackUses(object root)
@@ -431,7 +494,9 @@ static class Describe
             {
                 Line(0, "");
                 if (level < depth && available && List(action, "Nodes").Any()) Element(action, 0);
-                else Line(0, Header(action) + " [signature only]");
+                // Say why the body is missing, so the next command is clear.
+                else Line(0, Header(action) + (!available ? " [signature only: in " + owner + "; add --in <" + owner + ".oml or its folder>]"
+                    : level >= depth && List(action, "Nodes").Any() ? " [signature only: --depth " + (depth + 1) + " shows it]" : " [signature only]"));
             }
         }
     }

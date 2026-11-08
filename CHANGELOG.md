@@ -2,6 +2,18 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.19.0
+
+### Changed
+- `oml describe` shows the whole picture, as Service Studio does. By default it prints the bodies of the actions an element calls (depth 1); `--depth 0` gives the old short output. A called action that is not printed says why and how to see it (`--depth 2`, or `--in` for a producer module). Data actions on a screen show their body.
+
+### Added
+- `oml describe` prints the code of JavaScript nodes (with their outputs and `[async]`), also for a JavaScript node, Script element or SQL node described on its own. It used to print only the node's name and inputs.
+- `oml describe` prints message nodes (`message Error: <expression>`), exception handler options (`[keep transaction]`, `[no log]`), flow comments, and for widgets: Style Classes, inline style, HTML tag, attributes, input type, prompt, mandatory, enabled, default button, confirmation message, image and On Change.
+
+### Fixed
+- `oml describe` no longer prints empty block slots (`CustomPlaceholderWidget content` lines), keeps expressions typed over several lines on one line, and prints up to 500 widget lines instead of 80. Very long arguments (over 500 characters) are cut.
+
 ## 1.18.1
 
 ### Fixed
