@@ -25,13 +25,13 @@ function Run([string[]]$a) {
 function Tokens($path) { [math]::Ceiling((Get-Content -Raw $path).Replace("`r`n", "`n").Length / 4) } # same count on LF and CRLF checkouts
 
 # Size budget per topic in tokens (characters / 4). A file may be at most 15% over its budget. data-rules, rest and
-# troubleshooting were raised by 50-100 for the SQL column order, CrossSiteRequests and same-name publish notes; ui-reactive by 50 for the polling-block pattern and by 100 for the JavaScript output, AMD and virtualization notes. memory
+# troubleshooting were raised by 50-100 for the SQL column order, CrossSiteRequests and same-name publish notes; ui-reactive by 50 for the polling-block pattern and by 100 for the JavaScript output, AMD and virtualization notes; troubleshooting by 200 for the strong dependency, client timeout, charset and open-tab notes. memory
 # was raised by 200 for "What recall learns" (usefulness, newest wins, stale records, suggested traps, oml learn). warnings was
 # raised by 50 because the command is now named `oml explain-warning` (was `oml warn`) and the file names it twice.
 $budget = [ordered]@{
   'ui-reactive' = 1650; 'osui-patterns' = 2000; 'data-rules' = 1250; 'logic-rules' = 1200; 'security' = 800
   'rest' = 950; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2200
-  'traditional-to-reactive' = 900; 'troubleshooting' = 2100; 'ui-checklist' = 700; 'testing' = 2000
+  'traditional-to-reactive' = 900; 'troubleshooting' = 2300; 'ui-checklist' = 700; 'testing' = 2000
   'best-practices' = 1300; 'rules' = 900; 'memory' = 1300; 'dif' = 800
 }
 # Where a topic's file is: skill/reference/<topic>.md, except rules (skill/rules.md; SKILL.md holds the same 11 rules).
