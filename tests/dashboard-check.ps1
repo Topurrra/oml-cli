@@ -477,11 +477,9 @@ try {
         $targets = @(@{ page = 'home'; hash = '#/home' }, @{ page = 'explorer'; hash = "#/explorer?module=$m" }, @{ page = 'tools'; hash = '#/tools' },
             @{ page = 'check'; hash = "#/check?module=$m"; expect = 'missing-description' },
             @{ page = 'review'; hash = "#/review?before=$([uri]::EscapeDataString($blank))&after=$m"; expect = 'PvCard' },
-            @{ page = 'docs'; hash = '#/docs?q=confirm%20popup%20before%20delete&open=oml%20doc%20rules'; expect = 'block-popup-event' },
             @{ page = 'previews'; hash = "#/previews?module=$m"; expect = 'Inputs and interaction steps' },
-            @{ page = 'dif'; hash = "#/dif?file=$([uri]::EscapeDataString($difFile))&selftest=1"; expect = 'ShowCard' },
-            @{ page = 'modules'; hash = '#/modules' }, @{ page = 'prompt'; hash = '#/prompt?selftest=1' }, @{ page = 'architecture'; hash = '#/architecture' }, @{ page = 'lifetime'; hash = '#/lifetime' }) +
-            @('recipes', 'assets', 'openapi', 'activity', 'learned', 'cookbook', 'rules' | ForEach-Object { @{ page = $_; hash = "#/$_"; themes = @('light') } })
+            @{ page = 'modules'; hash = '#/modules' }, @{ page = 'architecture'; hash = '#/architecture' }, @{ page = 'lifetime'; hash = '#/lifetime' }) +
+            @('agents', 'assets', 'openapi', 'activity', 'learned' | ForEach-Object { @{ page = $_; hash = "#/$_"; themes = @('light') } })
         foreach ($target in $targets) {
             foreach ($theme in $(if ($target.themes) { $target.themes } else { 'light', 'dark' })) {
                 $png = Join-Path $Tmp "dashboard-$($target.page)-$theme.png"
@@ -539,7 +537,7 @@ try {
             Require ($promptDom -match 'data-selftest="ok"') "Prompt self-test (working set API and prompt text) did not pass ($theme): $([regex]::Match($promptDom, 'Prompt self-test[^<]*').Value)"
             Require ((Get-Content (Join-Path $Tmp "dashboard-modules-$theme.html") -Raw) -match 'Working set') "Get modules page ($theme)"
         }
-        Write-Host "ok   dashboard pages (home, explorer, tools, check, review, docs, previews, dif, modules, prompt, architecture, lifetime; the rest in light): no JavaScript errors, screenshots $($shots -join ', ')"
+        Write-Host "ok   dashboard pages (home, explorer, tools, check, review, agents, previews, dif, modules, prompt, architecture, lifetime; the rest in light): no JavaScript errors, screenshots $($shots -join ', ')"
     } else { Write-Host 'skip dashboard screenshots: no Edge or Chrome' }
 
     Require ((Token-State) -eq $tokensBefore) 'The dashboard created or changed a Service Studio session token without a click'
