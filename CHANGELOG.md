@@ -2,6 +2,16 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## Unreleased
+
+### Changed
+- Skill: `AGENTS.md` no longer repeats the 11 rules and the Standard loop; it points to `skill/rules.md` and `skill/SKILL.md`, so there is one wording of each. The build-output `oml.exe` path is now `oml` from PATH. Existing projects: run `oml skill refresh`.
+- Skill: the architect harness table moved to the new `oml doc harnesses` topic; `architect.md` keeps the fallback rule inline.
+- Skill: bounded doubt statements ("0 findings does not mean the code is correct", "Every new warning is a real defect") now resolve explicitly: trust `saved: true` with no `newErrors`/`newWarnings` as done; report remaining warnings with a one-line reason each. The UI checklist names the "pending visual check" escape for a publish-gated screenshot.
+- Skill: the Standard loop in `SKILL.md` carries the 4-to-8-call turn budget (was only in `AGENTS.md`).
+- `skill/reference/odc.md` no longer points to a nonexistent "section 2"; it names rule 10 of `skill/rules.md`.
+- New doc topic `harnesses`: how to start a worker per harness, with what is verified.
+
 ## 1.21.1
 
 Found while building the OUIAI and MCP modules on the OUI library.

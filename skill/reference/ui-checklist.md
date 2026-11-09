@@ -1,7 +1,7 @@
 # UI checklist
 
 Use this list for every block and screen you build. You cannot see the result, so look at a screenshot of the real app.
-Never report UI work as done without at least one screenshot that you looked at: `oml preview --live` (style sheets), `oml qa page --screenshot` (after a publish), or `oml preview` (no running app yet).
+Never report UI work as done without at least one screenshot that you looked at: `oml preview --live` (style sheets), `oml qa page --screenshot` (after a publish), or `oml preview` (no running app yet). If the user has not published and no command above can run, report the work as "pending visual check" instead of done.
 
 - **Labels:** No default widget texts. A new Link has the text "link" and a new Button has "Button". Replace them; do not add text after them.
 - **Content:** Use real demo content. No "Demo content", "Lorem ipsum" or "Text".
