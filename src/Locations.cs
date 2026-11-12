@@ -14,7 +14,8 @@ static class Locations
 
     // Service Studio's MCP server (Edit > MCP Server > Start MCP server).
     public static int StudioPort => int.TryParse(Environment.GetEnvironmentVariable("OML_STUDIO_PORT"), out var p) ? p : 41820;
-    public static string StudioUrl => $"http://127.0.0.1:{StudioPort}/mcp";
+    // OML_STUDIO_URL: the whole address, when it is not the default one (the project profile sets it from outsystems.mcpServer).
+    public static string StudioUrl => Environment.GetEnvironmentVariable("OML_STUDIO_URL") is { Length: > 0 } url ? url : $"http://127.0.0.1:{StudioPort}/mcp";
 
     // One line per Service Studio build whose self-test passed. OML_SELFTEST_RECORD (tests only) points it at another
     // file, so a test that removes the build from the record does not touch the record other oml processes read.

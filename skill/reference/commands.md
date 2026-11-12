@@ -1353,12 +1353,30 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 | `lane.fast` | A change of only CSS values or texts of existing elements takes 2 tool calls: no preview, QA, review file or questions. |
 | `browser` | `oml` (oml qa and its own Edge or Chrome) or `agent` (the agent's built-in browser). |
 | `app.devUrl` | The base URL of the app in DEV. |
+| `outsystems.mcpServer` | The address of Service Studio's MCP server (O11), such as `http://127.0.0.1:41820/mcp`. `oml pull`, `publish`, `references`, `studio` and `doctor` use it, and agents are told it. Only this computer (127.0.0.1 or localhost), because the file is shared with the repository. The `OML_STUDIO_URL` or `OML_STUDIO_PORT` variable wins over it. |
+| `outsystems.odcMcpServer` | The address of the OutSystems MCP server of your ODC tenant (`https://<tenant>/mcp`). Agents use it for ODC apps; oml does not call it. |
 | `memory.*`, `docs.library`, `map.use` | `recall`, `write`, `reminder`; the docs library; the application map. |
 | `hooks.*` | `bigDocs`, `testDataApi`, `externalBrowser`, `sessionProfile`. Locked on: `omlWrites`. |
 
 The file holds no secrets: a text value that looks like one is refused. An unknown key or a wrong value is ignored and named in `problems`. A file that cannot be read gives the defaults and never blocks an agent.
 
+`oml preview` and `oml qa` follow `ui.targets` and `ui.themes`: a `--width` of a size the project does not support (phone under 600 px, tablet under 1024 px, desktop from there) or a `--theme` it does not support is refused with the reason. `--no-profile` skips the check once, for when the user asks for that size or theme in the task. An offline preview with no `--width` or `--theme` gets the project's own when the default (desktop, light) is not supported.
+
 Agents get the profile from the session-start hook (see [Agent hooks](#agent-hooks)), so it costs no command. Without hooks, the skill tells them to add `oml config` to their read call.
+
+## Style replace (the fast lane)
+
+`oml style replace <module.oml> --from <text> --to <text> [--class <name>]... [--in <Element>]... [--out <staged.oml>] [--dry-run] [--loose]` changes one CSS value in one command, such as `oml style replace Orders.oml --from 45px --to 75px --class card-header`. No spec to write and no sheet to read first.
+
+- It reads every style sheet of the module (themes, screens, blocks, emails), replaces the value, and applies the result to a new staged file: `staged/<Module>.style-<time>.oml` in a project, or next to the module. `--out` names it. The source module is never changed, and nothing is installed.
+- `--class card` (or `.card`) replaces only inside rules whose selector names that class, also inside `@media`. `.card-title` and `.cards` are other classes. Without it, every rule is searched.
+- `--in Orders` limits it to those screens, blocks, emails or themes.
+- A match that is part of a longer value stays: `45px` is not replaced in `145px`, `0.45px` or `-45px`. The output counts them; `--loose` replaces them too. Comments and strings are never changed.
+- The output lists each changed line (`before`, `after`) per element, then the `apply` report. Exit 1 when the text was not found. `--dry-run` only lists the lines.
+- The spec it applied is kept (`spec`), with one `edits.set` per changed sheet.
+- With a `.css` file instead of a module it does the same on plain CSS and writes `--out <new.css>`.
+
+It starts oml twice (read, then apply), a few seconds in all.
 
 ## Agent hooks
 

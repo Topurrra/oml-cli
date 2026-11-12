@@ -25,6 +25,7 @@ static class Doctor
             return 2;
         }
         var selfTest = args.Contains("--selftest");
+        ProjectConfig.ApplyEnvironment(); // check the Service Studio MCP address this project uses
         var ss = Locations.ServiceStudio;
         var checks = new List<Check>();
 

@@ -6,7 +6,7 @@ static class CliUsage
 {
     public const string Text = """
         oml version
-        oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--no-skill] [--no-hooks] [--no-library] [--no-doctor]   (a project ready to work in: folders, memory, config, the agent's skill and hooks, the OutSystems docs, a setup check; with --in, the modules and the application map)
+        oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--no-skill] [--no-hooks] [--no-library] [--no-doctor]   (a project ready to work in: folders, memory, config, skill, hooks, the OutSystems docs, a setup check; with --in, the modules and the map)
         oml config [show | init | set <key> <value>] [--dir <project>]   (the project profile, .oml/config.json: what agents do, skip and ask; no argument prints the lines an agent follows)
         oml skill refresh [--dir <project>]   (update a project's skill/ and AGENTS.md to this oml)
         oml new <out.oml> [--name N] [--kind WebResponsive|Mobile|Service|ReactiveLibrary|...]
@@ -103,6 +103,7 @@ static class CliUsage
         oml doctor [--text] [--selftest]   (checks the setup and says what to fix)
         oml show-change <file.md> [--port N] [--no-open]   (an agent's change walkthrough on the dashboard: call stacks, flows, element links, review, comments)
         oml dashboard [--port N] [--no-open] [--module <file.oml>]   (local web dashboard for developers; reads only, on 127.0.0.1)
+        oml style replace <module.oml|file.css> --from <text> --to <text> [--class <name>]... [--in <Element>]... [--out <staged.oml|new.css>] [--dry-run] [--loose]   (the fast lane: one CSS value, in every sheet or one class, into a new staged file)
         oml hooks [status|install|remove] [--dir <project>] [--agent claude|codex|gemini|all]   (agent guards: no reading big references whole, no .oml edits, no test-data API around oml; gives the project profile to a new session)
         oml explorer-menu [--remove | --status]   (Explorer right-click entries for the current user: fonts, images, .oml files, folders)
         oml log summary [--hours N] [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; --hours: oml vs agent time)
@@ -119,7 +120,7 @@ static class CliUsage
         Commands by area (OutSystems 11 modules; compact JSON out, a readable view in a console):
         Read a module: inspect, describe, find, tree, flow, stats, header, expression, openapi (what a module holds, one element, search, counts, the header, an expression, OpenAPI)
         Start a project: create, config (a folder ready to work in; the project profile: what agents do, skip and ask)
-        Change a module: new, apply, install, validate, spec, translations (new module; edit by spec into a staged copy; install after checks; spec keys; translation files)
+        Change a module: new, apply, style, install, validate, spec, translations (new module; edit by spec into a staged copy; one CSS value in one command; install after checks; spec keys; translation files)
         Application map: map, mock (every app of a project: who calls what, which APIs feed which; mocks chained across APIs)
         Check and review: check, review, architecture (rules and findings; a change before and after; module map and publish order)
         Preview and UI: preview (a screen or block in light and dark, screenshot, serve it)
