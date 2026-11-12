@@ -52,7 +52,18 @@ $cases = @(
   @('block', 'run_shell_command', @{ command = 'sed -i s/a/b/ Orders.oml' }),
   @('allow', 'run_shell_command', @{ command = 'oml inspect Orders.oml' }),
   @('block', 'apply_patch', @{ command = "*** Begin Patch`n*** Update File: modules/Orders.oml`n@@`n-a`n+b`n*** End Patch" }),
-  @('allow', 'apply_patch', @{ command = "*** Begin Patch`n*** Update File: specs/change.json`n@@`n-a`n+b`n*** End Patch" })
+  @('allow', 'apply_patch', @{ command = "*** Begin Patch`n*** Update File: specs/change.json`n@@`n-a`n+b`n*** End Patch" }),
+  # A part of a large reference, as each agent names the range: Copilot's view, VS Code's read_file
+  @('allow', 'Read', @{ path = 'C:\p\skill\reference\spec.md'; view_range = @(100, 300) }),
+  @('block', 'Read', @{ path = 'C:\p\skill\reference\spec.md'; view_range = @(1, -1) }),
+  @('block', 'Read', @{ path = 'C:\p\skill\reference\spec.md'; view_range = @(1, 900) }),
+  @('allow', 'read_file', @{ filePath = 'skill/reference/commands.md'; startLine = 10; endLine = 120 }),
+  @('block', 'read_file', @{ filePath = 'skill/reference/commands.md'; startLine = 1; endLine = 5000 }),
+  # The edit tools of VS Code's Local harness
+  @('block', 'replace_string_in_file', @{ filePath = 'modules/Orders.oml'; oldString = 'a'; newString = 'b' }),
+  @('block', 'create_file', @{ filePath = 'Orders.oml'; content = 'x' }),
+  # Without a project profile nothing stops a browser
+  @('allow', 'Bash', @{ command = 'Start-Process msedge https://dev.example.com' })
 )
 foreach ($c in $cases) {
   $json = @{ tool_name = $c[1]; tool_input = $c[2]; hook_event_name = 'PreToolUse' } | ConvertTo-Json -Compress
@@ -80,6 +91,41 @@ foreach ($junk in 'not json', '{}', '{"tool_name":"Read"}', '[1,2]', '') {
 $r = '{"tool_name":"Read","tool_input":{"file_path":"skill/reference/commands.md"}}' | & $Oml hooks check 2>&1
 Require ("$r" -match 'oml doc commands#') "the commands.md refusal names oml doc commands: $r"
 
+# 1b. the hook command line: no leading quote for a plain path (PowerShell, which Copilot uses on Windows, reads a
+# line that starts with a quote as a string and the hook fails); the project profile: guards on and off, the browser
+# guard, the session-start text
+$prof = Join-Path $work 'profile'; New-Item -ItemType Directory -Force $prof | Out-Null
+$r = Call 'hooks', 'install', '--dir', $prof, '--agent', 'claude'
+$ps = Get-Content (Join-Path $prof '.claude\settings.local.json') -Raw | ConvertFrom-Json
+if ($Oml -match '^[A-Za-z0-9_./:~+\\-]+$') {
+  Require ($ps.hooks.PreToolUse[0].hooks[0].command -match '^[^"]\S* hooks check$' -and $ps.hooks.PreToolUse[0].hooks[0].command -notmatch '\\') "plain path is written without quotes and with forward slashes: $($ps.hooks.PreToolUse[0].hooks[0].command)"
+} else {
+  Require ($ps.hooks.PreToolUse[0].hooks[0].powershell -match '^& "') "a path that needs quotes gets a powershell line: $($ps.hooks.PreToolUse[0].hooks[0] | ConvertTo-Json -Compress)"
+}
+Require ($ps.hooks.SessionStart[0].hooks[0].command -match 'hooks session$') "session-start hook: $($ps | ConvertTo-Json -Compress -Depth 6)"
+function Hook($verb, $payload) { $out = (($payload | ConvertTo-Json -Compress) | & $Oml hooks $verb 2>$null) -join ''; @{ Exit = $LASTEXITCODE; Out = $out } }
+Require ((Hook 'session' @{ hook_event_name = 'SessionStart'; cwd = $prof }).Out -eq '') 'session hook printed a profile without a config file'
+Push-Location $prof
+try {
+  & $Oml config set ui.targets desktop | Out-Null; & $Oml config set browser agent | Out-Null; & $Oml config set ask.testing off | Out-Null
+  Require ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $prof '.oml\config.json'))) 'oml config set writes .oml/config.json'
+  $x = Hook 'session' @{ hook_event_name = 'SessionStart'; cwd = $prof }
+  $ctx = ($x.Out | ConvertFrom-Json)
+  Require ($x.Exit -eq 0 -and $ctx.additionalContext -match 'desktop only' -and $ctx.additionalContext -match 'Do not ask whether to test' -and $ctx.hookSpecificOutput.additionalContext -eq $ctx.additionalContext) "session profile: $($x.Out)"
+  Require ((Hook 'check' @{ tool_name = 'Bash'; cwd = $prof; tool_input = @{ command = 'Start-Process msedge https://dev.example.com' } }).Exit -eq 2) 'browser = agent did not refuse starting Edge'
+  Require ((Hook 'check' @{ tool_name = 'Bash'; cwd = $prof; tool_input = @{ command = 'oml qa page https://dev.example.com --screenshot a.png' } }).Exit -eq 0) 'browser = agent refused oml qa'
+  & $Oml config set hooks.bigDocs off | Out-Null
+  Require ((Hook 'check' @{ tool_name = 'Read'; cwd = $prof; tool_input = @{ file_path = 'skill/reference/commands.md' } }).Exit -eq 0) 'hooks.bigDocs off still refused the read'
+  Require ((Hook 'check' @{ tool_name = 'Edit'; cwd = $prof; tool_input = @{ file_path = 'Orders.oml' } }).Exit -eq 2) 'the .oml write guard must stay on'
+  & $Oml config set hooks.omlWrites off 2>&1 | Out-Null
+  Require ($LASTEXITCODE -eq 2) 'a locked setting was turned off'
+  & $Oml config set ui.targets watch 2>&1 | Out-Null
+  Require ($LASTEXITCODE -eq 2) 'an unknown value was accepted'
+  Set-Content (Join-Path $prof '.oml\config.json') '{ broken'
+  Require ((Hook 'check' @{ tool_name = 'Bash'; cwd = $prof; tool_input = @{ command = 'ls' } }).Exit -eq 0) 'a broken config file blocked the agent'
+} finally { Pop-Location }
+Write-Host 'ok   hooks: command line for bash and PowerShell, session profile, config: guards on and off, browser guard, locked settings, a broken file never blocks'
+
 # 2. install / status / remove keep the user's settings and their own hooks
 $project = Join-Path $work 'project'; New-Item -ItemType Directory -Force (Join-Path $project '.claude') | Out-Null
 $settings = Join-Path $project '.claude\settings.local.json'
@@ -92,14 +138,14 @@ $r = Call 'hooks', 'install', '--dir', $project
 Require ($r.Exit -eq 0 -and @($r.Json.agents).Count -eq 3 -and ($r.Json.agents | Where-Object agent -eq 'claude').replaced) "install all: $($r.Text)"
 $s = Get-Content $settings -Raw | ConvertFrom-Json
 Require (@($s.hooks.PreToolUse).Count -eq 2 -and $s.permissions.allow[0] -eq 'Bash(git status)' -and $s.hooks.PreToolUse[0].hooks[0].command -eq 'echo mine') "install changed the user's settings: $(Get-Content $settings -Raw)"
-Require ($s.hooks.PreToolUse[1].matcher -match 'Read' -and $s.hooks.PreToolUse[1].matcher -match 'StrReplace' -and $s.hooks.PreToolUse[1].hooks[0].command -match 'oml\.exe" hooks check$' -and (Get-Content $settings -Raw) -notmatch '\\u0022') "hook entry: $(Get-Content $settings -Raw)"
+Require ($s.hooks.PreToolUse[1].matcher -match 'Read' -and $s.hooks.PreToolUse[1].matcher -match 'StrReplace' -and $s.hooks.PreToolUse[1].hooks[0].command -match 'oml\.exe"? hooks check$' -and (Get-Content $settings -Raw) -notmatch '\\u0022') "hook entry: $(Get-Content $settings -Raw)"
 $codex = Get-Content (Join-Path $project '.codex\hooks.json') -Raw | ConvertFrom-Json
 Require ($codex.hooks.PreToolUse[0].matcher -match 'apply_patch' -and $codex.hooks.PreToolUse[0].hooks[0].command -match 'hooks check$') "codex hooks.json: $(Get-Content (Join-Path $project '.codex\hooks.json') -Raw)"
 $gemini = Get-Content (Join-Path $project '.gemini\settings.json') -Raw | ConvertFrom-Json
 Require ($gemini.hooks.BeforeTool[0].matcher -match 'run_shell_command' -and $gemini.hooks.BeforeTool[0].hooks[0].timeout -eq 10000) "gemini settings.json: $(Get-Content (Join-Path $project '.gemini\settings.json') -Raw)"
 foreach ($x in @(@($s, 'Stop'), @($codex, 'Stop'), @($gemini, 'AfterAgent'))) {
   $entry = @($x[0].hooks.($x[1]))
-  Require ($entry.Count -eq 1 -and $entry[0].matcher -eq '' -and $entry[0].hooks[0].command -match 'oml\.exe" hooks stop$') "end-of-turn hook $($x[1]): $($entry | ConvertTo-Json -Compress -Depth 5)"
+  Require ($entry.Count -eq 1 -and $entry[0].matcher -eq '' -and $entry[0].hooks[0].command -match 'oml\.exe"? hooks stop$') "end-of-turn hook $($x[1]): $($entry | ConvertTo-Json -Compress -Depth 5)"
 }
 $r = Call 'hooks', '--dir', $project
 Require ($r.Exit -eq 0 -and @($r.Json.agents | Where-Object { $_.installed -and $_.exeFound -and $_.memoryReminder }).Count -eq 3 -and -not $r.Json.next) "status after install: $($r.Text)"

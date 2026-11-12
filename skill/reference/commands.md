@@ -1244,13 +1244,18 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 
 ## Create a project
 
-`oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--no-skill] [--no-hooks]` is the starting point of a project, such as `oml create falcon --in C:\Downloads\falcon`. The name is 1-40 lower-case letters, digits and hyphens; the folder `<parent>\<project>` must be new or empty, and nothing is created when an input is wrong.
+`oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--no-skill] [--no-hooks] [--no-library] [--no-doctor]` is the starting point of a project, such as `oml create falcon --in C:\Downloads\falcon`. The name is 1-40 lower-case letters, digits and hyphens; the folder `<parent>\<project>` must be new or empty, and nothing is created when an input is wrong.
 
 - **Folders:** `modules/` (the project's `.oap` and `.oml` files), `staged/`, `specs/`, `qa/`, `mocks/`, `scenarios/`.
 - **Memory:** `.oml/memory/memory.log`, as `oml memory init` makes it.
 - **The agent's instructions:** a copy of the `skill/` that came with this oml, `AGENTS.md` (any agent) and `CLAUDE.md` with `@AGENTS.md` (Claude Code). `--no-skill` leaves them out.
 - **Hooks:** the agent hooks of `oml hooks install`: `.claude/settings.local.json` (Claude Code, Copilot, Cursor), `.codex/hooks.json` and `.gemini/settings.json`. `--no-hooks` leaves them out.
+- **Project profile:** `.oml/config.json` with every default; see [Project profile](#project-profile).
+- **OutSystems docs:** `oml outsystems-docs fetch`, once per machine: skipped when the library is there. `--no-library` leaves it out.
+- **Setup check:** `oml doctor`; what it finds is in `notes`. `--no-doctor` leaves it out.
 - **`.gitignore`** (staged copies, caches, local state) and **`PROJECT.md`** (the layout and the next steps).
+
+The output has `ready`: one row per step with `status` (`done`, `skipped`, `failed` or `attention`) and, when it did not finish, `fix`: the command that repeats it. `optional` lists what a person may still want: `oml config set`, `oml team-rules add`, `oml qa start --headed`, `oml explorer-menu`.
 - **With `--in`:** the modules are copied into `modules/`, and the application map is built under the project's name (`oml map build <project> --in modules`), so `oml map overview` works there at once.
 ## Map
 
@@ -1331,6 +1336,30 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 
 **Updates.** The page checks the file every 2 seconds and shows a new version when the agent saves it; **Reload** reads it at once. `#/dif?file=<path>` in the dashboard address opens another file. The dashboard only reads the file: at most 2 MB, `.md` only.
 
+## Project profile
+
+`.oml/config.json` in the project root says what agents do, skip and ask in this project. A person sets it; agents follow it over the defaults of the skill.
+
+- `oml config` prints the profile: the lines an agent follows. Only what differs from the default work is listed, and one line that never changes: ask before install, publish, deploy and data deletion.
+- `oml config show` lists every setting with its value, default, choices and what it does.
+- `oml config set <key> <value>` changes one setting and makes the file when it is missing: `oml config set ui.targets desktop`, `oml config set ui.themes light`, `oml config set ask.testing off`, `oml config set browser agent`.
+- `oml config init` writes the file with every default. `--dir <project>` works in another folder. The file is found from the current folder upwards.
+
+| Group | Settings |
+|---|---|
+| `ui.*` | `targets` (desktop, tablet, phone), `themes` (light, dark), `rtl`, `accessibility`, `translations`. |
+| `checks.*` | `preview`, `livePreview`, `qa`, `review`, `uiChecklist`, `bestPractices`, `testScenarios`, `testData`: off means agents do not run or offer it unless the user asks in the task. |
+| `ask.*` | `testing`, `testScenarios`, `devUrl`, `producerChoice`. Locked on: `install`, `publish`, `deploy`, `dataDeletion`. |
+| `lane.fast` | A change of only CSS values or texts of existing elements takes 2 tool calls: no preview, QA, review file or questions. |
+| `browser` | `oml` (oml qa and its own Edge or Chrome) or `agent` (the agent's built-in browser). |
+| `app.devUrl` | The base URL of the app in DEV. |
+| `memory.*`, `docs.library`, `map.use` | `recall`, `write`, `reminder`; the docs library; the application map. |
+| `hooks.*` | `bigDocs`, `testDataApi`, `externalBrowser`, `sessionProfile`. Locked on: `omlWrites`. |
+
+The file holds no secrets: a text value that looks like one is refused. An unknown key or a wrong value is ignored and named in `problems`. A file that cannot be read gives the defaults and never blocks an agent.
+
+Agents get the profile from the session-start hook (see [Agent hooks](#agent-hooks)), so it costs no command. Without hooks, the skill tells them to add `oml config` to their read call.
+
 ## Agent hooks
 
 `oml hooks install` adds a pre-tool hook to the project for every agent that supports one, so skill instructions become checks the agent cannot skip. A hook costs no tokens; a refused call costs one short message.
@@ -1340,6 +1369,14 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 - Reading a large skill reference whole: `skill/reference/commands.md` (about 47k tokens), `spec.md` (about 19k) and `model-api.md` (about 14k). A read needs a `limit` of at most 400 lines, a Grep in content mode a `head_limit` of at most 100, and a `cat`, `type` or `Get-Content` of the file a pipe or a line limit. The refusal points to `oml doc commands#<section>` or `oml spec <key>`. Only paths that end in `reference/<file>` count, so another project's `spec.md` is not refused.
 - Changing an `.oml` file (rule 9): an edit or write tool on it (Edit, Write, MultiEdit, StrReplace, write_file, replace, ...), a patch that names it (Codex `apply_patch`), or a shell command that writes it (a `>` redirect, `Set-Content`, `Add-Content`, `Out-File`, `sed -i`, `WriteAllBytes`). `oml apply`, `oml install` and copies are not refused.
 - Calling an allowed test-data host other than through `oml test data` (curl, `Invoke-RestMethod`, WebFetch, ...): see [Test data](#test-data).
+
+A read of part of a file is allowed however the agent names the range: `limit` (Claude Code, Cursor, Gemini CLI), `view_range` (Copilot) or a start and end line (VS Code), at most 400 lines.
+
+With `browser` set to `agent` in the [project profile](#project-profile), it also refuses a shell command that starts Edge, Chrome or Firefox or opens a URL; `oml qa` is allowed. `hooks.bigDocs`, `hooks.testDataApi` and `hooks.externalBrowser` turn the guards off; the `.oml` guard stays.
+
+**Session start.** `install` also adds a session-start hook (`oml hooks session`): when the project has `.oml/config.json`, the agent starts with the project profile as context. `hooks.sessionProfile off` turns it off.
+
+**The command line.** The hook is written as `C:/tools/oml/bin/oml.exe hooks check`: forward slashes, no quotes. Claude Code runs hooks in bash and GitHub Copilot on Windows in PowerShell, where a line that starts with a quoted path is not a command: the hook fails and Copilot denies every tool call ("hook errored"). A path with a space keeps its quotes and gets a `powershell` line for Copilot; a folder without spaces is safer. Hooks installed by oml 1.21 or older: run `oml hooks install` again (`oml hooks status` says so).
 
 Anything the hook cannot read is allowed: a broken hook never blocks work. Each check starts `oml.exe` once (about 35 ms).
 
