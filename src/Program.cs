@@ -29,7 +29,7 @@ public static class Program
         return UsageLog.Enabled ? UsageLog.Measure(filtered, () => Dispatch(args, filtered)) : Dispatch(args, filtered);
     }
 
-    internal static readonly string[] TimingsRefused = ["lifetime", "font", "doctor", "spec", "doc", "explain-warning", "dashboard", "explorer-menu", "log", "image", "memory", "outsystems-docs", "team-rules", "qa", "hooks", "show-change", "learn", "config"];
+    internal static readonly string[] TimingsRefused = ["lifetime", "font", "doctor", "spec", "doc", "explain-warning", "dashboard", "explorer-menu", "log", "image", "memory", "outsystems-docs", "team-rules", "qa", "hooks", "show-change", "learn", "config", "style"];
     internal static string TimingsRefusal(string command) => $"--timings is not available for {command}.";
     // Output encoding (commands.md, "Output encoding"). A console window gets UTF-16 through WriteConsoleW: every
     // character shows, and the console code page is not changed (.NET never sets code page 1200 on the console).
@@ -79,6 +79,16 @@ public static class Program
             return 0;
         }
         if (filtered.FirstOrDefault() == "hooks") return AgentHooks.Run(filtered.Skip(1).ToArray());
+        // preview and qa follow the project profile: its sizes and themes (ProjectConfig.Adjust).
+        if (filtered.FirstOrDefault() is "preview" or "qa")
+        {
+            var (adjusted, refusal) = ProjectConfig.Adjust(filtered);
+            if (refusal is not null) { TerminalOutput.PrintObject(new { error = refusal }); return 2; }
+            var extra = adjusted.Skip(filtered.Count(a => a != "--no-profile")).ToArray(); // what the profile added
+            args = args.Where(a => a != "--no-profile").Concat(extra).ToArray();
+            filtered = adjusted;
+        }
+        if (filtered.FirstOrDefault() == "style") return StyleCommand.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "lifetime") return LifeTime.Run(filtered.Skip(1).ToArray(), RunCore);
         if (filtered.FirstOrDefault() == "font") return FontAssets.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "doctor") return Doctor.Run(filtered.Skip(1).ToArray());
@@ -146,6 +156,7 @@ public static class Program
     {
         var filtered = args.Where(a => a != "--pretty").ToArray();
 
+        ProjectConfig.ApplyEnvironment(); // the project's Service Studio MCP address, for pull, publish, references and studio
         var ss = Locations.ServiceStudio;
         if (CoreProblem(ss) is { } problem)
         {

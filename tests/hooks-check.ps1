@@ -121,6 +121,21 @@ try {
   Require ($LASTEXITCODE -eq 2) 'a locked setting was turned off'
   & $Oml config set ui.targets watch 2>&1 | Out-Null
   Require ($LASTEXITCODE -eq 2) 'an unknown value was accepted'
+  # preview and qa follow the sizes and themes; the MCP address stays on this computer
+  $x = (& $Oml preview x.oml Home --width 390 2>&1) -join ''
+  Require ($LASTEXITCODE -eq 2 -and $x -match 'phone size') "preview --width 390 in a desktop-only project: $x"
+  $x = (& $Oml qa page http://127.0.0.1:9 --width 390 2>&1) -join ''
+  Require ($LASTEXITCODE -eq 2 -and $x -match 'phone size') "qa --width 390 in a desktop-only project: $x"
+  & $Oml config set outsystems.mcpServer http://example.com/mcp 2>&1 | Out-Null
+  Require ($LASTEXITCODE -eq 2) 'a Service Studio MCP address on another machine was accepted'
+  & $Oml config set outsystems.mcpServer http://127.0.0.1:41999/mcp | Out-Null
+  Require ($LASTEXITCODE -eq 0 -and ((& $Oml config) -join '') -match '41999') 'outsystems.mcpServer is not in the profile'
+  # oml style replace on a CSS file: one class only, a longer value and a comment stay
+  $cssIn = Join-Path $prof 'a.css'; $cssOut = Join-Path $prof 'b.css'
+  Set-Content $cssIn "/* 45px */`n.card { height: 45px; margin: 145px; }`n.card-title { height: 45px; }`n@media (max-width: 600px) { .card { top: 45px } }"
+  $x = ((& $Oml style replace $cssIn --from 45px --to 75px --class card --out $cssOut) -join '') | ConvertFrom-Json
+  $got = Get-Content $cssOut -Raw
+  Require ($LASTEXITCODE -eq 0 -and $x.lines -eq 2 -and $got -match '\.card \{ height: 75px; margin: 145px; \}' -and $got -match '\.card-title \{ height: 45px' -and $got -match 'top: 75px' -and $got -match '/\* 45px \*/') "style replace: $got"
   Set-Content (Join-Path $prof '.oml\config.json') '{ broken'
   Require ((Hook 'check' @{ tool_name = 'Bash'; cwd = $prof; tool_input = @{ command = 'ls' } }).Exit -eq 0) 'a broken config file blocked the agent'
 } finally { Pop-Location }

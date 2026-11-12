@@ -48,6 +48,8 @@ static class ProjectConfig
         new("lane.fast", "bool", "true", null, "Small changes (only CSS values or texts of existing elements) skip preview, QA, the review file and questions."),
         new("browser", "choice", "oml", ["oml", "agent"], "Who opens the app to look at it: oml (oml qa, its own Edge or Chrome) or agent (the agent's built-in browser)."),
         new("app.devUrl", "text", "", null, "Base URL of the app in DEV, such as https://dev.example.com/Orders."),
+        new("outsystems.mcpServer", "url-local", "", null, "Address of Service Studio's MCP server (O11), such as http://127.0.0.1:41820/mcp. oml publish, pull, references and studio use it; empty means the default port. Only this computer (127.0.0.1 or localhost)."),
+        new("outsystems.odcMcpServer", "url", "", null, "Address of the OutSystems MCP server of your ODC tenant, such as https://mytenant.outsystems.dev/mcp. Agents use it for ODC apps; oml itself does not call it."),
         new("memory.recall", "bool", "true", null, "Agents recall project memory at the start of a task."),
         new("memory.write", "bool", "true", null, "Agents save what they learned at the end of a task."),
         new("memory.reminder", "bool", "true", null, "The end-of-turn hook reminds an agent that changed something and saved nothing (costs one turn)."),
@@ -149,6 +151,15 @@ static class ProjectConfig
                 if (items.FirstOrDefault(i => !s.Choices!.Contains(i)) is { } bad) return $"'{bad}' is not one of {string.Join(", ", s.Choices!)}.";
                 value = string.Join(",", s.Choices!.Where(items.Contains)); // always in the order of Choices
                 return null;
+            case "url" or "url-local":
+                if (value.Length == 0) return null;
+                if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https") || uri.UserInfo.Length > 0 || value.Length > 300)
+                    return $"'{text}' is not an http or https address (and it holds no user name or password).";
+                // The file is shared with the repository: an address in it must not send a module to another machine.
+                if (s.Kind == "url-local" && !uri.IsLoopback) return "Service Studio's MCP server runs on this computer: use 127.0.0.1 or localhost.";
+                if (s.Kind == "url" && uri.Scheme != "https" && !uri.IsLoopback) return "use an https address.";
+                value = uri.ToString();
+                return null;
             default:
                 if (value.Length > 300 || value.Any(char.IsControl)) return "a text of at most 300 characters on one line.";
                 // Only when a person sets it: the hooks load this file on every tool call, and the secret patterns are slow to build.
@@ -193,9 +204,13 @@ static class ProjectConfig
         if (!v.On("ask.producerChoice")) lines.Add("When exactly one producer element matches, use it without asking; say which one you used.");
 
         if (v.On("lane.fast"))
-            lines.Add("Fast lane: when the task changes only CSS values or texts of existing elements, do it in 2 tool calls (read the sheet or widget; spec check and apply). Report the staged file and the changed lines. No preview, QA, review file, memory step or questions.");
+            lines.Add("Fast lane: when the task changes only CSS values or texts of existing elements, do it in 1 or 2 tool calls. One CSS value: oml style replace <module.oml> --from <old> --to <new> [--class <name>] [--in <Element>]. Anything else: read the sheet or widget, then spec check and apply. Report the staged file and the changed lines. No preview, QA, review file, memory step or questions.");
         if (v.Get("browser") == "agent")
             lines.Add("Browser: look at the app with your own built-in browser tool. Never start Edge, Chrome or Firefox from a shell. Use oml qa only for saved test runs the user asks for.");
+        if (v.Get("outsystems.mcpServer") is { Length: > 0 } studioMcp)
+            lines.Add($"Service Studio MCP server (O11): {studioMcp}. oml pull, publish, references and studio already use it; call it yourself only for a step oml has no command for.");
+        if (v.Get("outsystems.odcMcpServer") is { Length: > 0 } odcMcp)
+            lines.Add($"OutSystems MCP server (ODC): {odcMcp}. Use it for ODC apps as skill/reference/odc.md says; ask before publish and deploy there too.");
         if (!v.On("memory.recall")) lines.Add("Do not run oml memory recall.");
         if (!v.On("memory.write")) lines.Add("Do not write project memory.");
         if (!v.On("docs.library")) lines.Add("Do not search the OutSystems docs library.");
@@ -210,6 +225,42 @@ static class ProjectConfig
         var v = Load(cwd);
         if (v.File is null || v.Error is not null || !v.On("hooks.sessionProfile")) return null;
         return "oml project profile (.oml/config.json, set by the user; it overrides the defaults of the skill and AGENTS.md):\n- " + string.Join("\n- ", Profile(v));
+    }
+
+    // The Service Studio MCP address of the project, for the commands that call it (Locations.StudioUrl reads
+    // OML_STUDIO_URL). A variable the person set wins; a broken config file changes nothing.
+    internal static void ApplyEnvironment()
+    {
+        if (Environment.GetEnvironmentVariable("OML_STUDIO_URL") is { Length: > 0 } || Environment.GetEnvironmentVariable("OML_STUDIO_PORT") is { Length: > 0 }) return;
+        if (Load(null).Get("outsystems.mcpServer") is not { Length: > 0 } url || !Uri.TryCreate(url, UriKind.Absolute, out var uri)) return;
+        Environment.SetEnvironmentVariable("OML_STUDIO_URL", url);
+        Environment.SetEnvironmentVariable("OML_STUDIO_PORT", uri.Port.ToString()); // the token file is named after the port
+    }
+
+    static string SizeOf(int width) => width < 600 ? "phone" : width < 1024 ? "tablet" : "desktop";
+
+    // preview and qa follow ui.targets and ui.themes: a width or theme the project does not support is refused with
+    // the reason (--no-profile skips this once), and a preview with no --width or --theme gets the project's own.
+    // Returns the arguments to run, or the refusal.
+    internal static (string[] Args, string? Refusal) Adjust(string[] args)
+    {
+        if (args.Length == 0 || args[0] is not ("preview" or "qa")) return (args, null);
+        if (args.Contains("--no-profile")) return (args.Where(a => a != "--no-profile").ToArray(), null);
+        if (args.Contains("--help") || args.Contains("-h")) return (args, null);
+        var v = Load(null);
+        if (v.File is null || v.Error is not null) return (args, null);
+        string[] targets = v.List("ui.targets"), themes = v.List("ui.themes");
+        string? Value(string option) => System.Array.IndexOf(args, option) is var i and >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+        if (Value("--width") is { } w && int.TryParse(w, out var width) && !targets.Contains(SizeOf(width)))
+            return (args, $"--width {width} is a {SizeOf(width)} size, and this project supports only {string.Join(", ", targets)} (ui.targets in {v.File}). Leave it out, or add --no-profile when the user asked for this size in this task.");
+        if (Value("--theme") is { } theme && theme is "light" or "dark" && !themes.Contains(theme))
+            return (args, $"--theme {theme}: this project supports only the {string.Join(", ", themes)} theme (ui.themes in {v.File}). Leave it out, or add --no-profile when the user asked for this theme in this task.");
+        // Defaults only for the offline preview of one element; the live preview and qa show the page as it is.
+        if (args[0] != "preview" || args.Contains("--live") || args.Contains("--serve")) return (args, null);
+        var added = new List<string>(args);
+        if (Value("--width") is null && !targets.Contains("desktop")) added.AddRange(["--width", targets.Contains("tablet") ? "820" : "390"]);
+        if (Value("--theme") is null && themes is ["dark"]) added.AddRange(["--theme", "dark"]);
+        return (added.ToArray(), null);
     }
 
     public static int Run(string[] args)
@@ -242,7 +293,7 @@ static class ProjectConfig
                     settings = Settings.Select(s => new
                     {
                         key = s.Key, value = all.Get(s.Key), @default = all.Get(s.Key) == s.Default ? null : s.Default,
-                        choices = s.Kind switch { "bool" => "on, off", "text" => null, _ => string.Join(", ", s.Choices!) + (s.Kind == "list" ? " (one or more, comma-separated)" : "") },
+                        choices = s.Kind switch { "bool" => "on, off", "text" => null, "url" or "url-local" => "an address, or \"\" to clear it", _ => string.Join(", ", s.Choices!) + (s.Kind == "list" ? " (one or more, comma-separated)" : "") },
                         locked = s.Locked ? true : (bool?)null, about = s.About,
                     }),
                     next = "oml config set <key> <value> changes one; agents read the result with oml config.",
