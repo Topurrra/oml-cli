@@ -4,8 +4,12 @@ using System.Text.RegularExpressions;
 
 namespace OmlCli;
 
-// `oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--no-skill] [--no-hooks]`: the starting
-// point of a project. A new folder with a place for every kind of work (modules, staged copies, specs, QA files, mocks,
+// `oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--no-skill] [--no-hooks] [--no-library]
+// [--no-doctor]`: a project that is ready to work in, from one command. The output's `ready` list has one row per
+// step (done, skipped or failed, with the command that repeats it): folders, memory (as oml memory init), the project
+// profile (.oml/config.json, see ProjectConfig), the skill, the hooks, the OutSystems docs for oml doc --search
+// --library (downloaded once per machine; skipped when they are there), the modules and the map, and a setup check
+// (oml doctor). The starting point of a project. A new folder with a place for every kind of work (modules, staged copies, specs, QA files, mocks,
 // scenarios), the project memory, the agent's instructions (the skill, AGENTS.md, CLAUDE.md), the agent hooks (Claude Code, Copilot, Cursor, Codex, Gemini CLI), a
 // .gitignore and a PROJECT.md with the next steps. With --in it copies the project's modules in and builds the
 // application map under the project's name, so `oml map ...` works there at once. Nothing outside the new folder changes,
@@ -28,7 +32,7 @@ static class CreateCommand
         if (!ProjectName.IsMatch(name)) return Fail($"Project name '{name}': use 1-40 lower-case letters, digits and hyphens, such as falcon.");
         string? parent = null;
         var inputs = new List<string>();
-        bool skill = true, hooks = true;
+        bool skill = true, hooks = true, library = true, doctor = true;
         for (var i = 1; i < args.Length; i++)
         {
             switch (args[i])
@@ -37,6 +41,8 @@ static class CreateCommand
                 case "--in" when i + 1 < args.Length: inputs.Add(Path.GetFullPath(args[++i])); break;
                 case "--no-skill": skill = false; break;
                 case "--no-hooks": hooks = false; break;
+                case "--no-library": library = false; break;
+                case "--no-doctor": doctor = false; break;
                 default: return Fail($"Unknown or incomplete option {args[i]}.", "Usage: " + CliUsage.For("create").Trim());
             }
         }
@@ -49,6 +55,8 @@ static class CreateCommand
 
         var created = new List<string>();
         var notes = new List<string>();
+        var ready = new List<object>();
+        void Step(string step, string status, string? detail = null, string? fix = null) => ready.Add(new { step, status, detail, fix });
         Directory.CreateDirectory(root);
         foreach (var f in Folders) { Directory.CreateDirectory(Path.Combine(root, f)); created.Add(f + "/"); }
 
@@ -58,6 +66,12 @@ static class CreateCommand
         Directory.CreateDirectory(Path.Combine(root, ".oml"));
         File.WriteAllText(Path.Combine(root, ".oml", "map.json"), new JsonObject { ["project"] = name }.ToJsonString() + "\n");
         created.Add(".oml/map.json");
+        Step("folders", "done");
+        Step("memory", "done", "oml memory recall and add work here");
+        // The project profile with every default, for the person to edit (oml config set, or the file).
+        ProjectConfig.Save(root, new ProjectConfig.Values());
+        created.Add(".oml/config.json");
+        Step("config", "done", "defaults; oml config show explains every setting");
 
         // The agent's instructions: a copy of the skill that came with this oml, AGENTS.md for any agent, CLAUDE.md for Claude Code.
         if (skill)
@@ -69,14 +83,36 @@ static class CreateCommand
                 File.Copy(Path.Combine(source, "AGENTS.md"), Path.Combine(root, "AGENTS.md"));
                 File.WriteAllText(Path.Combine(root, "CLAUDE.md"), "@AGENTS.md\n");
                 created.AddRange(["skill/", "AGENTS.md", "CLAUDE.md"]);
+                Step("skill", "done");
             }
-            else notes.Add("The skill folder was not found next to oml, so no skill/, AGENTS.md or CLAUDE.md was written. Copy skill/ from the oml release.");
+            else
+            {
+                notes.Add("The skill folder was not found next to oml, so no skill/, AGENTS.md or CLAUDE.md was written. Copy skill/ from the oml release.");
+                Step("skill", "failed", "skill/ was not found next to oml", "copy skill/ from the oml release, then: oml skill refresh --dir " + root);
+            }
         }
+        else Step("skill", "skipped", "--no-skill");
         if (hooks)
         {
             var (code, _) = Captured(() => AgentHooks.Run(["install", "--dir", root]));
             if (code == 0) created.AddRange([".claude/settings.local.json (Claude Code, Copilot, Cursor)", ".codex/hooks.json", ".gemini/settings.json"]);
             else notes.Add("Agent hooks were not installed; run: oml hooks install --dir " + root);
+            Step("hooks", code == 0 ? "done" : "failed", code == 0 ? "guards, memory reminder, session profile" : null, code == 0 ? null : "oml hooks install --dir " + root);
+        }
+        else Step("hooks", "skipped", "--no-hooks", "oml hooks install --dir " + root);
+
+        // The OutSystems docs for oml doc --search --library: one copy per machine, so a second project downloads nothing.
+        if (!library) Step("library", "skipped", "--no-library", "oml outsystems-docs fetch");
+        else if (Library.Folders().Count == Library.Sources.Length) Step("library", "done", "already on this machine: " + Library.Root);
+        else
+        {
+            var (code, output) = Captured(() => Library.Run(["fetch"]));
+            if (code == 0) Step("library", "done", "downloaded to " + Library.Root);
+            else
+            {
+                Step("library", "failed", output?["error"]?.ToString() ?? "the download did not finish (no network, or a proxy)", "oml outsystems-docs fetch");
+                notes.Add("The OutSystems docs were not downloaded; platform questions (oml doc --search ... --library) need them. Run: oml outsystems-docs fetch");
+            }
         }
 
         File.WriteAllText(Path.Combine(root, ".gitignore"), string.Join("\n",
@@ -111,15 +147,36 @@ static class CreateCommand
                 try { output = JsonNode.Parse(text); } catch (JsonException) { }
                 map = output ?? (object)new { error = text.Trim().Length > 0 ? text.Trim() : "map build printed nothing" };
                 if (code != 0) notes.Add($"The map was not built (exit {code}); run in the project folder: oml map build {name} --in modules");
+                Step("map", code == 0 ? "done" : "failed", $"{copied} file(s) in modules/", code == 0 ? null : $"cd {root}; oml map build {name} --in modules");
             }
             finally { Environment.CurrentDirectory = previous; }
         }
+        else Step("map", "skipped", "no --in: modules/ is empty", $"put .oap or .oml files in modules/, then: oml map build {name} --in modules");
+
+        // The setup check: what on this machine still stops the work (Service Studio, its MCP server, LifeTime variables).
+        if (doctor)
+        {
+            var (_, report) = Captured(() => Doctor.Run([]));
+            var open = (report?["checks"] as JsonArray)?.Where(c => c?["status"]?.ToString() is "fail" or "warn")
+                .Select(c => $"{c!["name"]}: {c["detail"]}" + (c["fix"] is { } fix ? " Fix: " + fix : "")).ToList();
+            if (report is null) Step("doctor", "failed", "oml doctor printed no report", "oml doctor");
+            else if (open is { Count: > 0 }) { Step("doctor", "attention", $"{open.Count} item(s), see notes", "oml doctor"); notes.AddRange(open); }
+            else Step("doctor", "done", "the setup is complete");
+        }
+        else Step("doctor", "skipped", "--no-doctor", "oml doctor");
 
         File.WriteAllText(Path.Combine(root, "PROJECT.md"), ProjectReadme(name, inputs.Count > 0));
         created.Add("PROJECT.md");
         TerminalOutput.PrintObject(new
         {
-            project = name, folder = root, created, map, notes = notes.Count == 0 ? null : notes,
+            project = name, folder = root, ready, created, map, notes = notes.Count == 0 ? null : notes,
+            optional = new[]
+            {
+                "oml config set ui.targets desktop   (and the other settings: what agents do, skip and ask; oml config show)",
+                "oml team-rules add <file.md>   (your team's own rules)",
+                "oml qa start --headed   (log in to the app once; later qa runs keep the login)",
+                "oml explorer-menu   (right-click entries in Windows Explorer, once per machine)",
+            },
             next = inputs.Count > 0
                 ? new[] { $"cd {root}", "oml map overview", "Start your agent in this folder and give it a task." }
                 : new[] { $"cd {root}", "Put the project's .oap or .oml files in modules/ (oml lifetime download can fetch them).", $"oml map build {name} --in modules", "Start your agent in this folder and give it a task." },
@@ -226,7 +283,14 @@ static class CreateCommand
         | `qa/` | QA files and saved replays (`oml qa run <file> --save <replay>`). |
         | `mocks/` | Mock responses for your mock server (`oml mock --all --out mocks`). |
         | `scenarios/` | What to test after a change (`oml test scenarios <source> <staged> --out scenarios/<task>`). |
-        | `.oml/` | Project memory (`oml memory`), the map's project name, test-data runs. |
+        | `.oml/` | Project memory (`oml memory`), the project profile (`config.json`), the map's project name, test-data runs. |
+
+        ## Project profile
+
+        `.oml/config.json` says what agents do, skip and ask in this project: screen sizes, themes, previews, QA,
+        questions, the browser, the hooks. `oml config show` explains every setting, and `oml config set <key> <value>`
+        changes one, for example `oml config set ui.targets desktop` or `oml config set ask.testing off`.
+        Agents get the result at the start of a session.
 
         ## Next steps
 

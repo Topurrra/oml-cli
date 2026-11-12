@@ -29,7 +29,7 @@ public static class Program
         return UsageLog.Enabled ? UsageLog.Measure(filtered, () => Dispatch(args, filtered)) : Dispatch(args, filtered);
     }
 
-    internal static readonly string[] TimingsRefused = ["lifetime", "font", "doctor", "spec", "doc", "explain-warning", "dashboard", "explorer-menu", "log", "image", "memory", "outsystems-docs", "team-rules", "qa", "hooks", "show-change", "learn"];
+    internal static readonly string[] TimingsRefused = ["lifetime", "font", "doctor", "spec", "doc", "explain-warning", "dashboard", "explorer-menu", "log", "image", "memory", "outsystems-docs", "team-rules", "qa", "hooks", "show-change", "learn", "config"];
     internal static string TimingsRefusal(string command) => $"--timings is not available for {command}.";
     // Output encoding (commands.md, "Output encoding"). A console window gets UTF-16 through WriteConsoleW: every
     // character shows, and the console code page is not changed (.NET never sets code page 1200 on the console).
@@ -92,6 +92,7 @@ public static class Program
         if (filtered.FirstOrDefault() == "mock") return MockCommand.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "create") return CreateCommand.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "skill") return CreateCommand.Skill(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "config") return ProjectConfig.Run(filtered.Skip(1).ToArray());
         // oml test data: the module spec needs the producer module (Core); the rest calls the test-data API here.
         if (filtered.FirstOrDefault() == "test" && filtered.Length > 1 && filtered[1] == "data" && !(filtered.Length > 2 && filtered[2] == "module")) return TestDataCommand.Run(filtered.Skip(2).ToArray());
         if (filtered.FirstOrDefault() == "outsystems-docs") return Library.Run(filtered.Skip(1).ToArray());

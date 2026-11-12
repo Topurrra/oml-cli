@@ -13,15 +13,17 @@ try {
   $env:OML_LOG = '0'; $env:OML_MAPS = Join-Path $Tmp 'maps'
 
   # 1. Without modules: the layout, memory, skill, hooks.
-  $r = Json create alpha --dir $Tmp
+  $r = Json create alpha --dir $Tmp --no-library --no-doctor
   $root = Join-Path $Tmp 'alpha'
   Require ($LASTEXITCODE -eq 0 -and $r.folder -eq $root) "create: $($r | ConvertTo-Json -Compress)"
-  foreach ($p in 'modules', 'staged', 'specs', 'qa', 'mocks', 'scenarios', '.oml\memory\memory.log', '.oml\map.json', 'skill\SKILL.md', 'AGENTS.md', 'CLAUDE.md', '.claude\settings.local.json', '.codex\hooks.json', '.gemini\settings.json', '.gitignore', 'PROJECT.md') {
+  foreach ($p in 'modules', 'staged', 'specs', 'qa', 'mocks', 'scenarios', '.oml\memory\memory.log', '.oml\map.json', '.oml\config.json', 'skill\SKILL.md', 'AGENTS.md', 'CLAUDE.md', '.claude\settings.local.json', '.codex\hooks.json', '.gemini\settings.json', '.gitignore', 'PROJECT.md') {
     Require (Test-Path (Join-Path $root $p)) "missing $p"
   }
   Require ((Get-Content (Join-Path $root 'CLAUDE.md') -Raw).Trim() -eq '@AGENTS.md') 'CLAUDE.md imports AGENTS.md'
   Require ((Get-Content (Join-Path $root '.claude\settings.local.json') -Raw) -match 'hooks check') 'hooks installed'
   Require ((Get-Content (Join-Path $root '.gitignore') -Raw) -match '(?m)^staged/') '.gitignore'
+  Require (@($r.ready | Where-Object { $_.step -in 'folders', 'memory', 'config', 'skill', 'hooks' -and $_.status -eq 'done' }).Count -eq 5 -and @($r.ready | Where-Object { $_.step -in 'library', 'doctor' -and $_.status -eq 'skipped' }).Count -eq 2) "ready list: $($r.ready | ConvertTo-Json -Compress)"
+  Require ((Get-Content (Join-Path $root '.oml\config.json') -Raw | ConvertFrom-Json).ui.targets.Count -eq 3) 'config.json has the defaults'
   Push-Location $root
   try {
     $m = Json memory add "alpha uses the Core layer for entities" --kind decision
@@ -47,7 +49,7 @@ try {
   $src = Join-Path $Tmp 'src'; New-Item -ItemType Directory $src | Out-Null
   $a = Json apply (Join-Path $Tmp 'is-blank.oml') (Join-Path $PSScriptRoot 'map-is.json') (Join-Path $src 'CrmIS.oml')
   Require $a.saved 'fixture'
-  $r = Json create beta --dir $Tmp --in $src --no-skill --no-hooks
+  $r = Json create beta --dir $Tmp --in $src --no-skill --no-hooks --no-library --no-doctor
   $beta = Join-Path $Tmp 'beta'
   Require ($LASTEXITCODE -eq 0 -and $r.map.project -eq 'beta' -and $r.map.read -eq 1 -and (Test-Path (Join-Path $beta 'modules\CrmIS.oml'))) "create --in: $($r | ConvertTo-Json -Compress -Depth 4)"
   Require (-not (Test-Path (Join-Path $beta 'skill')) -and -not (Test-Path (Join-Path $beta '.claude')) -and -not (Test-Path (Join-Path $beta '.codex'))) '--no-skill and --no-hooks'

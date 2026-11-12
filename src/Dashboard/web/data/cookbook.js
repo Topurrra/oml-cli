@@ -13,6 +13,7 @@ export const cookbook = [
     ['oml explorer-menu --remove', 'Remove the Explorer entries that oml explorer-menu added, and nothing else.'],
     ['oml selftest', 'Run the build check on the installed Service Studio.'],
     ['oml hooks install', 'Add oml\'s hook for Claude Code, Copilot, Cursor, Codex and Gemini CLI: agents cannot read the large skill references whole, edit .oml files or call the test-data API around oml.'],
+    ['oml config set ui.targets desktop', 'Change one setting of the project profile (.oml/config.json): what agents do, skip and ask. oml config show lists every setting; oml config prints the lines an agent follows.'],
     ['oml hooks status', 'Show for each agent whether oml\'s hook is in this project and its oml.exe still exists.'],
     ['oml hooks remove --dir C:\\Work\\Orders', 'Take oml\'s hook out of that project, and nothing else.'],
   ] },

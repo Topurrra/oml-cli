@@ -43,6 +43,8 @@ Plain technical English (ISO 24495-1; ASD-STE100 style):
 
 Put several commands in ONE tool call: chain them with `;` in one shell command, or list them in one `oml batch` file. One call that runs 3 commands costs 1 turn; 3 calls cost 3 turns.
 
+Project profile: a session may start with an "oml project profile" (`.oml/config.json`: sizes, themes, checks, questions, browser, fast lane). It overrides this loop. No such text? Add `oml config` to the read call.
+
 0. No `.oml` file? Ask the user to open the module in Service Studio, then `oml pull --out <Module>.oml`. If pull reports `attention`, follow it.
 1. **Read (1 call).** Write `read.json` and run it:
    `{ "steps": [ ["inspect","<module.oml>","--own","--only","entities,actions,screens,blocks"], ["describe","<module.oml>","<ElementToChange>","<OtherElement>"] ] }`

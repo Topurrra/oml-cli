@@ -2,6 +2,28 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.22.0
+
+Less waiting and fewer questions: a project profile, a project that is ready after one command, and hooks that work in GitHub Copilot.
+
+### Added
+
+- **Project profile** (`.oml/config.json`, `oml config`). A person turns parts of the work on or off: screen sizes (`ui.targets`), themes (`ui.themes`), RTL, accessibility, translations, the checks (`checks.preview`, `livePreview`, `qa`, `review`, `uiChecklist`, `bestPractices`, `testScenarios`, `testData`), the questions (`ask.testing`, `testScenarios`, `devUrl`, `producerChoice`), the fast lane for small CSS and text changes (`lane.fast`), the browser (`browser`: `oml` or `agent`), `app.devUrl`, memory, the docs library, the map and the hook guards. `oml config` prints the lines an agent follows, `oml config show` explains every setting, `oml config set <key> <value>` changes one, `oml config init` writes the defaults. Asking before install, publish, deploy and data deletion, and the `.oml` write guard, cannot be turned off.
+- **Session-start hook.** `oml hooks install` adds `oml hooks session`: an agent starts with the project profile as context, at no command and no turn.
+- **Browser guard.** With `browser` set to `agent`, the pre-tool hook refuses a shell command that starts Edge, Chrome or Firefox or opens a URL, and names the agent's built-in browser. `oml qa` is allowed.
+- **`oml create` makes the project ready.** It also writes `.oml/config.json`, downloads the OutSystems docs (once per machine; `--no-library`), runs the setup check (`--no-doctor`), and prints `ready`: one row per step with its status and the command that repeats a step that did not finish.
+
+### Fixed
+
+- **Hooks in GitHub Copilot on Windows.** The hook command started with a quoted path. Copilot runs it in PowerShell, where that is a string, not a command: the hook failed and Copilot denied every tool call ("hook errored"). The path is now written with forward slashes and no quotes; a path with a space keeps its quotes and gets a `powershell` line. Run `oml hooks install` again in existing projects; `oml hooks status` says when a project needs it.
+- **Reading part of a large reference** was refused in Copilot and VS Code, whose read tools have no `limit`. A `view_range` or a start and end line of at most 400 lines is accepted.
+- **The `.oml` write guard** knows the edit tools of VS Code's Local sessions (`replace_string_in_file`, `create_file`, `insert_edit_into_file`, ...).
+
+### Changed
+
+- The end-of-turn memory reminder follows `memory.reminder` and `memory.write` of the project profile.
+- The pre-tool hook builds its shell patterns only for shell commands, and reads nothing for a tool it does not check.
+
 ## 1.21.1
 
 Found while building the OUIAI and MCP modules on the OUI library.
