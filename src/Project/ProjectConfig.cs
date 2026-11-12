@@ -204,7 +204,7 @@ static class ProjectConfig
         if (!v.On("ask.producerChoice")) lines.Add("When exactly one producer element matches, use it without asking; say which one you used.");
 
         if (v.On("lane.fast"))
-            lines.Add("Fast lane: when the task changes only CSS values or texts of existing elements, do it in 1 or 2 tool calls. One CSS value: oml style replace <module.oml> --from <old> --to <new> [--class <name>] [--in <Element>]. Anything else: read the sheet or widget, then spec check and apply. Report the staged file and the changed lines. No preview, QA, review file, memory step or questions.");
+            lines.Add("Fast lane: when the task changes only CSS values or texts of existing elements, do it in 2 tool calls (read the sheet or widget; spec check and apply). Report the staged file and the changed lines. No preview, QA, review file, memory step or questions.");
         if (v.Get("browser") == "agent")
             lines.Add("Browser: look at the app with your own built-in browser tool. Never start Edge, Chrome or Firefox from a shell. Use oml qa only for saved test runs the user asks for.");
         if (v.Get("outsystems.mcpServer") is { Length: > 0 } studioMcp)

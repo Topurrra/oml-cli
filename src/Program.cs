@@ -29,7 +29,7 @@ public static class Program
         return UsageLog.Enabled ? UsageLog.Measure(filtered, () => Dispatch(args, filtered)) : Dispatch(args, filtered);
     }
 
-    internal static readonly string[] TimingsRefused = ["lifetime", "font", "doctor", "spec", "doc", "explain-warning", "dashboard", "explorer-menu", "log", "image", "memory", "outsystems-docs", "team-rules", "qa", "hooks", "show-change", "learn", "config", "style"];
+    internal static readonly string[] TimingsRefused = ["lifetime", "font", "doctor", "spec", "doc", "explain-warning", "dashboard", "explorer-menu", "log", "image", "memory", "outsystems-docs", "team-rules", "qa", "hooks", "show-change", "learn", "config"];
     internal static string TimingsRefusal(string command) => $"--timings is not available for {command}.";
     // Output encoding (commands.md, "Output encoding"). A console window gets UTF-16 through WriteConsoleW: every
     // character shows, and the console code page is not changed (.NET never sets code page 1200 on the console).
@@ -88,7 +88,6 @@ public static class Program
             args = args.Where(a => a != "--no-profile").Concat(extra).ToArray();
             filtered = adjusted;
         }
-        if (filtered.FirstOrDefault() == "style") return StyleCommand.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "lifetime") return LifeTime.Run(filtered.Skip(1).ToArray(), RunCore);
         if (filtered.FirstOrDefault() == "font") return FontAssets.Run(filtered.Skip(1).ToArray());
         if (filtered.FirstOrDefault() == "doctor") return Doctor.Run(filtered.Skip(1).ToArray());
