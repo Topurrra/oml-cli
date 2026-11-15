@@ -14,9 +14,12 @@ static class DocSearch
     const int DefaultTop = 3, MaxTop = 20;
 
     static List<SearchDoc>? corpus;
-    static SearchIndex? index;
+    static SearchIndex? index, fresh;
     internal static List<SearchDoc> Corpus => corpus ??= Build();
-    internal static SearchIndex Index => index ??= new SearchIndex(Corpus);
+    // Index is the saved one when there is one (SearchCache); its entries are not the Corpus objects, so --search-verify,
+    // which compares hits with Corpus entries and must test the build itself, uses Fresh.
+    internal static SearchIndex Index => index ??= SearchCache.Get(() => Fresh);
+    static SearchIndex Fresh => fresh ??= new SearchIndex(Corpus);
 
     static int Fail(string message) { Console.Error.WriteLine(message); return 2; }
 
@@ -403,7 +406,7 @@ static class DocSearch
         foreach (var d in Corpus.Where(d => d.Parent is null && d.Kind is "doc" or "spec"))
         {
             // A table row of it, or any entry with the same command, counts: it opens the same text.
-            var hits = Index.Search(d.Title, 3);
+            var hits = Fresh.Search(d.Title, 3);
             var found = hits.Select(h => h.Doc.Id).ToList();
             if (!hits.Any(h => Answers(h.Doc, d.Id))) problems.Add($"'{d.Title}' ({d.Id}) is not in the top 3 for its own title: {string.Join(", ", found)}");
             if (!Opens(d)) problems.Add($"'{d.Open}' does not open {d.Id}");
@@ -411,14 +414,14 @@ static class DocSearch
         foreach (var d in Corpus.Where(d => d.Kind == "recipe" && !Glossary(d)))
         {
             if (d.Body.Split('\n').Count(l => l.Length > 0) < 2) problems.Add($"recipe {d.Title} has no header comment of at least 2 lines");
-            else if (!Index.Search(d.Body.Split('\n')[0], 3).Any(h => h.Doc == d)) problems.Add($"recipe {d.Title} is not in the top 3 for its first header line");
+            else if (!Fresh.Search(d.Body.Split('\n')[0], 3).Any(h => h.Doc == d)) problems.Add($"recipe {d.Title} is not in the top 3 for its first header line");
         }
         foreach (var d in Corpus.Where(d => (d.Kind is "warning" or "key" || d.Id.StartsWith("rules")) && !Glossary(d)))
             if (!Opens(d)) problems.Add($"'{d.Open}' does not open {d.Id}");
         // Exact names win: every spec key and every warning id, searched alone, gives an entry of that name first.
         foreach (var d in Corpus.Where(d => d.Kind is "warning" or "key" && !Glossary(d)))
             foreach (var n in d.Names)
-                if (Index.Search(n, 1).FirstOrDefault()?.Doc is not { } first || !first.Names.Contains(n, StringComparer.OrdinalIgnoreCase))
+                if (Fresh.Search(n, 1).FirstOrDefault()?.Doc is not { } first || !first.Names.Contains(n, StringComparer.OrdinalIgnoreCase))
                     problems.Add($"'{n}' alone does not give an entry named {n} first");
         // Synonym words: a stem of 3 letters or less from a longer word meets unrelated words (logged -> log), and a
         // stop word is never searched.
