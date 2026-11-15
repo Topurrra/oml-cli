@@ -121,9 +121,7 @@ try {
   Require ($LASTEXITCODE -eq 2) 'a locked setting was turned off'
   & $Oml config set ui.targets watch 2>&1 | Out-Null
   Require ($LASTEXITCODE -eq 2) 'an unknown value was accepted'
-  # preview and qa follow the sizes and themes; the MCP address stays on this computer
-  $x = (& $Oml preview x.oml Home --width 390 2>&1) -join ''
-  Require ($LASTEXITCODE -eq 2 -and $x -match 'phone size') "preview --width 390 in a desktop-only project: $x"
+  # qa follows the sizes and themes; the MCP address stays on this computer
   $x = (& $Oml qa page http://127.0.0.1:9 --width 390 2>&1) -join ''
   Require ($LASTEXITCODE -eq 2 -and $x -match 'phone size') "qa --width 390 in a desktop-only project: $x"
   & $Oml config set outsystems.mcpServer http://example.com/mcp 2>&1 | Out-Null

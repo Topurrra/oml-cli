@@ -33,11 +33,11 @@ function Refused($source, $json, [string[]]$texts, $what) {
   Require ($r.Exit -eq 1 -and -not $r.Report.saved) "$what was not refused: $($r.Text)"
   foreach ($t in $texts) { Require ($r.Problems.Contains($t)) "$what`: no problem with '$t': $($r.Problems)" }
 }
+# The element's whole style sheet as stored in the module (screens, blocks, emails and themes).
 function Css($module, $element) {
-  $html = Join-Path $dir "preview-$([guid]::NewGuid().ToString('N')).html"
-  $null = & $Oml preview $module $element --out $html
-  Require ($LASTEXITCODE -eq 0) "preview $element failed"
-  Get-Content -Raw $html
+  $d = & $Oml describe $module $element --css | ConvertFrom-Json
+  Require ($LASTEXITCODE -eq 0) "describe $element --css failed"
+  [string]$d.styleSheet
 }
 function Text($module, $element) { (& $Oml describe $module $element | ConvertFrom-Json).text }
 
@@ -71,7 +71,7 @@ $built = Apply-Spec $blank $base
 Require ($built.Exit -eq 0 -and $built.Report.saved -and -not $built.Report.changed) "base did not save: $($built.Text)"
 $m = $built.Out
 
-# A block's CSS changed three times in a row, each on the last result: no rebuild, and the preview shows the new CSS.
+# A block's CSS changed three times in a row, each on the last result: no rebuild, and the module holds the new CSS.
 foreach ($color in 'blue', 'green', 'black') {
   $m = (Changed $m "{ `"blocks`": [{ `"name`": `"Card`", `"styleSheet`": `".card { color: $color; }`" }] }" @('styleSheet of block Card') "block CSS $color").Out
   Require ((Css $m Card).Contains(".card { color: $color; }")) "block CSS $color is not in the module"

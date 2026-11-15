@@ -16,7 +16,7 @@ public static partial class Cli
         // Commands.Read.cs
         ["version"] = CmdVersion, ["selftest"] = CmdSelfTest, ["model-types"] = CmdApi, ["widget-types"] = CmdWidgets,
         ["find"] = CmdFind, ["inspect"] = CmdInspect, ["describe"] = CmdDescribe, ["tree"] = CmdTree, ["flow"] = CmdFlow, ["map"] = CmdMap,
-        ["stats"] = CmdCensus, ["validate"] = CmdValidate, ["openapi"] = CmdOpenApi, ["preview"] = CmdPreview,
+        ["stats"] = CmdCensus, ["validate"] = CmdValidate, ["openapi"] = CmdOpenApi,
         ["header"] = CmdMeta, ["expression"] = CmdExpr,
         ["architecture"] = CmdArchitecture, ["architecture-render"] = CmdArchitectureRender, ["check"] = CmdCheck, ["review"] = CmdReview,
         ["test"] = CmdTest,
@@ -43,7 +43,7 @@ public static partial class Cli
             TerminalOutput.Command = command;
             if (CliUsage.IsHelp(args.ToArray())) { TerminalOutput.PrintHelp(CliUsage.HelpText(args.ToArray()), null); return 0; }
             if (args.Contains("--help") || args.Contains("-h")) { TerminalOutput.PrintHelp(CliUsage.For(command), command); return 0; }
-            if (command is "new" or "inspect" or "stats" or "validate" or "apply" or "install" or "preview")
+            if (command is "new" or "inspect" or "stats" or "validate" or "apply" or "install")
                 Timings.Measure("selfTestCheck", SelfTest.EnsurePassed);
             if (command is null || !Dispatch.TryGetValue(command, out var handler)) { Console.Error.WriteLine(Usage); return 2; }
             if (handler(args) is { } code) return code;

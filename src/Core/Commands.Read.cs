@@ -141,7 +141,7 @@ public static partial class Cli
             if (args[i].StartsWith("--")) throw new CliError("describe requires --depth N (non-negative), --in <folder|file.oml>, --history or --css.", 2);
             names.Add(args[i]);
         }
-        // `describe <module> --css --all`: every style sheet (themes, screens, blocks); oml preview --live compares two modules with it.
+        // `describe <module> --css --all`: every style sheet (themes, screens, blocks).
         if (all)
         {
             if (!css || names.Count > 0 || depthGiven || searchIn.Count > 0 || history) throw new CliError("--all goes with --css only, without element names: describe <module.oml> --css --all.", 2);
@@ -303,8 +303,6 @@ public static partial class Cli
     static int? CmdTest(List<string> args) => args.Count >= 4 && args[1] == "bdd" ? TestScaffold.Run(args)
         : args.Count >= 4 && args[1] == "scenarios" ? Scenarios.Run(args)
         : args.Count >= 4 && args[1] == "data" && args[2] == "module" ? TestDataModule.Run(args) : null;
-
-    static int? CmdPreview(List<string> args) => args.Count >= 3 ? Preview.Run(args) : null;
 
     static int? CmdArchitecture(List<string> args) => Architecture.Run(args);
 

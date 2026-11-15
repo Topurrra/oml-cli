@@ -1,6 +1,6 @@
 # oml dashboard, end to end: start it on a free port, check the security rules, call each kind of endpoint, then stop it.
 # With Edge or Chrome installed it also takes light and dark screenshots of three pages into $Tmp and checks that the
-# page reported no JavaScript error (theme.js counts them on <html data-js-errors>), the same way preview-check reads the DOM.
+# page reported no JavaScript error (theme.js counts them on <html data-js-errors>), read from the dumped DOM.
 param([string]$Oml = "$PSScriptRoot\..\src\bin\Release\net10.0\oml.exe", [string]$Tmp = "$PSScriptRoot\..\tmp")
 $ErrorActionPreference = 'Stop'
 $Tmp = [IO.Path]::GetFullPath($Tmp)
@@ -24,7 +24,7 @@ function Raw([int]$Port, [string]$Path, [hashtable]$Headers, [string]$Method = '
     } finally { $client.Close() }
 }
 
-# A module with blocks and a screen to read and preview.
+# A module with blocks and a screen to read (tests/preview.json, a fixture shared with reapply-check).
 $id = [guid]::NewGuid().ToString('N').Substring(0, 8)
 $blank = Join-Path $Tmp "dash-$id-blank.oml"
 $module = Join-Path $Tmp "dash-$id.oml"
@@ -116,11 +116,6 @@ try {
     Require ($describe.code -eq 0 -and $describe.output.text -match 'Block PvCard') 'describe endpoint'
     $find = Api 'find' @{ name = 'Pv*'; path = $module }
     Require ($find.code -eq 0 -and @($find.output.matches).Count -ge 3) 'find endpoint'
-    $preview = Api 'preview' @{ path = $module; element = 'PvCard'; theme = 'dark'; width = 390 }
-    Require ($preview.code -eq 0 -and $preview.view -and @($preview.output.checklist).Count -eq 6) 'preview endpoint'
-    $view = Invoke-WebRequest "$base/view/$($preview.view)" -UseBasicParsing
-    Require ($view.Content -match 'id="PvRoot"' -and $view.Headers['Content-Security-Policy'] -match '^sandbox allow-scripts') 'preview view'
-    Require ($view.Content -match 'parent\.postMessage\(\{omlHeight:') 'preview view must report its height for "Full height"'
     $schema = Api 'spec/schema'
     Require ($schema.code -eq 0 -and $schema.output.properties.entities) 'spec schema endpoint'
     $recipes = Api 'recipes'
@@ -304,7 +299,7 @@ try {
             catch { Require ($_.Exception.Response.StatusCode.value__ -eq 404) "$method /api/$path must be 404: $_" }
         }
     }
-    Write-Host 'ok   dashboard: 127.0.0.1 only, key/Host/Origin checks, doctor, inspect, describe, find, preview, schema, uploads, no write endpoints'
+    Write-Host 'ok   dashboard: 127.0.0.1 only, key/Host/Origin checks, doctor, inspect, describe, find, schema, uploads, no write endpoints'
 
     function Refused([string]$Path, $Body, [string]$What) {
         try { Api $Path $Body | Out-Null; throw "$What accepted" }
@@ -446,29 +441,16 @@ try {
     Refused 'test/scaffold' @{ path = $producer; actions = @('PlaceOrder') } 'test bdd without --bdd'
     Refused 'test/scaffold' @{ path = $producer; actions = @(); bdd = $bdd } 'test bdd without an action'
 
-    # Timings and the preview inputs and steps.
+    # Timings, and a tree depth that is not a number.
     $timed = Api 'inspect' @{ path = $module; timings = $true }
     Require ($timed.code -eq 0 -and $timed.output.timings.total -gt 0 -and $timed.cli -like '*--timings') 'inspect with timings'
     $timedDocs = Api 'search' @{ q = 'entity'; timings = $true }
     Require ($timedDocs.code -eq 0 -and $timedDocs.cli -notlike '*--timings*') 'timings must not reach the launcher commands'
-    Refused 'preview' @{ path = $module; element = 'PvCard'; steps = @(@{ kind = 'navigate'; value = 'x' }) } 'a preview step of an unknown kind'
-    Refused 'preview' @{ path = $module; element = 'PvCard'; steps = @(@{ kind = 'type'; value = '#Name' }) } 'a type step without ='
-    Refused 'preview' @{ path = $module; element = 'PvCard'; args = @(@{ name = 'Ti tle'; value = '1' }) } 'a preview input with a bad name'
-    Refused 'preview' @{ path = $module; element = 'PvCard'; steps = @(@{ kind = 'wait'; value = 'abc' }) } 'a wait step that is not a number'
-    Refused 'preview' @{ path = $module; element = 'PvCard'; height = '500' } 'a height sent as text'
     Refused 'tree' @{ path = $module; name = 'PvCard'; depth = 'x' } 'a tree depth that is not a number'
-    Refused 'preview' @{ path = $module; element = 'PvCard'; steps = @(@{ kind = 'click'; value = '-x' }) } 'a click step that starts with -'
-    $negative = Api 'preview' @{ path = $module; element = 'PvCard'; args = @(@{ name = 'Count'; value = '-1' }) }
-    Require ($negative.code -eq 0 -and $negative.cli -like '*--arg Count=-1*') "a negative --arg value: $($negative.cli)"
-    if ($browser) {
-        $stepped = Api 'preview' @{ path = $module; element = 'PvCard'; height = 500; timings = $true; args = @(@{ name = 'Title'; value = '"Hi"' }); steps = @(@{ kind = 'click'; value = '#GoButton' }, @{ kind = 'eval'; value = '1+1' }, @{ kind = 'wait'; value = 50 }) }
-        Require ($stepped.code -eq 0 -and @($stepped.output.steps).Count -eq 3 -and $stepped.output.steps[1].result -eq '2' -and $stepped.output.timings -and
-            $stepped.cli -like '*--arg "Title=\"Hi\"" --height 500 --click #GoButton --eval 1+1 --wait 50*--timings') "preview with inputs and steps: $($stepped.cli) $($stepped.output.steps | ConvertTo-Json -Compress)"
-    }
     # The work folders this check made (one per action, under the dashboard work folder).
     foreach ($file in $check.json, $rerun.json, $ruled.json, $rulesFile.path, $scaffold.path) { if ($file) { Remove-Item (Split-Path $file) -Recurse -Force -ErrorAction SilentlyContinue } }
     if ($review.folder) { Remove-Item $review.folder -Recurse -Force -ErrorAction SilentlyContinue }
-    Write-Host 'ok   dashboard: check (baseline, rules), review, search, doc/open, warn, find --text, tree, history, css, validate, test bdd, timings, preview steps'
+    Write-Host 'ok   dashboard: check (baseline, rules), review, search, doc/open, warn, find --text, tree, history, css, validate, test bdd, timings'
 
     # Screenshots, when a browser exists.
     if ($browser) {
@@ -477,7 +459,6 @@ try {
         $targets = @(@{ page = 'home'; hash = '#/home' }, @{ page = 'explorer'; hash = "#/explorer?module=$m" }, @{ page = 'tools'; hash = '#/tools' },
             @{ page = 'check'; hash = "#/check?module=$m"; expect = 'missing-description' },
             @{ page = 'review'; hash = "#/review?before=$([uri]::EscapeDataString($blank))&after=$m"; expect = 'PvCard' },
-            @{ page = 'previews'; hash = "#/previews?module=$m"; expect = 'Inputs and interaction steps' },
             @{ page = 'dif'; hash = "#/dif?file=$([uri]::EscapeDataString($difFile))&selftest=1"; expect = 'ShowCard' },
             @{ page = 'modules'; hash = '#/modules' }, @{ page = 'prompt'; hash = '#/prompt?selftest=1' }, @{ page = 'architecture'; hash = '#/architecture' }, @{ page = 'lifetime'; hash = '#/lifetime' }) +
             @('agents', 'recipes', 'assets', 'openapi', 'activity', 'learned' | ForEach-Object { @{ page = $_; hash = "#/$_"; themes = @('light') } })
@@ -526,8 +507,6 @@ try {
             $_.Groups[1].Value -split ',' | ForEach-Object { $_.Trim().Trim("'") } } | Where-Object { $_ })
         $actualNav = @([regex]::Matches((Get-Content (Join-Path $Tmp 'dashboard-home-light.html') -Raw), '<a class="nav-link"[^>]*data-id="([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
         Require (($expectedNav -join ',') -eq ($actualNav -join ',')) "nav.js order differs from the sidebar on screen: expected [$($expectedNav -join ', ')] got [$($actualNav -join ', ')]"
-        # The viewer got the page height from a sandboxed preview frame ("Full height").
-        Require ((Get-Content (Join-Path $Tmp 'dashboard-previews-light.html') -Raw) -match '<iframe [^>]*data-height="\d+"') 'Preview frames did not report their height to the viewer'
         # Recipe gallery: the two agent prompt templates replace the per-recipe "Copy prompt".
         $recipesDom = Get-Content (Join-Path $Tmp 'dashboard-recipes-light.html') -Raw
         Require ($recipesDom -match '\[oml\] Small task' -and $recipesDom -match '\[oml\] Architect task') 'Recipe gallery: the prompt templates are missing'
@@ -538,7 +517,7 @@ try {
             Require ($promptDom -match 'data-selftest="ok"') "Prompt self-test (working set API and prompt text) did not pass ($theme): $([regex]::Match($promptDom, 'Prompt self-test[^<]*').Value)"
             Require ((Get-Content (Join-Path $Tmp "dashboard-modules-$theme.html") -Raw) -match 'Working set') "Get modules page ($theme)"
         }
-        Write-Host "ok   dashboard pages (home, explorer, tools, check, review, agents, previews, dif, modules, prompt, architecture, lifetime; the rest in light): no JavaScript errors, screenshots $($shots -join ', ')"
+        Write-Host "ok   dashboard pages (home, explorer, tools, check, review, agents, dif, modules, prompt, architecture, lifetime; the rest in light): no JavaScript errors, screenshots $($shots -join ', ')"
     } else { Write-Host 'skip dashboard screenshots: no Edge or Chrome' }
 
     Require ((Token-State) -eq $tokensBefore) 'The dashboard created or changed a Service Studio session token without a click'
