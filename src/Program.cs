@@ -23,13 +23,12 @@ public static class Program
             TerminalOutput.PrintObject(new { error = TimingsRefusal(command) });
             return 2;
         }
-        if (filtered.FirstOrDefault() == "log" && !filtered.Contains("--help") && !filtered.Contains("-h"))
-            return UsageLog.Summary(filtered.Skip(1).ToArray());
+        if (filtered.FirstOrDefault() == "log" && CommandTable.Find(filtered) is { } log) return log.Run!(args, filtered);
         // The usage log: one line per command, written after it ends (on unless OML_LOG=0; then nothing is wrapped or written).
         return UsageLog.Enabled ? UsageLog.Measure(filtered, () => Dispatch(args, filtered)) : Dispatch(args, filtered);
     }
 
-    internal static readonly string[] TimingsRefused = ["lifetime", "font", "doctor", "spec", "doc", "explain-warning", "dashboard", "explorer-menu", "log", "image", "memory", "outsystems-docs", "team-rules", "qa", "hooks", "show-change", "learn", "config"];
+    internal static readonly string[] TimingsRefused = CommandTable.All.Where(c => c.NoTimings).Select(c => c.Name).ToArray(); // from the table
     internal static string TimingsRefusal(string command) => $"--timings is not available for {command}.";
     // Output encoding (commands.md, "Output encoding"). A console window gets UTF-16 through WriteConsoleW: every
     // character shows, and the console code page is not changed (.NET never sets code page 1200 on the console).
@@ -62,23 +61,15 @@ public static class Program
     static int DispatchCommand(string[] args, string[] filtered)
     {
         TerminalOutput.Command = filtered.FirstOrDefault();
-        // Hidden maintainer command: the renderer's unit-style self-tests (no console, no Service Studio).
-        if (TerminalOutput.Command == "terminal-test")
-        {
-            var result = TerminalRender.SelfTest();
-            Console.WriteLine(result);
-            return result == "ok" ? 0 : 1;
-        }
         // `oml`, `oml help`, `oml --help`: the overview, or every usage line with --all. Needs no Service Studio.
         if (CliUsage.IsHelp(filtered)) { TerminalOutput.PrintHelp(CliUsage.HelpText(filtered), null); return 0; }
         // Commands the launcher runs itself print their usage lines here, without Service Studio.
-        if (filtered.FirstOrDefault() is "lifetime" or "font" or "doctor" or "explorer-menu" or "image" or "dashboard" or "outsystems-docs" or "qa" or "hooks" or "show-change" && (filtered.Contains("--help") || filtered.Contains("-h")))
+        if (filtered.FirstOrDefault() is { } helpName && CommandTable.PrintsHelp(helpName) && (filtered.Contains("--help") || filtered.Contains("-h")))
         {
             // lifetime: one line per subcommand, with its options.
             TerminalOutput.PrintHelp(filtered[0] == "lifetime" ? LifeTime.Usage.Replace(" | ", Environment.NewLine + "oml lifetime ") : CliUsage.For(filtered[0]), filtered[0]);
             return 0;
         }
-        if (filtered.FirstOrDefault() == "hooks") return AgentHooks.Run(filtered.Skip(1).ToArray());
         // preview and qa follow the project profile: its sizes and themes (ProjectConfig.Adjust).
         if (filtered.FirstOrDefault() is "preview" or "qa")
         {
@@ -88,45 +79,7 @@ public static class Program
             args = args.Where(a => a != "--no-profile").Concat(extra).ToArray();
             filtered = adjusted;
         }
-        if (filtered.FirstOrDefault() == "lifetime") return LifeTime.Run(filtered.Skip(1).ToArray(), RunCore);
-        if (filtered.FirstOrDefault() == "font") return FontAssets.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "doctor") return Doctor.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "spec") return SpecCommand.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "doc") return DocCommand.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "explain-warning") return DocCommand.Warn(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "memory") return MemoryCommand.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "learn") return EvolveCommand.Run(filtered.Skip(1).ToArray());
-        // oml map: build loads modules (Core); the queries read the stored map here, without Service Studio.
-        if (filtered.FirstOrDefault() == "map" && !(filtered.Length > 1 && filtered[1] == "build")) return MapCommand.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "mock") return MockCommand.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "create") return CreateCommand.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "skill") return CreateCommand.Skill(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "config") return ProjectConfig.Run(filtered.Skip(1).ToArray());
-        // oml test data: the module spec needs the producer module (Core); the rest calls the test-data API here.
-        if (filtered.FirstOrDefault() == "test" && filtered.Length > 1 && filtered[1] == "data" && !(filtered.Length > 2 && filtered[2] == "module")) return TestDataCommand.Run(filtered.Skip(2).ToArray());
-        if (filtered.FirstOrDefault() == "outsystems-docs") return Library.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "team-rules") return CompanySkills.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "dashboard") return Dashboard.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "qa") return Qa.QaCommand.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "preview" && filtered.Contains("--live")) return Qa.LivePreview.Run(filtered.Skip(1).ToArray(), RunCoreCaptured);
-        if (filtered.FirstOrDefault() == "show-change") return Dashboard.Dif(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() == "explorer-menu" && OperatingSystem.IsWindows()) return Setup.Run(filtered.Skip(1).ToArray());
-        if (filtered.FirstOrDefault() is "architecture" or "check" && filtered.Contains("--team"))
-        {
-            if (filtered[0] == "check" && CheckPreflight(filtered) is { } error)
-            {
-                TerminalOutput.PrintObject(new { error });
-                return 2;
-            }
-            if (filtered[0] == "architecture" && filtered.Contains("--publish-order"))
-            {
-                // Core refuses this too, but only after the team's applications are downloaded; a package has no .oml file to publish anyway.
-                TerminalOutput.PrintObject(new { error = "--publish-order does not take --team: export the .oml files into a folder and use --in <folder>." });
-                return 2;
-            }
-            return LifeTime.Architecture(args, RunCore);
-        }
-        return RunCore(args);
+        return CommandTable.Find(filtered) is { } cmd ? cmd.Run!(args, filtered) : RunCore(args);
     }
 
     // `check --team`: refuse bad outputs, rules file or baseline before the team's applications are downloaded.
@@ -151,7 +104,7 @@ public static class Program
         finally { TerminalOutput.InRun = previousRun; Console.SetOut(previousOut); Console.SetError(previousError); }
     }
 
-    static int RunCore(string[] args)
+    internal static int RunCore(string[] args)
     {
         var filtered = args.Where(a => a != "--pretty").ToArray();
 
