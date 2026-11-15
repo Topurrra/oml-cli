@@ -23,6 +23,8 @@ Less waiting and fewer questions: a project profile, a project that is ready aft
 
 ### Changed
 
+- `oml doc --search` and `oml spec --search` are about a third faster from the second call: the index of the built-in docs is saved next to the usage log (`search-index.bin`, rebuilt for each oml build; `OML_SEARCH_CACHE=0` turns it off). A damaged file is ignored. The library index gets a new format and rebuilds once.
+- The launcher has one command table (`src/CommandTable.cs`) for dispatch, the `--timings` refusal and launcher help, so a new command is added in one place. The hidden `oml commands` prints it as JSON, and `oml commands --check` compares it with the usage text.
 - The end-of-turn memory reminder follows `memory.reminder` and `memory.write` of the project profile.
 - The pre-tool hook builds its shell patterns only for shell commands, and reads nothing for a tool it does not check.
 - Skill: `AGENTS.md` no longer repeats the 11 rules and the Standard loop; it points to `skill/rules.md` and `skill/SKILL.md`, so there is one wording of each. The build-output `oml.exe` path is now `oml` from PATH. Existing projects: run `oml skill refresh`.

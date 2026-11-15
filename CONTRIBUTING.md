@@ -106,6 +106,7 @@ If publishing stops partway through, inspect the local and remote tag and releas
 ## Add a feature
 
 1. Add a focused file in `src/Core/`. Extend the shared builder when needed.
+   A command the launcher runs itself (no Service Studio) gets one entry in `src/CommandTable.cs` and its usage line in `src/Core/CliUsage.cs`; `oml commands --check` says when the two disagree.
 2. Use `Reflect` for interface members, setters, and deferred expressions.
    Use `Refs` for element names and references. Do not create separate lookup rules.
 3. Add the spec key to its typed record or raw-object handler.
