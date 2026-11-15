@@ -1348,7 +1348,7 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 | Group | Settings |
 |---|---|
 | `ui.*` | `targets` (desktop, tablet, phone), `themes` (light, dark), `rtl`, `accessibility`, `translations`. |
-| `checks.*` | `preview`, `livePreview`, `qa`, `review`, `uiChecklist`, `bestPractices`, `testScenarios`, `testData`: off means agents do not run or offer it unless the user asks in the task. |
+| `checks.*` | `preview`, `livePreview`, `qa`, `review`, `uiChecklist`, `bestPractices`, `testScenarios`, `testData`: off means agents do not run or offer it unless the user asks in the task. `preview`, `livePreview`, `qa` and `testScenarios` are also refused by the command. |
 | `ask.*` | `testing`, `testScenarios`, `devUrl`, `producerChoice`. Locked on: `install`, `publish`, `deploy`, `dataDeletion`. |
 | `lane.fast` | A change of only CSS values or texts of existing elements takes 2 tool calls: no preview, QA, review file or questions. |
 | `browser` | `oml` (oml qa and its own Edge or Chrome) or `agent` (the agent's built-in browser). |
@@ -1360,7 +1360,7 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 
 The file holds no secrets: a text value that looks like one is refused. An unknown key or a wrong value is ignored and named in `problems`. A file that cannot be read gives the defaults and never blocks an agent.
 
-`oml preview` and `oml qa` follow `ui.targets` and `ui.themes`: a `--width` of a size the project does not support (phone under 600 px, tablet under 1024 px, desktop from there) or a `--theme` it does not support is refused with the reason. `--no-profile` skips the check once, for when the user asks for that size or theme in the task. An offline preview with no `--width` or `--theme` gets the project's own when the default (desktop, light) is not supported.
+`oml preview` and `oml qa` follow `ui.targets` and `ui.themes`: a `--width` of a size the project does not support (phone under 600 px, tablet under 1024 px, desktop from there) or a `--theme` it does not support is refused with the reason. `--no-profile` skips the check once, for when the user asks for that size or theme in the task. A command whose check is off is refused first (exit 2): `oml qa page`, `run`, `restyle` and `record` need `checks.qa`, `oml preview --live` needs `checks.livePreview`, any other `oml preview` (also `--serve`) needs `checks.preview`, and `oml test scenarios` needs `checks.testScenarios`. The message names the setting and the file; `oml config set checks.qa on` turns it on, and `--no-profile` runs the command once when the user asked for it in the task. `oml qa start`, `stop`, `oml qa` alone and `--help` are never refused. A step inside `oml batch` is not checked. An offline preview with no `--width` or `--theme` gets the project's own when the default (desktop, light) is not supported.
 
 Agents get the profile from the session-start hook (see [Agent hooks](#agent-hooks)), so it costs no command. Without hooks, the skill tells them to add `oml config` to their read call.
 
