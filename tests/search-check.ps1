@@ -29,6 +29,23 @@ $r = Run 'doc', '--search-verify'
 if ($r.Exit -ne 0) { Fail "search-verify:`n$($r.Text)" }
 Write-Host "ok   search: $($r.Text)"
 
+# 1b. the saved index (OML_SEARCH_CACHE names its file): a second identical search gives the same hits, a damaged file
+#     is ignored and replaced, and OML_SEARCH_CACHE=0 writes nothing
+$cache = Join-Path $work 'search-index.bin'
+$old = $env:OML_SEARCH_CACHE
+try {
+  $env:OML_SEARCH_CACHE = $cache
+  $first = (Run 'doc', '--search', 'create entity attribute').Text
+  if (-not (Test-Path $cache)) { Fail 'the first search did not save the index' }
+  if ((Run 'doc', '--search', 'create entity attribute').Text -ne $first) { Fail 'a second search with the saved index gives other hits' }
+  [IO.File]::WriteAllBytes($cache, [byte[]](1..40))
+  if ((Run 'doc', '--search', 'create entity attribute').Text -ne $first) { Fail 'a damaged index file changed the hits' }
+  if ((Get-Item $cache).Length -le 40) { Fail 'a damaged index file was not replaced' }
+  $env:OML_SEARCH_CACHE = '0'; Remove-Item $cache
+  if ((Run 'doc', '--search', 'create entity attribute').Text -ne $first -or (Test-Path $cache)) { Fail 'OML_SEARCH_CACHE=0 changed the hits or saved a file' }
+} finally { $env:OML_SEARCH_CACHE = $old }
+Write-Host 'ok   search cache: same hits from the saved index, a damaged file is ignored and replaced, OML_SEARCH_CACHE=0 saves nothing'
+
 # 2. benchmark: each mode on five sets. tune: used for tuning. held: 60 queries written blind after the first tuning.
 # blind2: 30 blind queries from a reviewer, in general words. After both were measured, the synonym gate and the
 # concept links were cross-validated on all three, so held and blind2 are no longer blind. blind3: 60 queries from a

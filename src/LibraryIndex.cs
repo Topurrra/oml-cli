@@ -8,7 +8,7 @@ namespace OmlCli;
 // A cache only: a missing, stale or damaged file is rebuilt, and a failed save is ignored.
 static class LibraryIndex
 {
-    const int Format = 2; // 2: front matter left out of the sections, summary in the page entry
+    const int Format = 3; // 3: the snippet text (Shown) is saved too, counts are checked; 2: front matter left out of the sections, summary in the page entry
     static string File => Path.Combine(Library.Root, "index.bin");
 
     static string Key(List<string> folders) =>
@@ -19,10 +19,10 @@ static class LibraryIndex
     public static SearchIndex Get(List<string> folders, List<string> notes, Func<List<string>, List<string>, List<SearchDoc>> read)
     {
         var key = Key(folders);
-        try { if (Load(key, notes) is { } saved) return saved; }
+        try { if (Load(File, key, notes) is { } saved) return saved; }
         catch (Exception e) when (e is IOException or EndOfStreamException or InvalidDataException or FormatException or ArgumentException or OutOfMemoryException) { }
         var index = new SearchIndex(read(folders, notes));
-        try { Save(key, index, notes); }
+        try { Save(File, key, index, notes); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         return index;
     }
@@ -32,24 +32,28 @@ static class LibraryIndex
     // A fetch replaced a source: the next search must not use the old index, even when source.json looks the same.
     public static void Delete() { if (System.IO.File.Exists(File)) System.IO.File.Delete(File); }
 
-    static SearchIndex? Load(string key, List<string> notes)
+    // Also used by SearchCache (the embedded docs' index) with its own file. A count that cannot fit in the file means
+    // damage: it is refused before it allocates anything.
+    internal static SearchIndex? Load(string file, string key, List<string> notes)
     {
-        if (!System.IO.File.Exists(File)) return null;
-        using var r = new BinaryReader(new BufferedStream(System.IO.File.OpenRead(File), 1 << 20), Encoding.UTF8);
+        if (!System.IO.File.Exists(file)) return null;
+        using var stream = System.IO.File.OpenRead(file);
+        using var r = new BinaryReader(new BufferedStream(stream, 1 << 20), Encoding.UTF8);
+        int Count() => r.ReadInt32() is var n && n >= 0 && n <= stream.Length ? n : throw new InvalidDataException("bad count");
         if (r.ReadString() != key) return null;
-        var noteCount = r.ReadInt32();
+        var noteCount = Count();
         for (var i = 0; i < noteCount; i++) notes.Add(r.ReadString());
-        var count = r.ReadInt32();
+        var count = Count();
         var docs = new List<SearchDoc>(count);
         var tf = new Dictionary<string, int>[count][];
         var length = new int[count][];
         for (var d = 0; d < count; d++)
         {
-            var doc = new SearchDoc { Id = r.ReadString(), Kind = r.ReadString(), Title = r.ReadString(), Open = r.ReadString(), Keys = r.ReadString(), Body = r.ReadString() };
+            var doc = new SearchDoc { Id = r.ReadString(), Kind = r.ReadString(), Title = r.ReadString(), Open = r.ReadString(), Keys = r.ReadString(), Body = r.ReadString(), Shown = r.ReadString() };
             var parent = r.ReadString();
             doc.Parent = parent.Length == 0 ? null : parent;
             doc.TitleIsName = r.ReadBoolean();
-            doc.Names = new string[r.ReadInt32()];
+            doc.Names = new string[Count()];
             for (var n = 0; n < doc.Names.Length; n++) doc.Names[n] = r.ReadString();
             docs.Add(doc);
             tf[d] = new Dictionary<string, int>[3];
@@ -57,24 +61,24 @@ static class LibraryIndex
             for (var f = 0; f < 3; f++)
             {
                 length[d][f] = r.ReadInt32();
-                var terms = r.ReadInt32();
+                var terms = Count();
                 var counts = new Dictionary<string, int>(terms, StringComparer.Ordinal);
                 for (var t = 0; t < terms; t++) counts[r.ReadString()] = r.ReadInt32();
                 tf[d][f] = counts;
             }
         }
         var words = new Dictionary<string, string>(StringComparer.Ordinal);
-        for (var i = r.ReadInt32(); i > 0; i--) words[r.ReadString()] = r.ReadString();
+        for (var i = Count(); i > 0; i--) words[r.ReadString()] = r.ReadString();
         var wordCounts = new Dictionary<string, int>(StringComparer.Ordinal);
-        for (var i = r.ReadInt32(); i > 0; i--) wordCounts[r.ReadString()] = r.ReadInt32();
+        for (var i = Count(); i > 0; i--) wordCounts[r.ReadString()] = r.ReadInt32();
         return new SearchIndex(docs, tf, length, words, wordCounts);
     }
 
     // Written to a temp file first, then moved over the old one, so a reader never sees half a file.
-    static void Save(string key, SearchIndex index, List<string> notes)
+    internal static void Save(string file, string key, SearchIndex index, List<string> notes)
     {
-        Directory.CreateDirectory(Library.Root);
-        var temp = File + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        var temp = file + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             using (var w = new BinaryWriter(new BufferedStream(System.IO.File.Create(temp), 1 << 20), Encoding.UTF8))
@@ -86,7 +90,7 @@ static class LibraryIndex
                 for (var d = 0; d < index.Docs.Count; d++)
                 {
                     var doc = index.Docs[d];
-                    foreach (var s in new[] { doc.Id, doc.Kind, doc.Title, doc.Open, doc.Keys, doc.Body, doc.Parent ?? "" }) w.Write(s);
+                    foreach (var s in new[] { doc.Id, doc.Kind, doc.Title, doc.Open, doc.Keys, doc.Body, doc.Shown, doc.Parent ?? "" }) w.Write(s);
                     w.Write(doc.TitleIsName);
                     w.Write(doc.Names.Length);
                     foreach (var n in doc.Names) w.Write(n);
@@ -102,7 +106,7 @@ static class LibraryIndex
                 w.Write(index.WordCounts.Count);
                 foreach (var (k, v) in index.WordCounts) { w.Write(k); w.Write(v); }
             }
-            System.IO.File.Move(temp, File, overwrite: true);
+            System.IO.File.Move(temp, file, overwrite: true);
         }
         finally { if (System.IO.File.Exists(temp)) System.IO.File.Delete(temp); }
     }
