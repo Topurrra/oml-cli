@@ -49,7 +49,7 @@ Plain technical English (ISO 24495-1; ASD-STE100 style):
 
 ## Standard loop (every tool call costs a full turn)
 
-Several commands = ONE tool call: chain with `;` or use an `oml batch` file.
+Several commands = ONE tool call: chain with `;` or use an `oml batch` file. A normal task needs 4 to 8 tool calls. If you are past 12, stop and check whether you are repeating reads or applying one element at a time.
 
 Project profile: a session may start with an "oml project profile" (`.oml/config.json`: sizes, themes, checks, questions, browser, fast lane). It overrides this loop. No such text? Add `oml config` to the read call.
 
@@ -85,7 +85,7 @@ After the loop: install after a yes (zero validation errors needed; report the b
 | Fix of an error or warning | `oml explain-warning <id or title words>` |
 | Any failure, also platform | `oml doc troubleshooting` |
 
-Topics: `best-practices`, `ui-reactive`, `osui-patterns`, `ui-checklist`, `data-rules`, `logic-rules`, `security`, `rest`, `processes-timers-email`, `architecture-rules`, `traditional-to-reactive`, `warnings`, `testing`, `troubleshooting`, `dif`.
+Topics: `best-practices`, `ui-reactive`, `osui-patterns`, `ui-checklist`, `data-rules`, `logic-rules`, `security`, `rest`, `processes-timers-email`, `architecture-rules`, `traditional-to-reactive`, `warnings`, `testing`, `troubleshooting`, `dif`, `harnesses`.
 
 ## Recipes
 

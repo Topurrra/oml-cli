@@ -5,6 +5,7 @@ export const ICONS = {
   modules: 'M4 6h16v4H4zM4 14h16v4H4zM8 8h.01M8 16h.01',
   previews: 'M3 5h18v12H3zM8 21h8M12 17v4',
   prompt: 'M4 5h16v11H8l-4 4zM8 9h8M8 12h5',
+  agents: 'M4 5h16v11H8l-4 4zM8 9h8M8 12h5',
   recipes: 'M6 3h9l3 3v15H6zM9 9h6M9 13h6M9 17h4',
   assets: 'M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M15 9h.01',
   openapi: 'M8 4H6a2 2 0 0 0-2 2v4l-2 2 2 2v4a2 2 0 0 0 2 2h2M16 4h2a2 2 0 0 1 2 2v4l2 2-2 2v4a2 2 0 0 1-2 2h-2',

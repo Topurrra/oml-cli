@@ -4,9 +4,8 @@
 export const NAV = [
   { group: 'Start', title: 'Start', ids: ['home', 'modules'] },
   { group: 'Module', title: 'Your module', ids: ['explorer', 'previews', 'openapi', 'architecture', 'check', 'review'] },
-  { group: 'Agents', title: 'Work with agents', ids: ['prompt', 'recipes', 'dif'] },
+  { group: 'Work with agents', title: 'Work with agents', ids: ['agents'] },
   { group: 'Assets', title: 'Assets', ids: ['assets'] },
-  { group: 'Team', title: 'Team and agents', ids: ['lifetime', 'activity', 'learned'] },
-  { group: 'Learn', title: 'Learn', ids: ['cookbook', 'docs', 'rules'] },
+  { group: 'Team', title: 'Team', ids: ['lifetime', 'activity', 'learned'] },
   { group: 'Tools', title: 'Tools', ids: ['tools'] },
 ];

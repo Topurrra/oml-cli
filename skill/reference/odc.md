@@ -46,7 +46,7 @@ Give the user one short update per pause.
 
 Confirm before creating an ODC app, publishing, deploying, rolling back, or uploading/deleting an external library.
 Restate the operation and wait for approval. Mentor editing turns and reads need no confirmation.
-For O11, follow the confirmation rules in section 2, including install, reference refresh, LifeTime mutations, and data deletion.
+For O11, follow the confirmation rules in rule 10 of `skill/rules.md`: never install, publish, refresh references, deploy, tag, abort, or continue without a clear yes from the user for that exact action.
 
 Never guess `app_key`, `env_key`, session handles, or file paths. Ask for missing values.
 Report stable identifiers with names: asset key for ODC apps, env_key for environments, staged and backup paths for O11 files.
