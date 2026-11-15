@@ -9,7 +9,7 @@
 #      last full run (%LOCALAPPDATA%\oml-cli\regress-times.json). Every unit starts from a copy of tmp\base. A unit with
 #      -After waits for the units whose outputs it reads; a unit with -Publish moves the out-*.oml files it made into
 #      tmp\base. A unit with -Group shares something with the others of its group, which run at most $groupLimit at a time:
-#        browser   (3)  headless Edge/Chrome with time windows: preview, test-scaffold, architecture-page, check-page,
+#        browser   (3)  headless Edge/Chrome with time windows: style-conflicts, architecture-page, check-page,
 #                       review-page, image (also a 5 s trace limit), dashboard (a local port), qa-replay (a local page)
 #        usagelog  (1)  log-check and aliases-check append to and trim the person's default usage log (OML_LOG=1)
 #        selftest  (1)  selftest records the build as checked in %LOCALAPPDATA%; doctor-check reads that record
@@ -379,19 +379,11 @@ Unit 'check-check' {
 Unit 'review-check' {
   try { & (Join-Path $tests 'review-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL review checks: $_" }
 }
-Unit 'live-preview-check' -Group browser {
-  try { & (Join-Path $tests 'live-preview-check.ps1') -Oml $oml -Tmp $tmp }
-  catch { $global:fail++; Write-Host "FAIL live preview checks: $_" }
-}
 Unit 'style-conflicts-check' -Group browser {
   try { & (Join-Path $tests 'style-conflicts-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL style conflicts checks: $_" }
 }
-Unit 'preview-check' -Group browser {
-  try { & (Join-Path $tests 'preview-check.ps1') -Oml $oml -Tmp $tmp }
-  catch { $global:fail++; Write-Host "FAIL preview checks: $_" }
-}
-Unit 'test-scaffold-check' -Group browser {
+Unit 'test-scaffold-check' {
   try { & (Join-Path $tests 'test-scaffold-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL test bdd: $_" }
 }

@@ -374,8 +374,6 @@
     {"q": "create a new empty module", "type": "plain", "expect": ["command:new"]},
     {"q": "export translations to excel", "type": "plain", "expect": ["command:translations"]},
     {"q": "generate an openapi file for my rest api", "type": "plain", "expect": ["command:openapi"]},
-    {"q": "take a screenshot of a screen I built", "type": "plain", "expect": ["command:preview"]},
-    {"q": "render a block to html", "type": "plain", "expect": ["command:preview"]},
     {"q": "find code smells like ai mentor", "type": "plain", "expect": ["command:check"]},
     {"q": "layer violations between modules", "type": "plain", "expect": ["command:architecture"]},
     {"q": "in what order should I publish these modules", "type": "plain", "expect": ["command:architecture"]},

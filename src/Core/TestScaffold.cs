@@ -113,7 +113,6 @@ static class TestScaffold
                 $"oml new {moduleName}.oml --name {moduleName} --kind CrossDevice",
                 $"oml spec check {Quote(path)}",
                 $"oml apply {moduleName}.oml {Quote(path)} {staged}",
-                $"oml preview {staged} {screens[0].name} --screenshot {screens[0].name}.png",
                 $"oml review {moduleName}.oml {staged} --md {moduleName}.review.md",
             },
         };
@@ -253,7 +252,7 @@ static class TestScaffold
         notes.AddRange(t.Parameters.Select(p => p.Note).OfType<string>().Select(n => $"{t.Name}: {n}."));
         var locals = new List<object>();
         var actions = new List<object>();
-        // A heading: blocks of another module have no look of their own in oml preview, so the screen shows what it tests.
+        // A heading: blocks of another module have no look of their own on a test screen, so the screen shows what it tests.
         var widgets = new List<object> { new { type = "Text", text = t.Name + " tests" } };
         var scenarios = new List<string>();
 

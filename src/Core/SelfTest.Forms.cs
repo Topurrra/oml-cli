@@ -86,7 +86,7 @@ static partial class SelfTest
             else using (var titled = Model.Load(Path.Combine(dir, "form-titled.oml")))
             {
                 var screen = ElementPaths.Resolve(titled, "MainFlow/FormCheck");
-                if (Preview.Text(Reflect.Get(screen, "Title")) != "\"Check\"" || Reflect.Get(screen, "StyleSheet") as string != ".check { color: red; }")
+                if (ModelText.Of(Reflect.Get(screen, "Title")) != "\"Check\"" || Reflect.Get(screen, "StyleSheet") as string != ".check { color: red; }")
                     failures.Add("form validation: an existing screen's new title or styleSheet was not stored");
             }
             // The model checks the target: an unknown widget property and the read-only Form.Valid are refused.

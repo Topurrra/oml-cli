@@ -1,6 +1,6 @@
 # The architect skill (skill/architect.md, skill/reference/worker-brief.md):
 #   1. every `oml` command, option, doc topic, recipe and spec key that the two files name exists;
-#   2. the worked example runs: two spec parts built from recipes, spec check, ONE multi-part apply, review --md, check, preview light and dark;
+#   2. the worked example runs: two spec parts built from recipes, spec check, ONE multi-part apply, review --md, check, a batch of two read steps;
 #   3. the same two parts as one repeated part are refused (the "check overlaps by hand" claim).
 # Throws on the first failure.
 param([string]$Oml, [string]$Tmp)
@@ -56,7 +56,7 @@ foreach ($f in $files) {
     }
   }
 }
-foreach ($c in 'batch', 'inspect', 'describe', 'apply', 'review', 'check', 'preview', 'spec', 'doc', 'validate', 'install', 'publish') {
+foreach ($c in 'batch', 'inspect', 'describe', 'apply', 'review', 'check', 'spec', 'doc', 'validate', 'install', 'publish') {
   if (-not $seenCmd.ContainsKey($c)) { Fail "docs no longer name 'oml $c'; update this check" }
 }
 Write-Host "ok   architect docs: $($seenCmd.Count) commands, $($seenFlag.Count) options, doc topics, recipes and spec keys exist"
@@ -119,12 +119,12 @@ $rv = & $Oml review $shop $staged --md $md | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $md) -or $rv.summary.added -lt 3 -or $rv.summary.risks -ne 0) { Fail "review: $($rv | ConvertTo-Json -Depth 5 -Compress)" }
 $ck = & $Oml check $staged | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0 -or $null -eq $ck.summary) { Fail 'check did not report' }
-$pv = Join-Path $work 'preview.json'
-$steps = foreach ($th in 'light', 'dark') { , @('preview', $staged, 'Orders', '--theme', $th, '--out', (Join-Path $work "Orders.$th.html")) }
-Set-Content $pv -Encoding utf8 (@{ steps = @($steps) } | ConvertTo-Json -Depth 5)
-$pr = & $Oml batch $pv | ConvertFrom-Json
-if ($LASTEXITCODE -ne 0 -or @($pr.results | Where-Object exitCode -ne 0).Count -or @($pr.results).Count -ne 2) { Fail 'preview of Orders (light and dark) failed' }
-Write-Host "ok   architect example: 2 parts, one apply (saved, 0 newErrors, only UnusedUserAction), review --md ($($rv.summary.added) added, 0 risks), check, preview light and dark"
+$rd = Join-Path $work 'reads.json'
+$steps = foreach ($el in 'Orders', 'Customer_Validate') { , @('describe', $staged, $el) }
+Set-Content $rd -Encoding utf8 (@{ steps = @($steps) } | ConvertTo-Json -Depth 5)
+$pr = & $Oml batch $rd | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0 -or @($pr.results | Where-Object exitCode -ne 0).Count -or @($pr.results).Count -ne 2) { Fail 'batch of two describe steps (Orders, Customer_Validate) failed' }
+Write-Host "ok   architect example: 2 parts, one apply (saved, 0 newErrors, only UnusedUserAction), review --md ($($rv.summary.added) added, 0 risks), check, a batch of two describe steps"
 
 # --- 3. A repeated part is refused. ---
 $r = Run 'apply', $shop, $partA, $partA, (Join-Path $work 'dup.oml')

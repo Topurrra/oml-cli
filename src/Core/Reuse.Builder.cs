@@ -146,7 +146,7 @@ partial class Builder
             Change($"styleSheet of {label}");
         }
         if (s.Title is { ValueKind: JsonValueKind.String } title && Reuse.Has(raw, "title")
-            && Reuse.Norm(Preview.Text(Reflect.Get(screen, "Title"))) != Reuse.Norm(title.GetString()))
+            && Reuse.Norm(ModelText.Of(Reflect.Get(screen, "Title"))) != Reuse.Norm(title.GetString()))
         {
             Defer(screen, ($"{label}.title", () => Reflect.Call(screen, "SetTitle", title.GetString())));
             Change($"title of {label}");
@@ -220,7 +220,7 @@ partial class Builder
             if (!now.SequenceEqual(given)) changed.Add("sources");
         }
         if (spec.TryGetProperty("maxRecords", out var max)
-            && Reuse.Norm(max.ValueKind == JsonValueKind.String ? max.GetString() : max.GetRawText()) != Reuse.Norm(Preview.Text(Reflect.Get(aggregate, "MaxRecords"))))
+            && Reuse.Norm(max.ValueKind == JsonValueKind.String ? max.GetString() : max.GetRawText()) != Reuse.Norm(ModelText.Of(Reflect.Get(aggregate, "MaxRecords"))))
             changed.Add("maxRecords");
         if (spec.TryGetProperty("fetch", out var fetch) && !string.Equals(fetch.GetString(), Reflect.Get(aggregate, "Fetch")?.ToString(), StringComparison.OrdinalIgnoreCase))
             changed.Add("fetch");
@@ -342,7 +342,7 @@ partial class Builder
         var changed = new List<string>();
         if (Reuse.Has(raw, "type") && Model.Resolve(m, s.Type) is { } type && Model.Describe(m, type) != Model.Describe(m, Reflect.Get(variable, "DataType") as OutSystems.Model.Types.ITypeSignature))
             changed.Add("type");
-        if (s.Default is not null && Reuse.Norm(s.Default) != Reuse.Norm(Preview.Text(Reflect.Get(variable, "DefaultValue")))) changed.Add("default");
+        if (s.Default is not null && Reuse.Norm(s.Default) != Reuse.Norm(ModelText.Of(Reflect.Get(variable, "DefaultValue")))) changed.Add("default");
         if (s.IsSecure is { } secure && Reflect.Get(variable, "IsSecure") is bool isSecure && isSecure != secure) changed.Add("isSecure");
         if (changed.Count > 0) problems.Add(Reuse.Changed($"{Kind(collection)} {s.Name}", changed, "Change it with an edits \"set\" op, or by hand in Service Studio."));
     }

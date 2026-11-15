@@ -1,6 +1,6 @@
 # oml test bdd: builds a stand-in BDDFramework (tests/bdd-standin.json, unverified against the real Forge component)
 # and a module under test (tests/bdd-producer.json), writes the spec, applies it to a new test module with no errors and
-# no new warnings, applies it again, describes and previews the test screen, checks the refusals, that the read modules
+# no new warnings, applies it again, describes the test screen (heading and block counts), checks the refusals, that the read modules
 # did not change, and that skill/recipes/bdd-test-screen.jsonc is the scaffold output for PlaceOrder. Throws on failure.
 # The stand-in has the block names from the OutSystems docs; its Description inputs, Steps placeholder, StepAction event
 # and AssertTrue(Condition, FailureMessage) are assumptions.
@@ -70,12 +70,12 @@ Assert-Describe $staged CancelOrder_Tests @('Condition = False /* TODO: check wh
 Assert-Describe $staged Ping_Tests @('call OrderCore.Ping()', 'event StepAction=HappyPath_Given()', 'Condition = False /* TODO: check what Ping changed */')
 if ((& $Oml describe $staged CancelOrder_Tests | ConvertFrom-Json).text -match 'CheckMessage') { Fail 'CancelOrder raises a computed message: there must be no message check' }
 
-# 4. Preview: the heading shows, and the screen holds 3 scenarios, 9 steps and the final result.
-$png = Join-Path $work 'PlaceOrder_Tests.png'
-$p = & $Oml preview $staged PlaceOrder_Tests --out (Join-Path $work 'PlaceOrder_Tests.html') --screenshot $png `
-  --eval "document.querySelectorAll('.BDDScenario').length + ':' + document.querySelectorAll('.BDDStep').length + ':' + document.querySelectorAll('.FinalResult').length + ':' + document.body.innerText.includes('PlaceOrder tests')" | ConvertFrom-Json
-if ($LASTEXITCODE -ne 0 -or $p.steps[0].result -ne '3:9:1:true') { Fail "preview: $($p | ConvertTo-Json -Depth 6 -Compress)" }
-if ($p.screenshot -and -not (Test-Path $png)) { Fail 'preview reported a screenshot that is missing' }
+# 4. The screen's widgets: the heading, and block instances for 3 scenarios, 9 steps and the final result.
+$d = & $Oml describe $staged PlaceOrder_Tests | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) { Fail "describe PlaceOrder_Tests exit $LASTEXITCODE" }
+$count = { param($block) [regex]::Matches($d.text, "sourceBlock=(\w+\.)?$block\b").Count }
+$shape = '{0}:{1}:{2}:{3}' -f (& $count 'BDDScenario'), (& $count 'BDDStep'), (& $count 'FinalResult'), $d.text.Contains('text=PlaceOrder tests')
+if ($shape -ne '3:9:1:True') { Fail "test screen shape $shape, expected 3:9:1:True`n$($d.text)" }
 
 # 5. Refusals, each with exit code and message. None writes a spec.
 $refused = Join-Path $work 'refused.json'
@@ -158,5 +158,5 @@ function Normal($path) {
   $j | ConvertTo-Json -Depth 64 -Compress
 }
 if ((Normal $one) -ne (Normal (Join-Path $repo 'skill/recipes/bdd-test-screen.jsonc'))) { Fail "skill/recipes/bdd-test-screen.jsonc differs from the scaffold output: regenerate it from $one" }
-Write-Host 'ok   test bdd: spec, clean apply and re-apply, describe, preview, refusals, read-only, recipe'
+Write-Host 'ok   test bdd: spec, clean apply and re-apply, describe, refusals, read-only, recipe'
 } finally { Remove-TestWorkFolder $Tmp }

@@ -18,7 +18,7 @@ public static partial class Cli
     static readonly string[] MemoryReads = ["recall", "list", "show", "history", "handoff", "traps"];
 
     static readonly string[] RunAllowed =
-        ["apply", "architecture", "check", "describe", "doc", "explain-warning", "find", "flow", "inspect", "memory", "openapi", "preview", "review", "spec", "stats", "test", "tree", "validate"];
+        ["apply", "architecture", "check", "describe", "doc", "explain-warning", "find", "flow", "inspect", "memory", "openapi", "review", "spec", "stats", "test", "tree", "validate"];
 
     static readonly Dictionary<string, string> RunRefused = new()
     {
@@ -133,7 +133,7 @@ public static partial class Cli
     // Modules it only reads stay open for the next call, as in a run. Not logged: these are a person's clicks, not agent turns.
     // The launcher allows only read commands; this refusal is the second lock on the same door.
     // `check` and `architecture` with --team arrive here already rewritten by the launcher (no --team left).
-    static readonly string[] DashboardAllowed = ["describe", "find", "flow", "image", "inspect", "openapi", "preview", "architecture", "check", "studio", "pull", "version",
+    static readonly string[] DashboardAllowed = ["describe", "find", "flow", "image", "inspect", "openapi", "architecture", "check", "studio", "pull", "version",
         "review", "tree", "validate", "test bdd", "app list", "app extract", "extension inspect", "templates", "translations export"];
     // A command with subcommands is allowed per subcommand: `app list` yes, `app pack` no; `test bdd` only.
     static bool DashboardAllows(string[] s) => s[0] is "app" or "extension" or "translations" or "test"
@@ -149,7 +149,7 @@ public static partial class Cli
         Model.TrimShared();
         SelfTest.KeepProcess = true;
         var (code, stdout, stderr, _) = RunStep(step, s =>
-            !DashboardAllows(s) || (s[0] is "architecture" or "check" && s.Contains("--team")) || (s[0] == "preview" && s.Contains("--serve")) ? Refuse($"'{s[0]}' is not available in the dashboard.")
+            !DashboardAllows(s) || (s[0] is "architecture" or "check" && s.Contains("--team")) ? Refuse($"'{s[0]}' is not available in the dashboard.")
             : s[0] == "image" ? ImageAssets.Run(s[1..])
             : Run(serviceStudioDir, s));
         return [code.ToString(), stdout, stderr];
@@ -166,8 +166,6 @@ public static partial class Cli
             return Refuse($"'{command}' is not allowed inside 'oml batch': {reason}. Run it as its own command.");
         if (!RunAllowed.Contains(command))
             return Refuse($"'{command}' is not supported inside 'oml batch'. Use one of: {string.Join(", ", RunAllowed)}.");
-        if (command == "preview" && step.Contains("--serve"))
-            return Refuse("'preview --serve' is not allowed inside 'oml batch': it keeps running until Ctrl+C. Run it as its own command.");
         if (command is "architecture" or "check" && step.Contains("--team"))
             return Refuse($"'{command} --team' is not allowed inside 'oml batch': it reads LifeTime and needs a person's confirmation. Run it as its own command.");
         if (command == "memory" && (step.Length < 2 || !MemoryReads.Contains(step[1])))
