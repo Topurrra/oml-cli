@@ -194,7 +194,7 @@ static class ProjectConfig
         if (!v.On("checks.bestPractices")) skipped.Add("oml doc best-practices");
         if (!v.On("checks.testScenarios")) skipped.Add("oml test scenarios");
         if (!v.On("checks.testData")) skipped.Add("oml test data");
-        if (skipped.Count > 0) lines.Add($"Turned off for this project, do not run or offer unless the user asks in this task: {Join(skipped)}.");
+        if (skipped.Count > 0) lines.Add($"Turned off for this project, do not run or offer unless the user asks in this task: {Join(skipped)}. The commands refuse; --no-profile runs one once when the user asks.");
 
         if (!v.On("ask.testing")) lines.Add("Do not ask whether to test, preview or run QA. Run what this profile leaves on, then end with one line: Not run: <what you skipped>.");
         if (!v.On("ask.testScenarios")) lines.Add("Do not ask about test scenarios.");
@@ -239,16 +239,26 @@ static class ProjectConfig
 
     static string SizeOf(int width) => width < 600 ? "phone" : width < 1024 ? "tablet" : "desktop";
 
-    // preview and qa follow ui.targets and ui.themes: a width or theme the project does not support is refused with
-    // the reason (--no-profile skips this once), and a preview with no --width or --theme gets the project's own.
-    // Returns the arguments to run, or the refusal.
+    // preview, qa and test scenarios follow the profile: a command whose checks.* setting is off is refused, and so is
+    // a width or theme that ui.targets and ui.themes do not support, each with the reason (--no-profile skips this
+    // once); a preview with no --width or --theme gets the project's own. test scenarios runs in Core, so the launcher
+    // is the only place that can refuse it. Returns the arguments to run, or the refusal.
     internal static (string[] Args, string? Refusal) Adjust(string[] args)
     {
-        if (args.Length == 0 || args[0] is not ("preview" or "qa")) return (args, null);
+        if (args.Length == 0 || args[0] is not ("preview" or "qa") && args is not ["test", "scenarios", ..]) return (args, null);
         if (args.Contains("--no-profile")) return (args.Where(a => a != "--no-profile").ToArray(), null);
         if (args.Contains("--help") || args.Contains("-h")) return (args, null);
         var v = Load(null);
         if (v.File is null || v.Error is not null) return (args, null);
+        // Only the commands that do the check: qa start, stop and the bare qa only manage the browser session.
+        var check = args[0] switch
+        {
+            "test" => "checks.testScenarios",
+            "qa" => args.Length > 1 && args[1] is "page" or "run" or "restyle" or "record" ? "checks.qa" : null,
+            _ => args.Contains("--live") ? "checks.livePreview" : "checks.preview",
+        };
+        if (check is not null && !v.On(check))
+            return (args, $"{check} is off for this project ({v.File}), so oml {(args[0] == "test" ? "test scenarios" : args[0])} is not run. Turn it on with oml config set {check} on, or add --no-profile to run it once when the user asked for it in this task.");
         string[] targets = v.List("ui.targets"), themes = v.List("ui.themes");
         string? Value(string option) => System.Array.IndexOf(args, option) is var i and >= 0 && i + 1 < args.Length ? args[i + 1] : null;
         if (Value("--width") is { } w && int.TryParse(w, out var width) && !targets.Contains(SizeOf(width)))

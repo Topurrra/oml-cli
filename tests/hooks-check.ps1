@@ -130,6 +130,21 @@ try {
   Require ($LASTEXITCODE -eq 2) 'a Service Studio MCP address on another machine was accepted'
   & $Oml config set outsystems.mcpServer http://127.0.0.1:41999/mcp | Out-Null
   Require ($LASTEXITCODE -eq 0 -and ((& $Oml config) -join '') -match '41999') 'outsystems.mcpServer is not in the profile'
+  # a check that is off is refused by the command; --no-profile skips it; qa --help is never refused
+  & $Oml config set checks.qa off | Out-Null
+  $x = (& $Oml qa page http://127.0.0.1:9 2>&1) -join ''
+  Require ($LASTEXITCODE -eq 2 -and $x -match 'checks\.qa') "qa page with checks.qa off: $x"
+  $x = (& $Oml qa --help 2>&1) -join ''
+  Require ($LASTEXITCODE -eq 0 -and $x -notmatch 'checks\.qa is off') "qa --help with checks.qa off: $x"
+  $x = (& $Oml qa page http://127.0.0.1:9 --no-profile 2>&1) -join ''
+  Require ($x -notmatch 'checks\.qa is off') "qa page --no-profile was refused by the profile: $x"
+  & $Oml config set checks.qa on | Out-Null
+  & $Oml config set checks.testScenarios off | Out-Null
+  $x = (& $Oml test scenarios a.oml b.oml 2>&1) -join ''
+  Require ($LASTEXITCODE -eq 2 -and $x -match 'checks\.testScenarios') "test scenarios with checks.testScenarios off: $x"
+  $x = (& $Oml test scenarios a.oml b.oml --no-profile 2>&1) -join ''
+  Require ($x -notmatch 'checks\.testScenarios is off') "test scenarios --no-profile was refused by the profile: $x"
+  & $Oml config set checks.testScenarios on | Out-Null
   Set-Content (Join-Path $prof '.oml\config.json') '{ broken'
   Require ((Hook 'check' @{ tool_name = 'Bash'; cwd = $prof; tool_input = @{ command = 'ls' } }).Exit -eq 0) 'a broken config file blocked the agent'
 } finally { Pop-Location }

@@ -8,6 +8,21 @@ You describe a change in a JSON spec, apply it to a new staged file, check it, a
 
 Website: [topurrra.github.io/oml-cli](https://topurrra.github.io/oml-cli/) · [Releases](https://github.com/Topurrra/oml-cli/releases) · [Changelog](CHANGELOG.md)
 
+## Project settings
+
+`.oml/config.json` in the project says what agents do, skip and ask in this project. `oml create` writes it with every default. Change it with `oml config`:
+
+```
+oml config show                      # every setting, its value and what it does
+oml config set ui.targets desktop    # no phone or tablet checks
+oml config set ui.themes light       # no dark theme checks
+oml config set checks.qa off         # no oml qa runs
+oml config set ask.testing off       # stop asking whether to test
+oml config                           # what agents are told
+```
+
+Agents get the result at the start of a session when `oml hooks install` was run. A check that is off is refused by the command itself; `--no-profile` runs it once. Asking before install, publish, deploy and data deletion cannot be turned off. All settings: [commands.md](skill/reference/commands.md#project-profile).
+
 ## Dashboard
 
 Not a terminal person? `oml dashboard` opens a local web page with the same tools.
@@ -38,7 +53,6 @@ On Windows 11, choose "Show more options" first. Results are written next to the
 
 An agent can explain a change in a Markdown walkthrough; `oml show-change specs/<name>.md` shows it in the dashboard with call stacks, links to the elements, the review of the staged module, and comments you copy back to the agent. The idea comes from [diffmap](https://github.com/tanishqkancharla/diffmap) (MIT), rebuilt for OutSystems. Details: [commands.md](skill/reference/commands.md#show-change-the-dif-page).
 
-**Project profile.** `.oml/config.json` says what agents do, skip and ask in a project: `oml config set ui.targets desktop`, `oml config set ui.themes light`, `oml config set ask.testing off`, `oml config set browser agent`. Agents get it when a session starts, so they stop checking phone widths or asking about QA when the project does not need it. `oml config show` lists every setting. Details: [commands.md](skill/reference/commands.md#project-profile).
 
 Run `oml hooks install` in the project folder once (`oml create` does it for you). The hook works in Claude Code, GitHub Copilot (VS Code, app, CLI, also with a Claude model), Cursor, Codex and Gemini CLI. It stops agents from reading the large skill references whole, from editing `.oml` files and from calling the test-data API around oml; it costs no tokens. Details: [commands.md](skill/reference/commands.md#agent-hooks).
 
