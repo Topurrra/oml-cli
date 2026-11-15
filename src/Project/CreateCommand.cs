@@ -287,7 +287,7 @@ static class CreateCommand
 
         ## Project profile
 
-        `.oml/config.json` says what agents do, skip and ask in this project: screen sizes, themes, previews, QA,
+        `.oml/config.json` says what agents do, skip and ask in this project: screen sizes, themes, QA,
         questions, the browser, the hooks. `oml config show` explains every setting, and `oml config set <key> <value>`
         changes one, for example `oml config set ui.targets desktop` or `oml config set ask.testing off`.
         Agents get the result at the start of a session.

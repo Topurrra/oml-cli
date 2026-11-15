@@ -12,7 +12,7 @@ export default {
   description: 'Write a clear task for an AI agent: the modules, what to build, the exact elements to use and what it may not do.',
   async render(main) {
     const saved = store.get('prompt', {});
-    const defaults = { mode: 'small', task: '', elements: [], noInstall: true, noPublish: true, preview: false, validate: true, review: true };
+    const defaults = { mode: 'small', task: '', elements: [], noInstall: true, noPublish: true, validate: true, review: true };
     const opts = { ...defaults, ...saved };
     const moduleInput = h('input', { type: 'text', id: 'p-module', class: 'code', value: workset.list().length ? '' : state.module, placeholder: 'C:\\Work\\Orders.oml', spellcheck: 'false' });
     const taskInput = h('textarea', { id: 'p-task', placeholder: 'Add an entity Invoice (Number Text 20 mandatory, Amount Decimal, IssuedOn Date) with Invoice_CreateOrUpdate and Invoice_Delete server actions, and a Reactive list screen InvoiceList.' });
@@ -29,7 +29,6 @@ export default {
       review: ['Review the change: oml review … --md', opts.review],
       noInstall: ['Do not install', opts.noInstall],
       noPublish: ['Do not publish', opts.noPublish],
-      preview: ['Preview the UI at 1366 and 1920 px (add dark or 390 px only when needed)', opts.preview],
     };
     const boxes = Object.fromEntries(Object.entries(checks).map(([k, [, v]]) => [k, h('input', { type: 'checkbox', id: 'p-' + k, checked: v })]));
     const output = h('textarea', { id: 'p-out', class: 'code', readonly: true, rows: 14 });
@@ -68,7 +67,6 @@ export default {
         for (const m of all) lines.push(`- ${fileName(m.path)}: ${workset.sourceLine(m)}`);
         lines.push('');
       }
-      if (boxes.preview.checked) lines.push('Preview the UI at 1366 and 1920 px (add dark or 390 px only when needed).');
       if (boxes.validate.checked) lines.push('Stage the result and validate it.');
       if (boxes.review.checked && !change.length) lines.push('Then run oml review on the module and its staged file with --md, and show me the Markdown.');
       if (boxes.review.checked) for (const m of change)
@@ -199,9 +197,6 @@ export default {
         has(t, '- Shop.oml: downloaded from LifeTime: application Shop, as it runs in Development (oml lifetime download).');
         has(t, 'Then run oml review C:\\T\\Orders.oml C:\\T\\Orders.staged.oml --md C:\\T\\Orders.review.md and show me the Markdown.');
         has(t, 'Use these elements from other modules: Shop.Customer_Get.');
-        boxes.preview.checked = true;
-        has(text(), 'Preview the UI at 1366 and 1920 px (add dark or 390 px only when needed).');
-        boxes.preview.checked = false;
         opts.mode = 'architect';
         const ta = text();
         has(ta, '[oml] Architect task');

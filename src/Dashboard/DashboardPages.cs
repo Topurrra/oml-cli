@@ -25,12 +25,12 @@ static partial class Dashboard
     }
 
     // Free text that becomes one argument: search words, a selector, a test value. A leading dash would read as an option.
-    static string Words(string? text, string what, int max = 200, bool lines = false)
+    static string Words(string? text, string what, int max = 200)
     {
         if (text is null) throw new BadInput($"Type {what}.");
         if (text.Length > max) throw new BadInput($"{what} is longer than {max} characters.");
         if (text.StartsWith('-')) throw new BadInput($"{what} cannot start with '-': {text}");
-        if (!lines && text.Any(char.IsControl)) throw new BadInput($"{what} has a control character.");
+        if (text.Any(char.IsControl)) throw new BadInput($"{what} has a control character.");
         return text;
     }
 
@@ -150,34 +150,5 @@ static partial class Dashboard
         var spec = Path.Combine(NewWorkFolder("tests"), Path.GetFileNameWithoutExtension(module) + "_Tests.bdd-spec.json");
         var r = await Oml([.. Timed(body, ["test", "bdd", module, .. actions, "--bdd", bdd, "--out", spec])]);
         return Wrap(r, new JsonObject { ["path"] = File.Exists(spec) ? spec : null, ["spec"] = File.Exists(spec) ? await File.ReadAllTextAsync(spec) : null });
-    }
-
-    static readonly string[] StepKinds = ["click", "type", "wait", "eval"];
-
-    // preview --arg, --height and the interaction steps, in the order the page lists them.
-    static List<string> PreviewOptions(JsonObject body)
-    {
-        var options = new List<string>();
-        foreach (var item in (body["args"] as JsonArray ?? []).OfType<JsonObject>())
-        {
-            var name = ElementName(Str(item, "name"), "an input name");
-            if (Str(item, "value") is { } value)
-            {
-                // The argument starts with "Name=", so a value such as -1 never reads as an option.
-                if (value.Length > 2000) throw new BadInput($"The value of {name} is longer than 2000 characters.");
-                options.AddRange(["--arg", name + "=" + value]);
-            }
-        }
-        if (body["height"] is JsonValue) options.AddRange(["--height", Number(body, "height", 100, 10000, 900).ToString()]);
-        var steps = (body["steps"] as JsonArray ?? []).OfType<JsonObject>().ToList();
-        if (steps.Count > 20) throw new BadInput("Use at most 20 interaction steps.");
-        foreach (var step in steps)
-        {
-            var kind = Str(step, "kind") is { } k && StepKinds.Contains(k) ? k : throw new BadInput("A step is click, type, wait or eval.");
-            var value = kind == "wait" ? Number(step, "value", 0, 60000, 300).ToString() : Words(Str(step, "value"), $"The {kind} step", 4000, lines: kind == "eval");
-            if (kind == "type" && !value.Contains('=')) throw new BadInput("A type step is <selector>=<text>, for example #Name=Ann.");
-            options.AddRange(["--" + kind, value]);
-        }
-        return options;
     }
 }

@@ -3,7 +3,6 @@ export const ICONS = {
   home: 'M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z',
   explorer: 'M4 5h6v6H4zM14 5h6M14 9h6M4 15h6M14 15h6v4h-6zM4 19h6',
   modules: 'M4 6h16v4H4zM4 14h16v4H4zM8 8h.01M8 16h.01',
-  previews: 'M3 5h18v12H3zM8 21h8M12 17v4',
   prompt: 'M4 5h16v11H8l-4 4zM8 9h8M8 12h5',
   agents: 'M4 5h16v11H8l-4 4zM8 9h8M8 12h5',
   recipes: 'M6 3h9l3 3v15H6zM9 9h6M9 13h6M9 17h4',

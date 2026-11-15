@@ -342,7 +342,7 @@ Missing elements, unsupported node scopes and model refusals prevent saving. The
     "flow": [{ "kind": "sendEmail", "email": "Welcome", "from": "\"team@example.com\"", "to": "To", "args": { "Name": "Name" } }] }] }
 ```
 
-Sending only queues the mail. SMTP is set up in Service Center. Use a From address of your own mail domain. `oml preview <module> <Email>` renders an email; `describe` shows its subject and widgets. See `recipes/send-email.jsonc`.
+Sending only queues the mail. SMTP is set up in Service Center. Use a From address of your own mail domain. `describe` shows its subject and widgets. See `recipes/send-email.jsonc`.
 
 ### Logic and flows
 

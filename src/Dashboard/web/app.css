@@ -193,12 +193,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .chip button { border: 0; background: none; padding: 0 2px; color: var(--muted); font-size: 15px; line-height: 1; }
 .chip button:hover { color: var(--fail); }
 
-/* ---- previews ---- */
+/* ---- gallery and checklist ---- */
 .gallery { margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 16px; }
-.frame-box { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--sunken); margin: 12px 0; }
-.frame-box iframe { border: 0; transform-origin: 0 0; display: block; background: #fff; }
-.frame-box.phone { max-width: 260px; margin-left: auto; margin-right: auto; }
-.frame-box img { display: block; width: 100%; height: auto; }
 .checklist { list-style: none; padding: 0; margin: 0; font-size: 13px; }
 .checklist li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; }
 .checklist .detail { color: var(--muted); }
@@ -311,8 +307,6 @@ td > .button:last-child { margin-top: 8px; }
 .steps { padding-left: 20px; margin: 6px 0 10px; }
 .steps li { margin: 0 0 6px; }
 .steps select { width: auto; }
-.pv-options { margin: 0 0 10px; font-size: 13.5px; }
-.pv-options summary { cursor: pointer; color: var(--muted); margin-bottom: 8px; }
 
 /* ---- toast ---- */
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 999px; font-size: 14px; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 40; }

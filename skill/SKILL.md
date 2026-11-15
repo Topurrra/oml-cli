@@ -64,11 +64,7 @@ Project profile: a session may start with an "oml project profile" (`.oml/config
    Read `summary` first, then its lists. After a good apply, do not run `validate`, `inspect` or `describe` again.
    **A good apply means `saved: true`, no `newErrors`, and no `newWarnings`.** Every new warning is a defect until you prove otherwise. Entries have a `hint` when the fix is known; otherwise `oml explain-warning <id>`. Fix each one or explain it to the user.
 4. **Fix (only if needed, 1 call per attempt).** Change only what the report names, then repeat step 3 with a NEW staged path. Never retry an unchanged spec.
-5. **UI work: see it in the real app (1 call).** Ask the user for the DEV URL of the screen if you do not have it.
-   - **Only style sheets changed:** `oml preview --live <screen url> <source.oml> <staged.oml>`. Look at the `before` and `after` PNGs. Fix in a NEW staged file and run it again. Items in `needsPublish` are checked after the publish (next point). A login page? Ask the user to run `oml qa start --headed` and log in; then run it again.
-   - **Widgets, data, logic or new screens:** after step 6 the user installs and publishes to DEV. Then run `oml qa page <screen url> --screenshot <Screen>.png`, look at the PNG, and read `layout` and `errors`. Fix in a new staged file if needed.
-   - **No running app yet (a new module):** `oml preview <staged.oml> <Screen> --width 1366 --screenshot <Screen>.png` shows only your own CSS and texts.
-   Follow `oml doc ui-checklist`.
+5. **UI work: see it in the real app.** Ask the user for the DEV URL of the screen if you do not have it. Before a publish there is no visual check: report "pending visual check". After step 6 the user installs and publishes to DEV. Then run `oml qa page <screen url> --screenshot <Screen>.png` (or open the screen in your own browser when the profile says `browser agent`), look at the picture, and read `layout` and `errors`. Fix in a new staged file if needed. A login page? Ask the user to run `oml qa start --headed` and log in; then run it again. Follow `oml doc ui-checklist`.
 6. **Report.** Run `oml review <source.oml> <staged.oml> --md <new path>.md`, then show the staged path, what was built and the .md. 0 findings does not mean the code is correct. Ask before `install` or `publish`; run `oml validate <staged.oml> --warnings` right before `install`. A change the user should read first (several parts, a UI): `oml doc dif`. Then ask whether the user wants test scenarios for what was built: `oml test scenarios <source.oml> <staged.oml>` (BDD per public action, QA per screen). You may suggest `oml learn report` to the user; never accept, reject or undo a proposal for them.
 
 Expressions use OutSystems syntax; text literals need escaped quotes (`"\"Text\""`). Parts: `oml apply <source.oml> <part1.json> <part2.json> <new-staged.oml>`.
@@ -98,7 +94,7 @@ Copy one from `recipes/` and read its header ([README](recipes/README.md)):
 |---|---|
 | `oml inspect`, `describe`, `find`, `tree` | Read a module: overview (`--own --only ...`), what an element does, who owns a name, exact paths for `edits`. |
 | `oml apply`, `spec`, `batch`, `validate`, `install` | Change: staged apply, spec help, many commands at once, check, copy over the target (confirm). |
-| `oml new`, `preview`, `openapi`, `architecture`, `test bdd` | New module, render a screen/block, export OpenAPI, layer report, BDD tests. |
+| `oml new`, `openapi`, `architecture`, `test bdd` | New module, export OpenAPI, layer report, BDD tests. |
 | `oml studio`, `pull`, `publish`, `references`, `lifetime` | Service Studio and LifeTime. Confirm every change. |
 | `oml check` | AI Mentor-like findings (module, folder, `--team`). |
 | More | doctor, census, translations, app, extension, templates, font, image, api, widgets. Lead workers: [architect.md](architect.md) |

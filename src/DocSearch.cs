@@ -317,7 +317,6 @@ static class DocSearch
         ["header"] = "module header version upgrade level key without loading",
         ["outsystems-docs"] = "download outsystems documentation docs offline local copy",
         ["log"] = "usage log slow slowest commands failures statistics",
-        ["preview"] = "screenshot render html picture how a screen or block looks",
         ["check"] = "code smells ai mentor quality lint technical debt",
         ["architecture"] = "layers violations dependencies graph cycles publish order of modules",
         ["memory"] = "remember decision notes next agent handoff brief project knowledge trap",

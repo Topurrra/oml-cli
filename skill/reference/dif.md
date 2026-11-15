@@ -24,7 +24,7 @@ Proof you can put in a phase:
 - A `flow diff` fence with `before:`, `after:` and `action:` lines for a changed action: the flow diagram, new nodes green, removed nodes red. A `flow` fence with `module:` and `action:` shows one action as it is.
 - A `callstack` fence for call order. Rows start with `+` (new), `-` (removed) or a space.
 - Element links: write `[[Orders.staged.oml#Customer_Save]]` where you name an element; a click shows `oml describe`. Use the paths that `tree` and `find` print.
-- Screenshots: `oml preview <module.oml> <Screen> --screenshot media/save-today.png` for the current module, the same for the staged one as `media/save-proposed.png`. Show them with a gallery:
+- Screenshots: of the running app (`oml qa page <screen url> --screenshot media/save-today.png`), taken before the change and after the publish (`media/save-proposed.png`). Show them with a gallery:
 
 ```text
 :::gallery side-by-side

@@ -43,7 +43,7 @@ Ask in plain words: *"Add a Customer entity with a list screen"*, *"Make Save va
 |---|---|---|
 | Read | `oml inspect`, `oml describe`, `oml find` | Learns what the module holds before changing it. |
 | Change | `oml spec check`, `oml apply` | Writes a change spec and applies it to a **new staged file**. Your module stays as it is. |
-| Look | `oml preview --live`, `oml qa page` | Style-only change: shows it in the real DEV page before you publish (before and after screenshots). Anything else: after you publish to DEV, the agent opens the screen and checks it. |
+| Look | `oml qa page` | After you install and publish to DEV, the agent opens the screen, takes a screenshot and checks it. Before the publish there is no visual check: the agent reports "pending visual check". |
 | Report | `oml review`, `oml show-change` | Shows what changed and its risks, as Markdown or a page with flow diagrams. |
 | Install | `oml install` | Only after you say yes. |
 

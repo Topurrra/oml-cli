@@ -35,8 +35,6 @@ static class CliUsage
         oml check --diff <before.oml> <after.oml> [--rules <oml-rules.json>]   (findings fixed and introduced per rule; exit 1 when one is introduced)
         oml review <before.oml> <after.oml> [--md <file.md>] [--out <file.html>] [--notes <file.md>] [--rules <oml-rules.json>]   (what changed, production-rule risks, new check findings)
         oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
-        oml preview --live <url> <source.oml> <staged.oml> [--out <folder>]   (a CSS change on the live page, before/after)
-        oml preview <module.oml> <Block|Screen|Email> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>] [--wait <ms>] [--click <selector>] [--type <selector>=<text>] [--eval <js>] [--serve [--no-open]]
         oml test bdd <module.oml> <ServerAction>... --bdd <BDDFramework.oml> [--out <spec.json>] [--module-name <TestModule>] [--producer <path>]   (spec for BDD test screens in a separate test module)
         oml test scenarios <source.oml> <staged.oml> [--out <folder>]   (what to test after a change: BDD per changed public action, QA scenarios and qa.json per screen)
         oml test data module <producer.oml> --entity <Entity>:Create=<A>,Delete=<B>[,Get=..][,Update=..][,CreateOrUpdate=..]... [--name <Module>] [--out <spec.json>]   (dev-only test-data module through your wrapper actions)
@@ -122,7 +120,6 @@ static class CliUsage
         Change a module: new, apply, install, validate, spec, translations (new module; edit by spec into a staged copy; install after checks; spec keys; translation files)
         Application map: map, mock (every app of a project: who calls what, which APIs feed which; mocks chained across APIs)
         Check and review: check, review, architecture (rules and findings; a change before and after; module map and publish order)
-        Preview and UI: preview (a screen or block in light and dark, screenshot, serve it)
         Docs and search: doc, spec, explain-warning, outsystems-docs, team-rules (OutSystems rules by topic and search; spec keys; cause and fix of a warning; the OutSystems 11 docs; company rules)
         Memory and learning: memory, learn (project facts, decisions and traps for agents; lessons from where agents fail and retry)
         Agents: batch, hooks, show-change, dashboard (several commands in one process; agent hooks; a change walkthrough; the local web dashboard)

@@ -72,12 +72,6 @@ export const cookbook = [
     ['oml translations export C:\\Work\\Orders.oml C:\\Work\\Orders-translations.xlsx', 'Export the translations to Excel.'],
   ] },
   { group: 'User interface', items: [
-    ['oml preview C:\\Work\\Orders.staged.oml StatusBadge --theme light --screenshot C:\\Work\\badge-light.png', 'Render a block and take a screenshot.'],
-    ['oml preview C:\\Work\\Orders.staged.oml StatusBadge --theme dark --width 390 --screenshot C:\\Work\\badge-dark-390.png', 'Check the dark theme at phone width.'],
-    ['oml preview C:\\Work\\Orders.staged.oml OrderCard --arg Title="\\"Order 1042\\""', 'Render a block with an input value.'],
-    ['oml preview C:\\Work\\Orders.staged.oml OrderList --height 2000 --screenshot C:\\Work\\list.png', 'Take a taller screenshot of a long screen.'],
-    ['oml preview C:\\Work\\Orders.staged.oml LoginForm --type "#Username=ana" --click "#Login" --wait 500 --screenshot C:\\Work\\login.png', 'Type, click and wait before the screenshot.'],
-    ['oml preview C:\\Work\\Orders.staged.oml StatusBadge --serve', 'A live preview in your browser that reloads when the file changes. Ctrl+C stops it.'],
     ['oml qa page https://dev.example.com/Orders/OrdersList', 'Test the running app: what the screen shows (actions, inputs, tables, messages, errors) in a browser of its own.'],
     ['oml qa run login.qa.json --save login.replay.json', 'Save a passing run with time limits and screen checks, so anyone can replay it without an agent.'],
     ['oml qa run C:\\Work\\orders-qa.json --out C:\\Work\\qa', 'Run QA steps like a manual tester (open, click, fill, expect). Writes the report and screenshots of failed steps.'],
