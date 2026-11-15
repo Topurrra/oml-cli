@@ -478,8 +478,9 @@ try {
             @{ page = 'check'; hash = "#/check?module=$m"; expect = 'missing-description' },
             @{ page = 'review'; hash = "#/review?before=$([uri]::EscapeDataString($blank))&after=$m"; expect = 'PvCard' },
             @{ page = 'previews'; hash = "#/previews?module=$m"; expect = 'Inputs and interaction steps' },
-            @{ page = 'modules'; hash = '#/modules' }, @{ page = 'architecture'; hash = '#/architecture' }, @{ page = 'lifetime'; hash = '#/lifetime' }) +
-            @('agents', 'assets', 'openapi', 'activity', 'learned' | ForEach-Object { @{ page = $_; hash = "#/$_"; themes = @('light') } })
+            @{ page = 'dif'; hash = "#/dif?file=$([uri]::EscapeDataString($difFile))&selftest=1"; expect = 'ShowCard' },
+            @{ page = 'modules'; hash = '#/modules' }, @{ page = 'prompt'; hash = '#/prompt?selftest=1' }, @{ page = 'architecture'; hash = '#/architecture' }, @{ page = 'lifetime'; hash = '#/lifetime' }) +
+            @('agents', 'recipes', 'assets', 'openapi', 'activity', 'learned' | ForEach-Object { @{ page = $_; hash = "#/$_"; themes = @('light') } })
         foreach ($target in $targets) {
             foreach ($theme in $(if ($target.themes) { $target.themes } else { 'light', 'dark' })) {
                 $png = Join-Path $Tmp "dashboard-$($target.page)-$theme.png"

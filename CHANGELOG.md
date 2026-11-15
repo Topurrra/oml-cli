@@ -11,6 +11,7 @@ Keep a Changelog style: one section per release, newest first.
 - Skill: the Standard loop in `SKILL.md` carries the 4-to-8-call turn budget (was only in `AGENTS.md`).
 - `skill/reference/odc.md` no longer points to a nonexistent "section 2"; it names rule 10 of `skill/rules.md`.
 - New doc topic `harnesses`: how to start a worker per harness, with what is verified.
+- Dashboard: one "Work with agents" page (prompt builder, ready prompts, change walkthrough); the docs, cookbook and rules pages and the Ctrl+K docs search are gone.
 
 ## 1.21.1
 

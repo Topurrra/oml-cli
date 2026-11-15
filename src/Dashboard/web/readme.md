@@ -11,9 +11,11 @@ deeper than one folder level. CSP is `script-src 'self'`: no inline scripts, no 
 - `core/`: shared machinery, no page logic: `dom.js` (h/add/icon), `api.js`, `store.js`, `state.js`,
   `router.js`, `workset.js`, `ui.js` (shared widgets), `viewer.js`, `markdown.js`, `lifecycle.js`.
 - `pages/<id>.js`: one file per page, each exports `{ id, group, title, description, icon, render(main, ctx) }`.
-  Pages are registered in `pages/index.js`; ids stay stable (routes like `#/prompt?selftest=1` must keep working).
+  Pages are registered in `pages/index.js`. The sidebar lists `agents` ("Work with agents"), which shows the
+  `prompt`, `recipes` and `dif` pages as sections; those three stay registered and reachable by URL (`#/prompt`,
+  `#/recipes`, `#/dif`, also with `?selftest=1`). The docs, cookbook and rules pages are removed.
 - `data/`: fixed lists: `cookbook.js` (must cover every `oml --help` command), `prompts.js` (the two agent
-  prompt templates). The prompt builder and the "Prompts for agents" page share `prompts.js`.
+  prompt templates). The prompt builder and the recipes page share `prompts.js`.
 - `tools.js` / `tools-more.js`: the Developer tools (browser only); `tools-ui.js` has their small form helpers.
 
 ## Rules

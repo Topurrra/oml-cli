@@ -13,8 +13,13 @@ import lifetime from './lifetime.js';
 import activity from './activity.js';
 import learned from './learned.js';
 import tools from './tools.js';
+import prompt from './prompt.js';
+import recipes from './recipes.js';
+import dif from './dif.js';
 
 export const PAGES = [
   home, modules, explorer, previews, agents, assets, openapi, architecture, check, review,
   lifetime, activity, learned, tools,
+  // Not in the sidebar (nav.js lists only agents); still reachable by URL: #/prompt, #/recipes, #/dif.
+  prompt, recipes, dif,
 ];
