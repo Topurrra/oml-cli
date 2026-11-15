@@ -33,7 +33,6 @@ static partial class Dashboard
                 (false, "inspect") => await InspectModule(Body()),
                 (false, "describe") => await DescribeElement(Body()),
                 (false, "find") => await FindElements(Body()),
-                (false, "preview") => await PreviewElement(Body()),
                 (false, "openapi") => await OpenApiExport(Body()),
                 (false, "architecture") => await ArchitectureReport(Body()),
                 (false, "modules/folder") => FolderModules(Body()),
@@ -235,45 +234,6 @@ static partial class Dashboard
         foreach (var folder in folders) args.AddRange(["--in", folder]);
         if (args.Count == 2) throw new BadInput("Choose a module, or add a folder with producer modules.");
         return Wrap(await Oml([.. Timed(body, args)]));
-    }
-
-    static async Task<Reply> PreviewElement(JsonObject body)
-    {
-        var module = ModuleFile(body);
-        var element = ElementName(Str(body, "element"), "a block or screen name");
-        var theme = Str(body, "theme") is "dark" ? "dark" : "light";
-        var width = body["width"] is JsonValue w && w.TryGetValue<int>(out var px) && px is >= 200 and <= 4000 ? px : 1200;
-        var folder = Directory.CreateTempSubdirectory("oml-dashboard-").FullName; // intermediate files: deleted below
-        try
-        {
-            var html = Path.Combine(folder, element + ".preview.html");
-            var options = PreviewOptions(body);
-            List<string> args = ["preview", module, element, "--theme", theme, "--width", width.ToString(), .. options, "--out", html];
-            var png = Path.Combine(folder, element + ".png");
-            var screenshot = body["screenshot"] is JsonValue s && s.TryGetValue<bool>(out var wanted) && wanted;
-            if (screenshot) args.AddRange(["--screenshot", png]);
-            var r = await Oml([.. Timed(body, args)]);
-            var extra = new JsonObject();
-            if (File.Exists(html)) extra["view"] = AddView(ReportsHeight(await File.ReadAllTextAsync(html)));
-            if (File.Exists(png)) extra["png"] = Convert.ToBase64String(await File.ReadAllBytesAsync(png));
-            // The person's version of this command, with names they recognise instead of the temporary folder.
-            List<string> shown = ["preview", module, element, "--theme", theme, "--width", width.ToString(), .. options];
-            if (screenshot) shown.AddRange(["--screenshot", $"{element}-{theme}-{width}.png"]);
-            if (Flag(body, "timings")) shown.Add("--timings");
-            return Wrap(r with { Cli = CliText(shown), Output = Scrub(r.Output, folder) }, extra);
-        }
-        finally { TryDelete(folder); }
-    }
-
-    // The dashboard copy of a preview tells the page its height, for the viewer's "Full height" (the sandboxed frame has no
-    // origin, so the page cannot read it). Only a number goes out; the page checks that it came from its own frame.
-    const string HeightScript = "<script>(()=>{const s=()=>parent.postMessage({omlHeight:document.documentElement.scrollHeight},'*');" +
-        "s();new ResizeObserver(s).observe(document.documentElement);addEventListener('load',s);})();</script>";
-
-    static string ReportsHeight(string html)
-    {
-        var end = html.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
-        return end < 0 ? html + HeightScript : html.Insert(end, HeightScript);
     }
 
     static async Task<Reply> OpenApiExport(JsonObject body)

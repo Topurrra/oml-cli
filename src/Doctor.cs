@@ -96,9 +96,9 @@ static class Doctor
         // 7. browser
         var browser = Locations.BrowserPath();
         checks.Add(browser is null
-            ? new Check("browser", "warn", "No Edge or Chrome found for oml preview --screenshot and oml qa.",
+            ? new Check("browser", "warn", "No Edge or Chrome found for oml qa.",
                 "Install Microsoft Edge or Chrome, or set OML_BROWSER to a browser .exe.")
-            : new Check("browser", "ok", $"Browser for oml preview --screenshot and oml qa: {browser}. " + (Qa.QaPolicy.BlocksDevTools() is { } policy
+            : new Check("browser", "ok", $"Browser for oml qa: {browser}. " + (Qa.QaPolicy.BlocksDevTools() is { } policy
                 ? $"oml qa uses UI Automation: {policy} (no network or JavaScript-error checks)."
                 : "oml qa uses DevTools.")));
 

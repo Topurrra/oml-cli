@@ -8,13 +8,19 @@ Less waiting and fewer questions: a project profile, a project that is ready aft
 
 ### Added
 
-- **Project profile** (`.oml/config.json`, `oml config`). A person turns parts of the work on or off: screen sizes (`ui.targets`), themes (`ui.themes`), RTL, accessibility, translations, the checks (`checks.preview`, `livePreview`, `qa`, `review`, `uiChecklist`, `bestPractices`, `testScenarios`, `testData`), the questions (`ask.testing`, `testScenarios`, `devUrl`, `producerChoice`), the fast lane for small CSS and text changes (`lane.fast`), the browser (`browser`: `oml` or `agent`), `app.devUrl`, memory, the docs library, the map and the hook guards. `oml config` prints the lines an agent follows, `oml config show` explains every setting, `oml config set <key> <value>` changes one, `oml config init` writes the defaults. Asking before install, publish, deploy and data deletion, and the `.oml` write guard, cannot be turned off.
+- **Project profile** (`.oml/config.json`, `oml config`). A person turns parts of the work on or off: screen sizes (`ui.targets`), themes (`ui.themes`), RTL, accessibility, translations, the checks (`checks.qa`, `review`, `uiChecklist`, `bestPractices`, `testScenarios`, `testData`), the questions (`ask.testing`, `testScenarios`, `devUrl`, `producerChoice`), the fast lane for small CSS and text changes (`lane.fast`), the browser (`browser`: `oml` or `agent`), `app.devUrl`, memory, the docs library, the map and the hook guards. `oml config` prints the lines an agent follows, `oml config show` explains every setting, `oml config set <key> <value>` changes one, `oml config init` writes the defaults. Asking before install, publish, deploy and data deletion, and the `.oml` write guard, cannot be turned off.
 - **Session-start hook.** `oml hooks install` adds `oml hooks session`: an agent starts with the project profile as context, at no command and no turn.
 - **Browser guard.** With `browser` set to `agent`, the pre-tool hook refuses a shell command that starts Edge, Chrome or Firefox or opens a URL, and names the agent's built-in browser. `oml qa` is allowed.
-- **`oml preview` and `oml qa` follow the profile.** A `--width` or `--theme` the project does not support is refused with the reason (`--no-profile` skips it once); an offline preview takes the project's size and theme when the default is not supported.
-- **A check that is off is refused.** With `checks.qa`, `checks.livePreview`, `checks.preview` or `checks.testScenarios` off, `oml qa page|run|restyle|record`, `oml preview --live`, `oml preview` and `oml test scenarios` exit 2 and name the setting and the file. `--no-profile` runs one once. A step inside `oml batch` is not checked.
+- **`oml qa` follows the profile.** A `--width` or `--theme` the project does not support is refused with the reason (`--no-profile` skips it once).
+- **A check that is off is refused.** With `checks.qa` or `checks.testScenarios` off, `oml qa page|run|record` and `oml test scenarios` exit 2 and name the setting and the file. `--no-profile` runs one once. A step inside `oml batch` is not checked.
 - **MCP server addresses in the profile.** `outsystems.mcpServer` is Service Studio's MCP server (this computer only): `oml pull`, `publish`, `references`, `studio` and `doctor` use it, and so does the new `OML_STUDIO_URL` variable. `outsystems.odcMcpServer` is the ODC tenant's server, for agents.
 - **`oml create` makes the project ready.** It also writes `.oml/config.json`, downloads the OutSystems docs (once per machine; `--no-library`), runs the setup check (`--no-doctor`), and prints `ready`: one row per step with its status and the command that repeats a step that did not finish.
+
+### Removed
+
+- **`oml preview`**, both the offline form and `--live`, is gone, and so is the dashboard Previews page. Agents can look at the running app themselves: after the user installs and publishes to DEV, run `oml qa page <screen url> --screenshot <Screen>.png` (or use the agent's own browser when the profile says `browser agent`). Before a publish there is no visual check; the agent reports "pending visual check".
+- **`oml qa restyle`**, which only `oml preview --live` used and which was never documented, is gone.
+- **`checks.preview` and `checks.livePreview`** are no longer settings. A config file that still has them is read without a complaint and the two keys are ignored.
 
 ### Fixed
 

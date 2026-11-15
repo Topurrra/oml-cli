@@ -6,7 +6,7 @@ namespace OmlCli.Qa;
 
 // `oml qa page <url> --style-conflicts <class prefix>`: for elements whose class starts with the prefix (the module's
 // own classes, such as "oui-"), the CSS properties the module's style sheets set where a rule of OutSystems UI or the
-// platform wins in the cascade. The offline preview cannot show these: it has no OutSystems UI CSS.
+// platform wins in the cascade. A screenshot of the published page shows the result.
 static class QaStyle
 {
     const int MaxElements = 300, MaxConflicts = 40;

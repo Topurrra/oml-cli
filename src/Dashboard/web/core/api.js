@@ -57,7 +57,7 @@ export function problem(data) {
   return first(out) || (data.stderr || '').split('\n')[0] || ('The command ended with exit code ' + data.code + '.');
 }
 
-// Read a module once and keep the answer for the next page (explorer, previews, openapi).
+// Read a module once and keep the answer for the next page (explorer, openapi).
 export async function inspect(path, fresh) {
   if (!fresh && state.inspect[path]) return state.inspect[path];
   const data = need(await api('inspect', { path, history: store.get('history', false) || undefined }));

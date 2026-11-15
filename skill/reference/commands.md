@@ -34,7 +34,6 @@ oml check --init-rules [--out <oml-rules.json>]   (writes the team rules file: e
 oml check --diff <before.oml> <after.oml> [--rules <oml-rules.json>]   (findings fixed and introduced per rule; exit 1 when one is introduced)
 oml review <before.oml> <after.oml> [--md <file.md>] [--out <file.html>] [--notes <file.md>] [--rules <oml-rules.json>]   (what changed, production-rule risks, new check findings)
 oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
-oml preview <module.oml> <Block|Screen|Email> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>]
 oml test bdd <module.oml> <ServerAction>... --bdd <BDDFramework.oml> [--out <spec.json>] [--module-name <TestModule>] [--producer <path>]   (spec for BDD test screens in a separate test module)
 oml tree <module.oml> <ElementName> [--depth N]   (object tree of one action, screen, entity, ...; at most 250 parts)
 oml validate <module.oml> [--warnings]
@@ -182,8 +181,8 @@ The output is compact JSON: `{"results": [{"step": 1, "args": [...], "exitCode":
 
 - **Cache.** Modules are kept by full path, file write time and file length. A file whose write time or length changed loads again. A module that `apply` wrote is new to the next step. When an earlier step left the source of `apply` open and the file did not change (same write time, length and SHA-256 of its bytes), `apply` takes that module instead of loading the file again. The module then leaves the cache, so a later step that reads the source loads the file again and does not see the change.
 - **Exit codes.** A step with exit code 2 (usage or environment) stops the run, unless you add `--continue`; the output then has `stoppedAfterStep`. A step with exit code 1 does not stop it. The exit code of `oml batch` is the highest step code. Note that `describe` with one unknown name exits 2 (with several names it exits 1), so add `--continue` when a later step does not depend on it.
-- **Allowed:** `inspect`, `describe`, `find`, `stats`, `tree`, `validate`, `apply`, `preview`, `openapi`, `architecture` and `check` (not `--team`), `review`, `spec`, `doc` (also `doc --search`), `explain-warning`, `test bdd`. `spec`, `doc` and `explain-warning` run in the launcher; only `spec check --module` reads a module. They take no `--timings`.
-- **Refused with exit code 2:** `install`, `publish`, `references`, `pull`, `lifetime` and `batch` itself, and `preview --serve` (it runs until Ctrl+C). They need a person's confirmation or are not model work. Run them as their own commands. Any other command is refused as not supported.
+- **Allowed:** `inspect`, `describe`, `find`, `stats`, `tree`, `validate`, `apply`, `openapi`, `architecture` and `check` (not `--team`), `review`, `spec`, `doc` (also `doc --search`), `explain-warning`, `test bdd`. `spec`, `doc` and `explain-warning` run in the launcher; only `spec check --module` reads a module. They take no `--timings`.
+- **Refused with exit code 2:** `install`, `publish`, `references`, `pull`, `lifetime` and `batch` itself. They need a person's confirmation or are not model work. Run them as their own commands. Any other command is refused as not supported.
 
 #### Usage log
 
@@ -394,7 +393,7 @@ On 47 real SVGs (icons, logos, illustrations, a Doxygen file with a DOCTYPE) the
 Add `--timings` to see which phase of a command is slow: `oml apply App.oml spec.json App.staged.oml --timings`. The report gets a `timings` object with whole milliseconds per phase, in the order the phases ran. Without the option the output does not change.
 
 - A phase counts only its own time: the load inside `reopen` counts as `reopen`, and the start of Service Studio's model inside the first load counts as `serviceStudioInit`. A phase that runs more than once is summed. `other` is the time no phase covers; `total` is the whole command.
-- It works on the commands that run in Service Studio's model (`apply`, `inspect`, `describe`, `validate`, `install`, `new`, `stats`, `tree`, `find`, `preview`, `openapi`, `architecture`, `check`, ...). The commands that run without it (`spec`, `doc`, `explain-warning`, `lifetime`, `font`, `image`, `doctor`, `explorer-menu`, `dashboard`, `log`) refuse it with exit 2: `--timings is not available for <command>.`
+- It works on the commands that run in Service Studio's model (`apply`, `inspect`, `describe`, `validate`, `install`, `new`, `stats`, `tree`, `find`, `openapi`, `architecture`, `check`, ...). The commands that run without it (`spec`, `doc`, `explain-warning`, `lifetime`, `font`, `image`, `doctor`, `explorer-menu`, `dashboard`, `log`) refuse it with exit 2: `--timings is not available for <command>.`
 - When the output is a list (`describe` with several names), the list keeps its shape and the timings go to stderr as `{"timings": {...}}`.
 - In `oml batch`, add it to a step, or to `oml batch` itself to add it to every step except `spec`. Steps have no `startup`, and only the first step that loads a module has `serviceStudioInit`.
 
@@ -512,13 +511,13 @@ See [module settings](spec.md#module-settings) for an example.
 
 The first stdout line is JSON: `{"url": "http://127.0.0.1:<port>/?key=<key>", "workFolder": "..."}`. The port is random unless `--port` (1024-65535) is given; a busy fixed port exits 2.
 
-- **Pages:** Home (`doctor`, `studio`), Get modules (the working set; see below), Module explorer (`inspect --own [--history]`, `describe [--history | --css]`, `find`, `find --text`, `tree --depth`, `validate --warnings`, `test bdd`, `pull`, `extension inspect`, `translations export`), Preview gallery (`preview` with `--arg`, `--height`, `--click`, `--type`, `--wait`, `--eval`, optional `--screenshot`), Check (`check` with `--in`, `--rules`, `--baseline`, `--init-rules`), Review (`review` with `--md` and `--notes`), Prompt builder, Prompts for agents (the two ready agent prompts, Small task and Architect, each copyable), Fonts and images (`font batch`, `image batch` with the ICO, trace and SVG options of the format you choose), OpenAPI (`openapi`, optional `--server`, with a form for `<FILL:` placeholders), Architecture (`architecture`, optional `--app`, `--layers`, `--json`), LifeTime (`lifetime environments`, `lifetime teams`, `lifetime team-apps`, `lifetime apps`, `lifetime download`, `lifetime status`, `architecture --team`, `check --team`), Agent activity (the usage log and `log summary`), Command cookbook, Docs and search (`doc --search`, `spec --search`, `explain-warning`, and `doc`, `spec`, `explain-warning` or `<command> --help` to open a result; Ctrl+K opens it), Rules and checklist (with the best practices), Developer tools (in the browser only). Each action shows its CLI command and, after a run, how long it took. Images, previews and report pages share one viewer: Fit or 100%, zoom, drag to pan, full screen (Esc closes it), a new tab, "Full height" for previews and Before/After for converted images. Report pages follow the dashboard theme.
+- **Pages:** Home (`doctor`, `studio`), Get modules (the working set; see below), Module explorer (`inspect --own [--history]`, `describe [--history | --css]`, `find`, `find --text`, `tree --depth`, `validate --warnings`, `test bdd`, `pull`, `extension inspect`, `translations export`), Check (`check` with `--in`, `--rules`, `--baseline`, `--init-rules`), Review (`review` with `--md` and `--notes`), Prompt builder, Prompts for agents (the two ready agent prompts, Small task and Architect, each copyable), Fonts and images (`font batch`, `image batch` with the ICO, trace and SVG options of the format you choose), OpenAPI (`openapi`, optional `--server`, with a form for `<FILL:` placeholders), Architecture (`architecture`, optional `--app`, `--layers`, `--json`), LifeTime (`lifetime environments`, `lifetime teams`, `lifetime team-apps`, `lifetime apps`, `lifetime download`, `lifetime status`, `architecture --team`, `check --team`), Agent activity (the usage log and `log summary`), Command cookbook, Docs and search (`doc --search`, `spec --search`, `explain-warning`, and `doc`, `spec`, `explain-warning` or `<command> --help` to open a result; Ctrl+K opens it), Rules and checklist (with the best practices), Developer tools (in the browser only). Each action shows its CLI command and, after a run, how long it took. Images and report pages share one viewer: Fit or 100%, zoom, drag to pan, full screen (Esc closes it), a new tab and Before/After for converted images. Report pages follow the dashboard theme.
 - **Timings.** The clock button in the top bar adds `--timings` to the commands that load a module and shows the phases under the CLI line.
 - **Links.** `#/explorer?module=<path>&element=<Name>&tab=describe|paths|css|tests`, `#/check?module=<path>`, `#/review?before=<path>&after=<path>` and `#/docs?q=<words>&open=<command>` open a page with that input.
 - **Reads only.** The dashboard has no endpoint for `install`, `publish`, `references`, `apply`, `batch` or a LifeTime write (`tag`, `deploy`, `abort`, `continue`). `pull` saves a copy and leaves the open module unchanged. `lifetime download` and `--team` only read LifeTime.
 - **Get modules and the working set.** The modules you work on, kept in this browser. Sources: Service Studio (check the open modules, then each is copied with `pull`; nothing is copied without a click), a folder (lists `.oml` and `.oap` files with their subfolders, at most 500 files and 10 seconds; a package shows its modules with `app list` and extracts them with `app extract`), dropped `.oml` and `.oap` files (copied to the work folder), recent modules, and LifeTime (`lt download --extract` per application). Each module has a role: Change, or Read only (a producer). The other pages offer the working set. The Prompt builder is ordered as numbered steps (1 Modules, 2 Task, 3 Elements from other modules, 4 Limits), with a **Small task** / **Architect** choice at the top that sets the first lines of the task (`[oml] Small task` or `[oml] Architect task`, with the matching "Use oml ..." lines). It writes one line per module that says where it came from (a Service Studio copy adds: this is a copy; do not install over the open module without asking), passes Read only modules as `--in` producers, adds an `oml review ... --md` step (on by default), and can copy the task as `oml batch` steps.
 - **No Service Studio dialog on its own.** Home only checks that Service Studio's MCP server answers (the `doctor` check: an MCP initialize, no session), once per dashboard run: it shows that result again until you click "Check again". Listing the open modules (`studio`) and `pull` ask Service Studio for a session, which shows its "allow the connection" dialog once, so they run only when you click their button.
-- **Security.** It listens on 127.0.0.1 only. Every API request must send the key from the address in the `X-Oml-Key` header, else 403. The `Host` header must be `127.0.0.1:<port>` or `localhost:<port>`, a cross-site `Origin` is refused, and there are no CORS headers. The page has a strict Content Security Policy. Generated HTML (previews, architecture pages) is shown in a sandboxed frame from a short-lived random address. Large results (zips, `.oap` files, reports) are downloaded from `/download/<id>?key=<key>`: a random id that works for 10 minutes, needs the dashboard key (a link cannot send the header) and the same Host and Origin checks. The dashboard keeps only the file path; a downloaded page is sent with `Content-Security-Policy: sandbox`. The LifeTime token is read from the environment of the dashboard's process and never sent to the page; there is no token field.
+- **Security.** It listens on 127.0.0.1 only. Every API request must send the key from the address in the `X-Oml-Key` header, else 403. The `Host` header must be `127.0.0.1:<port>` or `localhost:<port>`, a cross-site `Origin` is refused, and there are no CORS headers. The page has a strict Content Security Policy. Generated HTML (architecture pages) is shown in a sandboxed frame from a short-lived random address. Large results (zips, `.oap` files, reports) are downloaded from `/download/<id>?key=<key>`: a random id that works for 10 minutes, needs the dashboard key (a link cannot send the header) and the same Host and Origin checks. The dashboard keeps only the file path; a downloaded page is sent with `Content-Security-Policy: sandbox`. The LifeTime token is read from the environment of the dashboard's process and never sent to the page; there is no token field.
 - **Files.** Paths you type are only read. Pulled, dropped, extracted and downloaded modules, OpenAPI files, translations, zips, check and review reports, rules files, test specs and other reports go to a new folder per action under `%LOCALAPPDATA%\oml-cli\dashboard`, so nothing is overwritten. Uploaded fonts and images (at most 200 MB per request) go to a new temporary folder that is deleted after the answer. A file dropped outside a drop zone is not opened by the browser; the page says where to drop it.
 - **Commands run one at a time** in the dashboard process, so Service Studio's model loads once and a module that was read stays open for the next click (as in `oml batch`). A long command (a large architecture page) makes the next ones wait; after 2 seconds the page names the command that runs now.
 - Dashboard commands are not written to the usage log: the log is for agent work.
@@ -566,7 +565,7 @@ It runs these checks, in this order. Each one has a `status` (`ok`, `warn`, `fai
 | selfTest | The self-test passed on this Service Studio build. |
 | studioMcp | Service Studio's MCP server answers. It must be 11.55.91 or later for publish. Optional. |
 | lifeTime | `OML_LIFETIME_HOST` and `OML_LIFETIME_TOKEN`. The token is never printed. |
-| browser | Edge or Chrome for `oml preview --screenshot`. `OML_BROWSER` wins. |
+| browser | Edge or Chrome for `oml qa`. `OML_BROWSER` wins. |
 | path | The folder of `oml` is on PATH. |
 
 `ok` is `false` when any check fails. The exit code is `0` when nothing fails, and `1` otherwise.
@@ -937,123 +936,6 @@ oml new Orders_Tests.oml --name Orders_Tests --kind CrossDevice
 oml apply Orders_Tests.oml Orders_Tests.bdd-spec.json Orders_Tests.staged.oml
 ```
 
-## Preview
-
-### Live: the real page, before you publish
-
-`oml preview --live <url> <source.oml> <staged.oml> [--out <folder>] [--width N] [--height N] [--timeout <ms>] [--engine auto|cdp] [--headed] [--no-session]`
-
-Shows a style change in the running app (real data, theme, OutSystems UI and login), before it is published. Two flows:
-
-| Change | How to see it |
-|---|---|
-| Style sheets only (theme, screen, block) | `preview --live`: the real page, before and after. |
-| Widgets, classes, data, logic, new screens | The user installs and publishes to DEV; then `oml qa page <url> --screenshot <file.png>`. |
-
-How it works:
-1. It reads every style sheet of both modules (`oml describe <module.oml> --css --all`) and compares them, and runs `oml review` for everything else.
-2. It opens the page with the qa browser. A running `oml qa start` session is used, so its login stays (`--no-session` for a browser of its own).
-3. It saves `before.png`, takes out the page's rules that the old sheets hold (matched by the browser's own text of each rule), adds the new sheets after all others, and saves `after.png`.
-
-Output: `before`, `after`, `styleSheets` (the changed ones), `rules` (`oldRules`, `oldRulesFound`, `newRules`), `needsPublish` (changes it cannot show: widgets, data, logic, new elements), `notes`, `errors` and `next`. `oldRulesFound` lower than `oldRules` means the page does not show those screens or blocks, or what is published differs from `<source.oml>`. Exit 0 shown, 1 when no style sheet changed (then `needsPublish` says what to check after the publish), 2 for a usage or browser problem. It needs DevTools: under a `RemoteDebuggingAllowed = 0` policy it stops and names the publish flow (`oml doctor` shows the qa engine). Without `--out`, the screenshots go to `%TEMP%\oml-live\<time>`.
-
-### Offline: a rendered copy
-
-Use this only when there is no running app yet (a new module or screen).
-
-`oml preview <module.oml> <Block|Screen|Email> [--arg Name=<expression>]... [--theme light|dark] [--width <px>] [--height <px>] [--out <file.html>] [--screenshot <file.png>] [--wait <ms>] [--click <selector>] [--type <selector>=<text>] [--eval <js>] [--serve [--no-open]]`
-
-Renders one block, screen or Reactive email to one self-contained static HTML file, so you can see it before you publish. It reads the widget tree with the typed model and never changes the module. Default output: `<Element>.preview.html` in the current folder. Existing `--out` and `--screenshot` files are refused. Stdout is the compact JSON report.
-
-Use it for layout, texts, CSS and JavaScript. It is not a pixel copy of the published app: OutSystems UI is not available, so its classes (`card`, `btn`, layouts, icons) look plain. Reactive and Mobile modules are the target. Traditional Web screens go through the same reader; widgets it does not know are listed in `unsupported`.
-
-How widgets become HTML. The widget Name is the `id` and the Style Classes are the `class`.
-
-| Widget | HTML |
-|---|---|
-| Container, Form, Label, List, ListItem | `div`, `form`, `label` |
-| Text | The text. |
-| Expression | A string literal shows its text. An input parameter shows the `--arg` value, else its default value, else its type's default (False, 0, empty text). A local variable shows its default value. A `+` join of those works when one part is text; a sum such as `Count + 1` shows as `{Count + 1}`. `If(condition, a, b)` shows the chosen branch when the preview can evaluate the condition. Anything else shows as `{expression}` (cut at 40 characters) in a muted span. |
-| Link, Button | `a`, `button` with the child widgets. |
-| Image | `img` for an external URL (it does not load: the page has no network). A resource image is a grey box with its name. |
-| Icon | `i` with the Style Classes and the icon class. |
-| AdvancedHtml | Its Tag (`div` if it is missing or unsafe). |
-| Input, TextArea, Dropdown, Checkbox, Switch, RadioButton | The matching form element. A Dropdown has 3 sample options. |
-| If | The true branch only. The report notes it. |
-| List, TableRecords | The row template repeated 3 times. A table has its header row. |
-| Placeholder | A dashed box with the placeholder name and sample text. When a block instance gives content, that content is rendered instead. |
-| Block instance, same module | The block is rendered inline and recursively, up to 5 levels. Arguments and placeholder content are passed. Cycles are not expanded. |
-| Block instance, other module | A `div` whose class is the block name, with its placeholder content inside. Layouts and OutSystems UI blocks are not drawn. |
-| Any other widget | A labelled box with its children. The kind and its count are listed in `unsupported`. |
-
-The Style Classes expression gives the classes it evaluates to; when the preview cannot evaluate it, every quoted class in it is used. A widget whose Visible is `False`, or a condition the preview evaluates to False, is not shown; a Button whose Enabled evaluates to False is `disabled`. Conditions: True, False, `not`, `and`, `or`, `=` and `<>` between values of one kind, and `<`, `>`, `<=`, `>=` between numbers. Extended properties with a literal value become HTML attributes (`class` is merged). Names that start with `on` and `id` are skipped.
-
-CSS in the file, in this order: a small neutral base stylesheet (system font, spacing, plain buttons and tables), the module default theme (only if it is local to the module), then the stylesheet of the element and of each same-module block that was rendered. External CSS is not loaded.
-
-`--theme light|dark` (default `light`) sets `data-theme` on `<html>` and a matching base colour. Static HTML cannot emulate `prefers-color-scheme`, so only CSS that reads `[data-theme]` or CSS variables changes with the theme. `--width <px>` (default 1200) is the width of the frame around the content. Use 390 for a phone. `--height <px>` (default 900) is the screenshot height.
-
-`--arg Name=<expression>` sets an input parameter of the element. Use an OutSystems literal, for example `--arg Count=3`, `--arg Active=True` or a quoted text. Other text is used as plain text and the report says so. An unknown name reports the inputs.
-
-Scripts. The page loads, in this order, at the top of `<body>` (before the widgets exist, as in the app): the module's required scripts, the module JavaScript, then the scripts that the element and each rendered same-module block require (`requiredScripts`). A script's own required scripts load before it. The report lists the loaded names in `scripts`. A required script of another module has no code in this module, so it is not loaded and a note says so. A note also names the module's scripts that nothing here requires.
-
-JavaScript nodes. For the element and every rendered same-module block, the JavaScript nodes of the OnInitialize, OnReady and OnRender actions are found by following the connectors from Start. Each node body is emitted as `function($parameters, $actions, $roles, $public, $resolve, $reject){ ... }`. After DOMContentLoaded the nodes run once per rendered instance, in this order: every OnInitialize (parent before its blocks), then every OnReady, then every OnRender (blocks before their parent). Inside one action they run in flow order. A flow If whose condition the preview can evaluate (True, False, `not`, and `=` or `<>` between literals and inputs of the block or screen, with their `--arg` or default values) follows only that branch. The preview does not evaluate a condition when an input's value does not have the kind of its declared type, when the two sides are of different kinds, when two texts differ only in case, or when an Assign in the screen or block changes the input. Such an If, any other If, and every Switch run the JavaScript nodes of all branches, depth-first per branch, and a note names it. A node whose code uses `$resolve` or `$reject` is asynchronous, as in the app: the next node waits until it calls one of them (at most 2 seconds). When a node throws or calls `$reject`, the rest of that action does not run; those nodes are listed in `skipped`. OnInitialize runs after the page loaded too, so code that reads the DOM there works in the preview but not in the app. When a block is rendered more than once, labels name the instance: `SalesChart[2].OnReady.Render`.
-
-The stub of the client runtime:
-
-- `$parameters` holds the inputs of the node, built from its arguments. `<WidgetName>.Id` becomes the id of the rendered element. An input parameter of the block or screen becomes its `--arg` or default value. A simple literal (text, number, True, False) becomes that value. Any other expression becomes `null`. Outputs that the code sets stay on the object.
-- `$actions.<Name>(...)` returns a resolved promise, so `.then()` works.
-- `$public` (for example `$public.FeedbackMessage.showFeedbackMessage`, `Navigation`, `Security`), `$roles` and a global `controller` accept any property and call and return `undefined`.
-- Each call of these stubs is listed once in `stubbed`, as `<node>: <call>(<arguments>)`.
-- OutSystems UI JavaScript (`OSUI`) and the platform runtime (`OutSystems.*`) are not loaded. An error "OSUI is not defined" (and the same for `OutSystems`, `OutSystemsUI`, `OSFramework`) ends with "(not available in the preview; works in the published app)".
-
-No network. A Content-Security-Policy allows only inline scripts and styles and `data:` images and fonts, so every load and fetch (XHR, fetch, an image, a font, a remote script or stylesheet, a Worker, a frame) is blocked and listed in `blocked`. A request without a URL to show is named by its scheme and kind, for example `file:// (XHR or fetch)` or `data: (Worker)`. CSP does not stop a navigation, so the runtime stops it: it cancels every navigation to another page (also a reload that page code starts), cancels every form submit and replaces `form.submit()`, cancels links with a `target` other than `_self`, replaces `window.open`, and drops `<script type="speculationrules">` before it is inserted. Each one is listed in `blocked` (for example `<url> (navigation)`, `<url> (form)`, `<url> (form.submit())`, `<url> (link target=_blank)`, `<url> (window.open)`, `speculation rules (script)`) and a note says so. `document.open()` replaces the page, so its report is lost: `scriptsRan` is `false`. As a second lock, the headless browser runs with a proxy that does not exist (loopback included), no name resolution, no background networking, no pings and no WebRTC outside the proxy, so nothing leaves the machine even when a navigation cannot be cancelled. If the page was replaced anyway, a note says "The page navigated to <url>; the preview stopped." Script errors, window errors, unhandled promise rejections and `$reject` calls are written to a red panel at the bottom of the page and to `window.__omlPreviewErrors`, and `<html>` gets `data-oml-errors="<count>"`. The real OutSystems id differs (for example `b2-Root`). The preview uses the widget Name, so code that tests `!element.id` behaves differently. Client actions that a lifecycle action calls are not followed.
-
-Interaction steps. `--wait <ms>` (0 to 60000), `--click <selector>`, `--type <selector>=<text>` and `--eval <js>` can be repeated and mixed. They run in the given order after the lifecycle nodes, and before the screenshot. `--click` calls `click()` on the first element that matches the CSS selector. `--type` sets the value of an input, textarea, select or contenteditable element and fires `input` and `change`; the selector ends at the first `=` outside `[...]` and quotes, so `--type "input[name=q]=Ann"` works. `--eval` runs the code in the page; the value of its last expression (or of a returned promise, which must settle within 2 seconds) is the step's `result`. Widget onClick actions are not wired, so a click reaches only listeners that your JavaScript added. The steps are written into the HTML file too, so they run again when you open it. With `--screenshot` the browser loads the page twice (once to read the report, once for the image), so the scripts and steps run twice; each run starts from a fresh page.
-
-```powershell
-oml preview Staged.oml SalesChart --screenshot chart.png --click "#ToggleButton" --wait 300 --eval "document.getElementById('Status').textContent"
-```
-
-`--screenshot <file.png>` runs Edge or Chrome headless (`--headless=new`) if one is installed in the usual Program Files or LocalAppData folders. Set `OML_BROWSER` to a browser `.exe` to choose another. The page gets 1 second of browser time after load, plus every `--wait`, 50 ms per step, and 2 seconds for each asynchronous node and each `--eval` (at most 60 seconds); the screenshot is taken at the end, so animations are near their start. A page that never finishes (a script or node that loops forever) is stopped 30 seconds after that time: then `scriptsRan` is `false` and a note says so (or names the navigation that left the page). Both browser runs of a screenshot share a limit of 150 seconds in total; when the first run used it up, there is no screenshot and `screenshotNote` says so. The browser window has a frame and a minimum width of about 500 px (headless Edge lays out at about 492 px at least), so the command first reads the real page size and then sizes the window to match. The PNG can be about 25 px wider and 90 px taller than `--width` and `--height`; the page area has the exact size. A frame narrower than 500 px is laid out at about 500 px for media queries. Without `--screenshot`, steps alone also run the browser, without a screenshot. If no browser is found or it fails, `screenshot` is `null` (omitted in compact output) and `screenshotNote` says why. The exit code stays 0.
-
-When the browser ran, the report also has what the page did. `scriptsRan` is `true` when the page wrote its report and `false` when it did not (a loop, or the page navigated away); then the other fields below are unknown, not empty. Empty lists are left out of the compact output.
-
-| Field | Content |
-|---|---|
-| `scriptErrors` | `node` (`<Element>.<Event>.<Node>`, `script <Name>`, `step <n> ...`, `window` or `promise`) and `message`: the first 20, at most 160 characters each; a repeated error is listed once. A node that does not compile is reported once, under its own name, even in a block shown several times. `errorsTotal` is the number of errors, repeats included, when there were more than listed. |
-| `skipped` | Nodes that did not run because an earlier node of the same action failed. |
-| `stubbed` | Calls of `$actions`, `$public`, `$roles` and `controller`: the first 20, each at most 160 characters. `stubbedTotal` is the number of calls (repeats included, as for `consoleTotal`) when there were more than listed. |
-| `console` | `level` and `text` of `console.log`, `info`, `warn`, `error` and `debug` calls: the first 20, at most 160 characters each. `consoleTotal` is the number of calls when there were more than listed. The page's hidden `#oml-preview-report` keeps up to 100 of each, at full length. |
-| `blocked` | Requests, navigations and windows the no-network rules stopped. |
-| `steps` | One per step: `step`, `ok`, and `result` (eval) or `error` (for example `no element matches #Save`). |
-| `horizontalOverflow` | The content is wider than the frame. |
-
-If the page did not finish in its time, a note names what was still running. The report and the HTML file are UTF-8.
-
-Report fields: `html`, `screenshot`, `screenshotNote`, `element`, `kind` (Block or Screen), `theme`, `width`, `widgets` (distinct widgets rendered), `blocksRendered` (names, one per instance), `unsupported` (`kind` and `count`), `javaScriptNodes` (distinct nodes), `scripts`, `scriptsRan` and the browser fields above, `notes`, `checklist`.
-
-`--serve` opens a live preview instead of writing files: `http://127.0.0.1:<random port>/`, with no key to type. It prints `{"url","module","element"}` on the first line and opens the default browser (`--no-open` skips that). The page checks the module file once a second and reloads after it changed, for example after a save in Service Studio; each reload runs the scripts and the steps again. It serves only that page and the file version, only to GET requests with a `127.0.0.1` or `localhost` Host header (HEAD and other methods get 405), never inside a frame (`frame-ancestors 'none'`, `X-Frame-Options: DENY`), as UTF-8, and never writes a file. The page keeps the Content-Security-Policy, which blocks loads and fetches but not navigation, and the same runtime stops navigations, forms, `target` links, `window.open` and speculation rules; the server's own live reload passes. Your own browser has network access and no proxy rules. In Edge, none of 31 tested ways to load or leave (links, `location`, `navigation.navigate`, forms, meta refresh, frames, `window.open`, prefetch, prerender, speculation rules, beacons, pings, dynamic `import()`, `document.open()`) reached the network. A browser without the Navigation API cannot cancel a navigation, and a navigation of a kind not in that list may still reach the network. `--out` and `--screenshot` are refused with `--serve`. Press Ctrl+C to stop.
-
-`checklist` has six automatic checks. Each has `id`, `name`, `ok` and `detail`. A failed check never fails the command; fix what `detail` names.
-
-| Id | Fails when |
-|---|---|
-| a | A Link or Button text is `link` or `Button`, or starts with it and has more text glued on (`linkCopy spec`). The toolbox seeds that text and the spec must replace it. |
-| b | The JavaScript calls `getContext(` and the root Container has no `height`, `min-height` or `aspect-ratio` rule on its class. |
-| c | A Text or literal Expression says "Demo content" or "Lorem ipsum". |
-| d | The CSS uses `var(--...)` somewhere and also has colour values (hex, `rgb()`, `hsl()`) in declarations without `var()`. `detail` has the count. |
-| e | A JavaScript node adds a `window` or `document` listener with no matching `removeEventListener` for the same event in the same node. |
-| f | A rule targets a global element (`body`, `html`, `*`, a bare `button`, `a`, `input`, ...) with no class, id or attribute. `:root` is allowed. |
-
-The checks read the strings of one render. They help, but they do not replace looking at the screenshot. See [ui-checklist.md](ui-checklist.md).
-
-```powershell
-oml preview Staged.oml FxCard --theme light --screenshot light.png
-oml preview Staged.oml FxCard --theme dark --width 390 --screenshot dark-390.png --arg Title=Hello
-```
-
-Exit 0 when the file was written. Exit 2 for an unknown element, a bad option or an existing output.
-
 ## QA
 
 `oml qa page <url> [--headed] [--width N] [--height N] [--timeout <ms>] [--screenshot <file.png>] [--engine auto|cdp|uia] [--no-session]`
@@ -1061,7 +943,7 @@ Exit 0 when the file was written. Exit 2 for an unknown element, a bad option or
 `oml qa record <url> [--out <qa.jsonc>] [--engine auto|cdp|uia] [--width N] [--height N]`
 `oml qa start [--engine auto|cdp|uia] [--headed] [--width N] [--height N]` and `oml qa stop`
 
-Tests the published app like a manual tester. `preview` renders one element offline; `qa` uses the real app, with real data and server actions. It opens Edge or Chrome with a new, empty profile, never yours. The profile is deleted at the end.
+Tests the published app like a manual tester. It uses the real app, with real data and server actions. It opens Edge or Chrome with a new, empty profile, never yours. The profile is deleted at the end.
 
 `qa page` prints what the screen shows, in about 2 KB: `actions`, `inputs`, `tables` (columns, row count, 3 sample rows), `feedback` and `invalid` messages, `headings`, other named `widgets`, `layout` findings, the real `viewport`, and `errors`. With the DevTools engine it also prints `calls`: each OutSystems call with its `status`, `rows` and server `exception`. Use it to find the targets for a QA file.
 
@@ -1146,7 +1028,7 @@ Exit 0 when every step passed, 1 when a step failed, 2 for a usage or environmen
 
 ## Architect skill
 
-No command. [architect.md](../architect.md) tells a strong model how to lead cheap worker agents with the commands above: split the work into lanes, give each worker a brief ([worker-brief.md](worker-brief.md)), then check every part with `oml spec check`, merge all parts with one `oml apply <source> <part1.json> <part2.json> <staged>`, and run `oml review`, `oml check` and `oml preview`. The default skill load does not include it. `tests/architect-check.ps1` runs its worked example.
+No command. [architect.md](../architect.md) tells a strong model how to lead cheap worker agents with the commands above: split the work into lanes, give each worker a brief ([worker-brief.md](worker-brief.md)), then check every part with `oml spec check`, merge all parts with one `oml apply <source> <part1.json> <part2.json> <staged>`, and run `oml review` and `oml check`. The default skill load does not include it. `tests/architect-check.ps1` runs its worked example.
 
 ## Memory
 
@@ -1313,7 +1195,7 @@ before: Orders.oml
 after: Orders.staged.oml
 ```
 
-- **Images and video.** `![Today](media/save-today.png)` shows the image under the paragraph, with its label as a caption. A `.mp4` or `.webm` path shows a video with controls. The path is relative to the Markdown file's folder and must stay below it. Typical source: `oml preview <staged.oml> <Screen> --screenshot media/save-proposed.png`. A file that is missing or refused shows a red message with the reason, not a broken image.
+- **Images and video.** `![Today](media/save-today.png)` shows the image under the paragraph, with its label as a caption. A `.mp4` or `.webm` path shows a video with controls. The path is relative to the Markdown file's folder and must stay below it. Typical source: `oml qa page <screen url> --screenshot media/save-proposed.png`. A file that is missing or refused shows a red message with the reason, not a broken image.
 - **Galleries.** A `:::gallery` block groups images: `side-by-side` (a row that wraps on a narrow window), `grid` (small tiles) or `carousel` (one at a time, **Previous** and **Next** buttons, "n of m"). An optional title goes last in square brackets.
 
 The lines of a gallery (the block ends with a line that holds only `:::`):
@@ -1348,9 +1230,9 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 | Group | Settings |
 |---|---|
 | `ui.*` | `targets` (desktop, tablet, phone), `themes` (light, dark), `rtl`, `accessibility`, `translations`. |
-| `checks.*` | `preview`, `livePreview`, `qa`, `review`, `uiChecklist`, `bestPractices`, `testScenarios`, `testData`: off means agents do not run or offer it unless the user asks in the task. `preview`, `livePreview`, `qa` and `testScenarios` are also refused by the command. |
+| `checks.*` | `qa`, `review`, `uiChecklist`, `bestPractices`, `testScenarios`, `testData`: off means agents do not run or offer it unless the user asks in the task. `qa` and `testScenarios` are also refused by the command. |
 | `ask.*` | `testing`, `testScenarios`, `devUrl`, `producerChoice`. Locked on: `install`, `publish`, `deploy`, `dataDeletion`. |
-| `lane.fast` | A change of only CSS values or texts of existing elements takes 2 tool calls: no preview, QA, review file or questions. |
+| `lane.fast` | A change of only CSS values or texts of existing elements takes 2 tool calls: no QA, review file or questions. |
 | `browser` | `oml` (oml qa and its own Edge or Chrome) or `agent` (the agent's built-in browser). |
 | `app.devUrl` | The base URL of the app in DEV. |
 | `outsystems.mcpServer` | The address of Service Studio's MCP server (O11), such as `http://127.0.0.1:41820/mcp`. `oml pull`, `publish`, `references`, `studio` and `doctor` use it, and agents are told it. Only this computer (127.0.0.1 or localhost), because the file is shared with the repository. The `OML_STUDIO_URL` or `OML_STUDIO_PORT` variable wins over it. |
@@ -1360,7 +1242,7 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 
 The file holds no secrets: a text value that looks like one is refused. An unknown key or a wrong value is ignored and named in `problems`. A file that cannot be read gives the defaults and never blocks an agent.
 
-`oml preview` and `oml qa` follow `ui.targets` and `ui.themes`: a `--width` of a size the project does not support (phone under 600 px, tablet under 1024 px, desktop from there) or a `--theme` it does not support is refused with the reason. `--no-profile` skips the check once, for when the user asks for that size or theme in the task. A command whose check is off is refused first (exit 2): `oml qa page`, `run`, `restyle` and `record` need `checks.qa`, `oml preview --live` needs `checks.livePreview`, any other `oml preview` (also `--serve`) needs `checks.preview`, and `oml test scenarios` needs `checks.testScenarios`. The message names the setting and the file; `oml config set checks.qa on` turns it on, and `--no-profile` runs the command once when the user asked for it in the task. `oml qa start`, `stop`, `oml qa` alone and `--help` are never refused. A step inside `oml batch` is not checked. An offline preview with no `--width` or `--theme` gets the project's own when the default (desktop, light) is not supported.
+`oml qa` follows `ui.targets` and `ui.themes`: a `--width` of a size the project does not support (phone under 600 px, tablet under 1024 px, desktop from there) or a `--theme` it does not support is refused with the reason. `--no-profile` skips the check once, for when the user asks for that size or theme in the task. A command whose check is off is refused first (exit 2): `oml qa page`, `run` and `record` need `checks.qa`, and `oml test scenarios` needs `checks.testScenarios`. The message names the setting and the file; `oml config set checks.qa on` turns it on, and `--no-profile` runs the command once when the user asked for it in the task. `oml qa start`, `stop`, `oml qa` alone and `--help` are never refused. A step inside `oml batch` is not checked. An older config file that still holds `checks.preview` or `checks.livePreview` is read without a complaint; both are ignored.
 
 Agents get the profile from the session-start hook (see [Agent hooks](#agent-hooks)), so it costs no command. Without hooks, the skill tells them to add `oml config` to their read call.
 

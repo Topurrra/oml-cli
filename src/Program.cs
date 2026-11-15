@@ -70,13 +70,12 @@ public static class Program
             TerminalOutput.PrintHelp(filtered[0] == "lifetime" ? LifeTime.Usage.Replace(" | ", Environment.NewLine + "oml lifetime ") : CliUsage.For(filtered[0]), filtered[0]);
             return 0;
         }
-        // preview, qa and test scenarios follow the project profile: its checks, sizes and themes (ProjectConfig.Adjust).
-        if (filtered.FirstOrDefault() is "preview" or "qa" || filtered is ["test", "scenarios", ..])
+        // qa and test scenarios follow the project profile: its checks, sizes and themes (ProjectConfig.Adjust).
+        if (filtered.FirstOrDefault() is "qa" || filtered is ["test", "scenarios", ..])
         {
             var (adjusted, refusal) = ProjectConfig.Adjust(filtered);
             if (refusal is not null) { TerminalOutput.PrintObject(new { error = refusal }); return 2; }
-            var extra = adjusted.Skip(filtered.Count(a => a != "--no-profile")).ToArray(); // what the profile added
-            args = args.Where(a => a != "--no-profile").Concat(extra).ToArray();
+            args = args.Where(a => a != "--no-profile").ToArray();
             filtered = adjusted;
         }
         return CommandTable.Find(filtered) is { } cmd ? cmd.Run!(args, filtered) : RunCore(args);

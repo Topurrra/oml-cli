@@ -407,7 +407,7 @@ internal static class TerminalRender
     [
         ("Read", ["inspect", "describe", "find", "stats", "header", "expression", "tree", "openapi", "validate"]),
         ("Change", ["new", "apply", "install", "test"]),
-        ("Preview", ["preview", "architecture", "check", "review"]),
+        ("Review", ["architecture", "check", "review"]),
         ("Service Studio", ["studio", "pull", "publish", "references"]),
         ("LifeTime", ["lifetime"]),
         ("Knowledge", ["spec", "doc", "explain-warning", "memory", "outsystems-docs", "team-rules"]),

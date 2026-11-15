@@ -33,7 +33,7 @@ Not a terminal person? `oml dashboard` opens a local web page with the same tool
 
 Start it with `oml dashboard`, or double-click `oml-dashboard.cmd` next to `oml.exe`. It opens your browser; keep its window open, and press Ctrl+C there to stop it. `--port N` picks the port, `--no-open` does not open the browser, and `--module <file.oml>` opens that module in the Module explorer.
 
-What it can do: check your setup (`doctor`), get modules into a working set (copied from Service Studio, from a folder or an `.oap`, dropped, or downloaded from LifeTime), browse a module and read what each element does (`inspect`, `describe`, `find`, `find --text`, `tree`, `validate`), run `oml check` and `oml review` with their HTML reports, search the docs, spec and warnings (Ctrl+K), make a test spec for a public server action, show previews of every screen and block in light and dark, build a clear task for an AI agent, browse the recipes, convert fonts and images, export and fill in OpenAPI files, make architecture pages, read LifeTime (also download an application's `.oap`, and team architecture and check pages), show what agents ran (usage log), and a set of small developer tools (JSON, Base64, JWT, regex, colour contrast, ...). Every action shows the CLI command, with a copy button.
+What it can do: check your setup (`doctor`), get modules into a working set (copied from Service Studio, from a folder or an `.oap`, dropped, or downloaded from LifeTime), browse a module and read what each element does (`inspect`, `describe`, `find`, `find --text`, `tree`, `validate`), run `oml check` and `oml review` with their HTML reports, search the docs, spec and warnings (Ctrl+K), make a test spec for a public server action, build a clear task for an AI agent, browse the recipes, convert fonts and images, export and fill in OpenAPI files, make architecture pages, read LifeTime (also download an application's `.oap`, and team architecture and check pages), show what agents ran (usage log), and a set of small developer tools (JSON, Base64, JWT, regex, colour contrast, ...). Every action shows the CLI command, with a copy button.
 
 Security: it listens on 127.0.0.1 only, with a random key in its address that every request must send; other sites cannot call it.
 It only reads: it never installs, publishes, refreshes references, or tags or deploys in LifeTime, and the LifeTime token stays in the environment, never in the page.
@@ -62,7 +62,7 @@ Run `oml hooks install` in the project folder once (`oml create` does it for you
 |---|---|
 | Build and change | One JSON spec for entities, static entities, CRUD actions, server/service/client actions, flows, aggregates with joins, SQL, REST, screens and blocks (Reactive, Mobile, Traditional Web), timers, roles, processes, translations and resources. New flows are laid out the way Service Studio does it. Existing screens, blocks, emails and themes take new CSS, and `replaceWidgets` replaces part of a screen, with no rebuild. |
 | Read cheaply | `inspect`, `describe` (what an action or screen does, in a few lines), `find` (which module owns an element). Compact JSON output keeps agent token use low. `--history` and `--changed-since` show who changed an element and when. |
-| Check UI | `preview` renders a block, screen or email to HTML, runs its scripts and lifecycle JavaScript offline with a stub runtime, takes light/dark and phone-width screenshots (after optional clicks and typing), and runs automatic UI checks. `--serve` shows a live page that reloads when the module changes. |
+| Check UI | After you install and publish to DEV, `qa page` opens the screen in a browser, takes a screenshot and prints what it shows: actions, inputs, tables, messages, layout and errors. Before a publish there is no visual check, so the agent reports "pending visual check". |
 | Architecture | `architecture` makes one zoomable HTML page from a folder of `.oap`/`.oml` files or a LifeTime team: applications, modules, End-user/Core/Foundation layers, dependencies and findings. |
 | Check | `check` finds AI Mentor-like patterns (performance, security, maintainability, architecture) in a module, an application or a team in seconds, with a team rules file, a baseline and an HTML report. A subset of AI Mentor, not a replacement. |
 | Review | `review` compares two versions of a module (before and after a change) by the model's own keys, so a rename stays a rename. It lists what changed in plain words (data, logic steps, UI, integrations, roles, settings), the production-rule risks and the new `check` findings, as JSON, Markdown for a pull request, an HTML page or release notes for testers. |
@@ -95,7 +95,7 @@ Developers work in Service Studio. Most commands are for AI agents, so agents ca
 | Read a module | `inspect`, `describe`, `find`, `stats`, `tree` | Agents |
 | Change a module | `new`, `apply`, `spec`, `batch`, `install`, `validate`, `translations export` | Agents |
 | Knowledge | `doc`, `explain-warning` | Agents |
-| UI | `preview` | Agents, sometimes developers |
+| UI | `qa page` | Agents, sometimes developers |
 | Tests | `test bdd` | Agents |
 | Packages | `app list`, `app extract`, `app pack`, `extension inspect`, `extension new`, `templates` | Agents, sometimes developers |
 | Service Studio and deploy | `studio`, `pull`, `publish`, `references`, `lifetime` | Agents; publish and deploy after you confirm |
@@ -221,7 +221,7 @@ Keep the `skill/` folder at the project root in every case: both files point to 
 | Other agents | Give them `skill/AGENTS.md` (or `skill/SKILL.md`) as their instructions, with the `skill/` folder in the project. | not verified per agent |
 - **Leading cheap worker agents (optional):** the lead model also reads [skill/architect.md](skill/architect.md). It plans lanes, gives each worker a brief ([worker-brief.md](skill/reference/worker-brief.md)), checks the results and merges them with one multi-part `oml apply`. It is not part of the default load.
 
-Tell the agent where `oml` and the module file are. No file yet? Open the module in Service Studio and let the agent run `oml pull`. The agent then works in a loop: read the module (`inspect`, `describe`, `find`) → copy a recipe into a spec → `apply` to a new staged file → `validate` and `describe` → for UI, `preview` in light and dark → fix and repeat. It asks you before anything that changes a real module or an environment.
+Tell the agent where `oml` and the module file are. No file yet? Open the module in Service Studio and let the agent run `oml pull`. The agent then works in a loop: read the module (`inspect`, `describe`, `find`) → copy a recipe into a spec → `apply` to a new staged file → `validate` and `describe` → for UI, after you publish to DEV, `qa page` with a screenshot → fix and repeat. It asks you before anything that changes a real module or an environment.
 
 To keep agents from reading the whole spec reference, `oml spec <key>` prints only the section for one key (15-60 lines) and `oml spec check <spec.json>` finds typos, wrong types and bad flow targets in milliseconds, before `apply`. `oml spec schema` writes a JSON Schema for autocomplete in VS Code.
 
@@ -253,8 +253,8 @@ loads, actions it calls, and who can open it. Do not change anything.
 ```text
 Build a reusable block StatusBadge (input Status Text) in C:\Work\Orders.oml:
 green for "Paid", orange for "Pending", grey otherwise. Use theme variables.
-Preview it in light and dark and at phone width, follow the UI checklist,
-and send me the screenshots.
+Follow the UI checklist. After I publish to DEV, check the screen
+and send me the screenshot.
 ```
 
 ```text
@@ -297,7 +297,7 @@ Agents do the work; people make the decisions that touch production.
 
 | Step | Who |
 |---|---|
-| Read modules, write specs, `apply`, `validate`, `preview`, `architecture`, `check`, `review`, `openapi`, `test bdd` | Agent |
+| Read modules, write specs, `apply`, `validate`, `qa page`, `architecture`, `check`, `review`, `openapi`, `test bdd` | Agent |
 | `memory recall`, `memory add` (only after you ran `memory init`) | Agent |
 | `install` a staged file over a module | Agent, after you confirm |
 | Publish and refresh references | Agent, after you confirm; you approve Service Studio's connection dialog once per session |

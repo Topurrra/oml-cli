@@ -259,7 +259,7 @@ static partial class Dashboard
         await stream.CopyToAsync(response.OutputStream);
     }
 
-    // Generated HTML (previews, architecture pages) is shown in a sandboxed frame from a short-lived, unguessable address.
+    // Generated HTML (architecture pages) is shown in a sandboxed frame from a short-lived, unguessable address.
     // The sandbox gives it no origin, so its scripts cannot call the API even though they run.
     static readonly ConcurrentDictionary<string, (string html, DateTime until)> Views = new();
 
@@ -273,7 +273,7 @@ static partial class Dashboard
 
     static async Task View(HttpListenerResponse response, string id)
     {
-        if (!Views.TryGetValue(id, out var view) || view.until < DateTime.UtcNow) { await Text(response, 404, "This preview has expired. Render it again."); return; }
+        if (!Views.TryGetValue(id, out var view) || view.until < DateTime.UtcNow) { await Text(response, 404, "This page has expired. Open it again."); return; }
         response.ContentType = "text/html; charset=utf-8";
         response.Headers["Content-Security-Policy"] = "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; " +
             "img-src data: blob: https:; font-src data:; frame-ancestors 'self'";

@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 namespace OmlCli;
 
 // `oml config`: the project profile, `.oml/config.json` in the project root. A person turns parts of the work on or
-// off there (phone and tablet, dark theme, previews, QA, questions, the browser, the hooks), and agents get the result
+// off there (phone and tablet, dark theme, QA, questions, the browser, the hooks), and agents get the result
 // as a few plain lines instead of deciding or asking each time:
 //   oml config                    the profile for an agent: only the lines that differ from the default work
 //   oml config show               every setting: value, default, choices and what it does
@@ -24,13 +24,11 @@ static class ProjectConfig
     // Kind: bool, choice (one of Choices), list (comma-separated, each one of Choices) or text.
     internal static readonly Setting[] Settings =
     [
-        new("ui.targets", "list", "desktop,tablet,phone", ["desktop", "tablet", "phone"], "Screen sizes the project supports. Agents design, preview and test only these."),
+        new("ui.targets", "list", "desktop,tablet,phone", ["desktop", "tablet", "phone"], "Screen sizes the project supports. Agents design and test only these."),
         new("ui.themes", "list", "light,dark", ["light", "dark"], "Themes the project supports. Agents write and check styles only for these."),
         new("ui.rtl", "bool", "false", null, "Right-to-left layouts are needed."),
         new("ui.accessibility", "bool", "true", null, "Check contrast, labels and keyboard use for new UI."),
         new("ui.translations", "bool", "false", null, "New texts need translations (the module is multilingual)."),
-        new("checks.preview", "bool", "true", null, "Run oml preview for new or changed UI."),
-        new("checks.livePreview", "bool", "true", null, "Run oml preview --live for a style change on a running page."),
         new("checks.qa", "bool", "true", null, "Run oml qa page after a publish to see the result in the app."),
         new("checks.review", "bool", "true", null, "Write the oml review file (.md) for a staged change."),
         new("checks.uiChecklist", "bool", "true", null, "Follow oml doc ui-checklist for UI work."),
@@ -45,7 +43,7 @@ static class ProjectConfig
         new("ask.publish", "bool", "true", null, "Ask before oml publish and reference refresh.", Locked: true),
         new("ask.deploy", "bool", "true", null, "Ask before a LifeTime tag or deployment.", Locked: true),
         new("ask.dataDeletion", "bool", "true", null, "Ask before anything that deletes data.", Locked: true),
-        new("lane.fast", "bool", "true", null, "Small changes (only CSS values or texts of existing elements) skip preview, QA, the review file and questions."),
+        new("lane.fast", "bool", "true", null, "Small changes (only CSS values or texts of existing elements) skip QA, the review file and questions."),
         new("browser", "choice", "oml", ["oml", "agent"], "Who opens the app to look at it: oml (oml qa, its own Edge or Chrome) or agent (the agent's built-in browser)."),
         new("app.devUrl", "text", "", null, "Base URL of the app in DEV, such as https://dev.example.com/Orders."),
         new("outsystems.mcpServer", "url-local", "", null, "Address of Service Studio's MCP server (O11), such as http://127.0.0.1:41820/mcp. oml publish, pull, references and studio use it; empty means the default port. Only this computer (127.0.0.1 or localhost)."),
@@ -117,6 +115,7 @@ static class ProjectConfig
             var key = prefix + name;
             if (key == "version") continue;
             if (node is JsonObject child && Find(key) is null) { Read(child, key + ".", values); continue; }
+            if (key is "checks.preview" or "checks.livePreview") continue; // settings of oml preview, which is gone: old files keep them
             if (Find(key) is not { } setting) { values.Problems.Add($"{key}: unknown setting (ignored)."); continue; }
             var text = node switch
             {
@@ -177,17 +176,15 @@ static class ProjectConfig
         var targets = v.List("ui.targets");
         var allTargets = Find("ui.targets")!.Choices!;
         if (targets.Length < allTargets.Length)
-            lines.Add($"UI sizes: {Join(targets)} only. Do not design, preview, screenshot or test for {Join(allTargets.Except(targets))}, and do not add styles for them.");
+            lines.Add($"UI sizes: {Join(targets)} only. Do not design, screenshot or test for {Join(allTargets.Except(targets))}, and do not add styles for them.");
         var themes = v.List("ui.themes");
         if (themes.Length == 1)
-            lines.Add($"Theme: {themes[0]} only. Do not write, preview or check {(themes[0] == "light" ? "dark" : "light")} theme styles.");
+            lines.Add($"Theme: {themes[0]} only. Do not write or check {(themes[0] == "light" ? "dark" : "light")} theme styles.");
         if (v.On("ui.rtl")) lines.Add("Right-to-left layouts are needed: check new UI in RTL.");
         if (!v.On("ui.accessibility")) lines.Add("Do not run accessibility checks unless the user asks.");
         if (v.On("ui.translations")) lines.Add("The module is multilingual: new texts need translations.");
 
         var skipped = new List<string>();
-        if (!v.On("checks.preview")) skipped.Add("oml preview");
-        if (!v.On("checks.livePreview")) skipped.Add("oml preview --live");
         if (!v.On("checks.qa")) skipped.Add("oml qa");
         if (!v.On("checks.review")) skipped.Add("the oml review file");
         if (!v.On("checks.uiChecklist")) skipped.Add("oml doc ui-checklist");
@@ -196,7 +193,7 @@ static class ProjectConfig
         if (!v.On("checks.testData")) skipped.Add("oml test data");
         if (skipped.Count > 0) lines.Add($"Turned off for this project, do not run or offer unless the user asks in this task: {Join(skipped)}. The commands refuse; --no-profile runs one once when the user asks.");
 
-        if (!v.On("ask.testing")) lines.Add("Do not ask whether to test, preview or run QA. Run what this profile leaves on, then end with one line: Not run: <what you skipped>.");
+        if (!v.On("ask.testing")) lines.Add("Do not ask whether to test or run QA. Run what this profile leaves on, then end with one line: Not run: <what you skipped>.");
         if (!v.On("ask.testScenarios")) lines.Add("Do not ask about test scenarios.");
         var url = v.Get("app.devUrl");
         if (url.Length > 0) lines.Add($"DEV URL of the app: {url}");
@@ -204,7 +201,7 @@ static class ProjectConfig
         if (!v.On("ask.producerChoice")) lines.Add("When exactly one producer element matches, use it without asking; say which one you used.");
 
         if (v.On("lane.fast"))
-            lines.Add("Fast lane: when the task changes only CSS values or texts of existing elements, do it in 2 tool calls (read the sheet or widget; spec check and apply). Report the staged file and the changed lines. No preview, QA, review file, memory step or questions.");
+            lines.Add("Fast lane: when the task changes only CSS values or texts of existing elements, do it in 2 tool calls (read the sheet or widget; spec check and apply). Report the staged file and the changed lines. No QA, review file, memory step or questions.");
         if (v.Get("browser") == "agent")
             lines.Add("Browser: look at the app with your own built-in browser tool. Never start Edge, Chrome or Firefox from a shell. Use oml qa only for saved test runs the user asks for.");
         if (v.Get("outsystems.mcpServer") is { Length: > 0 } studioMcp)
@@ -239,24 +236,18 @@ static class ProjectConfig
 
     static string SizeOf(int width) => width < 600 ? "phone" : width < 1024 ? "tablet" : "desktop";
 
-    // preview, qa and test scenarios follow the profile: a command whose checks.* setting is off is refused, and so is
+    // qa and test scenarios follow the profile: a command whose checks.* setting is off is refused, and so is
     // a width or theme that ui.targets and ui.themes do not support, each with the reason (--no-profile skips this
-    // once); a preview with no --width or --theme gets the project's own. test scenarios runs in Core, so the launcher
-    // is the only place that can refuse it. Returns the arguments to run, or the refusal.
+    // once). test scenarios runs in Core, so the launcher is the only place that can refuse it. Returns the arguments to run, or the refusal.
     internal static (string[] Args, string? Refusal) Adjust(string[] args)
     {
-        if (args.Length == 0 || args[0] is not ("preview" or "qa") && args is not ["test", "scenarios", ..]) return (args, null);
+        if (args.Length == 0 || args[0] != "qa" && args is not ["test", "scenarios", ..]) return (args, null);
         if (args.Contains("--no-profile")) return (args.Where(a => a != "--no-profile").ToArray(), null);
         if (args.Contains("--help") || args.Contains("-h")) return (args, null);
         var v = Load(null);
         if (v.File is null || v.Error is not null) return (args, null);
         // Only the commands that do the check: qa start, stop and the bare qa only manage the browser session.
-        var check = args[0] switch
-        {
-            "test" => "checks.testScenarios",
-            "qa" => args.Length > 1 && args[1] is "page" or "run" or "restyle" or "record" ? "checks.qa" : null,
-            _ => args.Contains("--live") ? "checks.livePreview" : "checks.preview",
-        };
+        var check = args[0] == "test" ? "checks.testScenarios" : args.Length > 1 && args[1] is "page" or "run" or "record" ? "checks.qa" : null;
         if (check is not null && !v.On(check))
             return (args, $"{check} is off for this project ({v.File}), so oml {(args[0] == "test" ? "test scenarios" : args[0])} is not run. Turn it on with oml config set {check} on, or add --no-profile to run it once when the user asked for it in this task.");
         string[] targets = v.List("ui.targets"), themes = v.List("ui.themes");
@@ -265,12 +256,7 @@ static class ProjectConfig
             return (args, $"--width {width} is a {SizeOf(width)} size, and this project supports only {string.Join(", ", targets)} (ui.targets in {v.File}). Leave it out, or add --no-profile when the user asked for this size in this task.");
         if (Value("--theme") is { } theme && theme is "light" or "dark" && !themes.Contains(theme))
             return (args, $"--theme {theme}: this project supports only the {string.Join(", ", themes)} theme (ui.themes in {v.File}). Leave it out, or add --no-profile when the user asked for this theme in this task.");
-        // Defaults only for the offline preview of one element; the live preview and qa show the page as it is.
-        if (args[0] != "preview" || args.Contains("--live") || args.Contains("--serve")) return (args, null);
-        var added = new List<string>(args);
-        if (Value("--width") is null && !targets.Contains("desktop")) added.AddRange(["--width", targets.Contains("tablet") ? "820" : "390"]);
-        if (Value("--theme") is null && themes is ["dark"]) added.AddRange(["--theme", "dark"]);
-        return (added.ToArray(), null);
+        return (args, null);
     }
 
     public static int Run(string[] args)

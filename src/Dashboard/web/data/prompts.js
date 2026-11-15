@@ -15,7 +15,6 @@ Task:
 
 Done means:
 - One staged file next to the module, saved with no new errors, and every new warning fixed or explained.
-- UI changes previewed at 1366 and 1920 px (dark or 390 px only if I ask).
 - oml review --md of the change, shown to me.
 Do not install or publish. Ask me before anything that changes a real module or an environment.`,
   },
