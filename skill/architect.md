@@ -35,19 +35,7 @@ Where the harness has workflows (multi-agent orchestration), you may use them. O
 - The harness cannot set model or effort per worker? Tell the user. Use what the harness gives.
 At most 3 at once, unless the user says more. Use a strong model for you and a cheap model for workers.
 
-The table comes from public docs, read on 2026-10-22. Nobody tested it with oml. `Status` shows what the docs confirm.
-
-| Harness | How to start a worker | Status |
-|---|---|---|
-| Claude Code | The Agent tool. Set `model` and `effort` per worker. Send independent workers in one message. | verified, model and effort |
-| Copilot in VS Code | The `runSubagent` tool with a custom agent. Set `model` in the agent file. A model above the main model's cost tier does not run. | verified; effort unverified |
-| Copilot CLI | `/agent`, `--agent`, or name the agent in the prompt. The model decides whether to delegate. A model per agent is not documented. | verified; model and effort per agent unverified |
-| Codex | Ask it to spawn agents. Agent files: `.codex/agents/*.toml` with `model`. | unverified; effort unverified |
-| Cursor | Subagents in `.cursor/agents/*.md` with a `model` field. They run in parallel. | verified; effort unverified |
-
-Any other harness, or any failure: run the lanes one by one yourself with the same briefs.
-
-Check the harness version before you rely on a row. Run `<harness> --version`, or open the about screen.
+How to start a worker per harness: `oml doc harnesses`. Any other harness, or any failure: run the lanes one by one yourself with the same briefs. Check the harness version before you rely on a row: run `<harness> --version`, or open the about screen.
 
 ## 4. Never trust "done"
 

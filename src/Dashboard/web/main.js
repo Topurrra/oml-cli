@@ -44,15 +44,6 @@ async function start() {
 
   ui.dropGuard();
 
-  // Ctrl+K (or Cmd+K): the docs search, from any page.
-  const openSearch = () => {
-    const box = root.dataset.page === 'docs' && document.getElementById('docs-q');
-    if (box) { box.focus(); box.select(); return; }
-    location.hash = '#/docs?focus=' + Date.now();
-  };
-  document.getElementById('search-open').addEventListener('click', openSearch);
-  document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch(); } });
-
   // "Show timings": adds --timings to the commands that load a module, and shows the phases under the CLI line.
   const timings = document.getElementById('timings-toggle');
   const showTimings = () => timings.setAttribute('aria-pressed', String(!!store.get('timings', false)));

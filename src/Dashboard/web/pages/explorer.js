@@ -259,7 +259,7 @@ export default {
               h('td', {}, h('span', { class: 'badge ' + (x.error ? 'fail' : 'warn') }, x.id || (x.error ? 'Error' : 'Warning')), x.count > 1 ? h('span', { class: 'tiny muted' }, ` ×${x.count}`) : null,
                 h('div', { class: 'small' }, sample.message || '', sample.detail ? ': ' + sample.detail : '')),
               h('td', { class: 'mono tiny' }, sample.owner || ''), h('td', { class: 'small' }, x.hint || ''),
-              h('td', { class: 'num' }, x.id && x.hint ? h('a', { class: 'button small', href: '#/docs?open=' + encodeURIComponent('oml explain-warning ' + x.id), 'aria-label': 'Explain ' + x.id }, 'Explain') : null));
+              h('td', { class: 'num' }, x.id && x.hint ? h('span', { class: 'mono tiny' }, 'oml explain-warning ' + x.id) : null));
           })))) : h('p', { class: 'muted' }, 'No errors and no warnings.'),
         cli(data.cli)));
     }

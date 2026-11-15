@@ -4,6 +4,7 @@ import { task, cli, pullWarning, CONNECT_NOTE } from '../core/ui.js';
 import { checkNames } from '../data/cookbook.js';
 import { state, setModule } from '../core/state.js';
 import { workset } from '../core/workset.js';
+import { NAV } from '../nav.js';
 
 export default {
   id: 'home', group: 'Start', title: 'Home', icon: 'home',
@@ -27,7 +28,7 @@ export default {
         studioOut),
       h('section', { class: 'card', 'aria-labelledby': 'links-title' },
         h('h2', { id: 'links-title' }, 'Go to'),
-        h('div', { class: 'links' }, ctx.pages.filter(p => p.id !== 'home').map(p =>
+        h('div', { class: 'links' }, ctx.pages.filter(p => p.id !== 'home' && NAV.some(g => g.ids.includes(p.id))).map(p =>
           h('a', { class: 'link-card', href: '#/' + p.id }, h('strong', {}, icon(p.id), p.title), h('span', {}, p.desc)))),
         state.info ? h('p', { class: 'muted small' }, 'Files the dashboard makes (pulled modules, OpenAPI, architecture pages) are saved in ', h('code', { text: state.info.workFolder }), '. Nothing is overwritten.') : null));
 
