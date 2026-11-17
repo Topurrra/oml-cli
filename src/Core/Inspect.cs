@@ -87,21 +87,31 @@ static class Inspect
     static object[] OtherContent(IESpace m)
     {
         var listed = new HashSet<object>(ReferenceEqualityComparer.Instance);
-        void Mark(IEnumerable<object> items) { foreach (var item in items) listed.Add(item); }
-        Mark(m.Entities); Mark(m.Structures); Mark(m.ServerActions); Mark(m.ServiceActions); Mark(m.ClientActions);
-        Mark(RestModel.Integrations(m, false)); Mark(RestModel.Integrations(m, true));
-        Mark(Screens(m).Select(s => (object)s.screen));
-        Mark(m.Timers); Mark(m.Processes); Mark(Describe.List(m, "SessionVariables")); Mark(m.Roles); Mark(m.SiteProperties);
-        Mark(m.UserExceptions); Mark(m.References); Mark(m.TextResources); Mark(m.Folders);
+        // Each collection is read on its own: one that throws is skipped and listed in unreadable, the others are still marked.
+        void Mark(string what, Func<IEnumerable<object>> items)
+        {
+            foreach (var item in Unreadable.Try("otherContent " + what, () => items().ToArray(), Array.Empty<object>())) listed.Add(item);
+        }
+        Mark("entities", () => m.Entities); Mark("structures", () => m.Structures); Mark("serverActions", () => m.ServerActions);
+        Mark("serviceActions", () => m.ServiceActions); Mark("clientActions", () => m.ClientActions);
+        Mark("restClients", () => RestModel.Integrations(m, false)); Mark("restServices", () => RestModel.Integrations(m, true));
+        Mark("screens", () => Screens(m).Select(s => (object)s.screen));
+        Mark("timers", () => m.Timers); Mark("processes", () => m.Processes); Mark("sessionVariables", () => Describe.List(m, "SessionVariables"));
+        Mark("roles", () => m.Roles); Mark("siteProperties", () => m.SiteProperties);
+        Mark("exceptions", () => m.UserExceptions); Mark("references", () => m.References); Mark("textResources", () => m.TextResources);
+        Mark("folders", () => m.Folders);
         foreach (var key in new[] { "Images", "Scripts", "Resources", "MobileThemes", "WebThemes", "Locales", "MobileFlows", "WebFlows" })
-            Mark(Content.Items(m, key));
+            Mark(key, () => Content.Items(m, key));
         // The built-in exceptions and roles are part of every module.
         foreach (var key in Refs.SystemExceptions.Concat(new[] { "AnonymousRole", "RegisteredRole" }))
             if (Reflect.Get(m, key) is { } builtIn) listed.Add(builtIn);
-        var candidates = new List<IObjectSignature>(ElementPaths.Children(m));
-        candidates.AddRange(m.Integrations.OfType<IObjectSignature>());
-        candidates.AddRange(m.MobileFlows.SelectMany(f => f.Nodes).OfType<IObjectSignature>());
-        candidates.AddRange(m.WebFlows.SelectMany(f => f.Nodes).OfType<IObjectSignature>());
+        var candidates = new List<IObjectSignature>();
+        void Gather(string what, Func<IEnumerable<IObjectSignature>> read) =>
+            candidates.AddRange(Unreadable.Try("otherContent " + what, () => read().ToArray(), Array.Empty<IObjectSignature>()));
+        Gather("children", () => ElementPaths.Children(m));
+        Gather("integrations", () => m.Integrations.OfType<IObjectSignature>());
+        Gather("mobile flow nodes", () => m.MobileFlows.SelectMany(f => f.Nodes).OfType<IObjectSignature>());
+        Gather("web flow nodes", () => m.WebFlows.SelectMany(f => f.Nodes).OfType<IObjectSignature>());
         var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
         return candidates
             .Where(o => o is not IReference && o is not IExpression && !listed.Contains(o) && seen.Add(o))

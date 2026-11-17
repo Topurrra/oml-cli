@@ -21,7 +21,7 @@ static class CliUsage
         oml extension inspect <file.xif>
         oml extension new <out.xif> --name <Name> [--spec <spec.json>]
         oml templates           (local template/sample modules and bundles)
-        oml inspect <module.oml> [--own] [--only entities,structures,actions,screens,blocks,references,timers,roles,processes,rest,static,siteProperties] [--history] [--changed-since <yyyy-mm-dd>]
+        oml inspect <module.oml> [--own] [--only entities,structures,actions,screens,blocks,references,timers,roles,processes,rest,static,siteProperties,otherContent] [--history] [--changed-since <yyyy-mm-dd>]
         oml inspect --in <folder> [--recursive] [--own] [--only ...]   (every .oml in the folder in one process: {modules:[{file,...}]}, a broken file gives an error entry)
         oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [--history] [--css]
         oml export <module.oml> <Element>...   (a screen, web block or email as JSON for tools; read with describe)
