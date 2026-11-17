@@ -131,6 +131,9 @@ static partial class SelfTest
         var failures = new List<string>();
         var limit = Limit;
         using var watchdog = new System.Threading.Timer(_ => Abandon(build, limit), null, limit, Timeout.InfiniteTimeSpan);
+        // The checks expect modules built without an author (HistoryTest); AuthorTest sets OML_AUTHOR for its own apply.
+        var author = Environment.GetEnvironmentVariable("OML_AUTHOR");
+        Environment.SetEnvironmentVariable("OML_AUTHOR", null);
         running = true;
         try
         {
@@ -203,6 +206,7 @@ static partial class SelfTest
             StudioUiSelfTest.Run(failures);
             PublishOrderSelfTest.Run(failures);
             HistoryTest(Path.Combine(dir, "built.oml"), dir, failures);
+            AuthorTest(Path.Combine(dir, "built.oml"), dir, failures);
             ReadersTest(blank, failures);
             NewParsersTest(failures);
             TestScaffoldTest(dir, failures);
@@ -282,6 +286,7 @@ static partial class SelfTest
         finally
         {
             running = false;
+            Environment.SetEnvironmentVariable("OML_AUTHOR", author);
             try { Directory.Delete(dir, recursive: true); } catch (IOException) { }
         }
 

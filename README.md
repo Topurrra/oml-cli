@@ -18,6 +18,7 @@ oml config set ui.targets desktop    # no phone or tablet checks
 oml config set ui.themes light       # no dark theme checks
 oml config set checks.qa off         # no oml qa runs
 oml config set ask.testing off       # stop asking whether to test
+oml config set author "Your Name"    # the name Service Studio shows on what oml creates or changes
 oml config                           # what agents are told
 ```
 

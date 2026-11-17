@@ -128,6 +128,23 @@ try {
   Require ($LASTEXITCODE -eq 2) 'a Service Studio MCP address on another machine was accepted'
   & $Oml config set outsystems.mcpServer http://127.0.0.1:41999/mcp | Out-Null
   Require ($LASTEXITCODE -eq 0 -and ((& $Oml config) -join '') -match '41999') 'outsystems.mcpServer is not in the profile'
+  # author: stored and shown; without one the profile says to ask; a bad name is refused; OML_AUTHOR wins over the file
+  $savedAuthor = $env:OML_AUTHOR; Remove-Item Env:OML_AUTHOR -ErrorAction SilentlyContinue
+  try {
+    Require (((& $Oml config) -join '') -match 'ask the user which author name') 'the profile does not ask for an author when none is set'
+    & $Oml config set author "Ana Silva" | Out-Null
+    Require ($LASTEXITCODE -eq 0 -and (Get-Content (Join-Path $prof '.oml\config.json') -Raw | ConvertFrom-Json).author -eq 'Ana Silva') 'config set author did not store the name'
+    Require (((& $Oml config) -join '') -match 'Author for what you create: Ana Silva\.') 'config does not show the author'
+    & $Oml config set author "Ana`tSilva" 2>&1 | Out-Null
+    Require ($LASTEXITCODE -eq 2) 'an author with a control character was accepted'
+    & $Oml config set author ('a' * 101) 2>&1 | Out-Null
+    Require ($LASTEXITCODE -eq 2) 'an author longer than 100 characters was accepted'
+    $env:OML_AUTHOR = 'Ben Costa'
+    Require (((& $Oml config) -join '') -match 'Author for what you create: Ben Costa\.') 'OML_AUTHOR does not win over the file'
+    Remove-Item Env:OML_AUTHOR
+    & $Oml config set author "" | Out-Null
+    Require ($LASTEXITCODE -eq 0 -and (Get-Content (Join-Path $prof '.oml\config.json') -Raw | ConvertFrom-Json).author -eq '' -and ((& $Oml config) -join '') -match 'ask the user which author name') 'an empty author did not clear it'
+  } finally { if ($null -ne $savedAuthor) { $env:OML_AUTHOR = $savedAuthor } }
   # a check that is off is refused by the command; --no-profile skips it; qa --help is never refused
   & $Oml config set checks.qa off | Out-Null
   $x = (& $Oml qa page http://127.0.0.1:9 2>&1) -join ''
