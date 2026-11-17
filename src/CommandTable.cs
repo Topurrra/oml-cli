@@ -43,9 +43,12 @@ internal static class CommandTable
         new("image", null, NoTimings: true, Help: true),
         // Taken in Main, before the usage log wraps the call (a summary of the log is not itself logged); --help goes to Core.
         new("log", (_, f) => UsageLog.Summary(Rest(f)), f => !f.Contains("--help") && !f.Contains("-h"), NoTimings: true),
+        // Taken in Main (a person's terminal; the usage log does not copy it); --help goes to the launcher's help.
+        new("menu", (_, f) => MenuApp.Run(Rest(f)), f => !f.Contains("--help") && !f.Contains("-h"), NoTimings: true, Help: true),
         // Hidden maintainer commands: not in the usage text, not in help.
         new("terminal-test", (_, _) => { var result = TerminalRender.SelfTest(); Console.WriteLine(result); return result == "ok" ? 0 : 1; }, Hidden: true),
         new("commands", (_, f) => Commands(f), Hidden: true),
+        new("menu-test", (_, _) => { var result = MenuTest.Run(); Console.WriteLine(result); return result == "ok" ? 0 : 1; }, Hidden: true),
     ];
 
     // The entry the launcher runs for these arguments, or null when Core does.

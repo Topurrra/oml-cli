@@ -31,7 +31,7 @@ static class UsageLog
         ["learn"] = ["report", "propose", "show", "accept", "reject", "history", "undo"], ["team-rules"] = ["list", "add", "remove"], ["config"] = ["show", "init", "set"],
     };
     // The agent's own session variables, read in this order; the value is hashed before it is written.
-    static readonly string[] SessionVariables = ["OML_SESSION", "CLAUDE_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CODEX_SESSION_ID"];
+    internal static readonly string[] SessionVariables = ["OML_SESSION", "CLAUDE_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CODEX_SESSION_ID"];
     static readonly Regex OptionName = new(@"^--[a-z][a-z0-9-]{0,30}$", RegexOptions.CultureInvariant);
     // Environment values that must never reach the file, even inside an error message.
     static readonly string[] Secrets = ["OML_LIFETIME_TOKEN", "OML_LIFETIME_HOST"];

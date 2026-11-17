@@ -24,6 +24,9 @@ public static class Program
             return 2;
         }
         if (filtered.FirstOrDefault() == "log" && CommandTable.Find(filtered) is { } log) return log.Run!(args, filtered);
+        // The menu is for a person at a terminal: taken here, before the usage log copies stdout, and a bare `oml` only when MenuModel.Bare says so.
+        if (filtered.FirstOrDefault() == "menu" && CommandTable.Find(filtered) is { } menu) return menu.Run!(args, filtered);
+        if (args.Length == 0 && MenuModel.Bare(Console.IsInputRedirected, Console.IsOutputRedirected, Environment.GetEnvironmentVariable) == BareChoice.Menu) return MenuApp.Run([]);
         // The usage log: one line per command, written after it ends (on unless OML_LOG=0; then nothing is wrapped or written).
         return UsageLog.Enabled ? UsageLog.Measure(filtered, () => Dispatch(args, filtered)) : Dispatch(args, filtered);
     }
@@ -45,7 +48,7 @@ public static class Program
 
     // The last guard: whatever a command did not handle itself becomes one JSON error, never a .NET stack trace.
     // Core is called by reflection, so the real exception sits inside a TargetInvocationException.
-    static int Dispatch(string[] args, string[] filtered)
+    internal static int Dispatch(string[] args, string[] filtered)
     {
         try { return DispatchCommand(args, filtered); }
         catch (Exception e)

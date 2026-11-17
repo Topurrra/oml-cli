@@ -357,6 +357,10 @@ Unit 'terminal-check' {
   try { & (Join-Path $tests 'terminal-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL terminal checks: $_" }
 }
+Unit 'menu-check' {
+  try { & (Join-Path $tests 'menu-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL menu checks: $_" }
+}
 Unit 'parsers-check' {
   try { & (Join-Path $tests 'parsers-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL parsers checks: $_" }
