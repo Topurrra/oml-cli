@@ -11,7 +11,7 @@ namespace OmlCli;
 // process for the Core commands it needs (inspect, header, describe), so the decisions below are pure functions of their JSON
 // (Build, ProducerMap, EntityWrites, Compare), tested by the hidden `oml migrate selftest`. Nothing outside --out is written;
 // the old module is never touched. The generated specs are applied by the existing `oml apply`.
-static class Migrate
+static partial class Migrate
 {
     sealed class Refusal(string message, string? hint = null, int code = 2) : Exception(message) { public string? Hint = hint; public int Code = code; }
 
@@ -38,7 +38,7 @@ static class Migrate
 
     static int Plan(string[] a)
     {
-        string? old = null, name = null, outDir = null;
+        string? old = null, name = null, outDir = null, template = null;
         var inputs = new List<string>();
         for (var i = 0; i < a.Length; i++)
             switch (a[i])
@@ -46,6 +46,7 @@ static class Migrate
                 case "--name" when i + 1 < a.Length: name = a[++i]; break;
                 case "--in" when i + 1 < a.Length: inputs.Add(Path.GetFullPath(a[++i])); break;
                 case "--out" when i + 1 < a.Length: outDir = Path.GetFullPath(a[++i]); break;
+                case "--template" when i + 1 < a.Length: template = Path.GetFullPath(a[++i]); break;
                 case var o when o.StartsWith("--"): throw new Refusal($"Unknown or incomplete option {o}.", "Usage: " + CliUsage.For("migrate").Split('\n')[0].Trim());
                 default: if (old is not null) throw new Refusal($"Unexpected argument {a[i]}: migrate plan takes one old module."); old = a[i]; break;
             }
@@ -58,6 +59,7 @@ static class Migrate
         foreach (var input in inputs)
             if (!Directory.Exists(input) && !(File.Exists(input) && Path.GetExtension(input).Equals(".oml", StringComparison.OrdinalIgnoreCase)))
                 throw new Refusal($"--in {input}: not a folder or an .oml file.");
+        if (template is not null && !(File.Exists(template) && Path.GetExtension(template).Equals(".oml", StringComparison.OrdinalIgnoreCase))) throw new Refusal($"--template {template}: not an .oml file.", "Give a Reactive template module file (see oml templates).");
         outDir ??= Path.Combine(Environment.CurrentDirectory, "migrate", name);
         if (File.Exists(outDir) || Directory.Exists(outDir) && Directory.EnumerateFileSystemEntries(outDir).Any())
             throw new Refusal($"{outDir} exists and is not empty.", "migrate plan never writes into a folder that has files: choose another --out.");
@@ -79,63 +81,40 @@ static class Migrate
         }
         var (map, producerNotes) = ProducerMap(header, S(inspect, "name") ?? "");
 
-        var r = Build(inspect, old, name, outDir, map, []);
-        var notes = new List<string>();
-
-        // Which entity actions the copied logic calls: the node trees of every copied element, in one `oml batch` process.
-        var calls = new List<Call>();
-        if (r.Logic.Count > 0)
-        {
-            var steps = new JsonObject { ["steps"] = new JsonArray(r.Logic.Select(l => (JsonNode?)new JsonArray(JsonValue.Create("tree"), JsonValue.Create(old), JsonValue.Create(l.query))).ToArray()) };
-            var batch = Child(["batch", "-", "--continue"], tolerateFailure: true, stdin: steps.ToJsonString());
-            calls = FindCalls(batch, r.Logic, r.EntityNames, notes);
-        }
-        r = Build(inspect, old, name, outDir, map, calls);
-        r.Notes.AddRange(producerNotes);
-        r.Notes.AddRange(notes);
-
-        // Descriptions of the screens and blocks, all in one call.
-        var screenTexts = Describe(old, r.Screens.Select(s => ((s.Block ? "Block:" : "Screen:") + s.Name, s.Name)).ToList(), r.Notes);
-
+        // The whole plan is decided by pure code over what the child processes print (Assemble); only the files are written here.
+        var plan = Assemble(old, name, outDir, inspect, map, producerNotes, template, (args, stdin) => Child(args, tolerateFailure: true, stdin: stdin));
         Directory.CreateDirectory(outDir);
-        var written = new List<string>();
-        void Write(string file, string text)
+        foreach (var (file, text) in plan.Files)
         {
             var path = Path.Combine(outDir, file);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             using var stream = new FileStream(path, FileMode.CreateNew); // never overwrites
             stream.Write(new UTF8Encoding(false).GetBytes(text));
-            written.Add(file);
         }
-        string Json(JsonNode n) => n.ToJsonString(Indented) + "\n";
-        Write("plan.json", Json(r.Plan));
-        if (r.Prepare is not null) Write("1-prepare-old.json", Json(r.Prepare));
-        if (r.Source is not null) Write("2-source.json", Json(r.Source));
-        Write("3-new-module.json", Json(r.NewModule));
-        Write("4-screens.md", ScreensMd(r));
-        foreach (var s in r.Screens) Write(s.File, screenTexts.TryGetValue((s.Block ? "Block:" : "Screen:") + s.Name, out var t) ? t : "(no description)\n");
-
-        var result = new JsonObject
-        {
-            ["ok"] = true, ["source"] = old, ["target"] = name, ["out"] = outDir,
-            ["counts"] = JsonSerializer.SerializeToNode(r.Counts),
-            ["wrappers"] = new JsonObject { ["create"] = r.WrapperCreate, ["exists"] = r.WrapperExists },
-            ["references"] = JsonSerializer.SerializeToNode(r.RefCounts),
-            ["repointed"] = r.Calls.Count,
-            ["files"] = JsonSerializer.SerializeToNode(written),
-            ["next"] = JsonSerializer.SerializeToNode(Next(r, old, name, outDir)),
-            ["notes"] = JsonSerializer.SerializeToNode(r.Notes),
-        };
-        TerminalOutput.PrintNode(result);
+        TerminalOutput.PrintNode(plan.Output);
         return 0;
     }
 
     static int Status(string[] a)
     {
-        var files = a.Where(x => !x.StartsWith("--")).ToArray();
-        if (files.Length != 2 || a.Length != 2) throw new Refusal("migrate status takes two modules: oml migrate status <old.oml> <new.oml>.");
+        var files = new List<string>(); string? plan = null;
+        for (var i = 0; i < a.Length; i++)
+            if (a[i] == "--plan" && i + 1 < a.Length) plan = a[++i];
+            else if (a[i].StartsWith("--")) throw new Refusal($"Unknown or incomplete option {a[i]}.", "Usage: " + CliUsage.For("migrate").Split('\n')[1].Trim());
+            else files.Add(a[i]);
+        if (files.Count != 2) throw new Refusal("migrate status takes two modules: oml migrate status <old.oml> <new.oml> [--plan <folder>].");
         foreach (var f in files) if (!File.Exists(f)) throw new Refusal($"{Path.GetFullPath(f)} does not exist.");
-        TerminalOutput.PrintNode(Compare(Child("inspect", Path.GetFullPath(files[0])), Child("inspect", Path.GetFullPath(files[1]))));
+        JsonNode? planJson = null;
+        if (plan is not null)
+        {
+            var planFile = Path.Combine(Path.GetFullPath(plan), "plan.json");
+            if (!File.Exists(planFile)) throw new Refusal($"--plan {plan}: no plan.json in that folder.", "Give the --out folder of oml migrate plan.");
+            try { planJson = JsonNode.Parse(File.ReadAllText(planFile)); } catch (JsonException e) { throw new Refusal($"{planFile} is not valid JSON: {e.Message}"); }
+        }
+        var newInspect = Child("inspect", Path.GetFullPath(files[1]));
+        var result = Compare(Child("inspect", Path.GetFullPath(files[0])), newInspect);
+        if (planJson is not null) { var p = ScreenProgress(planJson, newInspect); result["screensProgress"] = p; result["progress"] = result["progress"] + "; " + p["line"]; }
+        TerminalOutput.PrintNode(result);
         return 0;
     }
 
@@ -166,7 +145,7 @@ static class Migrate
     }
 
     // oml describe with several names in one process (a long list in a few); returns name -> text, and says in notes what did not describe.
-    static Dictionary<string, string> Describe(string file, List<(string query, string name)> names, List<string> notes)
+    static Dictionary<string, string> Describe(Func<string[], string?, JsonNode> run, string file, List<(string query, string name)> names, List<string> notes, params string[] extra)
     {
         var texts = new Dictionary<string, string>();
         for (var at = 0; at < names.Count; at += 150)
@@ -174,7 +153,8 @@ static class Migrate
             var chunk = names.Skip(at).Take(150).ToList();
             var args = new List<string> { "describe", file };
             args.AddRange(chunk.Select(n => n.query));
-            foreach (var (n, entry) in Pair(Child([.. args], tolerateFailure: true), chunk.Select(c => c.query).ToList()))
+            args.AddRange(extra);
+            foreach (var (n, entry) in Pair(run([.. args], null), chunk.Select(c => c.query).ToList()))
                 if (S(entry, "text") is { } text) texts[n] = text.TrimEnd() + "\n";
                 else { texts[n] = $"(describe failed: {S(entry, "error") ?? "no text"})\n"; notes.Add($"oml describe could not read {n}: {S(entry, "error") ?? "no text"}"); }
         }
@@ -223,7 +203,18 @@ static class Migrate
     // Inspect prints for a referenced element (e.GetInterface().Name); matched by the words it must contain.
     static readonly Regex UiKind = new("Screen|Block|Theme|Flow", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
-    internal sealed record Screen(string Name, bool Block, string Flow, string[] Inputs, string[] Roles, string File);
+    // Kind is Screen, Block or Email (the emails come from otherContent); File is the describe text, screens/<Name>.json is its raw export.
+    internal sealed record Screen(string Name, string Kind, string Flow, string[] Inputs, string[] Roles, string File)
+    { public string Query => Kind + ":" + Name; public string Export => File[..^4] + ".json"; }
+
+    // One session variable of the old module and what becomes of it (item 3 of the plan): client or manual.
+    internal sealed record SessionDecision(string Name, string Type, string? Default, string Decision, string Why);
+    // A module element that no inspect section lists (otherContent) and what is done with it.
+    internal sealed record Other(string Kind, string Name, string Decision, string Why);
+    // What the screens and blocks add to the picture before the plan is final: entity actions their logic calls, the session variables
+    // they use, and the session variables each copied server or service action uses (variable -> actions).
+    internal sealed record Extra(IReadOnlyList<Call> ScreenWrites, IReadOnlyDictionary<string, string[]> ServerSession, IReadOnlySet<string> ScreenSession)
+    { public static readonly Extra None = new([], new Dictionary<string, string[]>(), new HashSet<string>()); }
 
     internal sealed class Result
     {
@@ -231,7 +222,7 @@ static class Migrate
         public JsonObject? Prepare, Source; // Source: the repoint edits for the working copy of the prepared module
         public string Prepared = "", MigrateSource = "", OldName = "";
         public List<string> Notes = [];
-        public SortedDictionary<string, int> Counts = new() { ["stay"] = 0, ["copy"] = 0, ["worklist"] = 0, ["manual"] = 0 };
+        public SortedDictionary<string, int> Counts = new() { ["stay"] = 0, ["copy"] = 0, ["client"] = 0, ["manual"] = 0 };
         public SortedDictionary<string, int> RefCounts = new() { ["add"] = 0, ["skip-ui"] = 0, ["unresolved"] = 0, ["builtin"] = 0 };
         public int WrapperCreate, WrapperExists;
         public List<string> WrapperNames = [];
@@ -240,6 +231,12 @@ static class Migrate
         public List<(string query, string name)> Logic = []; // copied server and service actions and processes: described to find entity writes
         public string[] EntityNames = [];
         public string[] Sessions = [];
+        public List<SessionDecision> SessionDecisions = [];
+        public List<Other> Others = [];
+        public JsonArray ClientVariables = [];
+        public JsonObject? ScreensSpec; // 4-screens.json, set when the screens are translated
+        public Dictionary<string, string> WrapperMap = new(StringComparer.Ordinal); // entity action -> wrapper name
+        public bool NoOtherContent; // the inspect of an older Core has no otherContent key
     }
 
     static readonly string[] EntityOps = ["Create", "CreateOrUpdate", "Update", "Delete"];
@@ -251,12 +248,13 @@ static class Migrate
 
     // The plan and the specs. inspect is the JSON of `oml inspect <old.oml>`; producers maps a module name to its file;
     // calls are the entity actions the copied logic calls (FindCalls), which decide the wrappers and the repoint edits.
-    internal static Result Build(JsonNode inspect, string oldFile, string newName, string outDir, IReadOnlyDictionary<string, string> producers, IReadOnlyList<Call> calls)
+    internal static Result Build(JsonNode inspect, string oldFile, string newName, string outDir, IReadOnlyDictionary<string, string> producers, IReadOnlyList<Call> calls, Extra? extra = null)
     {
+        extra ??= Extra.None;
         var r = new Result { OldName = S(inspect, "name") ?? Path.GetFileNameWithoutExtension(oldFile) };
         var elements = new JsonArray();
         void El(string kind, string name, string decision, string why)
-        { elements.Add(new JsonObject { ["kind"] = kind, ["name"] = name, ["decision"] = decision, ["why"] = why }); r.Counts[decision]++; }
+        { elements.Add(new JsonObject { ["kind"] = kind, ["name"] = name, ["decision"] = decision, ["why"] = why }); r.Counts[decision] = r.Counts.GetValueOrDefault(decision) + 1; }
 
         // A static entity is listed under entities (kind StaticEntity) and under staticEntities.
         var staticNames = Set(Names(inspect, "staticEntities").Concat(Rows(inspect, "entities").Where(e => S(e, "kind") == "StaticEntity").Select(e => S(e, "name")!)));
@@ -272,9 +270,11 @@ static class Migrate
         var wrappers = new JsonArray();
         var wrapperSpecs = new JsonArray();
         var existingWrappers = Set([]);
-        foreach (var g in calls.GroupBy(c => c.Wrapper, StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key, StringComparer.Ordinal))
+        // The entity actions that screens and blocks call need a wrapper too (their Path is empty: nothing to re-point, the translator calls it).
+        foreach (var g in calls.Concat(extra.ScreenWrites.Where(c => !string.Equals(c.Element, c.Wrapper, StringComparison.OrdinalIgnoreCase))).GroupBy(c => c.Wrapper, StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key, StringComparer.Ordinal))
         {
             var c = g.First();
+            r.WrapperMap.TryAdd(c.Op + c.Entity, c.Wrapper);
             var exists = actionNames.Contains(c.Wrapper);
             r.WrapperNames.Add(c.Wrapper);
             wrappers.Add(new JsonObject { ["kind"] = "wrapper", ["entity"] = c.Entity, ["name"] = c.Wrapper, ["entityAction"] = c.Op + c.Entity, ["decision"] = exists ? "exists" : "create", ["usedBy"] = Arr(g.Select(x => x.Element).Distinct().Order(StringComparer.Ordinal)) });
@@ -319,14 +319,41 @@ static class Migrate
         foreach (var x in Rows(inspect, "restServices")) Copy("restServices", "restService", "", S(x, "name")!, "exposed REST API: copied (the URL of the new module differs)");
         foreach (var x in Rows(inspect, "timers")) Copy("timers", "timer", "Timer", S(x, "name")!, "timer: copied; it now exists in both modules");
         foreach (var x in Rows(inspect, "processes")) Copy("processes", "process", "Process", S(x, "name")!, "process (BPT): copied; it now exists in both modules", true);
+        // Session variables: client when only screens and blocks use them (DecideSession), else a decision for a person.
         r.Sessions = Names(inspect, "sessionVariables");
-        foreach (var n in r.Sessions) El("sessionVariable", n, "manual", "not copied: decide a client variable, data read on the server, or nothing (nothing sensitive in a client variable)");
-        foreach (var x in Rows(inspect, "screens").Concat(Rows(inspect, "blocks")).Select((row, i) => (row, block: i >= Rows(inspect, "screens").Length)))
+        var clientVars = new JsonArray();
+        foreach (var x in Rows(inspect, "sessionVariables").Where(x => S(x, "name") is not null))
         {
-            var n = S(x.row, "name")!;
-            var file = "screens/" + Regex.Replace(n, @"[^A-Za-z0-9_-]", "_") + (x.block && Rows(inspect, "screens").Any(s => S(s, "name") == n) ? "-block" : "") + ".txt";
-            r.Screens.Add(new Screen(n, x.block, S(x.row, "flow") ?? "", Strings(x.row, "inputs"), Strings(x.row, "roles"), file));
-            El(x.block ? "block" : "screen", n, "worklist", "Traditional UI: not translated by code; an agent rebuilds it from its description");
+            var n = S(x, "name")!; var type = S(x, "type") ?? "";
+            extra.ServerSession.TryGetValue(n, out var serverUse);
+            var (decision, why) = DecideSession(n, type, serverUse ?? [], extra.ScreenSession.Contains(n));
+            var def = S(x, "default");
+            r.SessionDecisions.Add(new SessionDecision(n, type, def, decision, why));
+            El("sessionVariable", n, decision, why);
+            if (decision == "client")
+            {
+                var cv = new JsonObject { ["name"] = n, ["type"] = type };
+                if (!string.IsNullOrEmpty(def)) cv["default"] = def;
+                clientVars.Add(cv);
+            }
+        }
+        r.ClientVariables = clientVars;
+        var emails = Rows(inspect, "otherContent").Where(o => (S(o, "kind") ?? "").Contains("Email", StringComparison.OrdinalIgnoreCase)).ToArray();
+        var screenRows = Rows(inspect, "screens");
+        string FileFor(string kind, string n, int taken) => "screens/" + Regex.Replace(n, @"[^A-Za-z0-9_-]", "_") + (taken > 0 ? "-" + kind.ToLowerInvariant() : "") + ".txt";
+        foreach (var x in screenRows) r.Screens.Add(new Screen(S(x, "name")!, "Screen", S(x, "flow") ?? "", Strings(x, "inputs"), Strings(x, "roles"), FileFor("Screen", S(x, "name")!, 0)));
+        foreach (var x in Rows(inspect, "blocks")) r.Screens.Add(new Screen(S(x, "name")!, "Block", S(x, "flow") ?? "", Strings(x, "inputs"), Strings(x, "roles"), FileFor("Block", S(x, "name")!, r.Screens.Count(q => q.Name == S(x, "name")))));
+        foreach (var x in emails) r.Screens.Add(new Screen(S(x, "name")!, "Email", "", [], [], FileFor("Email", S(x, "name")!, r.Screens.Count(q => q.Name == S(x, "name")))));
+
+        // Everything else the inspect lists under otherContent: a decision by kind name, nothing dropped silently.
+        r.NoOtherContent = P(inspect, "otherContent") is not JsonArray;
+        foreach (var x in Rows(inspect, "otherContent").Where(o => S(o, "name") is not null))
+        {
+            var (kind, n) = (S(x, "kind") ?? "?", S(x, "name")!);
+            var (decision, why) = DecideOther(kind);
+            r.Others.Add(new Other(kind, n, decision, why));
+            if (decision == "copy") { El(kind, n, "copy", why); copyPaths.Add(n); }
+            else if (decision == "manual") El(kind, n, "manual", why);
         }
         if (dup.Count > 0) r.Notes.Add($"These names are used by more than one element of the old module: {string.Join(", ", dup.Order(StringComparer.Ordinal))}. Their copy paths carry the kind (Kind:Name); check them if apply says a path is ambiguous.");
 
@@ -389,6 +416,7 @@ static class Migrate
         {
             ["source"] = oldFile, ["sourceModule"] = r.OldName, ["target"] = newName, ["preparedModule"] = r.Prepare is null ? null : r.Prepared, ["migrateSource"] = r.Source is null ? null : r.MigrateSource,
             ["elements"] = elements, ["wrappers"] = wrappers, ["references"] = references,
+            ["otherContent"] = new JsonArray(r.Others.Select(o => (JsonNode?)new JsonObject { ["kind"] = o.Kind, ["name"] = o.Name, ["decision"] = o.Decision, ["why"] = o.Why }).ToArray()),
         };
         Notes(r, inspect);
         r.Plan["notes"] = Arr(r.Notes);
@@ -455,18 +483,24 @@ static class Migrate
         head.Add("The old module keeps the entities (public now, but read only for other modules) and is best turned into a service module once its screens and blocks are gone.");
         if (r.EntityNames.Length > 0)
             head.Add(r.WrapperNames.Count > 0
-                ? $"The entities stay read only for other modules, so the old module gains {r.WrapperCreate} public wrapper server action(s) for the entity actions its copied logic calls ({string.Join(", ", r.WrapperNames)}; apply warns PublicServerAction for each, as intended), and the copied logic calls the wrappers: 2-source.json re-points {r.Calls.Count} Execute node(s) in a working copy of the old module."
-                : "The entities stay read only for other modules. The copied logic writes no entity directly, so the old module gains no wrapper.");
+                ? $"The entities stay read only for other modules, so the old module gains {r.WrapperCreate} public wrapper server action(s) for the entity actions its copied logic and its translated screens call ({string.Join(", ", r.WrapperNames)}; apply warns PublicServerAction for each, as intended), and the copied logic calls the wrappers: 2-source.json re-points {r.Calls.Count} Execute node(s) in a working copy of the old module."
+                : "The entities stay read only for other modules. The copied logic and the screens write no entity directly, so the old module gains no wrapper.");
         if (r.Calls.Count > 0) head.Add("The logic is re-pointed to the wrappers in a working copy of the old module before it is copied, so the copied calls bind to the wrapper references in the new module.");
-        head.Add("oml migrate plan creates wrappers for the copied logic only. A migrated screen that writes an entity may need more: the agent adds a wrapper to the old module the same way (a public server action with the entity action's inputs and outputs), adds it to the references of the new module and calls it.");
+        head.Add("Wrappers are made for the entity actions the copied logic and the exported screens and blocks call. A rebuilt screen that writes an entity in a way the translator did not see needs one more: add a wrapper to the old module the same way (a public server action with the entity action's inputs and outputs), add it to the references of the new module and call it.");
         head.Add("Site property values, timer schedules and integration settings (REST, e-mail) set in Service Center do not follow a copy: set them again for the new module.");
-        if (r.Sessions.Length > 0) head.Add($"Session variables are not copied; each needs a decision ({string.Join(", ", r.Sessions)}): a client variable only when it holds nothing sensitive, else data read on the server.");
+        var clients = r.SessionDecisions.Where(d => d.Decision == "client").Select(d => d.Name).ToArray();
+        if (clients.Length > 0) head.Add($"Session variable(s) used only by screens and blocks become client variables of the same name in 4-screens.json ({string.Join(", ", clients)}); a client variable is readable by the user, so nothing sensitive goes there.");
+        foreach (var d in r.SessionDecisions.Where(d => d.Decision == "manual")) head.Add($"Session variable {d.Name} is not migrated, it needs a decision by hand: {d.Why}.");
+        if (r.Others.Count > 0)
+            foreach (var g in r.Others.GroupBy(o => (o.Decision, o.Kind)).OrderBy(g => g.Key.Decision, StringComparer.Ordinal).ThenBy(g => g.Key.Kind, StringComparer.Ordinal))
+                head.Add($"{g.Key.Kind} ({string.Join(", ", g.Select(o => o.Name))}): {g.First().Why}");
+        if (r.NoOtherContent) head.Add("This oml did not report otherContent in inspect: emails, SOAP references, entry points and other elements outside the usual sections were not looked at. Use a newer oml, or check them by hand.");
         foreach (var p in Rows(inspect, "processes").Where(p => S(p, "launchOn") is not null))
             head.Add($"Process {S(p, "name")} launches on entity {S(p, "launchOn")}, which stays in the old module: check that the copy still launches, or start it from a server action.");
         r.Notes.InsertRange(0, head);
     }
 
-    static List<string> Next(Result r, string old, string name, string outDir)
+    internal static List<string> Next(Result r, string old, string name, string outDir, string? template = null)
     {
         string Q(string s) => s.Contains(' ') ? "\"" + s + "\"" : s;
         string F(string f) => Q(Path.Combine(outDir, f));
@@ -480,24 +514,19 @@ static class Migrate
         if (r.Source is not null)
             next.Add($"oml apply {Q(r.Prepared)} {F("2-source.json")} {Q(r.MigrateSource)}   ({r.Calls.Count} repoint edit(s) so the logic calls the wrappers: a working copy to copy from; never install it)");
         var created = Q(Path.Combine(outDir, name + ".oml"));
-        next.Add($"oml new {created} --template <a Reactive template module: see oml templates> --name {name}");
-        next.Add($"oml apply {created} {F("3-new-module.json")} {Q(Path.Combine(outDir, name + ".staged.oml"))}   (references, then the copy from {(r.Source is null ? "the prepared module" : "the working copy")})");
+        var staged = Q(Path.Combine(outDir, name + ".staged.oml"));
+        var last = staged;
+        next.Add($"oml new {created} --template {(template is null ? "<a Reactive template module: see oml templates>" : Q(template))} --name {name}");
+        next.Add($"oml apply {created} {F("3-new-module.json")} {staged}   (references, then the copy from {(r.Source is null ? "the prepared module" : "the working copy")})");
+        if (r.ScreensSpec is not null)
+        {
+            last = Q(Path.Combine(outDir, name + ".screens.oml"));
+            next.Add($"oml apply {staged} {F("4-screens.json")} {last}   (the translated screens, blocks and client variables; the TODO stubs and untranslated ones are in 4-screens.md)");
+        }
         next.Add("Check the apply report, then ask the person to install and publish the new module.");
-        next.Add($"Give {F("4-screens.md")} to an AI agent with: oml doc traditional-to-reactive");
-        next.Add($"oml migrate status {Q(old)} {Q(Path.Combine(outDir, name + ".staged.oml"))}   (what is done, what is still to do, what exists twice)");
+        next.Add($"Give {F("4-screens.md")} to an AI agent with: oml doc traditional-to-reactive (it lists what is built, what is left per element, and css/README.md for the theme)");
+        next.Add($"oml migrate status {Q(old)} {last} --plan {Q(outDir)}   (what is done, what is still to do, what exists twice, the screens by status)");
         return next;
-    }
-
-    static string ScreensMd(Result r)
-    {
-        var sb = new StringBuilder();
-        sb.Append($"# Screens and blocks of {r.OldName} to rebuild in the new module\n\n");
-        sb.Append("Read `oml doc traditional-to-reactive` first. Each item is rebuilt by hand from its description file (`oml describe` of the original); tick it when it is built and checked.\n\n");
-        sb.Append($"The entities stay in {r.OldName} and are read only for the new module. A write from a migrated screen goes through a wrapper server action of {r.OldName} (public, with the inputs and outputs of the entity action), never through CreateX, UpdateX or DeleteX directly. Wrappers made for the copied logic:{(r.WrapperNames.Count > 0 ? " " + string.Join(", ", r.WrapperNames) : " none")}. If a screen needs another one, add it to {r.OldName} the same way and reference it from the new module.\n\n");
-        foreach (var s in r.Screens)
-            sb.Append($"- [ ] {s.Name} ({(s.Block ? "block" : "screen")}; flow {(s.Flow.Length > 0 ? s.Flow : "?")}; inputs: {(s.Inputs.Length > 0 ? string.Join(", ", s.Inputs) : "none")}; roles: {(s.Roles.Length > 0 ? string.Join(", ", s.Roles) : "none")}) - description: {s.File}\n");
-        if (r.Screens.Count == 0) sb.Append("(the old module has no screens or blocks)\n");
-        return sb.ToString();
     }
 
     // Names like <Entity>_Create that are server actions of the old module: the wrappers it holds.
@@ -545,160 +574,5 @@ static class Migrate
         string P1(string label, string text) => $"{text} {done[label].have} of {done[label].of}";
         result["progress"] = string.Join("; ", P1("screens", "screens"), P1("blocks", "blocks"), P1("serverActions", "server actions"), P1("structures", "structures")) + $"; wrappers in the old module: {present.Length}";
         return result;
-    }
-
-    // ---------- selftest ----------
-
-    const string SampleInspect = """
-    { "name": "OrdersWeb", "kind": "WebResponsive",
-      "entities": [
-        { "name": "Customer", "public": false, "attributes": [] },
-        { "name": "Order", "public": true, "attributes": [] },
-        { "name": "Note", "public": false, "attributes": [] },
-        { "name": "OrderStatus", "public": false, "kind": "StaticEntity", "attributes": [] } ],
-      "staticEntities": [ { "name": "OrderStatus", "public": false, "records": [] } ],
-      "structures": [ { "name": "OrderDto", "public": false, "attributes": [] } ],
-      "serverActions": [
-        { "name": "SaveOrder", "public": false, "inputs": [], "outputs": [] },
-        { "name": "CleanupOrders", "public": false, "inputs": [], "outputs": [] },
-        { "name": "ReadOnly", "public": false, "inputs": [], "outputs": [] },
-        { "name": "Customer_Update", "public": false, "inputs": [], "outputs": [] } ],
-      "serviceActions": [], "clientActions": [], "restClients": [], "restServices": [],
-      "screens": [
-        { "flow": "MainFlow", "name": "Orders", "public": false, "inputs": [], "roles": ["Registered"], "anonymousAccess": false },
-        { "flow": "MainFlow", "name": "OrderDetail", "public": false, "inputs": ["OrderId"], "roles": ["OrderManager"], "anonymousAccess": false } ],
-      "blocks": [ { "flow": "Common", "name": "OrderCard", "public": false, "inputs": ["Order"], "roles": [] } ],
-      "timers": [ { "name": "NightlyCleanup", "action": "CleanupOrders", "schedule": "WhenPublished", "timeout": 20, "priority": "Normal" } ],
-      "processes": [ { "name": "ReviewOrder", "launchOn": "Order", "inputs": [], "nodes": [] } ],
-      "sessionVariables": [ { "name": "CurrentCustomerId", "type": "Customer Identifier" } ],
-      "roles": [ { "name": "OrderManager", "public": false, "persistent": true, "actions": [] } ],
-      "siteProperties": [ { "name": "MaxItems", "type": "Integer", "default": "50", "multiTenant": "No" } ],
-      "exceptions": [ { "name": "InvalidOrder", "public": false } ],
-      "references": [
-        { "module": "Producer", "entities": [], "structures": [], "serverActions": ["GetCustomerById"], "clientActions": [], "serviceActions": [],
-          "elements": [ { "name": "GetCustomerById", "kind": "IServerAction" }, { "name": "CustomerCard", "kind": "IWebBlock" } ] },
-        { "module": "Missing", "elements": [ { "name": "Tax", "kind": "IServerAction" } ] },
-        { "module": "System", "elements": [] } ] }
-    """;
-
-    const string SampleHeader = """
-    [ { "path": "/p/Producer.oml", "info": { "Name": "Producer", "Key": "k1", "ESpaceType": "WebResponsive" } },
-      { "path": "/p/Other.oml", "info": { "Name": "Other", "Key": "k2" } },
-      { "path": "/p/Broken.oml", "error": "not a readable module" } ]
-    """;
-
-    // The output of `oml batch` over the tree steps of the copied logic, in the order the steps are written (SampleOrder). SaveOrder
-    // calls CreateOrUpdateOrder twice; CleanupOrders calls DeleteOrder inside a loop; Customer_Update is an existing wrapper that calls
-    // UpdateCustomer; ReadOnly calls a user action, UpdateCustomer and reads with an aggregate; the process calls nothing. Shapes after Inspect.Tree.
-    const string SampleBatch = """
-    { "results": [
-      { "step": 1, "exitCode": 0, "output": { "kind": "ServerAction", "name": "CleanupOrders", "path": "CleanupOrders", "children": [
-          { "kind": "ForEach", "name": "Old", "path": "CleanupOrders/Old", "children": [
-            { "kind": "ExecuteServerAction", "name": "Remove", "path": "CleanupOrders/Remove", "ref": "DeleteOrder", "children": [ { "kind": "Argument", "ref": "Id" } ] } ] } ] } },
-      { "step": 2, "exitCode": 0, "output": { "kind": "ServerAction", "name": "ReadOnly", "path": "ReadOnly", "children": [
-          { "kind": "ExecuteServerAction", "name": "Other", "path": "ReadOnly/Other", "ref": "SaveOrder" },
-          { "kind": "ExecuteServerAction", "name": "Touch", "path": "ReadOnly/Touch", "ref": "UpdateCustomer" },
-          { "kind": "Aggregate", "name": "GetOrder", "path": "ReadOnly/GetOrder", "ref": "Order" } ] } },
-      { "step": 3, "exitCode": 0, "output": { "kind": "Process", "name": "ReviewOrder", "path": "ReviewOrder", "children": [] } },
-      { "step": 4, "exitCode": 0, "output": { "kind": "ServerAction", "name": "SaveOrder", "path": "SaveOrder", "children": [
-          { "kind": "ExecuteServerAction", "name": "Save", "path": "SaveOrder/Save", "ref": "CreateOrUpdateOrder" },
-          { "kind": "ExecuteServerAction", "name": "SaveAgain", "path": "SaveOrder/SaveAgain", "ref": "CreateOrUpdateOrder" } ] } },
-      { "step": 5, "exitCode": 0, "output": { "kind": "ServerAction", "name": "Customer_Update", "path": "Customer_Update", "children": [
-          { "kind": "ExecuteServerAction", "name": "Save", "path": "Customer_Update/Save", "ref": "UpdateCustomer" } ] } } ] }
-    """;
-    static readonly List<(string, string)> SampleOrder = [("ServerAction:CleanupOrders", "CleanupOrders"), ("ServerAction:ReadOnly", "ReadOnly"), ("Process:ReviewOrder", "ReviewOrder"), ("ServerAction:SaveOrder", "SaveOrder"), ("ServerAction:Customer_Update", "Customer_Update")];
-
-    static int SelfTest(bool show)
-    {
-        var fails = new List<string>();
-        void Check(bool ok, string what) { if (!ok) fails.Add(what); }
-        var inspect = JsonNode.Parse(SampleInspect)!;
-        var (map, headerNotes) = ProducerMap(JsonNode.Parse(SampleHeader)!, "OrdersWeb");
-        Check(map.Count == 2 && map["Producer"] == "/p/Producer.oml" && headerNotes.Count == 1, "producer map: two modules, one note for the broken file");
-        Check(ProducerMap(JsonNode.Parse("""{ "path": "/p/A.oml", "info": { "Name": "A" } }""")!, "X").map.ContainsKey("A"), "producer map: one file prints an object");
-        Check(IsTraditional(inspect) && !IsTraditional(JsonNode.Parse("""{ "kind": "CrossDevice" }""")!), "traditional kind");
-
-        var first = Build(inspect, "/p/OrdersWeb.oml", "OrdersNew", "/out", map, []);
-        Check(first.Logic.Select(l => l.name).Order().SequenceEqual(["CleanupOrders", "Customer_Update", "ReadOnly", "ReviewOrder", "SaveOrder"]), "logic to read: copied actions and processes");
-        var notes = new List<string>();
-        var calls = FindCalls(JsonNode.Parse(SampleBatch)!, SampleOrder, first.EntityNames, notes);
-        Check(calls.Count == 5 && notes.Count == 0, "calls found: Delete, two CreateOrUpdate, two Update");
-        Check(calls.Any(c => c.Path == "CleanupOrders/Remove" && c.Entity == "Order" && c.Op == "Delete") && calls.Count(c => c.Op == "CreateOrUpdate" && c.Element == "SaveOrder") == 2 && calls.Count(c => c.Path.StartsWith("ReadOnly")) == 1, "calls: paths and operations; a read and a user action are not entity writes");
-        Check(FindCalls(JsonNode.Parse("""{ "results": [ { "step": 1, "exitCode": 2, "output": { "error": "x" } } ] }""")!, [("A", "A")], ["Order"], notes).Count == 0 && notes.Count == 1, "a tree that failed is noted");
-
-        var r = Build(inspect, "/p/OrdersWeb.oml", "OrdersNew", "/out", map, calls);
-        string D(string kind, string name) => Rows(r.Plan, "elements").FirstOrDefault(e => S(e, "kind") == kind && S(e, "name") == name) is { } e ? S(e, "decision")! : "(absent)";
-        Check(D("entity", "Customer") == "stay" && D("entity", "Order") == "stay" && D("entity", "Note") == "stay" && D("staticEntity", "OrderStatus") == "stay" && D("role", "OrderManager") == "stay", "entities, static entity and role stay");
-        Check(Rows(r.Plan, "elements").Count(e => S(e, "kind") == "entity") == 3, "a static entity is not also an entity");
-        Check(D("serverAction", "SaveOrder") == "copy" && D("structure", "OrderDto") == "copy" && D("exception", "InvalidOrder") == "copy" && D("siteProperty", "MaxItems") == "copy" && D("timer", "NightlyCleanup") == "copy" && D("process", "ReviewOrder") == "copy", "logic and data copy");
-        Check(D("serverAction", "Customer_Update") == "stay", "an existing wrapper that is needed is not copied");
-        Check(D("screen", "Orders") == "worklist" && D("block", "OrderCard") == "worklist" && D("sessionVariable", "CurrentCustomerId") == "manual", "screens and blocks go to the worklist, a session variable is manual");
-        Check(r.Counts["worklist"] == 3 && r.Counts["manual"] == 1, "counts");
-        var w = Rows(r.Plan, "wrappers");
-        Check(w.Length == 3 && r.WrapperCreate == 2 && r.WrapperExists == 1, "wrappers: Order_CreateOrUpdate and Order_Delete created, Customer_Update exists; Note has none");
-        Check(w.Any(x => S(x, "name") == "Customer_Update" && S(x, "decision") == "exists") && w.Any(x => S(x, "name") == "Order_Delete" && S(x, "decision") == "create" && S(x, "entityAction") == "DeleteOrder") && w.All(x => S(x, "kind") == "wrapper"), "plan wrappers");
-        var rf = Rows(r.Plan, "references");
-        string RD(string m) => rf.First(x => S(x, "module") == m) is { } x ? S(x, "decision")! : "";
-        Check(RD("Producer") == "add" && RD("Missing") == "unresolved" && RD("System") == "builtin", "reference decisions");
-        Check(Strings(rf.First(x => S(x, "module") == "Producer"), "elements").SequenceEqual(["GetCustomerById"]) && Strings(rf.First(x => S(x, "module") == "Producer"), "skippedUi").SequenceEqual(["CustomerCard"]), "the web block is left out of the producer's elements");
-        Check(r.Notes.Any(n => n.Contains("Missing") && n.Contains("--in")) && r.Notes.Any(n => n.Contains("CurrentCustomerId")) && r.Notes.Any(n => n.Contains("NightlyCleanup") && n.Contains("both modules")) && r.Notes.Any(n => n.Contains("service module")) && r.Notes.Any(n => n.Contains("Customer_Update") && n.Contains("already exist")) && r.Notes.Any(n => n.Contains("wrappers for the copied logic only")) && r.Notes.Any(n => n.Contains("read only") && n.Contains("gains 2 public wrapper")), "notes");
-
-        var prep = r.Prepare;
-        Check(prep is not null && Names(prep, "entities").SequenceEqual(["Customer", "Note"]) && Names(prep, "staticEntities").SequenceEqual(["OrderStatus"]) && Names(prep, "roles").SequenceEqual(["OrderManager"]), "prepare: the private entities, static entity and role are made public");
-        Check(prep is not null && !prep.ToJsonString().Contains("exposeReadOnly"), "prepare never sets exposeReadOnly");
-        var acts = Rows(prep, "serverActions");
-        Check(acts.Length == 3 && acts.Count(a => S(a, "name") == "Customer_Update" && Rows(a, "flow").Length == 0 && B(a, "public") == true) == 1 && Names(prep, "serverActions").Contains("Order_CreateOrUpdate") && Names(prep, "serverActions").Contains("Order_Delete"), "prepare: two new wrappers and the private existing one made public");
-        var cu = acts.First(a => S(a, "name") == "Order_CreateOrUpdate");
-        Check(B(cu, "public") == true && Rows(cu, "inputs")[0]["name"]!.ToString() == "Source" && Rows(cu, "inputs")[0]["type"]!.ToString() == "Order" && Rows(cu, "outputs")[0]["name"]!.ToString() == "Id" && Rows(cu, "outputs")[0]["type"]!.ToString() == "Order Identifier" && Rows(cu, "flow")[0]["action"]!.ToString() == "CreateOrUpdateOrder" && Rows(cu, "flow")[0]["args"]!["Source"]!.ToString() == "Source", "wrapper Order_CreateOrUpdate has the signature of the entity action");
-        var del = acts.First(a => S(a, "name") == "Order_Delete");
-        Check(Rows(del, "inputs")[0]["name"]!.ToString() == "Id" && Rows(del, "inputs")[0]["type"]!.ToString() == "Order Identifier" && Rows(del, "outputs").Length == 0 && Rows(del, "flow")[0]["action"]!.ToString() == "DeleteOrder", "wrapper Order_Delete");
-        Check(r.Prepared == "/out/OrdersWeb.prepared.oml", "prepared file");
-
-        var refs = Rows(r.NewModule, "references");
-        Check(refs.Length == 2 && S(refs[0], "producer") == r.Prepared && S(refs[1], "producer") == Path.GetFullPath("/p/Producer.oml"), "new module: the prepared old module first, then the producer");
-        var fromOld = Strings(refs[0], "elements");
-        Check(fromOld.Order().SequenceEqual(new[] { "Customer", "Order", "Note", "OrderStatus", "OrderManager", "Customer_Update", "Order_CreateOrUpdate", "Order_Delete" }.Order()), "new module: entities, static entity, role and the three wrappers from the old module");
-        var copied = Strings(Rows(r.NewModule, "copy")[0], "elements");
-        Check(copied.Order().SequenceEqual(new[] { "OrderDto", "InvalidOrder", "MaxItems", "SaveOrder", "CleanupOrders", "ReadOnly", "NightlyCleanup", "ReviewOrder" }.Order()), "new module: copy lists the copied elements only");
-        var edits = Rows(r.Source, "edits");
-        Check(edits.Length == 4 && edits.All(e => S(e, "op") == "repoint") && r.Source!.Select(kv => kv.Key).SequenceEqual(["edits"]), "2-source.json: only edits, one repoint per call (the wrapper's own call is left alone)");
-        Check(edits.Any(e => S(e, "element") == "CleanupOrders/Remove" && S(e, "action") == "Order_Delete") && edits.Any(e => S(e, "element") == "SaveOrder/Save" && S(e, "action") == "Order_CreateOrUpdate") && edits.Any(e => S(e, "element") == "SaveOrder/SaveAgain") && edits.All(e => !S(e, "action")!.Contains('.')), "repoint edits: node path and the plain wrapper name");
-        Check(r.MigrateSource == "/out/OrdersWeb.migrate-source.oml" && S(Rows(r.NewModule, "copy")[0], "from") == r.MigrateSource && S(r.Plan, "migrateSource") == r.MigrateSource, "the copy is from the working copy, named in the plan");
-        Check(r.NewModule.Select(kv => kv.Key).SequenceEqual(["references", "copy"]), "3-new-module.json: references, then copy, no edits");
-        Check(r.Screens.Count == 3 && r.Screens.Any(s => s.Name == "OrderDetail" && s.Inputs.SequenceEqual(["OrderId"]) && s.File == "screens/OrderDetail.txt"), "screen worklist rows");
-        var md = ScreensMd(r);
-        Check(md.Contains("- [ ] OrderDetail (screen; flow MainFlow; inputs: OrderId; roles: OrderManager) - description: screens/OrderDetail.txt") && md.Contains("- [ ] OrderCard (block;") && md.Contains("Order_CreateOrUpdate") && md.Contains("wrapper"), "4-screens.md lists the wrappers and the screens");
-        var next = Next(r, "/p/OrdersWeb.oml", "OrdersNew", "/out");
-        Check(next.Count == 8 && next[2].Contains("/out/OrdersWeb.prepared.oml") && next[2].Contains("2-source.json") && next[2].Contains("never install it") && next[4].Contains("3-new-module.json") && next[6].Contains("4-screens.md"), "next lists eight steps, the working copy third");
-
-        // No write at all: no wrapper, no edits.
-        var none = Build(inspect, "/p/OrdersWeb.oml", "OrdersNew", "/out", map, []);
-        Check(none.WrapperNames.Count == 0 && none.Source is null && S(Rows(none.NewModule, "copy")[0], "from") == none.Prepared && Rows(none.Prepare, "serverActions").Length == 0 && none.Notes.Any(n => n.Contains("gains no wrapper")), "no entity write: no wrapper, no 2-source.json, the copy is from the old module");
-
-        var newer = JsonNode.Parse("""
-        { "name": "OrdersNew", "kind": "CrossDevice", "screens": [ { "name": "Orders" } ], "blocks": [], "structures": [ { "name": "OrderDto" } ],
-          "serverActions": [ { "name": "SaveOrder" } ], "timers": [ { "name": "NightlyCleanup" } ], "processes": [], "roles": [],
-          "references": [ { "module": "OrdersWeb", "elements": [ { "name": "OrderManager", "kind": "IRole" } ] } ] }
-        """)!;
-        var s = Compare(inspect, newer);
-        Check(Strings(s["screens"], "both").SequenceEqual(["Orders"]) && Strings(s["screens"], "onlyOld").SequenceEqual(["OrderDetail"]), "status: screens");
-        Check(Strings(s["serverActions"], "onlyOld").Order().SequenceEqual(["CleanupOrders", "ReadOnly"]) && Strings(s["serverActions"], "both").SequenceEqual(["SaveOrder"]), "status: server actions leave out the wrappers");
-        Check(Strings(s["duplicates"], "timers").SequenceEqual(["NightlyCleanup"]) && Strings(s["roles"], "both").SequenceEqual(["OrderManager"]), "status: duplicates and referenced role");
-        Check(Strings(s["wrappers"], "presentInOld").SequenceEqual(["Customer_Update"]) && S(s, "progress")!.StartsWith("screens 1 of 2; blocks 0 of 1;"), "status: wrappers and progress");
-
-        if (show)
-        {
-            Console.WriteLine("--- 1-prepare-old.json\n" + r.Prepare!.ToJsonString(Indented));
-            Console.WriteLine("--- 2-source.json\n" + r.Source!.ToJsonString(Indented));
-            Console.WriteLine("--- 3-new-module.json\n" + r.NewModule.ToJsonString(Indented));
-            Console.WriteLine("--- plan.json\n" + r.Plan.ToJsonString(Indented));
-            Console.WriteLine("--- 4-screens.md\n" + md);
-            Console.WriteLine("--- next\n" + string.Join("\n", next));
-            Console.WriteLine("--- status\n" + s.ToJsonString(Indented));
-            Console.WriteLine("--- notes\n" + string.Join("\n", r.Notes));
-        }
-        if (fails.Count == 0) { Console.WriteLine("ok"); return 0; }
-        foreach (var f in fails) Console.WriteLine("FAIL " + f);
-        return 1;
     }
 }

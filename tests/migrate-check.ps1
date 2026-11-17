@@ -1,5 +1,6 @@
-# oml migrate: the pure decisions (selftest: plan, specs, wrappers, 2-source.json repoint edits, status on a built-in sample) and the refusals that
-# need no module (missing file, missing --name, bad name, existing output folder, a missing file for status). Nothing here needs Service Studio.
+# oml migrate: the pure decisions (selftest: plan, specs, wrappers, 2-source.json repoint edits, screens export and translation wiring, session
+# variables, layout, css, other content, status on a built-in sample) and the refusals that need no module (missing file, missing --name, bad name,
+# existing output folder, a --template that is not an .oml file, a missing file or plan folder for status). Nothing here needs Service Studio.
 # Throws on the first failure.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
@@ -21,7 +22,7 @@ $env:OML_LOG = '0'; $env:OML_OUTPUT = 'json'
 $r = Call @('migrate', 'selftest')
 Require ($r.Exit -eq 0 -and $r.Text.Trim() -eq 'ok') "selftest: exit $($r.Exit), $($r.Text)"
 $r = Call @('migrate', 'selftest', '--show')
-Require ($r.Exit -eq 0 -and $r.Text -match '"op": "repoint"' -and $r.Text -match 'Order_CreateOrUpdate' -and $r.Text -match '2-source.json' -and $r.Text -match '3-new-module.json' -and $r.Text -match 'migrate-source') "selftest --show: $($r.Text)"
+Require ($r.Exit -eq 0 -and $r.Text -match '"op": "repoint"' -and $r.Text -match 'Order_CreateOrUpdate' -and $r.Text -match '2-source.json' -and $r.Text -match '3-new-module.json' -and $r.Text -match 'migrate-source' -and $r.Text -match '4-screens.json' -and $r.Text -match '4-screens.md' -and $r.Text -match 'clientVariables' -and $r.Text -match 'coverage|screens: ' -and $r.Text -match 'css/README.md') "selftest --show: $($r.Text)"
 
 # 2. refusals: one JSON error and exit 2, before any child process (Service Studio is not needed)
 $old = Join-Path $work 'Old.oml'; Set-Content -LiteralPath $old -Value 'x'
@@ -32,7 +33,10 @@ $cases = @(
   @{ args = @('migrate', 'plan', $old, '--name', '1bad'); match = 'letters' },
   @{ args = @('migrate', 'plan', $old, '--name', 'New', '--out', $full); match = 'not empty' },
   @{ args = @('migrate', 'plan', $old, '--name', 'New', '--in', (Join-Path $work 'nothing')); match = '--in' },
+  @{ args = @('migrate', 'plan', $old, '--name', 'New', '--template', (Join-Path $work 'nothing.oml')); match = '--template' },
+  @{ args = @('migrate', 'plan', $old, '--name', 'New', '--template', $old.Replace('.oml', '.txt')); match = '--template' },
   @{ args = @('migrate', 'status', (Join-Path $work 'Missing.oml'), $old); match = 'does not exist' },
+  @{ args = @('migrate', 'status', $old, $old, '--plan', (Join-Path $work 'nothing')); match = 'plan.json' },
   @{ args = @('migrate', 'bogus'); match = 'Unknown migrate command' }
 )
 foreach ($c in $cases) {

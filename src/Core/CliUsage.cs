@@ -12,8 +12,8 @@ static class CliUsage
         oml new <out.oml> [--name N] [--kind WebResponsive|Mobile|Service|ReactiveLibrary|...]
         oml new <out.oml> --template <name-or-exported.oml> [--name N]
         oml new <out.oml> --from-template <template.oml> [--name N] [--kind K]
-        oml migrate plan <old.oml> --name <NewModule> [--in <folder|file.oml>]... [--out <folder>]   (a Traditional Web module's move to Reactive: plan, specs for the old and new module, screens worklist; changes no module)
-        oml migrate status <old.oml> <new.oml>   (by name: done, still to do, only in new, duplicates)
+        oml migrate plan <old.oml> --name <NewModule> [--in <folder|file.oml>]... [--out <folder>] [--template <reactive.oml>]   (a Traditional Web module's move to Reactive: plan, specs for old and new module, screens translated or listed; changes no module)
+        oml migrate status <old.oml> <new.oml> [--plan <folder>]   (by name: done, still to do, only in new, duplicates, screens by status)
         oml app list <file.oap|file.osp>
         oml app extract <file.oap|file.osp> <outdir>
         oml app check <file.oap|file.osp> --producers <folder|package> [--deep]
@@ -24,6 +24,7 @@ static class CliUsage
         oml inspect <module.oml> [--own] [--only entities,structures,actions,screens,blocks,references,timers,roles,processes,rest,static,siteProperties] [--history] [--changed-since <yyyy-mm-dd>]
         oml inspect --in <folder> [--recursive] [--own] [--only ...]   (every .oml in the folder in one process: {modules:[{file,...}]}, a broken file gives an error entry)
         oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [--history] [--css]
+        oml export <module.oml> <Element>...   (a screen, web block or email as JSON for tools; read with describe)
         oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
         oml find <module.oml> --text "<words>" [--top N]  (this module's elements ranked by name, description, expressions, SQL, labels)
         oml stats <module.oml>
@@ -118,7 +119,7 @@ static class CliUsage
     // (tests/doc-check.ps1 checks it). `oml help --all` prints Text instead.
     public const string Overview = """
         Commands by area (OutSystems 11 modules; compact JSON out, a readable view in a console):
-        Read a module: inspect, describe, find, tree, flow, stats, header, expression, openapi (what a module holds, one element, search, counts, the header, an expression, OpenAPI)
+        Read a module: inspect, describe, export, find, tree, flow, stats, header, expression, openapi (what a module holds, one element, search, counts, the header, an expression, OpenAPI)
         Start a project: create, config (a folder ready to work in; the project profile: what agents do, skip and ask)
         Change a module: new, migrate, apply, install, validate, spec, translations (new module; Traditional to Reactive plan; edit by spec into a staged copy; install after checks; spec keys; translation files)
         Application map: map, mock (every app of a project: who calls what, which APIs feed which; mocks chained across APIs)

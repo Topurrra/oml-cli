@@ -11,8 +11,8 @@ oml version
 oml new <out.oml> [--name N] [--kind WebResponsive|Mobile|Service|ReactiveLibrary|...]
 oml new <out.oml> --template <name-or-exported.oml> [--name N]
 oml new <out.oml> --from-template <template.oml> [--name N] [--kind K]
-oml migrate plan <old.oml> --name <NewModule> [--in <folder|file.oml>]... [--out <folder>]   (a Traditional Web module's move to Reactive: plan, specs for the old and new module, screens worklist; changes no module)
-oml migrate status <old.oml> <new.oml>   (by name: done, still to do, only in new, duplicates)
+oml migrate plan <old.oml> --name <NewModule> [--in <folder|file.oml>]... [--out <folder>] [--template <reactive.oml>]   (a Traditional Web module's move to Reactive: plan, specs for old and new module, screens translated or listed; changes no module)
+oml migrate status <old.oml> <new.oml> [--plan <folder>]   (by name: done, still to do, only in new, duplicates, screens by status)
 oml app list <file.oap|file.osp>
 oml app extract <file.oap|file.osp> <outdir>
 oml app check <file.oap|file.osp> --producers <folder|package> [--deep]
@@ -23,6 +23,7 @@ oml templates           (local template/sample modules and bundles)
 oml inspect <module.oml> [--own] [--only entities,structures,actions,screens,blocks,references,timers,roles,processes,rest,static,siteProperties] [--history] [--changed-since <yyyy-mm-dd>]
 oml inspect --in <folder> [--recursive] [--own] [--only ...]   (every .oml in the folder in one process: {modules:[{file,...}]}, a broken file gives an error entry)
 oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [--history] [--css]
+oml export <module.oml> <Element>...   (a screen, web block or email as JSON for tools; read with describe)
 oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
 oml find <module.oml> --text "<words>" [--top N]  (this module's elements ranked by name, description, expressions, SQL, labels)
 oml stats <module.oml>
@@ -133,6 +134,18 @@ Entities created by oml get Expose Read Only Yes and Update Behavior All Attribu
 Queries show named groups (`group by Year = Year(Order.PlacedOn)`), `having`, `[dynamic]` sorts, `[on demand]`, `cache N min`, `timeout N s` and `on after fetch -> Action`; data actions show the same fetch, timeout and handler.
 `describe --history` adds a `history` object to each described element and one line to `text`, right after the element's own text (before any called body that `--depth` adds): `Changed by <name> on <date>; created by <name>`. The object has `createdBy`, `lastModifiedBy`, `lastModifiedDate`, `lastMergedBy` and `lastMergedDate`; empty values are left out, and an element without history gets no object and no line. Only the element you named has history, not the called actions printed after it. Without `--history` the output does not change, also with `--pretty`.
 
+#### Export: oml export
+
+`oml export <module.oml> <Element>...` prints a screen, web block or email as JSON that code can transform; `oml describe` prints the same facts as text. Agents should read with `describe`; `export` is for tools, first of all `oml migrate`. `Kind:Name` and tree paths work as in `describe`. One element prints one object; several print an array in the order asked, and a name that fails is `{ "element", "error" }` in its place with exit 1. It is a step of `oml batch`.
+
+```json
+{ "kind": "Screen", "name": "Orders", "flow": "MainFlow", "inputs": [], "locals": [], "styleSheet": "", "preparation": { "nodes": [], "complete": true, "unsupported": [] },
+  "actions": [{ "name": "Save", "flow": { "nodes": [{ "kind": "execute", "action": "CreateOrUpdateOrder", "_ref": "CreateOrUpdateOrder" }] } }],
+  "widgets": [{ "kind": "Button", "name": "SaveButton", "props": { "text": "\"Save\"" } }], "notes": [] }
+```
+
+Flow nodes are written as the spec `flow` list takes them; facts a spec does not take start with `_`. A node kind a spec cannot express keeps its real kind name and is listed in `unsupported` (then `complete` is false); a property that cannot be read is named in `notes`. `oml inspect` also has `otherContent`: `{ kind, name }` for every module element no other section lists (consumed SOAP references, emails, entry points, web services).
+
 #### Element paths
 
 One path syntax names an element in `describe`, `tree`, the `edits` keys `element`, `action`, `screen`, `aggregate`, `parent` and `after`, and the spec keys `copy[].elements`, `folders[].elements`, `tidyFlows` and `globalExceptionHandler`.
@@ -214,18 +227,23 @@ oml expression "Amount > 100"         parse an expression; ok + canonical form, 
 
 #### Migrate: oml migrate
 
-`oml migrate plan` prepares the move of a Traditional Web module to a new Reactive module. It runs in the launcher and starts `oml inspect`, `oml header`, `oml batch` (one `tree` step per copied element) and `oml describe` as child processes, so it needs Service Studio like they do. It never changes a module and refuses an `--out` folder that has files (default `migrate/<NewModule>`). A module that is not Traditional Web is refused. Every refusal that needs no module (missing file, missing `--name`, existing folder) comes before any child process.
+`oml migrate plan` prepares the move of a Traditional Web module to a new Reactive module. It runs in the launcher and starts `oml inspect`, `oml header`, `oml batch` (`tree`, `export` steps), `oml describe` and `oml export` as child processes, so it needs Service Studio like they do. It never changes a module and refuses an `--out` folder that has files (default `migrate/<NewModule>`). A module that is not Traditional Web is refused. Every refusal that needs no module (missing file, missing `--name`, existing folder, a `--template` that is not an `.oml` file) comes before any child process.
 
 ```text
-oml migrate plan Orders.oml --name OrdersApp --in C:\producers
-oml migrate status Orders.oml OrdersApp.oml
+oml migrate plan Orders.oml --name OrdersApp --in C:\producers --template C:\templates\Starter.oml
+oml migrate status Orders.oml OrdersApp.oml --plan migrate\OrdersApp
 ```
 
 - `--in` (folder or `.oml`, repeatable): producer files, matched to the old module's references by module name (one `oml header` call). A reference with no file is `unresolved`; `System` is `builtin`; a reference that only uses web blocks, screens or themes is `skip-ui`.
-- Entities, static entities and roles stay in the old module and are referenced. Logic and data definitions (server and service actions, structures, exceptions, site properties, timers, processes, REST) are copied with the `copy` spec key. Screens and blocks become a worklist; session variables are `manual`.
-- The old module's entities stay read only for other modules (`exposeReadOnly` is never changed). For each entity action (CreateX, CreateOrUpdateX, UpdateX, DeleteX) that a copied element calls, found in its `oml tree`, `1-prepare-old.json` creates a public wrapper server action `<Entity>_<Create|CreateOrUpdate|Update|Delete>` with the same inputs and outputs (`Source`, `Id`); an action of that name that exists is kept. `2-source.json` has one `repoint` edit per call (`element` the node path from `tree`, `action` the plain wrapper name); applied to the prepared module it makes `<OldModule>.migrate-source.oml`, a working copy that is only copied from and never installed, because there the entity actions and the wrappers are both local. `3-new-module.json` references the wrappers and copies from that working copy, with no edits. Screens are not scanned: a screen that writes needs a wrapper added by hand.
-- Files written: `plan.json`, `1-prepare-old.json` (absent when nothing is needed), `2-source.json` (absent when nothing is re-pointed), `3-new-module.json`, `4-screens.md` and `screens/<Name>.txt`; `plan.json` names the working copy as `migrateSource`. The JSON result has `counts`, `wrappers`, `references`, `files`, `next` (the commands in order) and `notes` (timers and processes exist in both modules; the old module is best a service module; Service Center settings do not follow; session variables; unresolved references).
-- `oml migrate status <old.oml> <new.oml>` compares both by name: per kind (`screens`, `blocks`, `serverActions`, `serviceActions`, `structures`, `exceptions`, `siteProperties`, `timers`, `processes`, `roles`, `rest`) the names in both, `onlyOld` (still to do) and `onlyNew`; `duplicates` (timers and processes in both); `wrappers.presentInOld`; and one `progress` line. A role the new module references counts as present. Exit 0.
+- `--template <reactive.oml>`: a Reactive template. The plan picks its layout block (a block named `Layout...`: `LayoutTopMenu`, then `LayoutSideMenu`, then the first), exports it to read its placeholders and gives both to the translator; the `oml new` line in `next` uses it. Without it the screens are built without a layout block, and a note says so.
+- Entities, static entities and roles stay in the old module and are referenced. Logic and data definitions (server and service actions, structures, exceptions, site properties, timers, processes, REST) are copied with the `copy` spec key.
+- The old module's entities stay read only for other modules (`exposeReadOnly` is never changed). For each entity action (CreateX, CreateOrUpdateX, UpdateX, DeleteX) that a copied element or a screen or block calls, `1-prepare-old.json` creates a public wrapper server action `<Entity>_<Create|CreateOrUpdate|Update|Delete>` with the same inputs and outputs (`Source`, `Id`); an action of that name that exists is kept. Calls in copied logic are found in its `oml tree`; calls in screens come from the translation. `2-source.json` has one `repoint` edit per call in copied logic (`element` the node path from `tree`, `action` the plain wrapper name); applied to the prepared module it makes `<OldModule>.migrate-source.oml`, a working copy that is only copied from and never installed. `3-new-module.json` references the wrappers and copies from that working copy, with no edits.
+- Screens, web blocks and emails are exported (`oml export`, one `oml batch` call) and translated by code (`ScreenTranslator`): each is `translated`, `partial` (built, with TODO stubs) or `worklist` (not built). The order is: analyse the copied logic, export, a first translation pass to learn the entity actions and session variables, decide the wrappers and client variables, then the real pass. `4-screens.json` (clientVariables, then blocks and screens) is applied to the new module after `3-new-module.json`.
+- Session variables: `client` (a client variable of the same name, type and default in `4-screens.json`) when only screens and blocks use it (not the copied server logic: its `oml describe` text is searched for `Session.<Name>`), its type is basic (Text, Integer, Long Integer, Decimal, Boolean, Date, Time, Date Time, Phone Number, Email, Currency or an Identifier) and its name does not look sensitive (password, secret, token, api key, private key, credential, pin, ssn, card); else `manual`, with the reason in plain words in `plan.json` and the notes.
+- Style sheets: screens and blocks keep their own sheet (the translation carries it). The theme sheets target Traditional markup and are not added to the new module: `css/<Element>.css` per sheet (`oml describe --css --all`) and `css/README.md` (size per sheet; a person or agent ports the theme sheets by hand).
+- `otherContent` of `oml inspect`: a SOAP, web reference or other integration element is `copy` (by name; its Service Center configuration does not follow); an email is exported and translated like a screen (`worklist` for now); an entry point is `manual` (Reactive has none: a screen URL or a redirect screen replaces it); anything else is `manual`, named by kind. An older Core without the key gets a note.
+- Files written: `plan.json` (elements, `screens` with status and todo count, `otherContent`, `layout`, `coverage`, wrappers, references, notes; `migrateSource` names the working copy), `1-prepare-old.json` (absent when nothing is needed), `2-source.json` (absent when nothing is re-pointed), `3-new-module.json`, `4-screens.json` (absent when nothing was built), `4-screens.md` (summary table, then a section per `partial` or `worklist` element with its todo as checkboxes), `screens/<Name>.txt` (the `describe` text), `screens/<Name>.json` (the raw export) and `css/`. The JSON result has `counts`, `screens` (per status), `coverage` (for example `screens: 7 translated, 3 partial, 1 worklist of 11`), `clientVariables`, `wrappers`, `references`, `files`, `next` (the commands in order) and `notes`.
+- `oml migrate status <old.oml> <new.oml> [--plan <folder>]` compares both by name: per kind (`screens`, `blocks`, `serverActions`, `serviceActions`, `structures`, `exceptions`, `siteProperties`, `timers`, `processes`, `roles`, `rest`) the names in both, `onlyOld` (still to do) and `onlyNew`; `duplicates` (timers and processes in both); `wrappers.presentInOld`; and one `progress` line. A role the new module references counts as present. With `--plan` (the `--out` folder of `plan`) it adds `screensProgress`: per status how many of those elements exist in the new module. Exit 0.
 
 See `oml doc traditional-to-reactive` for how to rebuild the screens.
 
