@@ -99,7 +99,8 @@ public static partial class Cli
         Emit(new
         {
             items = results, summary = new { items = plan.Count, saved, failed, newErrors, newWarnings, created, changed },
-            next = saved > 0 ? "Run oml review <source> <staged> --md <new .md> for each saved item and show it; ask before oml install --batch." : null,
+            next = saved > 0 ? "Run oml review <source> <staged> --md <new .md> for each saved item and show it; ask before oml install --batch."
+                               + (Authorship.Name is null && created + changed > 0 ? " " + Authorship.Ask : "") : null,
         });
         return failed > 0 ? 1 : 0;
     }

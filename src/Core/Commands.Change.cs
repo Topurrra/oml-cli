@@ -86,8 +86,15 @@ public static partial class Cli
         var segmentation = Enum.Parse<SegmentationKind>(kind ?? "WebResponsive", ignoreCase: true);
         name ??= Path.GetFileNameWithoutExtension(outPath);
         using var module = services.CreateESpace(segmentation, name, "", false, services.NewKey());
+        // Everything in a new module is created by this run: the author goes on what keeps history (see Authorship).
+        var author = Authorship.Name;
+        if (author is not null)
+        {
+            var (made, held) = Authorship.Touched(Authorship.Nothing(), ReviewModel.Read(module));
+            Authorship.Stamp(module, author, made, held);
+        }
         Model.Save(module, outPath);
-        return Emit(new { created = outPath, name, kind = segmentation.ToString() });
+        return Emit(new { created = outPath, name, kind = segmentation.ToString(), author });
     }
 
     // Validate, backup, copy, verify, restore on failure (skill section 16). The installed file is verified by its

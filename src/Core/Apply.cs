@@ -193,6 +193,9 @@ static class Apply
         FlowLayout.BeginApply(); // marks are per apply: this run's placed/deleted flows
         var rules = Timings.Measure("rules snapshot", () => new ProductionRules(m));
         var flowLayoutBefore = Timings.Measure("flow snapshot", () => FlowLayout.Capture(m));
+        // The author for what this run creates or changes (OML_AUTHOR); the module as it was, to find those elements before the save.
+        var author = dryRun ? null : Authorship.Name;
+        var historyBefore = author is null ? null : Timings.Measure("author snapshot", () => ReviewModel.Read(m));
         var services = Model.Services();
         var sourceAll = Model.All(m, "validate source"); // one validation for errors and warnings
         var baseline = sourceAll.Where(e => e.Type == ValidationMessageType.Error).ToArray();
@@ -429,6 +432,12 @@ static class Apply
         }
 
         if (dryRun) return (0, new { saved = false, dryRun = true }); // spec check --module: the build ran, nothing is written
+        if (author is { } writer && historyBefore is not null)
+        {
+            var (made, touched) = Authorship.Touched(historyBefore, Timings.Measure("author snapshot", () => ReviewModel.Read(m)));
+            var (_, blocked) = Timings.Measure("author", () => Authorship.Stamp(m, writer, made, touched));
+            if (blocked) warnings.Add(Authorship.NotWritable);
+        }
         Model.Save(m, output);
         using var open = Model.Borrow(output, "reopen"); var reopened = open.Module; // an `oml batch` keeps it for the next command
         var reopenedAll = Model.All(reopened, "validate reopened");
@@ -444,6 +453,7 @@ static class Apply
             commentsRemoved = commentsRemoved > 0 ? commentsRemoved : (int?)null, // characters stripped from styleSheet/javaScript
             created,
             changed,
+            author,
             removedDependencies,
             existing,
             warnings,
@@ -453,7 +463,8 @@ static class Apply
             describe = described,
             describeErrors,
             describeCreatedMore = describeMore,
-            next = $"Run oml review {Arg(source)} {Arg(output)} --md <new .md> and show it; ask before oml install.",
+            next = $"Run oml review {Arg(source)} {Arg(output)} --md <new .md> and show it; ask before oml install."
+                   + (author is null && created.Count + changed.Count > 0 ? " " + Authorship.Ask : ""),
         });
     }
 

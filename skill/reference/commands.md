@@ -1164,13 +1164,13 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 
 ## Create a project
 
-`oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--no-skill] [--no-hooks] [--no-library] [--no-doctor]` is the starting point of a project, such as `oml create falcon --in C:\Downloads\falcon`. The name is 1-40 lower-case letters, digits and hyphens; the folder `<parent>\<project>` must be new or empty, and nothing is created when an input is wrong.
+`oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--no-skill] [--no-hooks] [--no-library] [--no-doctor]` is the starting point of a project, such as `oml create falcon --in C:\Downloads\falcon`. The name is 1-40 lower-case letters, digits and hyphens; the folder `<parent>\<project>` must be new or empty, and nothing is created when an input is wrong.
 
 - **Folders:** `modules/` (the project's `.oap` and `.oml` files), `staged/`, `specs/`, `qa/`, `mocks/`, `scenarios/`.
 - **Memory:** `.oml/memory/memory.log`, as `oml memory init` makes it.
 - **The agent's instructions:** a copy of the `skill/` that came with this oml, `AGENTS.md` (any agent) and `CLAUDE.md` with `@AGENTS.md` (Claude Code). `--no-skill` leaves them out.
 - **Hooks:** the agent hooks of `oml hooks install`: `.claude/settings.local.json` (Claude Code, Copilot, Cursor), `.codex/hooks.json` and `.gemini/settings.json`. `--no-hooks` leaves them out.
-- **Project profile:** `.oml/config.json` with every default; see [Project profile](#project-profile).
+- **Project profile:** `.oml/config.json` with every default, and `author` from `--author`; see [Project profile](#project-profile).
 - **OutSystems docs:** `oml outsystems-docs fetch`, once per machine: skipped when the library is there. `--no-library` leaves it out.
 - **Setup check:** `oml doctor`; what it finds is in `notes`. `--no-doctor` leaves it out.
 - **`.gitignore`** (staged copies, caches, local state) and **`PROJECT.md`** (the layout and the next steps).
@@ -1260,7 +1260,7 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 
 `.oml/config.json` in the project root says what agents do, skip and ask in this project. A person sets it; agents follow it over the defaults of the skill.
 
-- `oml config` prints the profile: the lines an agent follows. Only what differs from the default work is listed, and one line that never changes: ask before install, publish, deploy and data deletion.
+- `oml config` prints the profile: the lines an agent follows. Only what differs from the default work is listed, plus the author line (see **Author** below) and one line that never changes: ask before install, publish, deploy and data deletion.
 - `oml config show` lists every setting with its value, default, choices and what it does.
 - `oml config set <key> <value>` changes one setting and makes the file when it is missing: `oml config set ui.targets desktop`, `oml config set ui.themes light`, `oml config set ask.testing off`, `oml config set browser agent`.
 - `oml config init` writes the file with every default. `--dir <project>` works in another folder. The file is found from the current folder upwards.
@@ -1273,6 +1273,7 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 | `lane.fast` | A change of only CSS values or texts of existing elements takes 2 tool calls: no QA, review file or questions. |
 | `browser` | `oml` (oml qa and its own Edge or Chrome) or `agent` (the agent's built-in browser). |
 | `app.devUrl` | The base URL of the app in DEV. |
+| `author` | The name oml writes as creator and last modifier of what it creates or changes (see below). One line, at most 100 characters; `""` clears it. The `OML_AUTHOR` variable wins over it. |
 | `outsystems.mcpServer` | The address of Service Studio's MCP server (O11), such as `http://127.0.0.1:41820/mcp`. `oml pull`, `publish`, `references`, `studio` and `doctor` use it, and agents are told it. Only this computer (127.0.0.1 or localhost), because the file is shared with the repository. The `OML_STUDIO_URL` or `OML_STUDIO_PORT` variable wins over it. |
 | `outsystems.odcMcpServer` | The address of the OutSystems MCP server of your ODC tenant (`https://<tenant>/mcp`). Agents use it for ODC apps; oml does not call it. |
 | `memory.*`, `docs.library`, `map.use` | `recall`, `write`, `reminder`; the docs library; the application map. |
@@ -1281,6 +1282,8 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 The file holds no secrets: a text value that looks like one is refused. An unknown key or a wrong value is ignored and named in `problems`. A file that cannot be read gives the defaults and never blocks an agent.
 
 `oml qa` follows `ui.targets` and `ui.themes`: a `--width` of a size the project does not support (phone under 600 px, tablet under 1024 px, desktop from there) or a `--theme` it does not support is refused with the reason. `--no-profile` skips the check once, for when the user asks for that size or theme in the task. A command whose check is off is refused first (exit 2): `oml qa page`, `run` and `record` need `checks.qa`, and `oml test scenarios` needs `checks.testScenarios`. The message names the setting and the file; `oml config set checks.qa on` turns it on, and `--no-profile` runs the command once when the user asked for it in the task. `oml qa start`, `stop`, `oml qa` alone and `--help` are never refused. A step inside `oml batch` is not checked. An older config file that still holds `checks.preview` or `checks.livePreview` is read without a complaint; both are ignored.
+
+**Author.** Service Studio shows "Created by" and "Last modified by" on most top-level elements; without a name it shows Unknown. `oml apply` (with what a `copy` pastes) and `oml new` write the author as `CreatedBy` on what the run created and as `LastModifiedBy` on what it created or changed, found as `oml review` finds changes. Other elements and the dates are not touched. The apply report has `author` (the name, or null). A field this Service Studio build does not let oml write is skipped; when no element took the name, `warnings` says so once. Without an author the apply still saves, and `next` says to ask the user for a name, run `oml config set author "<name>"` and apply again to a new staged file. The profile always has one author line: the name, or "ask the user before the first change". `oml create --author "<name>"` sets it in a new project.
 
 Agents get the profile from the session-start hook (see [Agent hooks](#agent-hooks)), so it costs no command. Without hooks, the skill tells them to add `oml config` to their read call.
 

@@ -31,6 +31,14 @@ try {
   } finally { Pop-Location }
   Write-Host 'ok   create: layout, memory, skill, AGENTS.md, CLAUDE.md, hooks, .gitignore, PROJECT.md'
 
+  # 1a. --author goes into the project's config; without it, setting one is the first optional step.
+  Require (@($r.optional)[0] -like 'oml config set author*') "create without --author: $($r.optional -join ' | ')"
+  $a = Json create author-x --dir $Tmp --author "Ana Silva" --no-skill --no-hooks --no-library --no-doctor
+  Require ($LASTEXITCODE -eq 0 -and (Get-Content (Join-Path $Tmp 'author-x\.oml\config.json') -Raw | ConvertFrom-Json).author -eq 'Ana Silva' -and -not (@($a.optional) -like 'oml config set author*')) "create --author: $($a | ConvertTo-Json -Compress)"
+  $x = Json create author-y --dir $Tmp --author ('a' * 101) --no-skill --no-hooks --no-library --no-doctor
+  Require ($LASTEXITCODE -eq 2 -and -not (Test-Path (Join-Path $Tmp 'author-y'))) 'create --author with a name over 100 characters was not refused, or made a folder'
+  Write-Host 'ok   create --author: written to .oml/config.json; refused when too long'
+
   # 1b. skill refresh: an older or edited copy is brought up to this oml; the project's own files stay.
   $version = (Get-Content (Join-Path $root 'skill\.oml-version') -Raw).Trim()
   Require ($version -match '^\d+\.\d+\.\d+$') "create did not stamp skill/.oml-version: $version"

@@ -19,7 +19,8 @@ static class ProjectConfig
     const string Usage = "Usage: oml config [show | init | set <key> <value>] [--dir <project folder>]";
     internal const string FileName = "config.json";
 
-    internal sealed record Setting(string Key, string Kind, string Default, string[]? Choices, string About, bool Locked = false);
+    // Max: the longest value a text setting takes.
+    internal sealed record Setting(string Key, string Kind, string Default, string[]? Choices, string About, bool Locked = false, int Max = 300);
 
     // Kind: bool, choice (one of Choices), list (comma-separated, each one of Choices) or text.
     internal static readonly Setting[] Settings =
@@ -46,6 +47,7 @@ static class ProjectConfig
         new("lane.fast", "bool", "true", null, "Small changes (only CSS values or texts of existing elements) skip QA, the review file and questions."),
         new("browser", "choice", "oml", ["oml", "agent"], "Who opens the app to look at it: oml (oml qa, its own Edge or Chrome) or agent (the agent's built-in browser)."),
         new("app.devUrl", "text", "", null, "Base URL of the app in DEV, such as https://dev.example.com/Orders."),
+        new("author", "text", "", null, "The name written as creator and last modifier of what oml creates or changes in this project; empty means not set. The variable OML_AUTHOR wins over it.", Max: 100),
         new("outsystems.mcpServer", "url-local", "", null, "Address of Service Studio's MCP server (O11), such as http://127.0.0.1:41820/mcp. oml publish, pull, references and studio use it; empty means the default port. Only this computer (127.0.0.1 or localhost)."),
         new("outsystems.odcMcpServer", "url", "", null, "Address of the OutSystems MCP server of your ODC tenant, such as https://mytenant.outsystems.dev/mcp. Agents use it for ODC apps; oml itself does not call it."),
         new("memory.recall", "bool", "true", null, "Agents recall project memory at the start of a task."),
@@ -60,7 +62,7 @@ static class ProjectConfig
         new("hooks.omlWrites", "bool", "true", null, "The hook refuses editing or writing .oml files with a tool or a shell.", Locked: true),
     ];
 
-    static Setting? Find(string key) => Settings.FirstOrDefault(s => s.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+    internal static Setting? Find(string key) => Settings.FirstOrDefault(s => s.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
 
     // The project root: the nearest folder, from `start` upwards, that has .oml/config.json; null when none has.
     internal static string? RootOf(string? start)
@@ -131,7 +133,7 @@ static class ProjectConfig
     }
 
     // The value in its stored form, or what is wrong with it.
-    static string? Normalize(Setting s, string text, out string value, bool fromFile = false)
+    internal static string? Normalize(Setting s, string text, out string value, bool fromFile = false)
     {
         value = text.Trim();
         switch (s.Kind)
@@ -160,7 +162,7 @@ static class ProjectConfig
                 value = uri.ToString();
                 return null;
             default:
-                if (value.Length > 300 || value.Any(char.IsControl)) return "a text of at most 300 characters on one line.";
+                if (value.Length > s.Max || value.Any(char.IsControl)) return $"a text of at most {s.Max} characters on one line.";
                 // Only when a person sets it: the hooks load this file on every tool call, and the secret patterns are slow to build.
                 if (!fromFile && value.Length > 0 && MemorySecrets.Find(value) is not null) return "this looks like a secret; the config file holds no secrets.";
                 return null;
@@ -198,6 +200,8 @@ static class ProjectConfig
         var url = v.Get("app.devUrl");
         if (url.Length > 0) lines.Add($"DEV URL of the app: {url}");
         if (!v.On("ask.devUrl")) lines.Add(url.Length > 0 ? "Do not ask for the DEV URL; build screen URLs from the one above." : "Do not ask for a DEV URL; skip the checks that need a running page and say so.");
+        lines.Add(Author(v) is { Length: > 0 } author ? $"Author for what you create: {author}."
+            : "Before the first change, ask the user which author name to write on what you create, then run oml config set author \"<name>\".");
         if (!v.On("ask.producerChoice")) lines.Add("When exactly one producer element matches, use it without asking; say which one you used.");
 
         if (v.On("lane.fast"))
@@ -224,12 +228,22 @@ static class ProjectConfig
         return "oml project profile (.oml/config.json, set by the user; it overrides the defaults of the skill and AGENTS.md):\n- " + string.Join("\n- ", Profile(v));
     }
 
+    // The author name for what oml creates or changes: OML_AUTHOR when it is a valid name, else the profile's `author`;
+    // "" when neither is set.
+    internal static string Author(Values v) =>
+        Environment.GetEnvironmentVariable("OML_AUTHOR") is { } variable && Normalize(Find("author")!, variable, out var name, fromFile: true) is null && name.Length > 0
+            ? name : v.Get("author");
+
     // The Service Studio MCP address of the project, for the commands that call it (Locations.StudioUrl reads
-    // OML_STUDIO_URL). A variable the person set wins; a broken config file changes nothing.
+    // OML_STUDIO_URL), and the author Core writes on what it creates or changes (Authorship reads OML_AUTHOR).
+    // A variable the person set wins; a broken config file changes nothing.
     internal static void ApplyEnvironment()
     {
+        var v = Load(null);
+        if (Environment.GetEnvironmentVariable("OML_AUTHOR") is not { Length: > 0 } && v.Get("author") is { Length: > 0 } author)
+            Environment.SetEnvironmentVariable("OML_AUTHOR", author);
         if (Environment.GetEnvironmentVariable("OML_STUDIO_URL") is { Length: > 0 } || Environment.GetEnvironmentVariable("OML_STUDIO_PORT") is { Length: > 0 }) return;
-        if (Load(null).Get("outsystems.mcpServer") is not { Length: > 0 } url || !Uri.TryCreate(url, UriKind.Absolute, out var uri)) return;
+        if (v.Get("outsystems.mcpServer") is not { Length: > 0 } url || !Uri.TryCreate(url, UriKind.Absolute, out var uri)) return;
         Environment.SetEnvironmentVariable("OML_STUDIO_URL", url);
         Environment.SetEnvironmentVariable("OML_STUDIO_PORT", uri.Port.ToString()); // the token file is named after the port
     }

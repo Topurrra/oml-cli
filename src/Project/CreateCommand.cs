@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace OmlCli;
 
-// `oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--no-skill] [--no-hooks] [--no-library]
+// `oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--no-skill] [--no-hooks] [--no-library]
 // [--no-doctor]`: a project that is ready to work in, from one command. The output's `ready` list has one row per
 // step (done, skipped or failed, with the command that repeats it): folders, memory (as oml memory init), the project
 // profile (.oml/config.json, see ProjectConfig), the skill, the hooks, the OutSystems docs for oml doc --search
@@ -30,7 +30,7 @@ static class CreateCommand
         if (args.Length == 0 || args[0] is "--help" or "-h") { Console.WriteLine(CliUsage.For("create")); return args.Length == 0 ? 2 : 0; }
         var name = args[0];
         if (!ProjectName.IsMatch(name)) return Fail($"Project name '{name}': use 1-40 lower-case letters, digits and hyphens, such as falcon.");
-        string? parent = null;
+        string? parent = null, author = null;
         var inputs = new List<string>();
         bool skill = true, hooks = true, library = true, doctor = true;
         for (var i = 1; i < args.Length; i++)
@@ -39,6 +39,7 @@ static class CreateCommand
             {
                 case "--dir" when i + 1 < args.Length: parent = args[++i]; break;
                 case "--in" when i + 1 < args.Length: inputs.Add(Path.GetFullPath(args[++i])); break;
+                case "--author" when i + 1 < args.Length: author = args[++i]; break;
                 case "--no-skill": skill = false; break;
                 case "--no-hooks": hooks = false; break;
                 case "--no-library": library = false; break;
@@ -46,6 +47,9 @@ static class CreateCommand
                 default: return Fail($"Unknown or incomplete option {args[i]}.", "Usage: " + CliUsage.For("create").Trim());
             }
         }
+        // The name oml writes as creator and last modifier in this project (`author` in .oml/config.json).
+        if (author is not null && ProjectConfig.Normalize(ProjectConfig.Find("author")!, author, out author) is { } badAuthor)
+            return Fail($"--author: {badAuthor}");
         foreach (var input in inputs)
             if (!Directory.Exists(input) && !(File.Exists(input) && Path.GetExtension(input).ToLowerInvariant() is ".oap" or ".oml"))
                 return Fail($"--in {input}: not a folder, .oap or .oml file.");
@@ -69,9 +73,11 @@ static class CreateCommand
         Step("folders", "done");
         Step("memory", "done", "oml memory recall and add work here");
         // The project profile with every default, for the person to edit (oml config set, or the file).
-        ProjectConfig.Save(root, new ProjectConfig.Values());
+        var profile = new ProjectConfig.Values();
+        if (author is { Length: > 0 }) profile.Put("author", author);
+        ProjectConfig.Save(root, profile);
         created.Add(".oml/config.json");
-        Step("config", "done", "defaults; oml config show explains every setting");
+        Step("config", "done", (author is { Length: > 0 } ? $"author {author}, the rest " : "") + "defaults; oml config show explains every setting");
 
         // The agent's instructions: a copy of the skill that came with this oml, AGENTS.md for any agent, CLAUDE.md for Claude Code.
         if (skill)
@@ -172,11 +178,12 @@ static class CreateCommand
             project = name, folder = root, ready, created, map, notes = notes.Count == 0 ? null : notes,
             optional = new[]
             {
+                author is { Length: > 0 } ? null : "oml config set author \"<name>\"   (the name Service Studio shows as creator and last modifier of what oml creates)",
                 "oml config set ui.targets desktop   (and the other settings: what agents do, skip and ask; oml config show)",
                 "oml team-rules add <file.md>   (your team's own rules)",
                 "oml qa start --headed   (log in to the app once; later qa runs keep the login)",
                 "oml explorer-menu   (right-click entries in Windows Explorer, once per machine)",
-            },
+            }.OfType<string>().ToArray(),
             next = inputs.Count > 0
                 ? new[] { $"cd {root}", "oml map overview", "Start your agent in this folder and give it a task." }
                 : new[] { $"cd {root}", "Put the project's .oap or .oml files in modules/ (oml lifetime download can fetch them).", $"oml map build {name} --in modules", "Start your agent in this folder and give it a task." },
