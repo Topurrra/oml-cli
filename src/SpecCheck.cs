@@ -83,6 +83,7 @@ static class SpecShapes
         ["delete"] = new(new[] { "element" }, new[] { "allowDataLoss" }),
         ["addToAggregate"] = new(new[] { "aggregate" }, new[] { "sources", "joins", "filters", "sorts", "groupBy", "aggregates", "calculated", "groupFilters", "groupSorts", "groupCalculated" }),
         ["setArgs"] = new(new[] { "element", "args" }, new string[0]),
+        ["repoint"] = new(new[] { "element", "action" }, new string[0]),
     };
 
     // Value type of the non-string keys of an edit.

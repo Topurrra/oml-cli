@@ -145,4 +145,28 @@ Require $r.saved "shared-name fixture did not save: $($r | ConvertTo-Json -Depth
 $e = Edit $shared 'delete-shared-out' @(@{ op = 'delete'; element = 'Pick/Assign:Item' })
 Require ($e.Code -eq 0 -and $e.Result.saved) "delete of an Assign node that shares a parameter's name was refused: $($e.Result | ConvertTo-Json -Depth 6 -Compress)"
 Write-Host 'ok   delete of a node without outputs ignores a parameter of the same name'
+# repoint: an existing call node runs another action; it keeps its name, its argument is set again by name, and the
+# Assign that reads Run.Id stays valid. An argument without a matching input and a node that is not a call are refused.
+$repointSpec = Join-Path $Tmp 'repoint-spec.json'
+Set-Content $repointSpec '{ "serverActions": [
+  { "name": "MakeA", "inputs": [{ "name": "Source", "type": "Text" }], "outputs": [{ "name": "Id", "type": "Integer" }], "flow": [{ "kind": "assign", "name": "SetA", "assign": { "Id": "Length(Source)" } }] },
+  { "name": "MakeB", "inputs": [{ "name": "Source", "type": "Text" }], "outputs": [{ "name": "Id", "type": "Integer" }], "flow": [{ "kind": "assign", "name": "SetB", "assign": { "Id": "Length(Source) + 1" } }] },
+  { "name": "MakeC", "inputs": [{ "name": "Other", "type": "Text" }], "outputs": [{ "name": "Id", "type": "Integer" }], "flow": [{ "kind": "assign", "name": "SetC", "assign": { "Id": "Length(Other)" } }] },
+  { "name": "Caller", "outputs": [{ "name": "Result", "type": "Integer" }], "flow": [
+    { "kind": "execute", "name": "Run", "action": "MakeA", "args": { "Source": "\"abc\"" } },
+    { "kind": "assign", "name": "Keep", "assign": { "Result": "Run.Id" } }] }] }'
+$repointBuilt = Join-Path $Tmp 'repoint.oml'
+$r = & $Oml apply (Join-Path $Fixtures 'r0.oml') $repointSpec $repointBuilt | ConvertFrom-Json
+Require $r.saved "repoint fixture did not save: $($r | ConvertTo-Json -Depth 6 -Compress)"
+$e = Edit $repointBuilt 'repoint-ok' @(@{ op = 'repoint'; element = 'Caller/Run'; action = 'MakeB' })
+Require ($e.Code -eq 0 -and $e.Result.saved -and $e.Result.reopenNewErrors.Count -eq 0 -and (@($e.Result.changed) -join ' ') -match 'node Caller/Run now calls MakeB') "repoint failed: $($e.Result | ConvertTo-Json -Depth 6 -Compress)"
+$text = ((& $Oml describe $e.Out Caller --depth 0 | ConvertFrom-Json).text) -replace "`r", ''
+Require ($text.Contains('MakeB(Source = "abc") -> Run') -and $text.Contains('set Result = Run.Id')) "repoint did not keep the node, its argument or its reader: $text"
+$again = Edit $e.Out 'repoint-again' @(@{ op = 'repoint'; element = 'Caller/Run'; action = 'MakeB' })
+Require ($again.Code -eq 0 -and $again.Result.saved -and -not $again.Result.changed -and (@($again.Result.existing) -join ' ') -match 'already calls MakeB') "a repeated repoint changed the module: $($again.Result | ConvertTo-Json -Depth 6 -Compress)"
+$noInput = Edit $repointBuilt 'repoint-no-input' @(@{ op = 'repoint'; element = 'Caller/Run'; action = 'MakeC' })
+Require ($noInput.Code -eq 1 -and -not $noInput.Result.saved -and -not (Test-Path $noInput.Out) -and ($noInput.Result.problems -join ' ') -match "has no input 'Source'") "repoint to an action without the argument's input was not refused: $($noInput.Result | ConvertTo-Json -Depth 6 -Compress)"
+$notCall = Edit $repointBuilt 'repoint-not-call' @(@{ op = 'repoint'; element = 'Caller/Keep'; action = 'MakeB' })
+Require ($notCall.Code -eq 1 -and -not $notCall.Result.saved -and ($notCall.Result.problems -join ' ') -match 'must be an Execute') "repoint of an Assign was not refused: $($notCall.Result | ConvertTo-Json -Depth 6 -Compress)"
+Write-Host 'ok   repoint: same node, arguments by name, readers kept, no-op, refusals'
 } finally { Remove-TestWorkFolder $Tmp }
