@@ -327,8 +327,8 @@ static partial class Migrate
         {
             var n = S(x, "name")!; var type = S(x, "type") ?? "";
             extra.ServerSession.TryGetValue(n, out var serverUse);
-            var (decision, why) = DecideSession(n, type, serverUse ?? [], extra.ScreenSession.Contains(n));
-            var def = S(x, "default");   // inspect gives name and type only (Inspect.cs 64), so this is null today; used if a Core ever adds it
+            var def = S(x, "default");   // a newer inspect gives the default of a session variable; an older one gives name and type only, so this is null then
+            var (decision, why) = DecideSession(n, type, serverUse ?? [], extra.ScreenSession.Contains(n), !string.IsNullOrEmpty(def));
             r.SessionDecisions.Add(new SessionDecision(n, type, def, decision, why));
             El("sessionVariable", n, decision, why);
             if (decision == "client")
@@ -490,7 +490,8 @@ static partial class Migrate
         head.Add("Wrappers are made for the entity actions the copied logic and the exported screens and blocks call. A rebuilt screen that writes an entity in a way the translator did not see needs one more: add a wrapper to the old module the same way (a public server action with the entity action's inputs and outputs), add it to the references of the new module and call it.");
         head.Add("Site property values, timer schedules and integration settings (REST, e-mail) set in Service Center do not follow a copy: set them again for the new module.");
         var clients = r.SessionDecisions.Where(d => d.Decision == "client").Select(d => d.Name).ToArray();
-        if (clients.Length > 0) head.Add($"Session variable(s) used only by screens and blocks become client variables of the same name in 4-screens.json ({string.Join(", ", clients)}); a client variable is readable by the user, so nothing sensitive goes there. The default value of a session variable is not read by oml inspect or oml export: set the default of each client variable by hand if the session variable had one.");
+        var noDefault = r.SessionDecisions.Where(d => d.Decision == "client" && string.IsNullOrEmpty(d.Default)).Select(d => d.Name).ToArray();
+        if (clients.Length > 0) head.Add($"Session variable(s) used only by screens and blocks become client variables of the same name in 4-screens.json ({string.Join(", ", clients)}); a client variable is readable by the user, so nothing sensitive goes there." + (noDefault.Length > 0 ? $" The default value of a session variable is not read by this oml inspect ({string.Join(", ", noDefault)}): set the default of each of these client variables by hand if the session variable had one." : " Each keeps the default value inspect gave."));
         foreach (var d in r.SessionDecisions.Where(d => d.Decision == "manual")) head.Add($"Session variable {d.Name} is not migrated, it needs a decision by hand: {d.Why}.");
         if (r.Others.Count > 0)
             foreach (var g in r.Others.GroupBy(o => (o.Decision, o.Kind)).OrderBy(g => g.Key.Decision, StringComparer.Ordinal).ThenBy(g => g.Key.Kind, StringComparer.Ordinal))

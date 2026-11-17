@@ -29,26 +29,26 @@ What stays and what is copied:
 - Server and service actions, structures, exceptions, site properties, timers, processes and REST are copied.
 - Entity writes: the old module gets a public wrapper (`Order_Create`, `Order_CreateOrUpdate`, `Order_Update`, `Order_Delete`) for each entity action that copied logic or a screen calls, with the same inputs and outputs. `2-source.json` re-points each call in copied logic to its wrapper before the copy. A write the translation missed needs a wrapper added to the old module the same way, and a reference.
 - Producers found under `--in` are referenced by themselves; an `unresolved` one needs its producer file (`--in`) or Manage Dependencies. Traditional UI references are left out.
-- Session variables: used only by screens and blocks, a basic type and a harmless name: a client variable in 4-screens.json. Else `manual` with the reason: used by copied server logic (client variables do not exist on the server: pass the value as an input or read it there), not a basic type, or a sensitive name (never in the browser).
+- Session variables: used only by screens and blocks, a basic type and a harmless name: a client variable in 4-screens.json (with its default when inspect gives one). Else `manual` with the reason: used by copied server logic (client variables do not exist on the server: pass the value as an input or read it there), not a basic type, or a sensitive name (never in the browser).
 - Style: screens and blocks carry their own sheet. Theme sheets target Traditional markup and are not added: port them from `css/` selector by selector into the new module's theme.
 - Emails, SOAP, entry points: a SOAP or integration element is copied (Service Center settings do not follow); an email is translated like a screen; an entry point is manual (use a screen URL or a redirect screen); anything else is listed by kind and name in the notes.
 - You decide: timers and processes now exist in both modules (deactivate or delete one); site property values, timer schedules and integration settings in Service Center do not follow a copy. Once its UI is gone, propose making the old module a service module (rule 3).
 
 ## Screens worklist
 
-`partial` and `worklist` elements are yours: read `screens/<Name>.txt` and the raw export, finish the TODO stubs, tick the box. Rebuild producers before consumers, not as a one-to-one copy.
+`partial` and `worklist` elements are yours: read `screens/<Name>.txt` and the raw export, finish the TODO stubs, tick the box. Rebuild producers before consumers, not as a one-to-one copy. Code fills a Form's record (aggregate `onAfterFetch`, input, local) and carries confirm text, icon, prompt, max length, input types, default button, image size. Todos: Link URL, Radio Group, validation message, image URL, table sort and paging.
 
 ## Logic
 
 | Traditional | Reactive |
 |---|---|
-| Preparation | One data action that calls one server action (the Preparation flow, copied: one round trip). Only independent aggregates stay screen aggregates. Post-processing in `onAfterFetch` |
-| Aggregate or SQL in Preparation or a screen action | A server action (SQL always on the server) |
+| Preparation | Aggregates stay screen aggregates (code). Logic reading no aggregate, before the first that does, becomes `onInitialize`; the rest, when it reads one aggregate, its `onAfterFetch` (code, only when provable; its server calls cost a request each). Else a Todo: one data action calling one server action (one round trip) |
+| Aggregate or SQL in a screen action | A server action returning what the later nodes read (SQL always on the server); the action is a stub |
 | Screen action (server) | Client action that calls one server action; group several server calls into one |
 | Session variable | Client variable only when it holds nothing sensitive (the user can read it); else data read again on the server |
 | Site property read in the screen | Read it in a server action or data action |
 | `CheckRole` | Stays on the server, in the server action; the client check only hides parts |
-| Ajax Refresh | Nothing: bound data updates; `refreshData` for aggregates |
+| Ajax Refresh | Nothing: bound data updates; code emits `refreshData` for the aggregates behind a refreshed table or list when the export names its targets, else a Todo |
 | Notify and OnNotify of web blocks | Block `events`, a `triggerEvent` node and a handler on the instance (`oml spec triggerEvent`) |
 | Send Email in a screen action | Server action with `sendEmail` of a Reactive email from `emails` (`oml spec emails`) |
 | Commit Transaction in screen logic | Server action |
