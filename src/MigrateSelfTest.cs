@@ -30,16 +30,16 @@ static partial class Migrate
       "processes": [ { "name": "ReviewOrder", "launchOn": "Order", "inputs": [], "nodes": [] } ],
       "sessionVariables": [
         { "name": "CurrentCustomerId", "type": "Customer Identifier" },
-        { "name": "ThemeName", "type": "Text", "default": "\"light\"" },
+        { "name": "ThemeName", "type": "Text" },
         { "name": "LastSearch", "type": "Text" },
         { "name": "ApiToken", "type": "Text" },
         { "name": "Cart", "type": "Order List" },
         { "name": "Unused", "type": "Integer" } ],
       "otherContent": [
-        { "kind": "IWebReference", "name": "TaxService" },
-        { "kind": "IEmail", "name": "OrderMail" },
-        { "kind": "IEntryPoint", "name": "Home" },
-        { "kind": "IWebService", "name": "LegacyApi" } ],
+        { "kind": "SOAPClient", "name": "TaxService" },
+        { "kind": "Email", "name": "OrderMail" },
+        { "kind": "EntryPoint", "name": "Home" },
+        { "kind": "WebService", "name": "LegacyApi" } ],
       "roles": [ { "name": "OrderManager", "public": false, "persistent": true, "actions": [] } ],
       "siteProperties": [ { "name": "MaxItems", "type": "Integer", "default": "50", "multiTenant": "No" } ],
       "exceptions": [ { "name": "InvalidOrder", "public": false } ],
@@ -50,6 +50,8 @@ static partial class Migrate
         { "module": "System", "elements": [] } ] }
     """;
 
+    // Inspect prints a session variable's name and type only (Inspect.cs 64), no default; otherContent has { kind, name } with the kind as ReviewModel.Kind gives it
+    // (the interface name without its I: ISOAPClient -> SOAPClient), sorted by kind and name.
     const string SampleHeader = """
     [ { "path": "/p/Producer.oml", "info": { "Name": "Producer", "Key": "k1", "ESpaceType": "WebResponsive" } },
       { "path": "/p/Other.oml", "info": { "Name": "Other", "Key": "k2" } },
@@ -145,6 +147,8 @@ static partial class Migrate
         Check(edits.Any(e => S(e, "element") == "CleanupOrders/Remove" && S(e, "action") == "Order_Delete") && edits.Any(e => S(e, "element") == "SaveOrder/Save" && S(e, "action") == "Order_CreateOrUpdate") && edits.Any(e => S(e, "element") == "SaveOrder/SaveAgain") && edits.All(e => !S(e, "action")!.Contains('.')), "repoint edits: node path and the plain wrapper name");
         Check(r.MigrateSource == "/out/OrdersWeb.migrate-source.oml" && S(Rows(r.NewModule, "copy")[0], "from") == r.MigrateSource && S(r.Plan, "migrateSource") == r.MigrateSource, "the copy is from the working copy, named in the plan");
         Check(r.NewModule.Select(kv => kv.Key).SequenceEqual(["references", "copy"]), "3-new-module.json: references, then copy, no edits");
+        var webMail = (JsonObject)inspect.DeepClone(); ((JsonObject)((JsonArray)webMail["otherContent"]!)[1]!)["kind"] = "WebEmail";
+        Check(Build(webMail, "/p/OrdersWeb.oml", "OrdersNew", "/out", map, []).Screens.Any(x => x.Kind == "Email" && x.Query == "WebEmail:OrderMail"), "an email is queried by the kind word inspect printed for it");
         Check(r.Screens.Count == 4 && r.Screens.Any(s => s.Name == "OrderDetail" && s.Kind == "Screen" && s.Inputs.SequenceEqual(["OrderId"]) && s.File == "screens/OrderDetail.txt" && s.Export == "screens/OrderDetail.json") && r.Screens.Any(s => s.Name == "OrderCard" && s.Kind == "Block") && r.Screens.Any(s => s.Name == "OrderMail" && s.Kind == "Email" && s.Query == "Email:OrderMail"), "screens, blocks and the email of otherContent are elements to export");
         var next0 = Next(r, "/p/OrdersWeb.oml", "OrdersNew", "/out");
         Check(next0.Count == 8 && next0[2].Contains("/out/OrdersWeb.prepared.oml") && next0[2].Contains("2-source.json") && next0[2].Contains("never install it") && next0[3].Contains("<a Reactive template module") && next0[4].Contains("3-new-module.json") && next0[6].Contains("4-screens.md") && next0[7].Contains("--plan"), "next without screens spec: eight steps, the working copy third, the template placeholder");
@@ -169,25 +173,25 @@ static partial class Migrate
 
     // ---------- the wiring: the whole plan over canned answers of the child processes ----------
 
-    // Exports written to the contract (oml export): two screens, a block, and an email whose export fails.
+    // Exports in the form Export.cs writes (table at the top of MigrateScreens.cs): two screens, a block, and an email whose export fails.
     const string SampleExportOrders = """
     { "kind": "Screen", "name": "Orders", "flow": "MainFlow", "path": "MainFlow/Orders", "moduleKind": "Traditional", "title": "\"Orders\"",
-      "inputs": [], "locals": [ { "name": "Search", "type": "Text", "default": "\"\"" } ], "access": { "anonymous": false, "registered": true, "roles": [] },
-      "styleSheet": ".orders { margin: 0; }", "javaScript": "", "preparation": { "nodes": [], "complete": true, "unsupported": [] },
-      "actions": [ { "name": "Save", "inputs": [], "locals": [], "outputs": [], "flow": { "nodes": [ { "kind": "execute", "name": "Save", "action": "CreateOrUpdateOrder", "_ref": "CreateOrUpdateOrder", "_reads": ["Session.ThemeName"] } ], "complete": true, "unsupported": [] } } ],
-      "widgets": [ { "kind": "Container", "name": "OrdersTable", "path": "MainFlow/Orders/OrdersTable", "props": { "style": "\"card\"" },
-        "children": [ { "kind": "Button", "name": "SaveButton", "path": "MainFlow/Orders/OrdersTable/SaveButton", "props": { "text": "\"Save\"", "method": "Submit" } } ] } ],
-      "notes": [] }
+      "locals": [ { "name": "Search", "type": "Text", "default": "\"\"" } ], "access": { "anonymous": false, "registered": true },
+      "styleSheet": ".orders { margin: 0; }", "javaScript": "", "preparation": { "complete": true },
+      "actions": [ { "name": "Save", "_path": "MainFlow/Orders/Save", "flow": { "nodes": [ { "kind": "execute", "name": "Save", "action": "CreateOrUpdateOrder", "_ref": "CreateOrUpdateOrder", "_path": "MainFlow/Orders/Save/Save" } ], "complete": true } } ],
+      "widgets": [ { "kind": "WebContainer", "type": "Container", "name": "OrdersTable", "path": "MainFlow/Orders/OrdersTable", "props": { "style": "\"card\"" },
+        "children": [ { "kind": "WebButton", "type": "Button", "name": "SaveButton", "path": "MainFlow/Orders/OrdersTable/SaveButton", "props": { "label": "\"Save\"", "onClick": "Save" } } ] } ],
+      "notes": [ "MainFlow/Orders/OrdersTable/SaveButton: the method of its On Click (Submit, Ajax Submit or Navigate) could not be read" ] }
     """;
     const string SampleExportDetail = """
     { "kind": "Screen", "name": "OrderDetail", "flow": "MainFlow", "path": "MainFlow/OrderDetail", "moduleKind": "Traditional", "title": "\"Order\"",
-      "inputs": [ { "name": "OrderId", "type": "Order Identifier", "mandatory": true, "default": "" } ], "locals": [], "access": { "anonymous": false, "registered": false, "roles": ["OrderManager"] },
-      "styleSheet": "", "javaScript": "", "preparation": null, "actions": [],
-      "widgets": [ { "kind": "Label", "name": "Title", "path": "MainFlow/OrderDetail/Title", "props": { "value": "Session.LastSearch" } } ], "notes": [ "a property could not be read" ] }
+      "inputs": [ { "name": "OrderId", "type": "Order Identifier", "mandatory": true, "default": "" } ], "access": { "anonymous": false, "registered": false, "roles": ["OrderManager"] },
+      "styleSheet": "", "javaScript": "",
+      "widgets": [ { "kind": "WebExpression", "type": "Expression", "name": "Title", "path": "MainFlow/OrderDetail/Title", "props": { "value": "Session.LastSearch" } } ], "notes": [ "could not read properties of MainFlow/OrderDetail: a property could not be read" ] }
     """;
     const string SampleExportCard = """
     { "kind": "Block", "name": "OrderCard", "flow": "Common", "path": "Common/OrderCard", "moduleKind": "Traditional", "inputs": [ { "name": "Order", "type": "Order", "mandatory": true, "default": "" } ],
-      "locals": [], "access": { "anonymous": true, "registered": true, "roles": [] }, "styleSheet": ".card { padding: 4px; }", "javaScript": "", "preparation": null, "actions": [], "widgets": [], "notes": [] }
+      "access": { "anonymous": true, "registered": true }, "styleSheet": ".card { padding: 4px; }", "javaScript": "" }
     """;
     const string SampleExportMail = """
     { "element": "Email:OrderMail", "error": "no e-mail named OrderMail" }
@@ -206,8 +210,8 @@ static partial class Migrate
     { "name": "ReactiveStarter", "kind": "CrossDevice", "blocks": [ { "name": "Footer", "flow": "Common" }, { "name": "LayoutSideMenu", "flow": "Layouts" }, { "name": "LayoutTopMenu", "flow": "Layouts" } ] }
     """;
     const string SampleLayoutExport = """
-    { "kind": "Block", "name": "LayoutTopMenu", "widgets": [ { "kind": "Container", "name": "Wrap", "children": [
-        { "kind": "Placeholder", "name": "Header" }, { "kind": "If", "name": "Cond", "true": [ { "kind": "Placeholder", "name": "Content" } ], "false": [] } ] } ] }
+    { "kind": "Block", "name": "LayoutTopMenu", "moduleKind": "Reactive", "widgets": [ { "kind": "Container", "type": "Container", "name": "Wrap", "children": [
+        { "kind": "MobilePlaceholderWidget", "type": "Placeholder", "name": "Header" }, { "kind": "If", "type": "If", "name": "Cond", "true": [ { "kind": "Placeholder", "type": "Placeholder", "name": "Content" } ] } ] } ] }
     """;
     const string SampleCss = """
     [ { "element": "Common/Theme", "kind": "WebTheme", "styleSheet": ".a { color: red; }" },
@@ -263,7 +267,7 @@ static partial class Migrate
         Check(PickLayout(JsonNode.Parse(SampleTemplate)!) == "LayoutTopMenu" && PickLayout(JsonNode.Parse("""{ "blocks": [ { "name": "LayoutSideMenu" }, { "name": "LayoutBlank" } ] }""")!) == "LayoutSideMenu"
             && PickLayout(JsonNode.Parse("""{ "blocks": [ { "name": "Menu" }, { "name": "LayoutZ" }, { "name": "LayoutBlank" } ] }""")!) == "LayoutZ" && PickLayout(JsonNode.Parse("""{ "blocks": [ { "name": "Menu" } ] }""")!) is null, "layout: top menu, then side menu, then the first, else none");
         Check(Placeholders(JsonNode.Parse(SampleLayoutExport)).SequenceEqual(["Header", "Content"]) && Placeholders(null).Count == 0, "placeholders are read from the widget tree, in an If too");
-        Check(DecideOther("ISoapWebReference").decision == "copy" && DecideOther("IWebReference").decision == "copy" && DecideOther("IIntegration").decision == "copy" && DecideOther("IEmail").decision == "translate" && DecideOther("IEntryPoint").decision == "manual" && DecideOther("IWebService").decision == "manual", "other content by kind name");
+        Check(DecideOther("SOAPClient").decision == "copy" && DecideOther("ISOAPClient").decision == "copy" && DecideOther("WebReference").decision == "copy" && DecideOther("Integration").decision == "copy" && DecideOther("Email").decision == "translate" && DecideOther("IEmail").decision == "translate" && DecideOther("EntryPoint").decision == "manual" && DecideOther("WebService").decision == "manual", "other content by kind name, with or without the leading I");
         var texts = SessionUse(SampleDescribe, ["ThemeName", "CurrentCustomerId"]);
         Check(texts.Count == 1 && texts["CurrentCustomerId"].SequenceEqual(["SaveOrder"]), "Session.X is matched as a whole identifier: ThemeNameX and Session.Other.ThemeName are not ThemeName");
         var shapes = ExportChunks(Enumerable.Range(0, 60).Select(i => new Screen("S" + i, "Screen", "", [], [], $"screens/S{i}.txt")));
@@ -311,21 +315,22 @@ static partial class Migrate
         Check(Names(o.R.Prepare, "serverActions").Contains("Note_Update") && o.R.WrapperCreate == 3 && o.R.WrapperExists == 1 && o.R.Calls.Count == 4, "1-prepare-old.json creates the wrapper for the screen, no repoint edit for it");
         Check(Strings(Rows(o.R.NewModule, "references")[0], "elements").Contains("Note_Update"), "3-new-module.json references it");
         var dec = o.R.SessionDecisions.ToDictionary(d => d.Name);
-        Check(dec["ThemeName"].Decision == "client" && dec["LastSearch"].Decision == "client" && dec["ThemeName"].Default == "\"light\"", "session variables used only by screens, basic type, harmless name: client");
+        Check(dec["ThemeName"].Decision == "client" && dec["LastSearch"].Decision == "client" && dec["ThemeName"].Default is null && dec["ThemeName"].Why.Contains("default value is not read"), "session variables used only by screens, basic type, harmless name: client; the default is not read and the reason says so");
+        Check(o.R.Notes.Any(n => n.Contains("default value of a session variable is not read") && n.Contains("by hand")), "note: the default of a client variable must be set by hand");
         Check(dec["CurrentCustomerId"].Decision == "manual" && dec["CurrentCustomerId"].Why.Contains("SaveOrder") && dec["CurrentCustomerId"].Why.Contains("server"), "session variable used by copied server logic: manual, names the action");
         Check(dec["ApiToken"].Decision == "manual" && dec["ApiToken"].Why.Contains("sensitive") && dec["Cart"].Decision == "manual" && dec["Cart"].Why.Contains("basic type") && dec["Unused"].Decision == "manual" && dec["Unused"].Why.Contains("no screen or block"), "manual: sensitive name, not a basic type, unused");
         Check(o.Context.ClientVariables.SetEquals(["ThemeName", "LastSearch"]) && o.R.Counts["client"] == 2, "context: the client variables");
         Check(StatusCounts(o.Items).Select(kv => kv.Key + kv.Value).SequenceEqual(["partial1", "translated1", "worklist2"]) && o.Output["coverage"]!.ToString() == "screens: 1 translated, 1 partial, 2 worklist of 4", "coverage line");
         var spec = JsonNode.Parse(o.Files.First(f => f.file == "4-screens.json").text)!;
         var cv = Rows(spec, "clientVariables");
-        Check(spec is JsonObject so && so.Select(kv => kv.Key).SequenceEqual(["clientVariables", "screens"]) && cv.Length == 2 && S(cv[0], "name") == "ThemeName" && S(cv[0], "type") == "Text" && S(cv[0], "default") == "\"light\"" && cv[1]["default"] is null && Names(spec, "screens").SequenceEqual(["Orders", "OrderDetail"]), "4-screens.json: client variables with type and default, then the non-null specs");
+        Check(spec is JsonObject so && so.Select(kv => kv.Key).SequenceEqual(["clientVariables", "screens"]) && cv.Length == 2 && S(cv[0], "name") == "ThemeName" && S(cv[0], "type") == "Text" && cv[0]["default"] is null && cv[1]["default"] is null && Names(spec, "screens").SequenceEqual(["Orders", "OrderDetail"]), "4-screens.json: client variables with type and default, then the non-null specs");
         var md = o.Files.First(f => f.file == "4-screens.md").text;
         Check(md.Contains("| Orders | Screen | translated |") && md.Contains("| OrderCard | Block | worklist |") && md.Contains("| OrderMail | Email | worklist |") && md.Contains("## OrderDetail (screen, partial)") && md.Contains("- [ ] wire the delete button") && md.Contains("`screens/OrderDetail.json`") && md.Contains("`screens/OrderDetail.txt`") && !md.Contains("## Orders ") && md.Contains("## OrderMail (email, worklist)") && md.Contains("Order_CreateOrUpdate") && md.Contains("screens: 1 translated"), "4-screens.md: summary table, a section per partial or worklist element with checkboxes and pointers");
         var pl = Rows(JsonNode.Parse(o.Files.First(f => f.file == "plan.json").text), "screens");
         Check(pl.Length == 4 && pl.Any(x => S(x, "name") == "OrderDetail" && S(x, "status") == "partial" && (int)x["todo"]! == 2), "plan.json: status and todo count per element");
         // otherContent
         Check(Strings(Rows(o.R.NewModule, "copy")[0], "elements").Contains("TaxService") && o.R.Others.Count == 4, "SOAP reference is copied by name");
-        Check(o.R.Notes.Any(n => n.StartsWith("IWebReference (TaxService)") && n.Contains("Service Center")) && o.R.Notes.Any(n => n.StartsWith("IEntryPoint (Home)") && n.Contains("no entry points")) && o.R.Notes.Any(n => n.StartsWith("IWebService (LegacyApi)")) && !o.R.Notes.Any(n => n.Contains("did not report otherContent")), "notes name each other element by kind");
+        Check(o.R.Notes.Any(n => n.StartsWith("SOAPClient (TaxService)") && n.Contains("Service Center")) && o.R.Notes.Any(n => n.StartsWith("EntryPoint (Home)") && n.Contains("no entry points")) && o.R.Notes.Any(n => n.StartsWith("WebService (LegacyApi)")) && !o.R.Notes.Any(n => n.Contains("did not report otherContent")), "notes name each other element by kind");
         Check(Rows(o.R.Plan, "otherContent").Length == 4 && Rows(o.R.Plan, "otherContent").Any(x => S(x, "name") == "OrderMail" && S(x, "decision") == "translate"), "plan.json lists the other content with a decision");
         var old = JsonNode.Parse(SampleInspect)!.DeepClone(); ((JsonObject)old).Remove("otherContent");
         Check(Build(old, "/p/OrdersWeb.oml", "OrdersNew", "/out", map, []).Notes.Any(n => n.Contains("did not report otherContent")), "an older Core without otherContent: a note");

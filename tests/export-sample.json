@@ -58,7 +58,7 @@
       "type": "Container",
       "name": "Editor",
       "path": "MainFlow/WebItems/Editor",
-      "props": { "style": "editor" },
+      "props": { "style": "\"editor\"" },
       "children": [
         {
           "kind": "WebInput",
