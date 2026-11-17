@@ -81,6 +81,7 @@ static partial class Migrate
     {
         var fails = SelfTestData();
         fails.AddRange(SelfTestWiring(show));
+        fails.AddRange(ScreenTranslator.SelfTest().Select(f => "translator: " + f)); // the screen rules, on their own samples
         if (fails.Count == 0) { Console.WriteLine("ok"); return 0; }
         foreach (var f in fails) Console.WriteLine("FAIL " + f);
         return 1;
