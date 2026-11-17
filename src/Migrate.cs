@@ -110,8 +110,9 @@ static class Migrate
         string Json(JsonNode n) => n.ToJsonString(Indented) + "\n";
         Write("plan.json", Json(r.Plan));
         if (r.Prepare is not null) Write("1-prepare-old.json", Json(r.Prepare));
-        Write("2-new-module.json", Json(r.NewModule));
-        Write("3-screens.md", ScreensMd(r));
+        if (r.Source is not null) Write("2-source.json", Json(r.Source));
+        Write("3-new-module.json", Json(r.NewModule));
+        Write("4-screens.md", ScreensMd(r));
         foreach (var s in r.Screens) Write(s.File, screenTexts.TryGetValue((s.Block ? "Block:" : "Screen:") + s.Name, out var t) ? t : "(no description)\n");
 
         var result = new JsonObject
@@ -227,8 +228,8 @@ static class Migrate
     internal sealed class Result
     {
         public JsonObject Plan = new(), NewModule = new();
-        public JsonObject? Prepare;
-        public string Prepared = "", OldName = "";
+        public JsonObject? Prepare, Source; // Source: the repoint edits for the working copy of the prepared module
+        public string Prepared = "", MigrateSource = "", OldName = "";
         public List<string> Notes = [];
         public SortedDictionary<string, int> Counts = new() { ["stay"] = 0, ["copy"] = 0, ["worklist"] = 0, ["manual"] = 0 };
         public SortedDictionary<string, int> RefCounts = new() { ["add"] = 0, ["skip-ui"] = 0, ["unresolved"] = 0, ["builtin"] = 0 };
@@ -310,7 +311,7 @@ static class Migrate
         {
             var n = S(x, "name")!;
             if (existingWrappers.Contains(n)) El("serverAction", n, "stay", "wrapper of the old module: the new module references it");
-            else Copy("serverActions", "serverAction", "ServerAction", n, "logic: copied; a call that writes an entity directly is listed in 4-entity-writes.md", true);
+            else Copy("serverActions", "serverAction", "ServerAction", n, "logic: copied; a call that writes an entity directly is re-pointed to a wrapper in 2-source.json", true);
         }
         foreach (var x in Rows(inspect, "serviceActions")) Copy("serviceActions", "serviceAction", "ServiceAction", S(x, "name")!, "service action: copied", true);
         foreach (var x in Rows(inspect, "clientActions")) El("clientAction", S(x, "name")!, "manual", "a Traditional Web module has no client actions in this version; check it by hand");
@@ -367,21 +368,26 @@ static class Migrate
         r.Prepare = prepare.Count > 0 ? prepare : null;
         r.Prepared = r.Prepare is null ? oldFile : Path.Combine(outDir, r.OldName + ".prepared.oml");
 
-        // 2-new-module.json: references first (the prepared old module, then the producers), then the copy.
+        // 2-source.json: the repoint edits, applied to the prepared module to make a working copy that is only copied from. Re-pointing
+        // there, before the copy, works: the entity actions and the wrappers are both local, so every node resolves; in the new module
+        // the entity is a read-only reference with no Create/Update/Delete, so a pasted node would arrive with a dangling action.
+        // The action is the plain wrapper name: a name resolves to the module's own element first, so it cannot be ambiguous.
+        // The path is the one `oml tree` prints for the old module; the prepared module changes no path of an existing element.
+        r.MigrateSource = Path.Combine(outDir, r.OldName + ".migrate-source.oml");
+        if (r.Calls.Count > 0)
+            r.Source = new JsonObject { ["edits"] = new JsonArray(r.Calls.Select(c => (JsonNode?)new JsonObject { ["op"] = "repoint", ["element"] = c.Path, ["action"] = c.Wrapper }).ToArray()) };
+
+        // 3-new-module.json: references first (the prepared old module, then the producers), then the copy from the working copy.
         var refs = new JsonArray();
         var fromOld = r.EntityNames.Concat(staticNames.Order(StringComparer.Ordinal)).Concat(roles.Select(x => S(x, "name")!)).Concat(r.WrapperNames).ToArray();
         if (fromOld.Length > 0) refs.Add(new JsonObject { ["producer"] = r.Prepared, ["elements"] = Arr(fromOld) });
         foreach (var s in refSpecs) refs.Add(s);
         if (refs.Count > 0) r.NewModule["references"] = refs;
-        if (copyPaths.Count > 0) r.NewModule["copy"] = new JsonArray(new JsonObject { ["from"] = oldFile, ["elements"] = Arr(copyPaths) });
-        // Edits run after the copy: each Execute node of an entity action calls the wrapper (same name, key and arguments).
-        // The path is the one `oml tree` prints for the old module; a module-level element keeps its path after a copy.
-        if (r.Calls.Count > 0)
-            r.NewModule["edits"] = new JsonArray(r.Calls.Select(c => (JsonNode?)new JsonObject { ["op"] = "repoint", ["element"] = c.Path, ["action"] = r.OldName + "." + c.Wrapper }).ToArray());
+        if (copyPaths.Count > 0) r.NewModule["copy"] = new JsonArray(new JsonObject { ["from"] = r.Source is null ? r.Prepared : r.MigrateSource, ["elements"] = Arr(copyPaths) });
 
         r.Plan = new JsonObject
         {
-            ["source"] = oldFile, ["sourceModule"] = r.OldName, ["target"] = newName, ["preparedModule"] = r.Prepare is null ? null : r.Prepared,
+            ["source"] = oldFile, ["sourceModule"] = r.OldName, ["target"] = newName, ["preparedModule"] = r.Prepare is null ? null : r.Prepared, ["migrateSource"] = r.Source is null ? null : r.MigrateSource,
             ["elements"] = elements, ["wrappers"] = wrappers, ["references"] = references,
         };
         Notes(r, inspect);
@@ -449,8 +455,9 @@ static class Migrate
         head.Add("The old module keeps the entities (public now, but read only for other modules) and is best turned into a service module once its screens and blocks are gone.");
         if (r.EntityNames.Length > 0)
             head.Add(r.WrapperNames.Count > 0
-                ? $"The entities stay read only for other modules, so the old module gains {r.WrapperCreate} public wrapper server action(s) for the entity actions its copied logic calls ({string.Join(", ", r.WrapperNames)}; apply warns PublicServerAction for each, as intended), and the copied logic calls the wrappers: 2-new-module.json re-points {r.Calls.Count} Execute node(s) after the copy."
+                ? $"The entities stay read only for other modules, so the old module gains {r.WrapperCreate} public wrapper server action(s) for the entity actions its copied logic calls ({string.Join(", ", r.WrapperNames)}; apply warns PublicServerAction for each, as intended), and the copied logic calls the wrappers: 2-source.json re-points {r.Calls.Count} Execute node(s) in a working copy of the old module."
                 : "The entities stay read only for other modules. The copied logic writes no entity directly, so the old module gains no wrapper.");
+        if (r.Calls.Count > 0) head.Add("The logic is re-pointed to the wrappers in a working copy of the old module before it is copied, so the copied calls bind to the wrapper references in the new module.");
         head.Add("oml migrate plan creates wrappers for the copied logic only. A migrated screen that writes an entity may need more: the agent adds a wrapper to the old module the same way (a public server action with the entity action's inputs and outputs), adds it to the references of the new module and calls it.");
         head.Add("Site property values, timer schedules and integration settings (REST, e-mail) set in Service Center do not follow a copy: set them again for the new module.");
         if (r.Sessions.Length > 0) head.Add($"Session variables are not copied; each needs a decision ({string.Join(", ", r.Sessions)}): a client variable only when it holds nothing sensitive, else data read on the server.");
@@ -470,12 +477,14 @@ static class Migrate
             next.Add($"Ask the person to review it, then install and publish it: oml install {Q(r.Prepared)} {Q(old)} ; oml publish {Q(old)}. The new module cannot reference what is not published.");
         }
         else next.Add("The old module needs no preparation: its entities and roles are public and no wrapper is missing.");
+        if (r.Source is not null)
+            next.Add($"oml apply {Q(r.Prepared)} {F("2-source.json")} {Q(r.MigrateSource)}   ({r.Calls.Count} repoint edit(s) so the logic calls the wrappers: a working copy to copy from; never install it)");
         var created = Q(Path.Combine(outDir, name + ".oml"));
         next.Add($"oml new {created} --template <a Reactive template module: see oml templates> --name {name}");
-        next.Add($"oml apply {created} {F("2-new-module.json")} {Q(Path.Combine(outDir, name + ".staged.oml"))}   (references, the copy, then {r.Calls.Count} repoint edit(s) so the copied logic calls the wrappers)");
+        next.Add($"oml apply {created} {F("3-new-module.json")} {Q(Path.Combine(outDir, name + ".staged.oml"))}   (references, then the copy from {(r.Source is null ? "the prepared module" : "the working copy")})");
         next.Add("Check the apply report, then ask the person to install and publish the new module.");
-        next.Add($"Give {F("3-screens.md")} to an AI agent with: oml doc traditional-to-reactive");
-        next.Add($"oml migrate status {Q(old)} {Q(Path.Combine(outDir, name + ".oml"))}   (what is done, what is still to do, what exists twice)");
+        next.Add($"Give {F("4-screens.md")} to an AI agent with: oml doc traditional-to-reactive");
+        next.Add($"oml migrate status {Q(old)} {Q(Path.Combine(outDir, name + ".staged.oml"))}   (what is done, what is still to do, what exists twice)");
         return next;
     }
 
@@ -650,19 +659,21 @@ static class Migrate
         var fromOld = Strings(refs[0], "elements");
         Check(fromOld.Order().SequenceEqual(new[] { "Customer", "Order", "Note", "OrderStatus", "OrderManager", "Customer_Update", "Order_CreateOrUpdate", "Order_Delete" }.Order()), "new module: entities, static entity, role and the three wrappers from the old module");
         var copied = Strings(Rows(r.NewModule, "copy")[0], "elements");
-        Check(S(Rows(r.NewModule, "copy")[0], "from") == "/p/OrdersWeb.oml" && copied.Order().SequenceEqual(new[] { "OrderDto", "InvalidOrder", "MaxItems", "SaveOrder", "CleanupOrders", "ReadOnly", "NightlyCleanup", "ReviewOrder" }.Order()), "new module: copy lists the copied elements only");
-        var edits = Rows(r.NewModule, "edits");
-        Check(edits.Length == 4 && edits.All(e => S(e, "op") == "repoint"), "new module: one repoint edit per call (the wrapper's own call is left alone)");
-        Check(edits.Any(e => S(e, "element") == "CleanupOrders/Remove" && S(e, "action") == "OrdersWeb.Order_Delete") && edits.Any(e => S(e, "element") == "SaveOrder/Save" && S(e, "action") == "OrdersWeb.Order_CreateOrUpdate") && edits.Any(e => S(e, "element") == "SaveOrder/SaveAgain"), "repoint edits: node path and OldModule.Wrapper");
-        Check(r.NewModule.Select(kv => kv.Key).SequenceEqual(["references", "copy", "edits"]), "new module: references, then copy, then edits");
+        Check(copied.Order().SequenceEqual(new[] { "OrderDto", "InvalidOrder", "MaxItems", "SaveOrder", "CleanupOrders", "ReadOnly", "NightlyCleanup", "ReviewOrder" }.Order()), "new module: copy lists the copied elements only");
+        var edits = Rows(r.Source, "edits");
+        Check(edits.Length == 4 && edits.All(e => S(e, "op") == "repoint") && r.Source!.Select(kv => kv.Key).SequenceEqual(["edits"]), "2-source.json: only edits, one repoint per call (the wrapper's own call is left alone)");
+        Check(edits.Any(e => S(e, "element") == "CleanupOrders/Remove" && S(e, "action") == "Order_Delete") && edits.Any(e => S(e, "element") == "SaveOrder/Save" && S(e, "action") == "Order_CreateOrUpdate") && edits.Any(e => S(e, "element") == "SaveOrder/SaveAgain") && edits.All(e => !S(e, "action")!.Contains('.')), "repoint edits: node path and the plain wrapper name");
+        Check(r.MigrateSource == "/out/OrdersWeb.migrate-source.oml" && S(Rows(r.NewModule, "copy")[0], "from") == r.MigrateSource && S(r.Plan, "migrateSource") == r.MigrateSource, "the copy is from the working copy, named in the plan");
+        Check(r.NewModule.Select(kv => kv.Key).SequenceEqual(["references", "copy"]), "3-new-module.json: references, then copy, no edits");
         Check(r.Screens.Count == 3 && r.Screens.Any(s => s.Name == "OrderDetail" && s.Inputs.SequenceEqual(["OrderId"]) && s.File == "screens/OrderDetail.txt"), "screen worklist rows");
         var md = ScreensMd(r);
-        Check(md.Contains("- [ ] OrderDetail (screen; flow MainFlow; inputs: OrderId; roles: OrderManager) - description: screens/OrderDetail.txt") && md.Contains("- [ ] OrderCard (block;") && md.Contains("Order_CreateOrUpdate") && md.Contains("wrapper"), "3-screens.md lists the wrappers and the screens");
-        Check(Next(r, "/p/OrdersWeb.oml", "OrdersNew", "/out").Count == 7, "next lists seven steps");
+        Check(md.Contains("- [ ] OrderDetail (screen; flow MainFlow; inputs: OrderId; roles: OrderManager) - description: screens/OrderDetail.txt") && md.Contains("- [ ] OrderCard (block;") && md.Contains("Order_CreateOrUpdate") && md.Contains("wrapper"), "4-screens.md lists the wrappers and the screens");
+        var next = Next(r, "/p/OrdersWeb.oml", "OrdersNew", "/out");
+        Check(next.Count == 8 && next[2].Contains("/out/OrdersWeb.prepared.oml") && next[2].Contains("2-source.json") && next[2].Contains("never install it") && next[4].Contains("3-new-module.json") && next[6].Contains("4-screens.md"), "next lists eight steps, the working copy third");
 
         // No write at all: no wrapper, no edits.
         var none = Build(inspect, "/p/OrdersWeb.oml", "OrdersNew", "/out", map, []);
-        Check(none.WrapperNames.Count == 0 && none.NewModule["edits"] is null && Rows(none.Prepare, "serverActions").Length == 0 && none.Notes.Any(n => n.Contains("gains no wrapper")), "no entity write: no wrapper and no edit");
+        Check(none.WrapperNames.Count == 0 && none.Source is null && S(Rows(none.NewModule, "copy")[0], "from") == none.Prepared && Rows(none.Prepare, "serverActions").Length == 0 && none.Notes.Any(n => n.Contains("gains no wrapper")), "no entity write: no wrapper, no 2-source.json, the copy is from the old module");
 
         var newer = JsonNode.Parse("""
         { "name": "OrdersNew", "kind": "CrossDevice", "screens": [ { "name": "Orders" } ], "blocks": [], "structures": [ { "name": "OrderDto" } ],
@@ -678,9 +689,11 @@ static class Migrate
         if (show)
         {
             Console.WriteLine("--- 1-prepare-old.json\n" + r.Prepare!.ToJsonString(Indented));
-            Console.WriteLine("--- 2-new-module.json\n" + r.NewModule.ToJsonString(Indented));
+            Console.WriteLine("--- 2-source.json\n" + r.Source!.ToJsonString(Indented));
+            Console.WriteLine("--- 3-new-module.json\n" + r.NewModule.ToJsonString(Indented));
             Console.WriteLine("--- plan.json\n" + r.Plan.ToJsonString(Indented));
-            Console.WriteLine("--- 3-screens.md\n" + md);
+            Console.WriteLine("--- 4-screens.md\n" + md);
+            Console.WriteLine("--- next\n" + string.Join("\n", next));
             Console.WriteLine("--- status\n" + s.ToJsonString(Indented));
             Console.WriteLine("--- notes\n" + string.Join("\n", r.Notes));
         }
