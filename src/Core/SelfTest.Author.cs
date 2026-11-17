@@ -9,6 +9,7 @@ static partial class SelfTest
     static void AuthorTest(string builtPath, string dir, List<string> failures)
     {
         const string Author = "Ana Silva";
+        var today = DateTime.Now.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
         var spec = Path.Combine(dir, "author.json");
         File.WriteAllText(spec, """
             { "entities": [ { "name": "Invoice", "attributes": [ { "name": "Total", "type": "Decimal" } ] },
@@ -40,6 +41,10 @@ static partial class SelfTest
                 failures.Add($"author: {label} has lastModifiedBy '{h?.lastModifiedBy}'");
             if (Reflect.Property(element, "CreatedBy", writable: true) is not null && (h?.createdBy == Author) != created)
                 failures.Add($"author: {label} has createdBy '{h?.createdBy}'");
+            // The date goes with the name, as History prints it (yyyy-MM-ddTHH:mm:ss, local time, from the day this test started).
+            if (Reflect.Property(element, "LastModifiedBy", writable: true) is not null && Reflect.Property(element, "LastModifiedDate", writable: true) is not null
+                && (h?.lastModifiedDate is { } date && string.CompareOrdinal(date, 0, today, 0, 10) >= 0) != (created || changed))
+                failures.Add($"author: {label} has lastModifiedDate '{h?.lastModifiedDate}'");
         }
         Expect(m.Entities.Single(e => e.Name == "Invoice"), "the created entity Invoice", created: true, changed: false);
         Expect(m.ServerActions.Single(a => a.Name == "SendInvoice"), "the created action SendInvoice", created: true, changed: false);
