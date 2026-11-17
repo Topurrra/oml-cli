@@ -1,6 +1,6 @@
 # Traditional Web to Reactive
 
-How Traditional Web parts map to Reactive, and how `oml migrate` prepares the move. oml cannot run the Service Studio converter: `oml migrate` copies the logic and data definitions, references what must stay, and leaves a worklist of screens and blocks for you to rebuild by hand.
+How Traditional Web parts map to Reactive, and how `oml migrate` prepares the move. oml cannot run the Service Studio converter: `oml migrate` copies logic and data definitions, references what must stay, and leaves a worklist of screens and blocks to rebuild by hand.
 
 ## The oml migrate flow
 
@@ -9,28 +9,29 @@ oml migrate plan Orders.oml --name OrdersApp --in C:\producers --out migrate\Ord
 oml migrate status Orders.oml OrdersApp.oml
 ```
 
-`plan` reads the old module (it must be Traditional Web) and writes, into a new folder, files you apply with `oml apply`. It changes no module. Its output lists `next`, the commands in order, and `notes`.
+`plan` reads the old module (it must be Traditional Web) and writes, into a new folder, files for `oml apply`. It changes no module. Its output lists `next` (the commands in order) and `notes`.
 
 | File | What it is |
 |---|---|
-| `plan.json` | One entry per element (`stay`, `copy`, `worklist`, `manual`, with why), the wrappers, the references (`add`, `skip-ui`, `unresolved`, `builtin`) and the notes |
-| `1-prepare-old.json` | Spec for the OLD module: entities, static entities and roles made public (`exposeReadOnly` stays as it is) and the wrapper actions. Absent when nothing is needed |
-| `2-new-module.json` | Spec for the NEW module: `references`, `copy`, then `repoint` edits |
-| `3-screens.md` | Your worklist: one checkbox per screen and block, with `screens/<Name>.txt` (`oml describe` of the original) |
+| `plan.json` | Each element (`stay`, `copy`, `worklist`, `manual`, with why), the wrappers, the references (`add`, `skip-ui`, `unresolved`, `builtin`), the notes |
+| `1-prepare-old.json` | Spec for the OLD module: entities, static entities and roles made public (`exposeReadOnly` stays) and the wrapper actions. Absent when nothing is needed |
+| `2-source.json` | `repoint` edits, applied to the prepared module to make `<Old>.migrate-source.oml`, a copy source (never install it). Absent when nothing is needed |
+| `3-new-module.json` | Spec for the NEW module: `references`, then `copy` from the working copy |
+| `4-screens.md` | Worklist: a checkbox per screen and block, with `screens/<Name>.txt` (`oml describe` of the original) |
 
-Order: apply 1 to a staged copy; the person installs and publishes the old module; `oml new` a Reactive module from a template; apply 2; install and publish it; work through 3. `status` shows by name what is done, what is left, and what exists twice.
+Order: apply 1 to a staged copy; the person installs and publishes it; apply 2 to the prepared file; `oml new` a Reactive module from a template; apply 3; install and publish it; work through 4. `status` shows by name what is done, left, and duplicated.
 
 What stays and what is copied:
 
-- Entities, static entities and roles stay in the old module (a copied role has no users). The new module references them. They are read only there.
+- Entities, static entities and roles stay in the old module (a copied role has no users); the new module references them, read only.
 - Server and service actions, structures, exceptions, site properties, timers, processes and REST are copied.
-- Entity writes: the old module gets a public wrapper (`Order_Create`, `Order_CreateOrUpdate`, `Order_Update`, `Order_Delete`) for each entity action the copied logic calls, with the same inputs and outputs. `2-new-module.json` re-points each call to its wrapper. A screen you rebuild writes through a wrapper too; if it needs one that is missing, add it to the old module the same way and reference it.
-- Producers found under `--in` are referenced by themselves; an `unresolved` reference needs its producer file (`--in`) or Manage Dependencies. Traditional UI references (web blocks, screens, themes) are left out.
-- You decide: timers and processes now exist in both modules (deactivate or delete one); site property values, timer schedules and integration settings in Service Center do not follow a copy; session variables are not copied. The old module is best made a service module once its UI is gone (rule 3: propose it).
+- Entity writes: the old module gets a public wrapper (`Order_Create`, `Order_CreateOrUpdate`, `Order_Update`, `Order_Delete`) for each entity action the copied logic calls, with the same inputs and outputs. `2-source.json` re-points each call to its wrapper in the working copy, before the copy (in the new module the entity actions do not exist). A rebuilt screen writes through a wrapper too; add a missing one to the old module the same way and reference it.
+- Producers found under `--in` are referenced by themselves; an `unresolved` one needs its producer file (`--in`) or Manage Dependencies. Traditional UI references are left out.
+- You decide: timers and processes now exist in both modules (deactivate or delete one); site property values, timer schedules and integration settings in Service Center do not follow a copy; session variables are not copied. Once its UI is gone, propose making the old module a service module (rule 3).
 
 ## Screens worklist
 
-Read the original first (`screens/<Name>.txt`, or `oml describe <old.oml> <Screen>`). Rebuild producers before consumers, in a new Reactive module, not a one-to-one copy.
+Read the original first (`screens/<Name>.txt`). Rebuild producers before consumers, not as a one-to-one copy.
 
 ## Logic
 
