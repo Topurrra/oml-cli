@@ -140,8 +140,13 @@ static class Export
             if (kind != "Email") Part("access", () => Access(root));
             if (Reflect.Property(root, "StyleSheet") is not null) o["styleSheet"] = Reflect.Get(root, "StyleSheet") as string ?? "";
             if (Reflect.Property(root, "JavaScript") is not null) o["javaScript"] = Describe.Expr(root, "JavaScript");
-            if (kind != "Email")
-                Part("preparation", () => Reflect.Get(root, "Preparation") is IObjectSignature preparation ? Flow(preparation, path + "/" + Seg(preparation, root)) : null);
+            // Only a Traditional screen, block or email has a Preparation (a Reactive one has none, so no key).
+            if (WebUi.IsTraditional(m))
+            {
+                if (kind != "Email" || Reflect.Property(root, "Preparation") is not null)
+                    Part("preparation", () => Reflect.Get(root, "Preparation") is IObjectSignature preparation ? Flow(preparation, path + "/" + Seg(preparation, root)) : null);
+                else Notes.Add("the email's Preparation could not be read");
+            }
             Part("actions", () => new JsonArray(Describe.List(root, "ScreenActions").OrderBy(Describe.Name, StringComparer.Ordinal)
                 .Select(a => (JsonNode?)ScreenAction(a, root, path)).ToArray()));
             // Reactive and Mobile parts (a Traditional screen has none of them): screen aggregates and data actions in the
