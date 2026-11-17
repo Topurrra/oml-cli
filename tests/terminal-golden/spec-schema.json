@@ -1555,6 +1555,24 @@
             "element",
             "args"
           ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "repoint"
+            },
+            "element": {
+              "type": "string"
+            },
+            "action": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "element",
+            "action"
+          ]
         }
       ]
     }

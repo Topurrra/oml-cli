@@ -210,18 +210,8 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 if (kind.Equals("execute", StringComparison.OrdinalIgnoreCase))
                 {
                     var target = n.GetProperty("action").GetString()!;
-                    // A screen or block action calls another action of the same screen or block by its name.
-                    callee = (action as IObjectSignature)?.Parent is { } owner && Reflect.Get(owner, "ScreenActions") is System.Collections.IEnumerable siblings
-                        ? siblings.Cast<object>().FirstOrDefault(s => !ReferenceEquals(s, action) && Model.NameOf(s) == target) : null;
-                    callee ??= Refs.Find(m, target, typeof(IObjectSignature));
-                    // A client flow calls the client action when a client and a server action share the name
-                    // (System's ListAppend, ListClear, ...): the server one is a request per call.
-                    if (!callee.GetType().GetInterfaces().Any(i => i.Name == "IClientActionSignature")
-                        && action.GetType().GetInterfaces().Any(i => i.Name is "IClientActionSignature" or "IScreenActionSignature" || i.Name.Contains("ScreenAction"))
-                        && Refs.All(m).Select(r => r.element).FirstOrDefault(e => Model.NameOf(e) == Model.NameOf(callee)
-                            && e.GetType().GetInterfaces().Any(i => i.Name == "IClientActionSignature")) is { } clientTwin)
-                        callee = clientTwin;
-                    var client = callee.GetType().GetInterfaces().Any(i => i.Name == "IClientActionSignature");
+                    var (found, client) = Callee(action, target);
+                    callee = found;
                     type = client ? typeof(OutSystems.Model.Logic.Nodes.IExecuteClientActionNode) : typeof(OutSystems.Model.Logic.Nodes.IExecuteServerActionNode);
                     if (!n.TryGetProperty("name", out _)) name = Model.NameOf(callee) ?? target;
                 }
@@ -327,6 +317,24 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 if (Reflect.Property(node, "Target") is not null) Connect(node, "Target", Resolve(Named("next")));
             }));
         }
+    }
+
+    // The action an execute node in the flow of `action` calls for a spec name (`Name` or `Module.Name`), and whether it
+    // is a client action (an Execute Client Action node calls it). Used by the flow builder and by the repoint edit.
+    (object callee, bool client) Callee(object action, string target)
+    {
+        // A screen or block action calls another action of the same screen or block by its name.
+        var callee = (action as IObjectSignature)?.Parent is { } owner && Reflect.Get(owner, "ScreenActions") is System.Collections.IEnumerable siblings
+            ? siblings.Cast<object>().FirstOrDefault(s => !ReferenceEquals(s, action) && Model.NameOf(s) == target) : null;
+        callee ??= Refs.Find(m, target, typeof(IObjectSignature));
+        // A client flow calls the client action when a client and a server action share the name
+        // (System's ListAppend, ListClear, ...): the server one is a request per call.
+        if (!callee.GetType().GetInterfaces().Any(i => i.Name == "IClientActionSignature")
+            && action.GetType().GetInterfaces().Any(i => i.Name is "IClientActionSignature" or "IScreenActionSignature" || i.Name.Contains("ScreenAction"))
+            && Refs.All(m).Select(r => r.element).FirstOrDefault(e => Model.NameOf(e) == Model.NameOf(callee)
+                && e.GetType().GetInterfaces().Any(i => i.Name == "IClientActionSignature")) is { } clientTwin)
+            callee = clientTwin;
+        return (callee, callee.GetType().GetInterfaces().Any(i => i.Name == "IClientActionSignature"));
     }
 
     static void Connect(object from, string property, object to) =>

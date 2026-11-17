@@ -151,6 +151,50 @@ partial class Builder
                     replacements.Add((int.Parse(label[5..^1]), before, () => Elements(Reflect.Get(owner, "Nodes")).OfType<IObjectSignature>().Where(x => Model.NameOf(x) == name && !x.WasDeleted).ToList()));
                 break;
             }
+            case "repoint":
+            {
+                // The same Execute node calls another action: it keeps its place, name and key, so `Node.Output` keeps its
+                // text. The arguments are set again by parameter name; nothing is dropped without a refusal.
+                var target = Find("element");
+                if (target is not (IExecuteServerActionNode or IExecuteClientActionNode) || target.Parent is not IObjectSignature owner || !Reflect.Has(owner, "CreateNode"))
+                    throw new ModelError("element must be an Execute (action call) node of an editable action flow (paths in 'oml tree')");
+                var wanted = Required("action");
+                var (callee, client) = Callee(owner, wanted);
+                if (Reflect.Get(target, "Action") is { } current && Equals(current, callee))
+                {
+                    existing.Add($"node {Required("element")} (already calls {wanted})");
+                    applied = false;
+                    break;
+                }
+                if (client != (target is IExecuteClientActionNode))
+                    throw new ModelError($"'{wanted}' is {(client ? "a client" : "a server")} action and '{Required("element")}' is an Execute {(client ? "Server" : "Client")} Action node; build the call again with replaceNode");
+                var old = new Dictionary<string, string>();
+                foreach (var argument in Elements(Reflect.Get(target, "Arguments")))
+                {
+                    var text = (Reflect.Get(argument, "Value") as IExpression)?.Text ?? "";
+                    if (text.Length == 0) continue;
+                    string parameter;
+                    try { parameter = Reflect.Get(argument, "Parameter") is { } p ? Model.NameOf(p) ?? "" : ""; }
+                    catch (Exception e) when (e is System.Reflection.TargetInvocationException or NullReferenceException) { parameter = ""; }
+                    if (parameter.Length == 0)
+                        throw new ModelError($"refused: an argument of '{Required("element")}' ({text}) has no readable parameter; build the call again with replaceNode");
+                    if (FieldMappings.Suffix(argument) is { Length: > 0 } mappings)
+                        throw new ModelError($"refused: argument {parameter}{mappings} of '{Required("element")}' has per-field record mappings, which repoint does not carry over; build the call again with replaceNode");
+                    old[parameter] = text;
+                }
+                var inputs = Elements(Reflect.Get(callee, "InputParameters")).ToList();
+                if (old.Keys.FirstOrDefault(k => !inputs.Any(i => Model.NameOf(i) == k)) is { } lost)
+                    throw new ModelError($"refused: '{wanted}' has no input '{lost}' for the argument {lost} = {old[lost]} of '{Required("element")}'; repoint to an action with that input, or change the call with replaceNode");
+                if (inputs.Where(i => Reflect.Get(i, "IsMandatory") is true).Select(i => Model.NameOf(i)).FirstOrDefault(k => k is not null && !old.ContainsKey(k)) is { } missing)
+                    throw new ModelError($"refused: '{wanted}' has a mandatory input '{missing}' and '{Required("element")}' has no argument for it; change the call with replaceNode");
+                var name = Model.NameOf(target);
+                // Setting Action creates the new Arguments; their values are set in the expression pass (skill §9).
+                Reflect.Property(target, "Action", writable: true)!.SetValue(target, callee);
+                if (name is not null && Model.NameOf(target) != name) Reflect.Property(target, "Name", writable: true)!.SetValue(target, name);
+                var args = JsonSerializer.SerializeToElement(old);
+                Defer(target, ($"{label}.args", () => Arguments(target, args)));
+                break;
+            }
             case "addWidgets":
             {
                 var screen = Find("screen");
@@ -360,6 +404,7 @@ partial class Builder
             "set" => $"{Text("element")}: {string.Join(", ", edit.GetProperty("properties").EnumerateObject().Select(p => p.Name))}",
             "rename" => $"{Text("element")} renamed to {Text("to")}",
             "delete" => $"{Text("element")} deleted",
+            "repoint" => $"node {Text("element")} now calls {Text("action")}",
             _ => null,
         };
     }

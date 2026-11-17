@@ -73,5 +73,38 @@ static partial class SelfTest
             if (!web.ServerActions.Single(a => a.Name == "SendNotice").Nodes.Any(n => Reflect.Get(n, "Email") is { } email && Model.NameOf(email) == "Notice"))
                 failures.Add("sendEmail lost its Email reference");
         }
+
+        // repoint: a call node runs another action with the same input and output names. It keeps its key, its argument
+        // is bound again by name, and the Assign that reads Run.Id still validates after a reopen.
+        File.WriteAllText(path, """
+            {"serverActions":[
+              {"name":"MakeA","inputs":[{"name":"Source","type":"Text"}],"outputs":[{"name":"Id","type":"Integer"}],"flow":[{"kind":"assign","name":"SetA","assign":{"Id":"Length(Source)"}}]},
+              {"name":"MakeB","inputs":[{"name":"Source","type":"Text"}],"outputs":[{"name":"Id","type":"Integer"}],"flow":[{"kind":"assign","name":"SetB","assign":{"Id":"Length(Source) + 1"}}]},
+              {"name":"Caller","outputs":[{"name":"Result","type":"Integer"}],"flow":[
+                {"kind":"execute","name":"Run","action":"MakeA","args":{"Source":"\"abc\""}},
+                {"kind":"assign","name":"Keep","assign":{"Result":"Run.Id"}}]}]}
+            """);
+        var calls = Path.Combine(dir, "logic-repoint-source.oml");
+        (code, report) = Apply.Execute(blank, path, calls);
+        if (code != 0) { failures.Add("repoint fixture: " + JsonSerializer.Serialize(report)); return; }
+        string key;
+        using (var before = Model.Load(calls)) key = ElementPaths.Resolve(before, "Caller/Run").GlobalKey.ToString()!;
+        File.WriteAllText(path, """{"edits":[{"op":"repoint","element":"Caller/Run","action":"MakeB"}]}""");
+        output = Path.Combine(dir, "logic-repoint.oml");
+        (code, report) = Apply.Execute(calls, path, output);
+        if (code != 0 || !Says(report, "node Caller/Run now calls MakeB")) { failures.Add("repoint: " + JsonSerializer.Serialize(report)); return; }
+        using (var repointed = Model.Load(output))
+        {
+            var run = ElementPaths.Resolve(repointed, "Caller/Run");
+            if (run.GlobalKey.ToString() != key) failures.Add("repoint: the node got a new key");
+            if (Model.NameOf(Reflect.Get(run, "Action") ?? "") != "MakeB") failures.Add("repoint: the node does not call MakeB");
+            var source = ((System.Collections.IEnumerable)Reflect.Get(run, "Arguments")!).Cast<object>()
+                .FirstOrDefault(a => Reflect.Get(a, "Parameter") is { } p && Model.NameOf(p) == "Source");
+            if (source is null || (Reflect.Get(source, "Value") as IExpression)?.Text != "\"abc\"") failures.Add("repoint: the argument Source lost its value");
+            if (Model.Errors(repointed).Length > 0) failures.Add("repoint: errors after reopen (the Assign reads Run.Id)");
+        }
+        // The same edit again changes nothing.
+        (code, report) = Apply.Execute(output, path, Path.Combine(dir, "logic-repoint-again.oml"));
+        if (code != 0 || !Says(report, "already calls MakeB")) failures.Add("repoint again: " + JsonSerializer.Serialize(report));
     }
 }
