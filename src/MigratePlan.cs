@@ -28,14 +28,14 @@ static partial class Migrate
 
     // A session variable is "client" when only screens and blocks use it, it holds a basic type and its name is not sensitive; the reasons
     // otherwise are said in plain words. serverActions are the copied server and service actions whose describe text names Session.<Name>.
-    internal static (string decision, string why) DecideSession(string name, string type, string[] serverActions, bool usedByScreens)
+    internal static (string decision, string why) DecideSession(string name, string type, string[] serverActions, bool usedByScreens, bool hasDefault = false)
     {
         var why = new List<string>();
         if (serverActions.Length > 0) why.Add($"used by copied server logic ({string.Join(", ", serverActions)}): client variables do not exist on the server, so the value must come in as an input parameter or be read on the server");
         if (!IsBasicType(type)) why.Add($"its type ({(type.Length > 0 ? type : "unknown")}) is not a basic type");
         if (SensitiveName(name)) why.Add("its name looks sensitive and a client variable can be read by the user: never put it in the browser");
         if (!usedByScreens && serverActions.Length == 0) why.Add("no screen or block was found using it, so check by hand whether it is still needed");
-        return why.Count == 0 ? ("client", "used only by screens and blocks and a basic type: becomes a client variable of the same name in 4-screens.json; its default value is not read (inspect and export do not give it), so set it by hand if it had one") : ("manual", string.Join("; ", why));
+        return why.Count == 0 ? ("client", "used only by screens and blocks and a basic type: becomes a client variable of the same name in 4-screens.json" + (hasDefault ? ", with its default value" : "; its default value is not read (this inspect does not give it), so set it by hand if it had one")) : ("manual", string.Join("; ", why));
     }
 
     // Variable -> the actions whose describe text names Session.<Variable> as a whole identifier. texts: action query (Kind:Name) -> text.

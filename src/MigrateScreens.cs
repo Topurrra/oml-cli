@@ -21,7 +21,8 @@
 //          prompt mandatory (not "False") enabled (not "True") isDefault confirm image url (Image only) onClick onChange (handler names) and one key per Events entry;
 //          then destination (screen an On Click goes to, E 619), method (a property of the click event with "Method" in its name, E 623: often absent), then every other
 //          readable property named with letters only, first letter lowered (E 621). Those generic names (label, sourceRecordList, sourceRecord, ...) are not checkable here.
-// NOT in the export: session variable defaults (nor in inspect), the widgets an Ajax Refresh refreshes, the click method when no property says it, a Link's own
+// _targets (optional, a node the spec cannot express): {property: element name | [names]}, what an AjaxRefreshNode refreshes; inspect's session variable rows may have `default` (optional).
+// NOT in the export: the widgets an Ajax Refresh refreshes when `_targets` is absent, the click method when no property says it, a Link's own
 // Url (Export.cs 53 lists Url in FactSources, so only an Image's url is written), a node's reads (`_reads`), End nodes, a block's Reactive events.
 
 using System.Text;
@@ -85,6 +86,12 @@ static class ScreenTranslator
         readonly HashSet<string> actionNames = new(StringComparer.OrdinalIgnoreCase);
         readonly Dictionary<string, string> varTypes = new(StringComparer.OrdinalIgnoreCase);
         readonly Dictionary<string, JsonObject> extraLocals = new(StringComparer.OrdinalIgnoreCase);
+        readonly Dictionary<string, JsonObject> aggDefs = new(StringComparer.OrdinalIgnoreCase);              // aggregate name -> its Preparation node
+        readonly HashSet<string> prepWrites = new(StringComparer.OrdinalIgnoreCase);                          // variables the lifted Preparation logic assigns
+        JsonObject? initAction;                                                                               // the client action behind onInitialize: { name, flow }
+        readonly Dictionary<string, JsonObject> afterFetch = new(StringComparer.OrdinalIgnoreCase);           // aggregate name -> the client action behind its onAfterFetch
+        readonly List<(string agg, string form, string expr)> afterFills = [];                                // form record = aggregate record, after each fetch
+        readonly List<(string form, string expr)> initFills = [];                                             // form record = input or local, at initialize
 
         public Run(JsonObject element, Context context)
         {
@@ -264,13 +271,14 @@ static class ScreenTranslator
             foreach (var a in Objs(el["actions"])) actions.Add(Action(a));
 
             var content = Content(spec);
+            Lifecycle(aggs, actions, spec);
             foreach (var l in extraLocals.Values) locals.Add(l);
             if (locals.Count > 0) spec["locals"] = locals;
             if (aggs.Count > 0) spec["aggregates"] = aggs;
             if (actions.Count > 0) spec["actions"] = actions;
             foreach (var (key, value) in content) spec[key] = value;
             if (S(el["styleSheet"]) is { Length: > 0 } css) spec["styleSheet"] = css;
-            if (S(el["javaScript"]) is { Length: > 0 }) Todo("it has its own JavaScript, which is not carried over: add it with the spec's scripts and requiredScripts keys");
+            if (S(el["javaScript"]) is { Length: > 0 }) Todo("it has its own JavaScript, which is not carried over: add it as a javaScript node in a client action run from onReady, or with the spec's scripts and requiredScripts keys");
 
             return new Result(spec, kindWord, todo.Count == 0 ? "translated" : "partial", todo, entityActions, session);
         }
@@ -304,33 +312,263 @@ static class ScreenTranslator
             return o;
         }
 
-        // Rule 2: a Preparation of aggregates only becomes screen aggregates of the same names; anything else is not translated.
+        // The Preparation. Aggregates become screen aggregates of the same names (a complete flow always keeps them). A flow with logic is lifted into
+        // onInitialize / an aggregate's onAfterFetch only when Lift proves it can be (see there); otherwise the logic is left, with a Todo that says why.
         JsonArray Preparation(JsonNode? preparation)
         {
             var result = new JsonArray();
             if (preparation is not JsonObject p) return result;
             var nodes = Objs(p["nodes"]).ToList();
             if (nodes.Count == 0) return result;
-            var complete = Complete(p);
+            var unsupported = Objs(p["unsupported"]).ToList();
+            var complete = Complete(p) || (unsupported.Count > 0 && unsupported.All(AjaxEntry));
             // Comments are listed after the main path and change nothing.
             var calls = nodes.Where(n => NodeKind(n) != "comment").ToList();
-            if (complete && calls.All(n => NodeKind(n) == "aggregate"))
+            if (!complete)
             {
-                foreach (var n in calls)
-                {
-                    var a = new JsonObject();
-                    foreach (var key in new[] { "name", "sources", "joins", "filters", "sorts", "groupBy", "aggregates", "calculated", "groupFilters", "groupSorts", "groupCalculated", "maxRecords", "startIndex", "timeout" })
-                        if (n[key] is { } v) a[key] = RwTree(v, $"the aggregate {S(n["name"])}", "name", "sources", "type", "function", "as", "left", "right");
-                    result.Add(a);
-                    if (S(n["name"]) is { } an) aggregates.Add(an);
-                }
+                Todo($"its Preparation could not be read completely ({Summary(calls)}); lift it into one data action that calls one server action (skill/reference/traditional-to-reactive.md)");
                 return result;
             }
-            var what = Summary(calls);
-            Todo(complete
-                ? $"its Preparation does more than fetch data ({what}); lift it into one data action that calls one server action (skill/reference/traditional-to-reactive.md) and set the screen's data from its outputs, and re-create the aggregates its widgets read"
-                : $"its Preparation could not be read completely ({what}); lift it into one data action that calls one server action (skill/reference/traditional-to-reactive.md)");
+            foreach (var n in calls.Where(n => NodeKind(n) == "aggregate"))
+            {
+                var a = new JsonObject();
+                foreach (var key in new[] { "name", "sources", "joins", "filters", "sorts", "groupBy", "aggregates", "calculated", "groupFilters", "groupSorts", "groupCalculated", "maxRecords", "startIndex", "timeout" })
+                    if (n[key] is { } v) a[key] = RwTree(v, $"the aggregate {S(n["name"])}", "name", "sources", "type", "function", "as", "left", "right");
+                result.Add(a);
+                if (S(n["name"]) is { } an) { aggregates.Add(an); aggDefs[an] = n; }
+            }
+            var logic = calls.Where(n => NodeKind(n) != "aggregate").ToList();
+            if (logic.Count == 0) return result;
+            var why = Lift(calls, nodes.Where(n => NodeKind(n) == "comment").ToList(), logic);
+            if (why is not null)
+                Todo($"its Preparation logic was not translated ({why}); the aggregates were kept, and the nodes left are {Summary(logic)}; a data action is the usual home for this logic (skill/reference/traditional-to-reactive.md): move it there and set the screen's data from its outputs");
             return result;
+        }
+
+        // ---------- expression paths (what a node reads) ----------
+
+        // The dotted paths an expression starts: `GetOrders.List.Current.Order.Id` is one path, a member after a dot or a named argument is not
+        // one, and string literals, #dates# and comments are skipped (the same scan as Rw).
+        static List<string> Chains(string? text)
+        {
+            var result = new List<string>();
+            if (string.IsNullOrEmpty(text)) return result;
+            int i = 0, n = text.Length;
+            var last = '\0';
+            while (i < n)
+            {
+                var c = text[i];
+                int j;
+                if (c == '"')
+                {
+                    j = i + 1;
+                    while (j < n) { if (text[j] == '"') { if (j + 1 < n && text[j + 1] == '"') { j += 2; continue; } break; } j++; }
+                    j = Math.Min(j + 1, n);
+                }
+                else if (c == '#') { j = text.IndexOf('#', i + 1); j = j < 0 ? n : j + 1; }
+                else if (c == '/' && i + 1 < n && text[i + 1] == '/') { j = text.IndexOf('\n', i); if (j < 0) j = n; }
+                else if (c == '/' && i + 1 < n && text[i + 1] == '*') { j = text.IndexOf("*/", i + 2, StringComparison.Ordinal); j = j < 0 ? n : j + 2; }
+                else if (char.IsDigit(c))
+                {
+                    j = i; while (j < n && char.IsDigit(text[j])) j++;
+                    if (j + 1 < n && text[j] == '.' && char.IsDigit(text[j + 1])) { j++; while (j < n && char.IsDigit(text[j])) j++; }
+                }
+                else if (char.IsLetter(c) || c == '_')
+                {
+                    j = i; while (j < n && (char.IsLetterOrDigit(text[j]) || text[j] == '_')) j++;
+                    var k = j; while (k < n && text[k] == ' ') k++;
+                    var named = k < n && text[k] == ':' && !(k + 1 < n && text[k + 1] == '=');
+                    if (last != '.' && !named)
+                    {
+                        while (j + 1 < n && text[j] == '.' && (char.IsLetter(text[j + 1]) || text[j + 1] == '_'))
+                        { j++; while (j < n && (char.IsLetterOrDigit(text[j]) || text[j] == '_')) j++; }
+                        result.Add(text[i..j]);
+                    }
+                }
+                else j = i + 1;
+                if (!char.IsWhiteSpace(text[j - 1])) last = text[j - 1];
+                i = j;
+            }
+            return result;
+        }
+
+        // The variable a path names: its first name, and for Session.X the two (a session variable is one variable, not "Session").
+        static string Root(string chain)
+        {
+            var parts = chain.Split('.');
+            return parts[0].Equals("Session", StringComparison.OrdinalIgnoreCase) && parts.Length > 1 ? parts[0] + "." + parts[1] : parts[0];
+        }
+
+        // The expression texts of a flow node: conditions, messages, lists, assignment targets and values, argument values, case conditions.
+        static IEnumerable<string> NodeExprs(JsonObject n)
+        {
+            foreach (var key in new[] { "condition", "message", "recordList" }) if (S(n[key]) is { } t) yield return t;
+            if (n["assign"] is JsonObject a) foreach (var (k, v) in a) { yield return k; if (S(v) is { } t) yield return t; }
+            if (n["args"] is JsonObject args) foreach (var (_, v) in args) if (S(v) is { } t) yield return t;
+            foreach (var c in Objs(n["cases"])) if (S(c["condition"]) is { } t) yield return t;
+        }
+
+        // Every text an aggregate evaluates (filters, sorts, joins, calculated attributes, limits), not its names.
+        static IEnumerable<string> AggregateExprs(JsonNode? n)
+        {
+            switch (n)
+            {
+                case JsonObject o:
+                    foreach (var (k, v) in o)
+                        if (!(k is "name" or "sources" or "type" or "function" or "as" or "left" or "right" or "kind" or "next" or "_path"))
+                            foreach (var t in AggregateExprs(v)) yield return t;
+                    break;
+                case JsonArray arr: foreach (var x in arr) foreach (var t in AggregateExprs(x)) yield return t; break;
+                case JsonValue v when S(v) is { } s: yield return s; break;
+            }
+        }
+
+        static readonly string[] LiftKinds = ["assign", "if", "switch", "execute", "destination", "raiseexception"];
+
+        string UniqueAction(string baseName) { var u = baseName; for (var i = 2; actionNames.Contains(u); i++) u = baseName + i; actionNames.Add(u); return u; }
+
+        // Rule 1. The Preparation has logic besides its aggregates. Returns null when the logic was lifted, else why it was not (the caller says so).
+        // Reactive aggregates fetch on their own, so the logic cannot run "between" them as in Traditional. The nodes that read no aggregate and come
+        // before the first one that does go to onInitialize; the rest go to the onAfterFetch of the ONE aggregate they all read. Anything that would
+        // need more than that (two aggregates read, SQL, an order that matters because a node writes what a filter reads, a branch that sends some
+        // paths around the aggregates, a flow that cannot be cut cleanly in two) is not translated: a wrong order is worse than a Todo.
+        string? Lift(List<JsonObject> calls, List<JsonObject> comments, List<JsonObject> logic)
+        {
+            var bad = logic.Where(n => !LiftKinds.Contains(NodeKind(n))).ToList();
+            if (bad.Count > 0) return $"{Summary(bad)} cannot be client logic here" + (bad.Any(n => NodeKind(n) == "sql") ? " (a SQL node needs a server action)" : "");
+            var names = calls.Select(n => S(n["name"])).ToList();
+            if (names.Any(Blank) || names.Distinct(StringComparer.OrdinalIgnoreCase).Count() != names.Count) return "its nodes have no unique names";
+            foreach (var d in logic.Where(n => NodeKind(n) == "destination"))
+                if (S(d["screen"]) is not { Length: > 0 } scr || scr.Contains('.')) return $"its Destination {S(d["name"])} does not name a screen of this module";
+            var byName = calls.ToDictionary(n => S(n["name"])!, StringComparer.OrdinalIgnoreCase);
+            var order = names.Select(x => x!).ToList();
+
+            string Implicit(JsonObject n) { var i = order.FindIndex(x => x.Equals(S(n["name"]), StringComparison.OrdinalIgnoreCase)); return i + 1 < order.Count ? order[i + 1] : "End"; }
+            List<string> Succ(JsonObject n) => NodeKind(n) switch
+            {
+                "if" => [S(n["true"]) ?? "End", S(n["false"]) ?? "End"],
+                "switch" => Objs(n["cases"]).Select(c => S(c["next"]) ?? "End").Append(S(n["otherwise"]) ?? "End").ToList(),
+                "destination" or "raiseexception" => [],
+                _ => [S(n["next"]) ?? Implicit(n)],
+            };
+            if (calls.SelectMany(Succ).Any(t => t != "End" && !byName.ContainsKey(t))) return "a connector names a node that is not in the Preparation";
+            string Resolve(string t) { for (var g = 0; g < 200 && t != "End" && NodeKind(byName[t]) == "aggregate"; g++) t = Succ(byName[t])[0]; return t; }
+            var entry = Resolve(order[0]);
+            if (entry == "End") return "no logic node is reached";
+
+            var reach = new HashSet<string>(StringComparer.OrdinalIgnoreCase); var todo = new Stack<string>(); todo.Push(entry);
+            while (todo.Count > 0) { var t = todo.Pop(); if (t == "End" || !reach.Add(t)) continue; foreach (var x in Succ(byName[t])) todo.Push(Resolve(x)); }
+            if (logic.FirstOrDefault(n => !reach.Contains(S(n["name"])!)) is { } lost) return $"the node {S(lost["name"])} is not reached";
+
+            // An aggregate on only some paths would be fetched on all of them in Reactive.
+            foreach (var g in calls.Where(n => NodeKind(n) == "aggregate"))
+            {
+                var gn = S(g["name"])!; var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { gn }; var stack = new Stack<string>(); stack.Push(order[0]); var end = false;
+                while (stack.Count > 0) { var t = stack.Pop(); if (t == "End") { end = true; break; } if (!seen.Add(t)) continue; foreach (var x in Succ(byName[t])) stack.Push(x); }
+                if (end) return $"the aggregate {gn} is not on every path of the Preparation, and a Reactive aggregate always fetches";
+            }
+
+            var aggNames = calls.Where(n => NodeKind(n) == "aggregate").Select(n => S(n["name"])!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var logicNames = logic.Select(n => S(n["name"])!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> ReadsOf(IEnumerable<JsonObject> group, HashSet<string> among) =>
+                group.SelectMany(NodeExprs).SelectMany(Chains).Select(c => c.Split('.')[0]).Where(among.Contains).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // What the aggregates read must not change under them, nor come from a node of the logic.
+            var filterRoots = calls.Where(n => NodeKind(n) == "aggregate").SelectMany(n => AggregateExprs(n)).SelectMany(Chains).Select(Root).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var writes = logic.Where(n => NodeKind(n) == "assign").SelectMany(n => (n["assign"] as JsonObject ?? []).Select(kv => Chains(kv.Key).FirstOrDefault())).Where(c => c is not null).Select(c => Root(c!)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (writes.FirstOrDefault(filterRoots.Contains) is { } clash) return $"it assigns {clash}, which an aggregate reads in its filter or sort, so the order of the assignment and the fetch matters";
+            if (logicNames.FirstOrDefault(x => filterRoots.Contains(x)) is { } fromNode) return $"an aggregate reads the output of the node {fromNode}";
+
+            var first = logic.FindIndex(n => ReadsOf([n], aggNames).Count > 0);
+            var groupA = first < 0 ? logic : logic.Take(first).ToList();
+            var groupB = first < 0 ? [] : logic.Skip(first).ToList();
+            var inA = groupA.Select(n => S(n["name"])!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var inB = groupB.Select(n => S(n["name"])!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            string? bEntry = null; string? target = null;
+            if (groupB.Count > 0)
+            {
+                var read = ReadsOf(groupB, aggNames);
+                if (read.Count != 1) return $"the nodes after the first aggregate read {read.Count} aggregates ({string.Join(", ", read.Order())}) and a handler belongs to one";
+                target = read.First();
+                if (groupB.SelectMany(NodeExprs).SelectMany(Chains).Select(c => c.Split('.')[0]).FirstOrDefault(inA.Contains) is { } crossed) return $"the nodes after the first aggregate read the output of {crossed}, which runs earlier";
+                if (groupB.Any(n => Succ(n).Select(Resolve).Any(inA.Contains))) return "the flow goes back from the nodes that read an aggregate to the ones that do not";
+                if (groupA.Count > 0)
+                {
+                    if (!inA.Contains(entry)) return "the Preparation starts with a node that reads an aggregate, after others that do not";
+                    if (groupA.Any(n => NodeKind(n) is "destination" or "raiseexception")) return "a path of the nodes before the first aggregate ends in a Destination or Raise Exception, so the later nodes would not always run";
+                    var exits = groupA.SelectMany(n => Succ(n).Select(Resolve)).Where(t => !inA.Contains(t)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                    if (exits.Count != 1 || !inB.Contains(exits[0])) return "the nodes before the first aggregate do not all lead into the same node after it, so the flow cannot be cut in two";
+                    bEntry = exits[0];
+                }
+                else bEntry = entry;
+            }
+            else if (!inA.Contains(entry)) return "no logic node is reached";
+
+            // Proven: build the client actions. Every connector is made explicit (through the removed aggregates) and one that leaves the group says End.
+            JsonObject Flow(string actionName, List<JsonObject> group, string groupEntry, HashSet<string> members)
+            {
+                string To(string t) { t = t == "End" ? t : Resolve(t); return t != "End" && members.Contains(t) ? S(byName[t]["name"])! : "End"; }
+                var flow = new JsonArray();
+                foreach (var n in group.OrderBy(n => S(n["name"])!.Equals(groupEntry, StringComparison.OrdinalIgnoreCase) ? 0 : 1))
+                {
+                    var c = (JsonObject)n.DeepClone();
+                    switch (NodeKind(c))
+                    {
+                        case "if": c["true"] = To(S(c["true"]) ?? "End"); c["false"] = To(S(c["false"]) ?? "End"); break;
+                        case "switch":
+                            foreach (var cs in Objs(c["cases"])) cs["next"] = To(S(cs["next"]) ?? "End");
+                            c["otherwise"] = To(S(c["otherwise"]) ?? "End"); break;
+                        case "destination" or "raiseexception": break;
+                        default: c["next"] = To(S(c["next"]) ?? Implicit(n)); break;
+                    }
+                    flow.Add(Node(c, actionName));
+                }
+                return new JsonObject { ["name"] = actionName, ["flow"] = flow };
+            }
+            if (groupA.Count > 0) initAction = Flow(UniqueAction("OnInitialize"), groupA, entry, inA);
+            if (groupB.Count > 0) afterFetch[target!] = Flow(UniqueAction(target + "OnAfterFetch"), groupB, bEntry!, inB);
+            // Comments of the Preparation go to the first handler, after its nodes.
+            if ((initAction ?? afterFetch.GetValueOrDefault(target ?? "")) is { } home && home["flow"] is JsonArray hf)
+                foreach (var cm in comments) hf.Add(new JsonObject { ["kind"] = "comment", ["text"] = S(cm["text"]) ?? "" });
+            foreach (var w in writes) prepWrites.Add(w);
+            var calling = logic.Where(n => NodeKind(n) == "execute" && !Leaf(S(n["action"]) ?? S(n["_ref"]) ?? "").Equals("Feedback_Message", StringComparison.OrdinalIgnoreCase)).Select(n => S(n["name"])).ToList();
+            if (calling.Count > 0)
+            {
+                var homes = new[] { initAction is null ? null : $"the client action {S(initAction["name"])} (onInitialize, runs once)", groupB.Count == 0 ? null : $"the client action {S(afterFetch[target!]["name"])} (onAfterFetch of {target}, runs after every fetch)" }.Where(x => x is not null);
+                Todo($"its Preparation logic became {string.Join(" and ", homes)} and calls server actions ({string.Join(", ", calling)}): each call costs a request, so these are candidates for a data action");
+            }
+            return null;
+        }
+
+        // Rule 2 and the lifecycle: a form record filled from an input or local at initialize, or from an aggregate after its fetch, becomes an assign
+        // at the start of the handler (made if there is none); then the handlers are added to the actions and named by their keys.
+        void Lifecycle(JsonArray aggs, JsonArray actions, JsonObject spec)
+        {
+            JsonObject Prepend(JsonObject? action, string baseName, List<(string form, string expr)> fills)
+            {
+                action ??= new JsonObject { ["name"] = UniqueAction(baseName), ["flow"] = new JsonArray() };
+                var flow = (JsonArray)action["flow"]!;
+                var used = flow.OfType<JsonObject>().Select(n => S(n["name"])).Where(x => x is not null).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var made = new List<JsonObject>();
+                foreach (var (form, expr) in fills)
+                {
+                    var nm = "Fill" + form; for (var i = 2; !used.Add(nm); i++) nm = "Fill" + form + i;
+                    made.Add(new JsonObject { ["kind"] = "assign", ["name"] = nm, ["assign"] = new JsonObject { [form] = expr } });
+                }
+                for (var i = 0; i < made.Count; i++)
+                {
+                    var next = i + 1 < made.Count ? S(made[i + 1]["name"]) : flow.Count > 0 ? S(flow[0]!["name"]) : null;
+                    if (next is not null) made[i]["next"] = next;
+                }
+                for (var i = made.Count - 1; i >= 0; i--) flow.Insert(0, made[i]);
+                return action;
+            }
+            if (initFills.Count > 0) initAction = Prepend(initAction, "OnInitialize", initFills);
+            foreach (var g in afterFills.GroupBy(f => f.agg, StringComparer.OrdinalIgnoreCase))
+                afterFetch[g.Key] = Prepend(afterFetch.GetValueOrDefault(g.Key), g.Key + "OnAfterFetch", g.Select(f => (f.form, f.expr)).ToList());
+            foreach (var a in aggs.OfType<JsonObject>())
+                if (S(a["name"]) is { } an && afterFetch.TryGetValue(an, out var act)) { a["onAfterFetch"] = S(act["name"]); actions.Add(act); }
+            if (initAction is not null) { actions.Add(initAction); spec["onInitialize"] = S(initAction["name"]); }
         }
 
         static string Summary(List<JsonObject> nodes)
@@ -363,9 +601,17 @@ static class ScreenTranslator
                 var nodes = Objs((a["flow"] as JsonObject)?["nodes"]).ToList();
                 var did = nodes.Count > 0 ? $"; the original did: {Summary(nodes)}" : "";
                 var notify = nodes.Any(IsNotify);
-                Todo(block && notify
-                    ? $"the action {an} calls Notify, which Reactive does not have; create a block event (the spec's events key, for example OnNotify), fire it in this action with a triggerEvent node and handle it on every instance with events{did}"
-                    : $"the action {an} was created as a stub because {why}{did}");
+                var queries = nodes.Where(n => NodeKind(n) is "aggregate" or "sql").ToList();
+                if (block && notify)
+                    Todo($"the action {an} calls Notify, which Reactive does not have; create a block event (the spec's events key, for example OnNotify), fire it in this action with a triggerEvent node and handle it on every instance with events{did}");
+                else if (queries.Count > 0 && why!.Contains("needs a server action"))
+                {
+                    // What the later nodes read from the queries: the paths that start with a query node's name, as typed.
+                    var queryNames = queries.Select(n => S(n["name"])).Where(x => !Blank(x)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    var reads = nodes.Where(n => NodeKind(n) is not ("aggregate" or "sql")).SelectMany(NodeExprs).SelectMany(Chains).Where(c => queryNames.Contains(c.Split('.')[0])).Distinct().ToList();
+                    Todo($"the action {an} was created as a stub because it contains {Summary(queries)}, which need a server action; create a server action that runs this query and returns what the later nodes read ({(reads.Count > 0 ? string.Join(", ", reads) : "nothing is read from it")}), call it here, and replace those reads{did}");
+                }
+                else Todo($"the action {an} was created as a stub because {why}{did}");
             }
             else o["flow"] = flow;
             return o;
@@ -401,8 +647,10 @@ static class ScreenTranslator
             return (result, null);
         }
 
-        // Ajax Refresh nodes: the export cannot read which widgets they refresh (Export.cs 446), so each is removed and its incoming connectors join its
-        // outgoing one, and a Todo says so. Every default "next" is made explicit first, so removing a node cannot change the path.
+        // Ajax Refresh nodes. The export cannot express them, but names in `_targets` (when the export has them) say which widgets they refresh. A table or
+        // list fed by a screen aggregate, or a widget that holds such widgets or shows an aggregate's values, becomes a refreshData node for each of those
+        // aggregates; a widget fed by nothing that needs refreshing (Reactive re-renders bound values by itself) removes the node silently; with no `_targets`,
+        // or a name that is not found, the node is removed with a Todo. Every default "next" is made explicit first, so changing a node cannot change the path.
         List<JsonObject> DropRefreshes(List<JsonObject> source, string an)
         {
             var nodes = source.Select(n => (JsonObject)n.DeepClone()).ToList();
@@ -412,19 +660,69 @@ static class ScreenTranslator
                 if (Defaults(nodes[i]) && nodes[i]["next"] is null && Following(i) is { } follow) nodes[i]["next"] = follow;
             foreach (var r in nodes.Where(n => NodeKind(n) == "ajaxrefresh").ToList())
             {
-                var rName = S(r["name"]);
+                var rName = S(r["name"])!;
                 var target = S(r["next"]) ?? "End";
-                Todo($"the action {an} had the Ajax Refresh node {rName}, which was removed because the export cannot read which widgets it refreshed (a Reactive aggregate refetches only when its inputs change); if a table or list no longer updates, add a refreshData node for the aggregate behind it");
+                var (aggs, unknown, known) = RefreshTargets(r);
+                if (!known)
+                    Todo($"the action {an} had the Ajax Refresh node {rName}, which was removed because the export cannot read which widgets it refreshed (a Reactive aggregate refetches only when its inputs change); if a table or list no longer updates, add a refreshData node for the aggregate behind it");
+                else if (unknown.Count > 0)
+                    Todo($"the action {an} had the Ajax Refresh node {rName}, whose target {string.Join(", ", unknown)} could not be matched to a widget of this {kindWord.ToLowerInvariant()} that is safe to read; {(aggs.Count > 0 ? "the others became refreshData nodes, " : "the node was removed, ")}so if something no longer updates, add a refreshData node for the aggregate behind it");
                 var at = nodes.IndexOf(r);
+                var made = aggs.Select((agg, i) => new JsonObject { ["kind"] = "refreshData", ["name"] = aggs.Count == 1 ? rName : $"{rName}_{agg}", ["dataSource"] = agg }).ToList();
+                for (var i = 0; i < made.Count; i++) made[i]["next"] = i + 1 < made.Count ? S(made[i + 1]["name"]) : target;
+                var entry = made.Count > 0 ? S(made[0]["name"])! : target;
                 foreach (var n in nodes)
                 {
-                    foreach (var key in new[] { "next", "true", "false", "cycle", "otherwise" }) if (S(n[key]) == rName) n[key] = target;
-                    if (n["cases"] is JsonArray cs) foreach (var cse in Objs(cs)) if (S(cse["next"]) == rName) cse["next"] = target;
+                    foreach (var key in new[] { "next", "true", "false", "cycle", "otherwise" }) if (S(n[key]) == rName) n[key] = entry;
+                    if (n["cases"] is JsonArray cs) foreach (var cse in Objs(cs)) if (S(cse["next"]) == rName) cse["next"] = entry;
                 }
                 nodes.RemoveAt(at);
-                if (at == 0 && nodes.FindIndex(n => S(n["name"]) == target) is var t and > 0) { var first = nodes[t]; nodes.RemoveAt(t); nodes.Insert(0, first); }
+                nodes.InsertRange(at, made);
+                if (at == 0 && made.Count == 0 && nodes.FindIndex(n => S(n["name"]) == target) is var t and > 0) { var first = nodes[t]; nodes.RemoveAt(t); nodes.Insert(0, first); }
             }
             return nodes;
+        }
+
+        // The screen aggregates an Ajax Refresh node refreshes, from its `_targets` {property: name | [names]}: known is false when there are no targets to
+        // read. `unknown` lists the names that cannot be decided: not a widget of this element, or a widget that holds a block instance, a table or list
+        // whose source is not readable, or one fed by an aggregate that was not built.
+        (List<string> aggs, List<string> unknown, bool known) RefreshTargets(JsonObject r)
+        {
+            var aggs = new List<string>(); var unknown = new List<string>();
+            var names = new List<string>();
+            if (r["_targets"] is JsonObject t)
+                foreach (var (_, v) in t)
+                    if (v is JsonArray a) names.AddRange(a.Select(x => S(x)).Where(x => !Blank(x))!);
+                    else if (S(v) is { Length: > 0 } one) names.Add(one);
+            if (names.Count == 0) return (aggs, unknown, false);
+            foreach (var nm in names.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (!widgetByName.TryGetValue(nm, out var w)) { unknown.Add(nm); continue; }
+                var found = new List<string>(); var ok = true;
+                void Walk(JsonObject x)
+                {
+                    var kind = WType(x);
+                    if (kind == "blockinstance") ok = false;
+                    if (kind is "tablerecords" or "listrecords")
+                    {
+                        var src = Prop(x, "source", "sourceRecordList");
+                        var head = src is null ? null : Chains(src).FirstOrDefault()?.Split('.')[0];
+                        if (src is null || (head is not null && Regex.IsMatch(src.Trim(), @"^\w+\.List$") && !aggregates.Contains(head))) ok = false;
+                    }
+                    foreach (var text in (x["props"] as JsonObject ?? []).Concat(x["attrs"] as JsonObject ?? []).Concat(x["args"] as JsonObject ?? []).Select(kv => S(kv.Value)))
+                        foreach (var c in Chains(text))
+                        {
+                            var head = c.Split('.')[0];
+                            if (aggregates.Contains(head)) found.Add(aggregates.First(g => g.Equals(head, StringComparison.OrdinalIgnoreCase)));
+                            else if (tables.TryGetValue(head, out var tsrc) && aggregates.Contains(tsrc.Split('.')[0])) found.Add(tsrc.Split('.')[0]);
+                        }
+                    foreach (var child in Children(x)) Walk(child);
+                }
+                Walk(w);
+                if (!ok) { unknown.Add(nm); continue; }
+                foreach (var g in found) if (!aggs.Contains(g, StringComparer.OrdinalIgnoreCase)) aggs.Add(g);
+            }
+            return (aggs, unknown, true);
         }
 
         static readonly string[] Connectors = ["next", "true", "false", "cycle", "otherwise"];
@@ -524,6 +822,37 @@ static class ScreenTranslator
         }
 
         // ---------- widgets ----------
+
+        // WIDGET FACTS AND THE SPEC: for every fact of a widget that the translator reads, the spec key that carries it, or null when the spec has none
+        // (then a Todo says what to set by hand). The widget code asks Carry, so turning a fact on is one line here: put the key's name in the table.
+        // A widget key is the model property name with its first letter lowered, set through the generic path (Core's finding). Null stays a Todo with a hint.
+        // radioGroup would be a widget type (the key's value is the type of the widget that replaces a Radio Button), imageSize is the attributes map
+        // (width and height are written inside it), the others are property keys.
+        internal static readonly Dictionary<string, string?> SpecKeys = new(StringComparer.Ordinal)
+        {
+            ["confirm"] = "confirmationMessage", // Button, Link: the confirmation text (expression)
+            ["linkUrl"] = null,             // Link: an external address
+            ["icon"] = "icon",                // Icon: the icon name (plain text)
+            ["radioGroup"] = null,          // Radio Button: a Radio Group widget
+            ["moreInputTypes"] = "inputType",  // Input: types other than Password, Email, Number (Phone Number, ...), passed through as typed
+            ["prompt"] = "prompt",          // Input: the prompt (placeholder) text
+            ["maxLength"] = "maxLength",    // Input, Text Area: the maximum length
+            ["validationMessage"] = null,   // Input: the validation message
+            ["isDefault"] = "isDefault",      // Button: the default button of the form (true/false)
+            ["imageUrl"] = null,            // Image: an address as its source
+            ["imageSize"] = "attributes",   // Image: its width and height, as attributes.width / attributes.height
+            ["tableSort"] = null,           // Table Records: sorting by a column
+            ["tablePaging"] = null,         // Table Records: lines per page
+            ["dropdownEmpty"] = null,       // Dropdown: the empty entry
+        };
+
+        // Writes the fact under its spec key when there is one (true), else says in a Todo what was left (false).
+        bool Carry(JsonObject o, string fact, JsonNode? value, string todo)
+        {
+            if (SpecKeys[fact] is { } key) { o[key] = value; return true; }
+            Todo(todo);
+            return false;
+        }
 
         static IEnumerable<JsonObject> Children(JsonObject w)
         {
@@ -669,13 +998,20 @@ static class ScreenTranslator
                     o = New("Image", w, used);
                     if (Prop(w, used, "image", "resource", "imageName") is { } image)
                     { o["image"] = image; Todo($"{Label(w)} shows the image {image}, which must exist in the new module (images are not copied by oml migrate)"); }
-                    if (Prop(w, used, "url") is { } url) Todo($"{Label(w)} shows the image at {url}, which the spec cannot set; set the source in Service Studio");
+                    if (Prop(w, used, "url") is { } url) Carry(o, "imageUrl", Rw(url, Label(w)), $"{Label(w)} shows the image at {url}, which the spec cannot set; set the source in Service Studio");
+                    var sizes = new JsonObject();
+                    foreach (var dim in new[] { "width", "height" }) if (Prop(w, used, dim) is { } dv) sizes[dim] = dv;
+                    if (sizes.Count > 0)
+                    {
+                        if (Run.SpecKeys["imageSize"] is { } sizeKey) { var map = o[sizeKey] as JsonObject ?? new JsonObject(); o[sizeKey] = map; foreach (var (dk, dv2) in sizes) map[dk] = Rw(S(dv2), Label(w)); }
+                        else Todo($"{Label(w)} has the size {string.Join(", ", sizes.Select(kv => kv.Key + " " + kv.Value))}, which the spec cannot set; set it in Service Studio");
+                    }
                     if (Prop(w, used, "alt", "altText", "alternativeText") is { } alt) o["attributes"] = new JsonObject { ["alt"] = Rw(alt, Label(w)) };
                     Visible(w, used, o);
                     break;
                 case "icon":
                     o = New("Icon", w, used); Visible(w, used, o);
-                    if (Prop(w, used, "icon") is { } icon) Todo($"{Label(w)} shows the icon {icon}, which the spec cannot set; choose it in Service Studio");
+                    if (Prop(w, used, "icon") is { } icon) Carry(o, "icon", icon, $"{Label(w)} shows the icon {icon}, which the spec cannot set; choose it in Service Studio");
                     break;
                 case "placeholder": o = New("Placeholder", w, used); break;
                 case "upload": case "fileupload":
@@ -690,6 +1026,12 @@ static class ScreenTranslator
                     if (ActionRef(w, used, "its On Change", "onChange") is { } cc) o["onChange"] = cc;
                     break;
                 case "combobox": case "combo": case "dropdown": o = Combo(w, used); break;
+                case "radiobutton" when SpecKeys["radioGroup"] is { } radioType:
+                    o = New(radioType, w, used); Visible(w, used, o);
+                    if (Prop(w, used, "variable") is { } rv) o["variable"] = Rw(rv, Label(w));
+                    if (Prop(w, used, "value", "valueText") is { } rval) o["value"] = Rw(rval, Label(w));
+                    if (ActionRef(w, used, "its On Change", "onChange") is { } rc) o["onChange"] = rc;
+                    break;
                 case "radiobutton": case "radiogroup":
                     o = TodoBox(w, $"is a Radio Button (variable {Prop(w, "variable") ?? "none"}, value {Prop(w, "value", "valueText") ?? "none"}); the spec has no Radio Group widget, so build the group in Service Studio", false);
                     used.UnionWith(["variable", "value", "valuetext", "style", "visible", "enabled", "display", "onchange", "mandatory"]);
@@ -710,7 +1052,7 @@ static class ScreenTranslator
                     used.UnionWith(w["props"] is JsonObject props ? props.Select(kv => kv.Key.ToLowerInvariant()) : []);
                     break;
             }
-            if (kind is not ("editabletable" or "listbox" or "radiobutton" or "radiogroup" or "popup")) Unhandled(w, used);
+            if (kind is not ("editabletable" or "listbox" or "popup") && !(kind is "radiobutton" or "radiogroup" && SpecKeys["radioGroup"] is null)) Unhandled(w, used);
             into.Add(o);
         }
 
@@ -721,8 +1063,8 @@ static class ScreenTranslator
             var o = New(area ? "TextArea" : "Input", w, used); Visible(w, used, o);
             if (Prop(w, used, "variable") is { } v) o["variable"] = Rw(v, at);
             if (Prop(w, used, "mandatory") is { } m && !IsFalse(m)) o["mandatory"] = Rw(m, at);
-            if (Prop(w, used, "prompt") is { } pr) o["prompt"] = Rw(pr, at);
-            if (Prop(w, used, "maxLength") is { } ml && int.TryParse(ml, out var len)) o["maxLength"] = len;
+            if (Prop(w, used, "prompt") is { } pr) Carry(o, "prompt", Rw(pr, at), $"{at} has the prompt {pr}, which the spec cannot set; set it in Service Studio");
+            if (Prop(w, used, "maxLength") is { } ml && int.TryParse(ml, out var len)) Carry(o, "maxLength", len, $"{at} has the maximum length {len}, which the spec cannot set; set it in Service Studio");
             if (ActionRef(w, used, "its On Change", "onChange") is { } oc) o["onChange"] = oc;
             if (!area)
             {
@@ -733,11 +1075,11 @@ static class ScreenTranslator
                     var t = Norm(raw);
                     var mapped = t switch { "password" => "Password", "email" => "Email", "number" or "integer" or "decimal" or "longinteger" => "Number", _ => null };
                     if (mapped is not null) type ??= mapped;
-                    else if (t is not ("text" or "none" or "default" or "noneselected")) Todo($"{at} has the input or validation type {raw}, which the spec cannot express (it has Password, Email and Number); set it in Service Studio");
+                    else if (t is not ("text" or "none" or "default" or "noneselected")) Carry(o, "moreInputTypes", raw, $"{at} has the input or validation type {raw}, which the spec cannot express (it has Password, Email and Number); set it in Service Studio");
                 }
                 if (type is not null) o["inputType"] = type;
             }
-            if (Prop(w, used, "validationMessage") is { } vm) Todo($"{at} has the validation message {vm}, which the spec cannot set on a widget; set <Input>.ValidationMessage in the client action instead");
+            if (Prop(w, used, "validationMessage") is { } vm) Carry(o, "validationMessage", Rw(vm, at), $"{at} has the validation message {vm}, which is not a widget property; assign <Input>.ValidationMessage in a client action instead");
             return o;
         }
 
@@ -750,6 +1092,7 @@ static class ScreenTranslator
             var o = New(button ? "Button" : "Link", w, used); Visible(w, used, o);
             var method = Norm(Prop(w, used, "method"));
             var dest = Prop(w, used, "destination");
+            var linkUrl = button ? null : Prop(w, used, "url");
             var onClick = Prop(w, used, "onClick");
             var args = w["args"] as JsonObject;
             if (method == "") method = dest is not null ? "navigate" : onClick is not null ? "submit" : "";
@@ -775,9 +1118,12 @@ static class ScreenTranslator
                 }
                 else if (onClick is null) Todo($"{at} submits, but the export gives no action; set its On Click");
             }
+            else if (method == "" && linkUrl is not null) { }   // its address is carried or reported below
             else if (method == "") Todo($"{at} has no On Click in the export (it could not read the method, and a link to an address is not exported); set its On Click");
             else Todo($"{at} has the method {Prop(w, "method")}, which has no Reactive translation here; set its On Click");
-            if (Prop(w, used, "confirm") is { } confirm) Todo($"{at} asks the user to confirm with {confirm}, and the spec has no key for a confirmation; add a confirmation popup or a JavaScript confirm before its action");
+            if (Prop(w, used, "confirm") is { } confirm) Carry(o, "confirm", Rw(confirm, at), $"{at} asks the user to confirm with {confirm}, and the spec has no key for a confirmation; add a confirmation popup or a JavaScript confirm before its action");
+            if (button && Prop(w, used, "isDefault") is { } isDef && !IsFalse(isDef)) Carry(o, "isDefault", IsTrue(isDef) ? JsonValue.Create(true) : Rw(isDef, at), $"{at} is the default button of its form, and the spec has no key for that; set it in Service Studio");
+            if (linkUrl is not null) Carry(o, "linkUrl", Rw(linkUrl, at), $"{at} links to the address {linkUrl}, which the spec cannot set; use an AdvancedHtml widget with tag a and attributes.href (untested), or set the link's address in Service Studio");
             var children = Ws(w["children"]);
             if (children.Count == 0 && Prop(w, used, "label", "text", "value") is { } label) children.Add(LabelWidget(label, x => Rw(x, at)));
             if (children.Count > 0) o["children"] = children;
@@ -810,7 +1156,7 @@ static class ScreenTranslator
             if (ActionRef(w, used, "its On Change", "onChange") is { } oc) o["onChange"] = oc;
             if (source is null) Todo($"{at} has no source list in the export; set its list, labels and values");
             if (Prop(w, used, "specialList", "hasSpecialList", "emptyValue", "emptyLabel", "emptyCaption", "emptyText") is { } special)
-                Todo($"{at} uses a special list or Empty Value setting ({special}), which the spec cannot express; build a data action that adds the entry to the options list");
+                Carry(o, "dropdownEmpty", Rw(special, at), $"{at} uses a special list or Empty Value setting ({special}), which the spec cannot express; build a data action that adds the entry to the options list");
             return o;
         }
 
@@ -824,6 +1170,8 @@ static class ScreenTranslator
             o["source"] = Rw(source, at);
             if (table)
             {
+                if (Prop(w, used, "sortable", "sortColumn", "sortAttribute") is { } sort) Carry(o, "tableSort", Rw(sort, at), $"{at} sorts by {sort}, which the spec cannot set; set the sorting in Service Studio");
+                if (Prop(w, used, "lineCount", "linesPerPage", "pagination") is { } paging) Carry(o, "tablePaging", Rw(paging, at), $"{at} pages with {paging}, which the spec cannot set; set the paging in Service Studio");
                 o["headerRow"] = Cells(w["header"], "HeaderCell");
                 o["row"] = Cells(w["row"], "RowCell");
             }
@@ -899,16 +1247,33 @@ static class ScreenTranslator
                 else if (Regex.Match(source.Trim(), @"^\w+\.List\.Current\.(\w+)$") is { Success: true } m) type = m.Groups[1].Value;
             }
             var l = new JsonObject { ["name"] = local, ["type"] = type ?? "Text" };
-            if (source is not null && varTypes.ContainsKey(source.Trim()) && Regex.IsMatch(source.Trim(), @"^\w+$") && IsInput(source.Trim())) l["default"] = source.Trim();
+            // How the record gets filled, when that can be proven: an input of the same type is the local's default; a local (that the Preparation does not
+            // assign) is copied at onInitialize; a record of a screen aggregate whose entity is one of its sources is copied in the aggregate's onAfterFetch.
+            var src = source?.Trim();
+            var filled = false;
+            if (src is not null && Regex.IsMatch(src, @"^\w+$") && varTypes.ContainsKey(src))
+            {
+                if (IsInput(src)) { l["default"] = src; filled = true; }
+                else if (!prepWrites.Contains(src)) { initFills.Add((local, src)); filled = true; }
+            }
+            else if (src is not null && Regex.Match(src, @"^(\w+)\.List\.Current\.(\w+)$") is { Success: true } am && aggDefs.TryGetValue(am.Groups[1].Value, out var def) && EntityOf(def, am.Groups[2].Value))
+            { afterFills.Add((S(def["name"])!, local, Rw(src, at))); filled = true; }
             extraLocals[local] = l;
             varTypes[local] = type ?? "Text";
             if (type is null) Todo($"{at} needs the local variable {local} for its record, but the export gives no record type; set the type of {local}");
-            if (source is not null && l["default"] is null)
-                Todo($"{at} shows the record {source}; fill the local variable {local} from it after the data is fetched, for example in the aggregate's onAfterFetch action");
+            if (source is not null && !filled)
+                Todo(Regex.IsMatch(src!, @"^\w+\.List\.Current$")
+                    ? $"{at} shows the record {source}, whose type is the aggregate's own record structure, which a local variable cannot have; fill the local variable {local} from {source}.<the entity> after the data is fetched, for example in the aggregate's onAfterFetch action"
+                    : $"{at} shows the record {source}; fill the local variable {local} from it after the data is fetched, for example in the aggregate's onAfterFetch action");
             var o = New("Form", w, used); Visible(w, used, o);
             o["children"] = Ws(w["children"]);
             return o;
         }
+
+        // Is `entity` one of the plain sources of the aggregate (not a grouped one), so that List.Current.<entity> is a record of that entity?
+        static bool EntityOf(JsonObject aggregateNode, string entity) =>
+            aggregateNode["groupBy"] is not JsonArray { Count: > 0 } && aggregateNode["aggregates"] is not JsonArray { Count: > 0 }
+            && aggregateNode["sources"] is JsonArray sources && sources.Any(x => S(x) is { } t && t.Split(' ')[0].Equals(entity, StringComparison.OrdinalIgnoreCase));
 
         bool IsInput(string variable) => Objs(el["inputs"]).Any(i => S(i["name"])?.Equals(variable, StringComparison.OrdinalIgnoreCase) == true);
 
@@ -981,7 +1346,7 @@ static class ScreenTranslator
 
     // Built-in samples in the form Export.cs writes (the table at the top): `kind` and `type` on every widget, no `_reads`, empty values left out, expressions
     // as text, node names made up where the original had none. Each rule of the translator is exercised at least once; the failures come back.
-    internal static List<string> SelfTest()
+    internal static List<string> SelfTest(bool show = false)
     {
         var failures = new List<string>();
         void Check(bool ok, string what) { if (!ok) failures.Add(what); }
@@ -1076,7 +1441,7 @@ static class ScreenTranslator
               { "kind": "WebButton", "type": "Button", "name": "SaveButton", "props": { "method": "Submit", "onClick": "Save", "confirm": "\"Sure?\"" }, "children": [ { "kind": "WebText", "type": "Text", "props": { "text": "Save" } } ] } ] } ] } ] } ] }
         """);
         var d = Translate(detail, plain);
-        Check(d.Status == "partial", "OrderDetail: partial (the form must be filled, the phone type and the confirm text are Todo)");
+        Check(d.Status == "translated", "OrderDetail: translated (the record is filled, the confirm text and the phone type are carried)");
         Check(Text(d.Spec, "locals", 0, "name") == "OrderFormRecord" && Text(d.Spec, "locals", 0, "type") == "Order", "OrderDetail: the form gets the local OrderFormRecord of the record's type");
         Check(Text(d.Spec, "actions", 0, "flow", 0, "action") == "Shop.Order_CreateOrUpdate" && Text(d.Spec, "actions", 0, "flow", 0, "args", "Source") == "OrderFormRecord" && Text(d.Spec, "actions", 0, "flow", 0, "name") == "Store", "OrderDetail: the entity action calls the wrapper and <Form>.Record is rewritten in actions");
         Check(d.EntityActions.SequenceEqual(["CreateOrUpdateOrder"]), "OrderDetail: the entity action is recorded");
@@ -1084,9 +1449,12 @@ static class ScreenTranslator
         Check(Text(d.Spec, "actions", 0, "flow", 2, "kind") == "destination" && Text(d.Spec, "actions", 0, "flow", 2, "args", "CustomerId") == "OrderFormRecord.CustomerId", "OrderDetail: the redirect is kept with rewritten arguments");
         var inputs = At(d.Spec, "widgets", 0, "children")!.AsArray();
         Check(Text(d.Spec, "widgets", 0, "type") == "Form" && Text(inputs[0], "variable") == "OrderFormRecord.Name" && Text(inputs[0], "mandatory") == "True" && At(inputs[0], "inputType") is null, "OrderDetail: the form and the first input are carried (mandatory, no input type for text)");
-        Check(Text(inputs[1], "inputType") == "Email" && At(inputs[2], "inputType") is null && Has(d.Todo, "PhoneInput", "Phone Number"), "OrderDetail: the Email validation type becomes an input type, Phone Number is a Todo");
+        Check(Text(inputs[1], "inputType") == "Email" && Text(inputs[2], "inputType") == "Phone Number", "OrderDetail: the Email validation type becomes an input type, Phone Number is passed through as typed");
         Check(Text(inputs[3], "value") == "NameInput.Valid and not OrderForm.Valid" || Text(inputs[3], "value") == "NameInput.Valid and not OrderFormRecord.Valid", "OrderDetail: <Input>.Valid stays");
-        Check(Has(d.Todo, "SaveButton", "confirm") && Has(d.Todo, "OrderForm", "OrderFormRecord", "GetOrder.List.Current.Order"), "OrderDetail: the confirm text and filling the record local are Todo lines");
+        Check(d.Todo.Count == 0 && Text(inputs[4], "confirmationMessage") == "\"Sure?\"", $"OrderDetail: the confirm text is carried and the record is filled by code, so nothing is left: [{string.Join(" | ", d.Todo)}]");
+        // Rule 2: the form's source is a record of a screen aggregate whose entity is a source: an assign opens its onAfterFetch action.
+        Check(Text(d.Spec, "aggregates", 0, "onAfterFetch") == "GetOrderOnAfterFetch" && Text(d.Spec, "actions", 1, "name") == "GetOrderOnAfterFetch" && Text(d.Spec, "actions", 1, "flow", 0, "kind") == "assign"
+            && Text(d.Spec, "actions", 1, "flow", 0, "assign", "OrderFormRecord") == "GetOrder.List.Current.Order" && At(d.Spec, "actions", 1, "flow")!.AsArray().Count == 1 && At(d.Spec, "actions", 1, "flow", 0, "next") is null, "OrderDetail: the form record is assigned from the aggregate in its onAfterFetch action");
         var noWrapper = Translate(detail, plain with { Wrappers = new Dictionary<string, string>() });
         Check(noWrapper.EntityActions.SequenceEqual(["CreateOrUpdateOrder"]) && Text(noWrapper.Spec, "actions", 0, "flow", 0, "action") == "CreateOrUpdateOrder" && Has(noWrapper.Todo, "Order_CreateOrUpdate", "wrapper"), "OrderDetail without a wrapper: the node stays, the entity action is recorded and a Todo names the wrapper");
 
@@ -1099,7 +1467,8 @@ static class ScreenTranslator
           "actions": [], "widgets": [ { "kind": "WebText", "type": "Text", "props": { "text": "Hi" } } ] }
         """);
         var pr = Translate(prep, plain);
-        Check(pr.Status == "partial" && At(pr.Spec, "aggregates") is null && Text(pr.Spec, "widgets", 0, "text") == "Hi" && Has(pr.Todo, "Preparation", "if IsAdmin", "execute Load", "data action"), "Dash: the Preparation is not translated, the Todo lists its nodes and asks for a data action");
+        Check(pr.Status == "partial" && Text(pr.Spec, "aggregates", 0, "name") == "GetStats" && At(pr.Spec, "onInitialize") is null && At(pr.Spec, "actions") is null && Text(pr.Spec, "widgets", 0, "text") == "Hi" && Has(pr.Todo, "Preparation", "if IsAdmin", "execute Load", "not on every path", "aggregates were kept", "data action"),
+            $"Dash: an aggregate on only one branch: the logic is not translated, the aggregate is kept, the Todo lists the nodes and asks for a data action: [{string.Join(" | ", pr.Todo)}]");
 
         // 4. A screen action with an aggregate becomes a stub that keeps the widget binding valid (rule 3).
         var stub = Parse("""
@@ -1114,6 +1483,7 @@ static class ScreenTranslator
         var st = Translate(stub, plain);
         Check(st.Status == "partial" && Text(st.Spec, "actions", 0, "name") == "Calc" && Text(st.Spec, "actions", 0, "inputs", 0, "name") == "Year" && Text(st.Spec, "actions", 0, "locals", 0, "name") == "Tmp"
             && Text(st.Spec, "actions", 0, "flow", 0, "kind") == "comment" && (Text(st.Spec, "actions", 0, "flow", 0, "text") ?? "").StartsWith("TODO migrate:") && At(st.Spec, "actions", 0, "flow")!.AsArray().Count == 1, "Report: an action with an aggregate is a stub with its inputs and locals and one TODO comment");
+        Check(Has(st.Todo, "Calc", "aggregate CountOrders", "create a server action that runs this query and returns what the later nodes read (CountOrders.Count)", "replace those reads"), $"Report (rule 6): the Todo names the query node and what the later nodes read: [{string.Join(" | ", st.Todo)}]");
         Check(Text(st.Spec, "widgets", 0, "onClick") == "Calc" && Has(st.Todo, "Calc", "aggregate", "CountOrders") && Has(st.Todo, "Odd", "CommitTransaction"), "Report: the button still calls the stub and the Todo says what the original did; an unsupported node makes a stub too");
 
         // 5. A web block with a Notify; the block has a placeholder and an input.
@@ -1203,6 +1573,148 @@ static class ScreenTranslator
             && Text(fn[5], "type") == "success" && Text(fn[5], "next") == "End" && Text(fn[6], "kind") == "raiseException" && Text(fn[7], "kind") == "comment" && At(fn[7], "name") is null && At(fn[0], "_path") is null && fl.EntityActions.Count == 0,
             "Flows: if, forEach, a server action call, switch, javaScript, message, raiseException and comment are carried without _ keys");
 
+        // 12. Rule 1: a Preparation with logic. An assign that reads an input comes before the aggregate (onInitialize); an if on the aggregate, a server call and an
+        //     assign come after it (the onAfterFetch of that one aggregate). The aggregate keeps its name, so the widgets' expressions work.
+        var customers = Parse("""
+        { "kind": "Screen", "name": "Customers", "flow": "MainFlow", "moduleKind": "Traditional",
+          "inputs": [ { "name": "Prefix", "type": "Text", "mandatory": false, "default": "" }, { "name": "CustomerId", "type": "Customer Identifier", "mandatory": false, "default": "" } ],
+          "locals": [ { "name": "Title", "type": "Text", "default": "" }, { "name": "Note", "type": "Text", "default": "" } ],
+          "preparation": { "complete": true, "nodes": [
+            { "kind": "assign", "name": "SetTitle", "assign": { "Title": "Prefix + \" orders\"" }, "next": "GetOrders" },
+            { "kind": "aggregate", "name": "GetOrders", "sources": ["Order"], "filters": ["Order.CustomerId = CustomerId"], "next": "Any" },
+            { "kind": "if", "name": "Any", "condition": "GetOrders.List.Empty", "true": "NoOrders", "false": "Stats" },
+            { "kind": "execute", "name": "Stats", "action": "LoadStats", "_ref": "LoadStats", "args": { "Count": "GetOrders.List.Length" }, "next": "End" },
+            { "kind": "assign", "name": "NoOrders", "assign": { "Note": "\"No orders for \" + Session.Lang" }, "next": "End" } ] },
+          "widgets": [ { "kind": "WebExpression", "type": "Expression", "name": "Heading", "props": { "value": "Title" } },
+            { "kind": "WebTableRecords", "type": "TableRecords", "name": "OrdersTable", "props": { "source": "GetOrders.List" }, "header": [], "row": [ { "kind": "WebCell", "type": "Cell", "children": [ { "kind": "WebExpression", "type": "Expression", "props": { "value": "GetOrders.List.Current.Order.Id" } } ] } ] } ] }
+        """);
+        var cu = Translate(customers, plain);
+        var cs = cu.Spec;
+        Check(cu.Status == "partial" && cu.Todo.Count == 1 && Has(cu.Todo, "Stats", "OnInitialize", "GetOrdersOnAfterFetch", "request", "data action"), $"Customers: the only Todo is the server call in the handlers: [{string.Join(" | ", cu.Todo)}]");
+        Check(Text(cs, "onInitialize") == "OnInitialize" && Text(cs, "aggregates", 0, "name") == "GetOrders" && Text(cs, "aggregates", 0, "onAfterFetch") == "GetOrdersOnAfterFetch" && At(cs, "actions")!.AsArray().Count == 2, "Customers: onInitialize and the aggregate's onAfterFetch name two actions of the screen");
+        var init = At(cs, "actions")!.AsArray().First(a => Text(a, "name") == "OnInitialize"); var after = At(cs, "actions")!.AsArray().First(a => Text(a, "name") == "GetOrdersOnAfterFetch");
+        Check(At(init, "flow")!.AsArray().Count == 1 && Text(init, "flow", 0, "name") == "SetTitle" && Text(init, "flow", 0, "assign", "Title") == "Prefix + \" orders\"" && Text(init, "flow", 0, "next") == "End", "Customers: onInitialize holds the assign, which leaves the flow (End) where the aggregate and the later nodes were");
+        Check(At(after, "flow")!.AsArray().Count == 3 && Text(after, "flow", 0, "name") == "Any" && Text(after, "flow", 0, "kind") == "if" && Text(after, "flow", 0, "true") == "NoOrders" && Text(after, "flow", 0, "false") == "Stats"
+            && Text(after, "flow", 1, "kind") == "execute" && Text(after, "flow", 1, "action") == "LoadStats" && Text(after, "flow", 1, "next") == "End" && Text(after, "flow", 2, "assign", "Note") == "\"No orders for \" + Client.Lang" && Text(after, "flow", 2, "next") == "End", "Customers: the onAfterFetch action starts at the if and keeps its branches, the server call and the assign, with explicit connectors");
+
+        //    The unsafe cases: the aggregates are kept, the logic is not translated, and the Todo names the nodes and why.
+        JsonObject Prep(string nodes, string locals = "") => Parse("{ \"kind\": \"Screen\", \"name\": \"P\", \"flow\": \"MainFlow\", \"moduleKind\": \"Traditional\", " + locals + "\"preparation\": { \"complete\": true, \"nodes\": [" + nodes + "] }, \"widgets\": [] }");
+        void NotLifted(string what, string nodes, string[] words, int aggregatesKept = 1)
+        {
+            var x = Translate(Prep(nodes), plain);
+            Check(x.Status == "partial" && At(x.Spec, "onInitialize") is null && At(x.Spec, "actions") is null && At(x.Spec, "aggregates")!.AsArray().Count == aggregatesKept && At(x.Spec, "aggregates", 0, "onAfterFetch") is null
+                && Has(x.Todo, new[] { "Preparation logic was not translated", "aggregates were kept", "data action" }.Concat(words).ToArray()), $"{what}: kept the aggregates, left the logic, said why: [{string.Join(" | ", x.Todo)}]");
+        }
+        NotLifted("two aggregates read after the first", """
+            { "kind": "aggregate", "name": "GetA", "sources": ["A"], "next": "GetB" }, { "kind": "aggregate", "name": "GetB", "sources": ["B"], "next": "Sum" },
+            { "kind": "assign", "name": "Sum", "assign": { "Total": "GetA.List.Length + GetB.List.Length" }, "next": "End" }
+            """, ["assign Sum", "read 2 aggregates", "GetA, GetB"], 2);
+        NotLifted("SQL in the Preparation", """
+            { "kind": "sql", "name": "Raw", "next": "GetX" }, { "kind": "aggregate", "name": "GetX", "sources": ["X"], "next": "End" }
+            """, ["sql Raw", "SQL node needs a server action"]);
+        NotLifted("an assignment to what a filter reads", """
+            { "kind": "assign", "name": "Clean", "assign": { "Search": "Trim(Search)" }, "next": "GetX" },
+            { "kind": "aggregate", "name": "GetX", "sources": ["X"], "filters": ["X.Name like Search"], "next": "End" }
+            """, ["assign Clean", "assigns Search", "order"]);
+        NotLifted("a filter that reads the output of a node", """
+            { "kind": "execute", "name": "Load", "action": "LoadLimit", "_ref": "LoadLimit", "next": "GetX" },
+            { "kind": "aggregate", "name": "GetX", "sources": ["X"], "maxRecords": "Load.Limit", "next": "End" }
+            """, ["execute Load", "reads the output of the node Load"]);
+        NotLifted("a Destination before the aggregate and a node after it", """
+            { "kind": "if", "name": "Gone", "condition": "Flag", "true": "Away", "false": "GetX" }, { "kind": "destination", "name": "Away", "screen": "Home" },
+            { "kind": "aggregate", "name": "GetX", "sources": ["X"], "next": "Use" }, { "kind": "assign", "name": "Use", "assign": { "N": "GetX.List.Length" }, "next": "End" }
+            """, ["if Gone", "ends in a Destination"]);
+
+        // 13. Rule 2: forms. A record of a screen aggregate (done above, in OrderDetail); an input is the local's default; a local is copied at initialize unless the
+        //     Preparation assigns it; a one-source aggregate's own record, a function result or an unknown source stay Todo lines.
+        var forms = Parse("""
+        { "kind": "Screen", "name": "Forms", "flow": "MainFlow", "moduleKind": "Traditional",
+          "inputs": [ { "name": "Seed", "type": "Order", "mandatory": false, "default": "" } ], "locals": [ { "name": "Draft", "type": "Order", "default": "" }, { "name": "Built", "type": "Order", "default": "" } ],
+          "preparation": { "complete": true, "nodes": [ { "kind": "aggregate", "name": "GetOrder", "sources": ["Order"], "next": "Make" }, { "kind": "assign", "name": "Make", "assign": { "Built.Name": "\"x\"" }, "next": "End" } ] },
+          "widgets": [
+            { "kind": "WebEditRecord", "type": "EditRecord", "name": "FromInput", "props": { "sourceRecord": "Seed" } },
+            { "kind": "WebEditRecord", "type": "EditRecord", "name": "FromLocal", "props": { "sourceRecord": "Draft" } },
+            { "kind": "WebEditRecord", "type": "EditRecord", "name": "FromBuilt", "props": { "sourceRecord": "Built" } },
+            { "kind": "WebEditRecord", "type": "EditRecord", "name": "FromCurrent", "props": { "sourceRecord": "GetOrder.List.Current" } },
+            { "kind": "WebEditRecord", "type": "EditRecord", "name": "FromOther", "props": { "sourceRecord": "Lookup.Record" } } ] }
+        """);
+        var fo = Translate(forms, plain);
+        Check(Text(fo.Spec, "locals", 2, "name") == "FromInputRecord" && Text(fo.Spec, "locals", 2, "default") == "Seed" && Text(fo.Spec, "locals", 2, "type") == "Order", "Forms: an input of the same type is the record local's default");
+        Check(Text(fo.Spec, "onInitialize") == "OnInitialize" && Text(fo.Spec, "actions", 0, "flow", 0, "assign", "FromLocalRecord") == "Draft", "Forms: a local that nothing assigns is copied in onInitialize");
+        Check(fo.Todo.Count == 5 && Has(fo.Todo, "FromBuilt", "FromBuiltRecord") && Has(fo.Todo, "FromCurrent", "own record structure") && Has(fo.Todo, "FromOther", "Lookup.Record"), $"Forms: a local the Preparation assigns, the aggregate's own record and an unknown source are Todo lines: [{string.Join(" | ", fo.Todo)}]");
+        Check(At(fo.Spec, "actions")!.AsArray().Count == 1 && Text(fo.Spec, "actions", 0, "flow", 0, "name") == "FillFromLocalRecord" && Text(fo.Spec, "actions", 0, "flow", 1, "name") == "Make", "Forms: the Preparation's own logic (Make) is onInitialize, and the fill is its first node, connected to it");
+
+        // 14. Rule 3: an Ajax Refresh node with `_targets`: a table fed by an aggregate, a container holding two lists, a container fed by nothing, no targets, a name
+        //     that is not a widget.
+        const string ajaxWhy = "a spec flow has no Ajax Refresh node (Traditional Web only); the properties that could be read are in _props";
+        string RefreshAction(string name, string targets) => $$"""
+            { "name": "{{name}}", "flow": { "complete": false, "unsupported": [ { "path": "p", "kind": "AjaxRefreshNode", "why": "{{ajaxWhy}}" } ], "nodes": [
+              { "kind": "assign", "name": "Set", "assign": { "Msg": "\"x\"" }, "next": "Ajax" },
+              { "kind": "AjaxRefreshNode", "name": "Ajax", "_props": { "Visible": "True" }{{targets}}, "next": "End" } ] } }
+            """;
+        var refresh = Parse("""
+        { "kind": "Screen", "name": "Refresh", "flow": "MainFlow", "moduleKind": "Traditional", "locals": [ { "name": "Msg", "type": "Text", "default": "" } ],
+          "preparation": { "complete": true, "nodes": [ { "kind": "aggregate", "name": "GetOrders", "sources": ["Order"], "next": "GetCustomers" }, { "kind": "aggregate", "name": "GetCustomers", "sources": ["Customer"], "next": "End" } ] },
+          "actions": [ ACTIONS ],
+          "widgets": [
+            { "kind": "WebTableRecords", "type": "TableRecords", "name": "OrdersTable", "props": { "source": "GetOrders.List" }, "header": [], "row": [] },
+            { "kind": "WebContainer", "type": "Container", "name": "Panel", "children": [
+              { "kind": "WebListRecords", "type": "ListRecords", "name": "OrderList", "props": { "source": "GetOrders.List" }, "row": [] },
+              { "kind": "WebListRecords", "type": "ListRecords", "name": "CustomerList", "props": { "source": "GetCustomers.List" }, "row": [] } ] },
+            { "kind": "WebContainer", "type": "Container", "name": "Plain", "children": [ { "kind": "WebExpression", "type": "Expression", "props": { "value": "Msg" } } ] } ] }
+        """.Replace("ACTIONS", string.Join(",\n", new[] {
+            RefreshAction("ToTable", ", \"_targets\": { \"Widget\": \"OrdersTable\" }"), RefreshAction("ToPanel", ", \"_targets\": { \"Widgets\": [\"Panel\"] }"),
+            RefreshAction("ToPlain", ", \"_targets\": { \"Widget\": \"Plain\" }"), RefreshAction("ToNothing", ""), RefreshAction("ToGhost", ", \"_targets\": { \"Widget\": \"Ghost\" }") })));
+        var rf = Translate(refresh, plain);
+        var rfa = At(rf.Spec, "actions")!.AsArray();
+        Check(rfa.Count == 5 && At(rfa[0], "flow")!.AsArray().Count == 2 && Text(rfa[0], "flow", 0, "next") == "Ajax" && Text(rfa[0], "flow", 1, "kind") == "refreshData" && Text(rfa[0], "flow", 1, "dataSource") == "GetOrders" && Text(rfa[0], "flow", 1, "next") == "End" && Text(rfa[0], "flow", 1, "name") == "Ajax",
+            "Refresh: a table fed by an aggregate becomes a refreshData node of that aggregate, in the node's place");
+        Check(At(rfa[1], "flow")!.AsArray().Count == 3 && Text(rfa[1], "flow", 0, "next") == "Ajax_GetOrders" && Text(rfa[1], "flow", 1, "dataSource") == "GetOrders" && Text(rfa[1], "flow", 1, "next") == "Ajax_GetCustomers"
+            && Text(rfa[1], "flow", 2, "dataSource") == "GetCustomers" && Text(rfa[1], "flow", 2, "next") == "End", "Refresh: a container that holds two lists gives two refreshData nodes in a chain");
+        Check(At(rfa[2], "flow")!.AsArray().Count == 1 && Text(rfa[2], "flow", 0, "next") == "End" && At(rfa[2], "flow", 0, "_path") is null, "Refresh: a container fed by nothing that needs refreshing is removed without a Todo");
+        Check(At(rfa[3], "flow")!.AsArray().Count == 1 && At(rfa[4], "flow")!.AsArray().Count == 1 && rf.Todo.Count == 2 && Has(rf.Todo, "ToNothing", "cannot read which widgets") && Has(rf.Todo, "ToGhost", "Ghost") && !Has(rf.Todo, "ToTable") && !Has(rf.Todo, "ToPlain"),
+            $"Refresh: no `_targets`, or a name that is not a widget, removes the node with a Todo: [{string.Join(" | ", rf.Todo)}]");
+
+        // 15. Rule 5: the table of widget facts. Every fact is there; turning one on writes the value under the key instead of a Todo.
+        var facts = new[] { "confirm", "linkUrl", "icon", "radioGroup", "moreInputTypes", "prompt", "maxLength", "validationMessage", "isDefault", "imageUrl", "imageSize", "tableSort", "tablePaging", "dropdownEmpty" };
+        var on = new[] { "confirm", "icon", "moreInputTypes", "prompt", "maxLength", "isDefault", "imageSize" };
+        Check(facts.All(Run.SpecKeys.ContainsKey) && Run.SpecKeys.Count == facts.Length && Run.SpecKeys.Where(kv => kv.Value is null).Select(kv => kv.Key).Order().SequenceEqual(facts.Except(on).Order()), "Facts: every widget fact is in the table; the ones with a known spec key are on, the others are null");
+        var widgetFacts = Parse("""
+        { "kind": "Screen", "name": "Facts", "flow": "MainFlow", "moduleKind": "Traditional", "preparation": null, "actions": [ { "name": "Act", "flow": { "complete": true, "nodes": [] } } ],
+          "widgets": [
+            { "kind": "WebButton", "type": "Button", "name": "Go", "props": { "method": "Submit", "onClick": "Act", "confirm": "\"Sure?\"", "isDefault": "True" }, "children": [ { "kind": "WebText", "type": "Text", "props": { "text": "Go" } } ] },
+            { "kind": "WebLink", "type": "Link", "name": "Site", "props": { "url": "\"https://example.com\"" }, "children": [ { "kind": "WebText", "type": "Text", "props": { "text": "Site" } } ] },
+            { "kind": "WebIcon", "type": "Icon", "name": "Star", "props": { "icon": "\"star\"" } },
+            { "kind": "WebInput", "type": "Input", "name": "Phone", "props": { "variable": "PhoneNo", "validationType": "Phone Number", "validationMessage": "\"Bad\"", "prompt": "\"Phone\"", "maxLength": "20" } },
+            { "kind": "WebImage", "type": "Image", "name": "Pic", "props": { "url": "\"https://example.com/a.png\"", "width": "100", "height": "50" } },
+            { "kind": "WebRadioButton", "type": "RadioButton", "name": "Opt", "props": { "variable": "Pick", "value": "1" } } ] }
+        """);
+        var before = Translate(widgetFacts, plain);
+        var bw = At(before.Spec, "widgets")!.AsArray();
+        Check(before.Todo.Count == 4 && Has(before.Todo, "Site", "https://example.com", "AdvancedHtml") && Has(before.Todo, "Phone", "validation message", "ValidationMessage") && Has(before.Todo, "Pic", "image at") && Has(before.Todo, "Opt", "Radio")
+            && Text(bw[0], "confirmationMessage") == "\"Sure?\"" && Text(bw[0], "isDefault") == "true" && Text(bw[2], "icon") == "\"star\"" && Text(bw[3], "inputType") == "Phone Number" && Text(bw[3], "prompt") == "\"Phone\"" && Text(bw[3], "maxLength") == "20"
+            && Text(bw[4], "attributes", "width") == "100" && Text(bw[4], "attributes", "height") == "50", $"Facts: the facts with a key are written, the others are Todo lines with a hint: [{string.Join(" | ", before.Todo)}]");
+        var saved = new Dictionary<string, string?>(Run.SpecKeys);
+        try
+        {
+            foreach (var f in new[] { "linkUrl", "validationMessage", "imageUrl" }) Run.SpecKeys[f] = f + "Key";
+            Run.SpecKeys["radioGroup"] = "RadioGroup";
+            var after2 = Translate(widgetFacts, plain);
+            var wf = At(after2.Spec, "widgets")!.AsArray();
+            Check(after2.Todo.Count == 0 && Text(wf[1], "linkUrlKey") == "\"https://example.com\"" && Text(wf[3], "validationMessageKey") == "\"Bad\"" && Text(wf[4], "imageUrlKey") == "\"https://example.com/a.png\"" && Text(wf[5], "type") == "RadioGroup" && Text(wf[5], "variable") == "Pick",
+                $"Facts: turning a fact on is one table entry: the value is written under the key and the Todo goes: [{string.Join(" | ", after2.Todo)}]");
+        }
+        finally { foreach (var (k, v) in saved) Run.SpecKeys[k] = v; }
+
+        if (show)
+        {
+            var indented = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+            Console.WriteLine("--- screen entry: Preparation with logic (onInitialize and onAfterFetch)\n" + cs!.ToJsonString(indented));
+            Console.WriteLine("--- screen entry: form filled from an aggregate (onAfterFetch)\n" + d.Spec!.ToJsonString(indented));
+            Console.WriteLine("--- screen entry: forms filled from an input, a local or nothing\n" + fo.Spec!.ToJsonString(indented));
+            Console.WriteLine("--- screen entry: Ajax Refresh nodes with targets\n" + rf.Spec!.ToJsonString(indented));
+        }
+
         // 9. Emails, other module kinds and a failed export are worklist entries.
         var email = Translate(Parse("""{ "kind": "Email", "name": "Welcome", "flow": "Emails", "moduleKind": "Traditional", "subject": "\"Hello\"" }"""), layout);
         Check(email.Spec is null && email.Status == "worklist" && email.Kind == "Email" && Has(email.Todo, "Welcome", "emails", "subject \"Hello\""), "Welcome: an email is a worklist entry that names the emails key");
@@ -1214,12 +1726,13 @@ static class ScreenTranslator
         Check(broken.Status is "partial" or "worklist", "Broken: an unreadable input does not throw");
 
         // 11. tests/export-sample.json (embedded as ExportSampleJson).
-        //     No layout, the block WebCard is local, the entity action has its wrapper: what is left is filling the form's record. The two "method could not
-        //     be read" notes are not Todo lines: a screen destination is a Navigate, an action an ordinary Submit.
+        //     No layout, the block WebCard is local, the entity action has its wrapper: the form's record is a local, so onInitialize copies it. The two "method
+        //     could not be read" notes are not Todo lines: a screen destination is a Navigate, an action an ordinary Submit.
         var sampleContext = new Context("Shop", new Dictionary<string, string> { ["CreateOrUpdateWebItem"] = "WebItem_CreateOrUpdate" }, new HashSet<string>(), new HashSet<string> { "WebCard" }, null, []);
         var sm = Translate(Parse(ExportSampleJson), sampleContext);
         var ss = sm.Spec;
-        Check(sm.Status == "partial" && sm.Todo.Count == 1 && Has(sm.Todo, "ItemForm", "ItemFormRecord") && !Has(sm.Todo, "method"), $"Sample: only the form record is left: [{string.Join(" | ", sm.Todo)}]");
+        Check(sm.Status == "translated" && sm.Todo.Count == 0, $"Sample: nothing is left (the form's record is a local, copied at initialize): [{string.Join(" | ", sm.Todo)}]");
+        Check(Text(ss, "onInitialize") == "OnInitialize" && Text(ss, "actions", 1, "name") == "OnInitialize" && Text(ss, "actions", 1, "flow", 0, "assign", "ItemFormRecord") == "Item", "Sample: the form record is copied from the local Item in onInitialize");
         Check(Text(ss, "name") == "WebItems" && Text(ss, "flow") == "MainFlow" && Text(ss, "title") == "\"Web items\"" && Text(ss, "access", "registered") == "true" && Text(ss, "locals", 1, "name") == "Item" && Text(ss, "locals", 2, "name") == "ItemFormRecord" && Text(ss, "locals", 2, "type") == "WebItem", "Sample: element facts and the form's record local");
         Check(Text(ss, "aggregates", 0, "name") == "FetchItems" && Text(ss, "aggregates", 0, "sources", 0) == "WebItem" && Text(ss, "aggregates", 0, "maxRecords") == "10" && At(ss, "aggregates", 0, "_path") is null, "Sample: the Preparation aggregate");
         Check(Text(ss, "actions", 0, "flow", 0, "assign", "Item.Name") == "ItemName" && Text(ss, "actions", 0, "flow", 1, "action") == "Shop.WebItem_CreateOrUpdate" && Text(ss, "actions", 0, "flow", 1, "next") == "End" && sm.EntityActions.SequenceEqual(["CreateOrUpdateWebItem"]), "Sample: the Save action, its entity action through the wrapper");

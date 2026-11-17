@@ -30,7 +30,7 @@ static partial class Migrate
       "processes": [ { "name": "ReviewOrder", "launchOn": "Order", "inputs": [], "nodes": [] } ],
       "sessionVariables": [
         { "name": "CurrentCustomerId", "type": "Customer Identifier" },
-        { "name": "ThemeName", "type": "Text" },
+        { "name": "ThemeName", "type": "Text", "default": "\"light\"" },
         { "name": "LastSearch", "type": "Text" },
         { "name": "ApiToken", "type": "Text" },
         { "name": "Cart", "type": "Order List" },
@@ -50,7 +50,7 @@ static partial class Migrate
         { "module": "System", "elements": [] } ] }
     """;
 
-    // Inspect prints a session variable's name and type only (Inspect.cs 64), no default; otherContent has { kind, name } with the kind as ReviewModel.Kind gives it
+    // Inspect prints a session variable's name and type, and its default when it has one (an older inspect has none); ThemeName has one, LastSearch has none; otherContent has { kind, name } with the kind as ReviewModel.Kind gives it
     // (the interface name without its I: ISOAPClient -> SOAPClient), sorted by kind and name.
     const string SampleHeader = """
     [ { "path": "/p/Producer.oml", "info": { "Name": "Producer", "Key": "k1", "ESpaceType": "WebResponsive" } },
@@ -83,7 +83,7 @@ static partial class Migrate
     {
         var fails = SelfTestData();
         fails.AddRange(SelfTestWiring(show));
-        fails.AddRange(ScreenTranslator.SelfTest().Select(f => "translator: " + f)); // the screen rules, on their own samples
+        fails.AddRange(ScreenTranslator.SelfTest(show).Select(f => "translator: " + f)); // the screen rules, on their own samples
         if (fails.Count == 0) { Console.WriteLine("ok"); return 0; }
         foreach (var f in fails) Console.WriteLine("FAIL " + f);
         return 1;
@@ -315,15 +315,15 @@ static partial class Migrate
         Check(Names(o.R.Prepare, "serverActions").Contains("Note_Update") && o.R.WrapperCreate == 3 && o.R.WrapperExists == 1 && o.R.Calls.Count == 4, "1-prepare-old.json creates the wrapper for the screen, no repoint edit for it");
         Check(Strings(Rows(o.R.NewModule, "references")[0], "elements").Contains("Note_Update"), "3-new-module.json references it");
         var dec = o.R.SessionDecisions.ToDictionary(d => d.Name);
-        Check(dec["ThemeName"].Decision == "client" && dec["LastSearch"].Decision == "client" && dec["ThemeName"].Default is null && dec["ThemeName"].Why.Contains("default value is not read"), "session variables used only by screens, basic type, harmless name: client; the default is not read and the reason says so");
-        Check(o.R.Notes.Any(n => n.Contains("default value of a session variable is not read") && n.Contains("by hand")), "note: the default of a client variable must be set by hand");
+        Check(dec["ThemeName"].Decision == "client" && dec["LastSearch"].Decision == "client" && dec["ThemeName"].Default == "\"light\"" && !dec["ThemeName"].Why.Contains("not read") && dec["ThemeName"].Why.Contains("with its default") && dec["LastSearch"].Default is null && dec["LastSearch"].Why.Contains("default value is not read"), "session variables used only by screens, basic type, harmless name: client; with a default it is kept and the reason does not say it is unread, without one the reason says so");
+        Check(o.R.Notes.Any(n => n.Contains("default value of a session variable is not read") && n.Contains("(LastSearch)") && n.Contains("by hand")), "note: only the client variable without a default is to be set by hand");
         Check(dec["CurrentCustomerId"].Decision == "manual" && dec["CurrentCustomerId"].Why.Contains("SaveOrder") && dec["CurrentCustomerId"].Why.Contains("server"), "session variable used by copied server logic: manual, names the action");
         Check(dec["ApiToken"].Decision == "manual" && dec["ApiToken"].Why.Contains("sensitive") && dec["Cart"].Decision == "manual" && dec["Cart"].Why.Contains("basic type") && dec["Unused"].Decision == "manual" && dec["Unused"].Why.Contains("no screen or block"), "manual: sensitive name, not a basic type, unused");
         Check(o.Context.ClientVariables.SetEquals(["ThemeName", "LastSearch"]) && o.R.Counts["client"] == 2, "context: the client variables");
         Check(StatusCounts(o.Items).Select(kv => kv.Key + kv.Value).SequenceEqual(["partial1", "translated1", "worklist2"]) && o.Output["coverage"]!.ToString() == "screens: 1 translated, 1 partial, 2 worklist of 4", "coverage line");
         var spec = JsonNode.Parse(o.Files.First(f => f.file == "4-screens.json").text)!;
         var cv = Rows(spec, "clientVariables");
-        Check(spec is JsonObject so && so.Select(kv => kv.Key).SequenceEqual(["clientVariables", "screens"]) && cv.Length == 2 && S(cv[0], "name") == "ThemeName" && S(cv[0], "type") == "Text" && cv[0]["default"] is null && cv[1]["default"] is null && Names(spec, "screens").SequenceEqual(["Orders", "OrderDetail"]), "4-screens.json: client variables with type and default, then the non-null specs");
+        Check(spec is JsonObject so && so.Select(kv => kv.Key).SequenceEqual(["clientVariables", "screens"]) && cv.Length == 2 && S(cv[0], "name") == "ThemeName" && S(cv[0], "type") == "Text" && S(cv[0], "default") == "\"light\"" && cv[1]["default"] is null && Names(spec, "screens").SequenceEqual(["Orders", "OrderDetail"]), "4-screens.json: client variables with type and default, then the non-null specs");
         var md = o.Files.First(f => f.file == "4-screens.md").text;
         Check(md.Contains("| Orders | Screen | translated |") && md.Contains("| OrderCard | Block | worklist |") && md.Contains("| OrderMail | Email | worklist |") && md.Contains("## OrderDetail (screen, partial)") && md.Contains("- [ ] wire the delete button") && md.Contains("`screens/OrderDetail.json`") && md.Contains("`screens/OrderDetail.txt`") && !md.Contains("## Orders ") && md.Contains("## OrderMail (email, worklist)") && md.Contains("Order_CreateOrUpdate") && md.Contains("screens: 1 translated"), "4-screens.md: summary table, a section per partial or worklist element with checkboxes and pointers");
         var pl = Rows(JsonNode.Parse(o.Files.First(f => f.file == "plan.json").text), "screens");
