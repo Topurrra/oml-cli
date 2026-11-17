@@ -163,6 +163,20 @@ public static partial class Cli
         return results.Any(r => r is Describe.DescribeError) ? 1 : 0;
     }
 
+    // export <module.oml> <Element>...: screens, blocks and emails as structured JSON. One name prints one object, several
+    // an array in the order asked; a name that fails gives { element, error } in its place and exit code 1.
+    static int? CmdExport(List<string> args)
+    {
+        if (args.Count < 3) return null;
+        var names = args.Skip(2).ToList();
+        if (names.FirstOrDefault(n => n.StartsWith("--")) is { } option)
+            throw new CliError($"export takes a module and the names of screens, blocks or emails; it has no option {option}.", 2);
+        using var open = Open(args[1]); var module = open.Module;
+        var results = Timings.Measure("export", () => Export.Many(module, names));
+        Emit(results.Count == 1 ? results[0] : results);
+        return results.Any(r => r is Export.ExportError) ? 1 : 0;
+    }
+
     static int? CmdTree(List<string> args)
     {
         if (args.Count is not (3 or 5)) return null;

@@ -18,7 +18,7 @@ public static partial class Cli
     static readonly string[] MemoryReads = ["recall", "list", "show", "history", "handoff", "traps"];
 
     static readonly string[] RunAllowed =
-        ["apply", "architecture", "check", "describe", "doc", "explain-warning", "find", "flow", "inspect", "memory", "openapi", "review", "spec", "stats", "test", "tree", "validate"];
+        ["apply", "architecture", "check", "describe", "doc", "explain-warning", "export", "find", "flow", "inspect", "memory", "openapi", "review", "spec", "stats", "test", "tree", "validate"];
 
     static readonly Dictionary<string, string> RunRefused = new()
     {

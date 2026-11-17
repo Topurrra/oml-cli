@@ -77,7 +77,39 @@ static class Inspect
                 serviceActions = ByName(r.ServiceActions).Select(a => Model.NameOf(a)),
                 elements = ByName(ModuleReferences.Elements(r)).Select(e => new { name = Model.NameOf(e), kind = e.GetInterface().Name }),
             }),
+            otherContent = One("otherContent", () => OtherContent(m)),
         };
+    }
+
+    // Every element of the module, and every element directly in a UI flow, that no other section lists (consumed SOAP,
+    // Traditional emails, a UI flow's exception action, ...). Found by walking the module's own children, its
+    // integrations and its flows' nodes, never from a list of kinds. Unnamed parts (platform objects) are left out.
+    static object[] OtherContent(IESpace m)
+    {
+        var listed = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        void Mark(IEnumerable<object> items) { foreach (var item in items) listed.Add(item); }
+        Mark(m.Entities); Mark(m.Structures); Mark(m.ServerActions); Mark(m.ServiceActions); Mark(m.ClientActions);
+        Mark(RestModel.Integrations(m, false)); Mark(RestModel.Integrations(m, true));
+        Mark(Screens(m).Select(s => (object)s.screen));
+        Mark(m.Timers); Mark(m.Processes); Mark(Describe.List(m, "SessionVariables")); Mark(m.Roles); Mark(m.SiteProperties);
+        Mark(m.UserExceptions); Mark(m.References); Mark(m.TextResources); Mark(m.Folders);
+        foreach (var key in new[] { "Images", "Scripts", "Resources", "MobileThemes", "WebThemes", "Locales", "MobileFlows", "WebFlows" })
+            Mark(Content.Items(m, key));
+        // The built-in exceptions and roles are part of every module.
+        foreach (var key in Refs.SystemExceptions.Concat(new[] { "AnonymousRole", "RegisteredRole" }))
+            if (Reflect.Get(m, key) is { } builtIn) listed.Add(builtIn);
+        var candidates = new List<IObjectSignature>(ElementPaths.Children(m));
+        candidates.AddRange(m.Integrations.OfType<IObjectSignature>());
+        candidates.AddRange(m.MobileFlows.SelectMany(f => f.Nodes).OfType<IObjectSignature>());
+        candidates.AddRange(m.WebFlows.SelectMany(f => f.Nodes).OfType<IObjectSignature>());
+        var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        return candidates
+            .Where(o => o is not IReference && o is not IExpression && !listed.Contains(o) && seen.Add(o))
+            .Select(o => Unreadable.Try<(string kind, string name)?>(() => "otherContent " + Unreadable.Where(o),
+                () => Model.NameOf(o) is { } name ? (ReviewModel.Kind(o), name) : null, null))
+            .Where(x => x.HasValue).Select(x => x.GetValueOrDefault())
+            .OrderBy(x => x.kind, StringComparer.Ordinal).ThenBy(x => x.name, StringComparer.Ordinal)
+            .Select(x => (object)new { kind = x.kind, name = x.name }).ToArray();
     }
 
     // Each row is read on its own (serialized here, not later): a row that cannot be read is left out and listed in unreadable.
@@ -169,7 +201,7 @@ static class Inspect
         // Only Traditional Web modules have session variables. An empty list is left out, so --pretty output of the other modules stays as it was.
         if (result["sessionVariables"] is JsonArray { Count: 0 }) result.Remove("sessionVariables");
         // A date filter lists changed elements only: module settings, content and references have no change date.
-        if (since is not null) foreach (var key in new[] { "module", "content", "defaultScreen", "references" }) result.Remove(key);
+        if (since is not null) foreach (var key in new[] { "module", "content", "defaultScreen", "references", "otherContent" }) result.Remove(key);
         // The change fields are null when not asked for, and --pretty would print them.
         if (!history)
             foreach (var row in result.Select(p => p.Value).OfType<JsonArray>().SelectMany(a => a.OfType<JsonObject>()))
@@ -188,7 +220,7 @@ static class Inspect
             foreach (var key in only.Split(',', StringSplitOptions.TrimEntries))
             {
                 if (groups.TryGetValue(key, out var sections)) keep.UnionWith(sections);
-                else if (new[] { "entities", "structures", "screens", "blocks", "references", "timers", "roles", "processes", "siteProperties", "sessionVariables", "exceptions" }.Contains(key, StringComparer.OrdinalIgnoreCase)) keep.Add(key);
+                else if (new[] { "entities", "structures", "screens", "blocks", "references", "timers", "roles", "processes", "siteProperties", "sessionVariables", "exceptions", "otherContent" }.Contains(key, StringComparer.OrdinalIgnoreCase)) keep.Add(key);
                 else throw new CliError($"Unknown inspect section '{key}'.", 2);
             }
             if (since is not null && keep.All(k => k.Equals("references", StringComparison.OrdinalIgnoreCase)))

@@ -215,6 +215,10 @@ static class Refs
             foreach (var o in Referenced(r)) yield return (r.Name, o);
     }
 
+    // The module properties that hold the built-in exceptions: a spec names one of them by this property name.
+    internal static readonly string[] SystemExceptions = ["AllExceptions", "UserException", "DatabaseException", "SecurityException",
+        "NotRegisteredException", "CommunicationException", "InvalidLoginException"];
+
     static IEnumerable<object> Owned(IESpace m)
     {
         foreach (var o in m.ServerActions) yield return o;
@@ -228,8 +232,7 @@ static class Refs
                 if (Reflect.Get(role, key) is { } action) yield return action;
         }
         foreach (var o in m.UserExceptions) yield return o;
-        foreach (var name in new[] { "AllExceptions", "UserException", "DatabaseException", "SecurityException",
-                     "NotRegisteredException", "CommunicationException", "InvalidLoginException" })
+        foreach (var name in SystemExceptions)
             if (Reflect.Get(m, name) is { } ex) yield return ex;
         foreach (var f in m.MobileFlows) foreach (var n in f.Nodes) yield return n;
         foreach (var f in m.WebFlows) foreach (var n in f.Nodes) yield return n;

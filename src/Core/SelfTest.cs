@@ -147,6 +147,7 @@ static partial class SelfTest
             {
                 using var built = Model.Load(Path.Combine(dir, "built.oml"));
                 DescribeSelfTest.Check(built, failures);
+                ExportSelfTest.Check(built, failures);
                 var order = built.Entities.SingleOrDefault(e => e.Name == "Order");
                 var fk = order?.Attributes.SingleOrDefault(a => a.Name == "CustomerId");
                 if (fk is null || Model.Describe(built, fk.DataType) != "Customer Identifier")
@@ -179,6 +180,7 @@ static partial class SelfTest
             RulesTest(blank, dir, failures);
             Platform(blank, dir, failures);
             WebTest(dir, failures);
+            ExportSelfTest.Run(dir, failures);
             ReferencesTest(blank, dir, failures);
             QualifiedNamesTest(blank, dir, failures);
             MinifyTest(blank, dir, failures);
