@@ -6,14 +6,17 @@ namespace OmlCli;
 // The launcher passes it in OML_AUTHOR (the variable a person set, else `author` of the project profile, see
 // ProjectConfig.ApplyEnvironment). What a run created or changed is found as `oml review` finds it: two ReviewModel
 // snapshots, compared by GlobalKey. Only those elements are stamped, and only the history fields the model lets a
-// caller write (CreatedBy on created ones, LastModifiedBy on created and changed ones). The dates are not touched.
+// caller write (CreatedBy on created ones, LastModifiedBy and LastModifiedDate on created and changed ones).
 static class Authorship
 {
     // One line, at most 100 characters, no control characters (the launcher refuses the same in `oml config set author`).
     public static string? Name => Environment.GetEnvironmentVariable("OML_AUTHOR")?.Trim() is { Length: > 0 and <= 100 } name && !name.Any(char.IsControl) ? name : null;
 
     // The `next` text of a change made without an author.
-    public const string Ask = "No author is set, so Service Studio will show Unknown for what this change created. Ask the user which name to use, then run: oml config set author \"<name>\" and apply again to a new staged file.";
+    // A variable that is set but not a valid name is named as the cause: it wins over the profile, so setting the profile alone does not help.
+    public static string Ask => Environment.GetEnvironmentVariable("OML_AUTHOR") is { } raw && raw.Trim().Length > 0
+        ? "OML_AUTHOR is not a valid name (one line, at most 100 characters), so Service Studio will show Unknown for what this change created. Ask the user which name to use, correct or remove OML_AUTHOR, run: oml config set author \"<name>\" and apply again to a new staged file."
+        : "No author is set, so Service Studio will show Unknown for what this change created. Ask the user which name to use, then run: oml config set author \"<name>\" and apply again to a new staged file.";
 
     // The report line when no element took the name.
     public const string NotWritable = "The author could not be written on this Service Studio build (its history fields are read-only), so Service Studio shows Unknown for what this change created.";
@@ -65,18 +68,22 @@ static class Authorship
     {
         int written = 0, refused = 0;
         var done = new HashSet<string>(StringComparer.Ordinal);
+        // As SelfTest.History writes it: a DateTime without a kind (the model stores no time zone), here the local time of this computer.
+        var now = new DateTime(DateTime.Now.Ticks, DateTimeKind.Unspecified);
+        static bool Set(object o, string field, object value)
+        {
+            if (Reflect.Property(o, field, writable: true) is not { } property) return false;
+            try { property.SetValue(o, value); return true; }
+            catch (System.Reflection.TargetInvocationException e) when (e.InnerException is InvalidOperationException or NotImplementedException or NotSupportedException) { return false; }
+        }
         foreach (var o in ProductionRules.Walk(m))
         {
             var key = o.GlobalKey.ToString()!;
             var isNew = created.Contains(key);
             if (!isNew && !changed.Contains(key) || !done.Add(key) || !KeepsHistory(o)) continue;
-            var wrote = false;
-            foreach (var field in isNew ? new[] { "CreatedBy", "LastModifiedBy" } : new[] { "LastModifiedBy" })
-                if (Reflect.Property(o, field, writable: true) is { } property)
-                {
-                    try { property.SetValue(o, author); wrote = true; }
-                    catch (System.Reflection.TargetInvocationException e) when (e.InnerException is InvalidOperationException or NotImplementedException or NotSupportedException) { }
-                }
+            var wrote = isNew && Set(o, "CreatedBy", author);
+            // The date goes with the name: a name without a date looks wrong in Service Studio and misses inspect --changed-since.
+            if (Set(o, "LastModifiedBy", author)) { wrote = true; Set(o, "LastModifiedDate", now); }
             if (wrote) written++; else refused++;
         }
         return (written, refused > 0 && written == 0);
