@@ -2,6 +2,12 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 1.23.0
+
+### Added
+
+- **`oml menu`: an interactive menu for people.** Tasks in groups (start, project settings, module, application, agents, docs, assets, every command) with a one-line description each; arrows or `j`/`k`, Enter, type to filter, Esc back, `q` quit. It shows the exact command line before it runs the task, with the human view of the output, and has a file picker and an editor for the project profile. A bare `oml` opens it only at a real terminal (input and output not redirected, `OML_OUTPUT` not `json`, `OML_MENU` not `0`, no agent or CI variable); everywhere else a bare `oml` prints the overview and every command behaves as before. Tasks that need a yes from a person are not in it.
+
 ## 1.22.0
 
 Less waiting and fewer questions: a project profile, a project that is ready after one command, and hooks that work in GitHub Copilot.

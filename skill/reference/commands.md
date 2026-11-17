@@ -84,6 +84,7 @@ oml model-types [<TypeName>...]   (members of model/plugin types on the installe
 oml widget-types             (registered widget descriptors)
 oml selftest   (build check; also runs by itself on a Service Studio build not seen before; stops with exit 2 after 10 minutes)
 oml doctor [--text] [--selftest]   (checks the setup and says what to fix)
+oml menu   (for people: an interactive menu of everyday tasks that shows the command it runs; a bare oml in a terminal opens it; agents never use it)
 oml dashboard [--port N] [--no-open] [--module <file.oml>]   (local web dashboard for developers; reads only, on 127.0.0.1)
 oml explorer-menu [--remove | --status]   (Explorer right-click entries for the current user: fonts, images, .oml files, folders)
 oml log summary [--hours N] [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; --hours: oml vs agent time per session)
@@ -1285,6 +1286,10 @@ The message says to save one to three short records (recall first, `--supersedes
 Not covered: the Copilot cloud agent (it runs on GitHub's Linux machines, where this `oml.exe` does not exist), Windsurf, Cline and Kiro (other hook formats). Agents without a hook still follow the same rules from `AGENTS.md` and the skill; only the automatic check is missing.
 
 The files hold this machine's `oml.exe` path, so they are personal and not committed (`oml create` adds them to `.gitignore`). `install` keeps your other settings and hooks and replaces only oml's entry; run it again after you move `oml.exe` (`status` says `exeFound: false`). `remove` takes out only oml's entries and deletes a file that held nothing else. A settings file that is not valid JSON is never changed, and then no file is changed. Agents read hooks when a session starts.
+## Menu
+
+`oml menu` is an interactive menu for people at a terminal: tasks in groups, each with a one-line description, the exact command line shown before it runs, a project settings editor and a list of every command. **Agents must not use it** (it waits for keys and never prints JSON). A bare `oml` opens it only when stdin and stdout are not redirected, `OML_OUTPUT` is not `json`, `OML_MENU` is not `0` and no agent or CI variable is set (`OML_SESSION`, `CLAUDE_SESSION_ID`, `CLAUDE_CODE_SESSION_ID`, `CODEX_SESSION_ID`, `CLAUDECODE`, `CI`, `GITHUB_ACTIONS`); otherwise a bare `oml` prints the overview, as before. `oml menu` with redirected input exits 2 with one error line. The menu does not offer anything that needs a yes from a person (install, publish, deploy, changing a module or environment).
+
 ## OutSystems docs
 
 `oml outsystems-docs fetch` downloads the OutSystems 11 documentation, so `oml doc --search "<words>" --library` can answer platform questions: Service Center, LifeTime, Platform Server, deployment zones, network, errors. `oml doc --search` without `--library` searches only oml's own docs; a weak match there suggests `--library`.

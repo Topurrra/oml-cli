@@ -370,7 +370,7 @@ internal static class TerminalRender
     }
 
     static string Pad(string text, int width) => text.Length >= width ? text : text + new string(' ', width - text.Length);
-    static string Clip(string text, int width) => text.Length <= width ? text : text[..Math.Max(0, width - 1)] + Ellipsis;
+    internal static string Clip(string text, int width) => text.Length <= width ? text : text[..Math.Max(0, width - 1)] + Ellipsis;
     static string Repeat(string s, int n) => string.Concat(Enumerable.Repeat(s, Math.Max(0, n)));
     static string Bold(string text) => TerminalColors.Paint(text, TerminalColors.Bold);
 

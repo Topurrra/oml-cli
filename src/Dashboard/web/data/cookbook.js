@@ -4,6 +4,7 @@ export const cookbook = [
   { group: 'Start and check', items: [
     ['oml version', 'Show the oml version, the Service Studio build and whether the self-test passed.'],
     ['oml doctor --text', 'Check your setup and get a fix for each problem.'],
+    ['oml menu', 'For people: an interactive menu of everyday tasks (also a bare oml in a terminal). It shows the command it runs. Agents use the commands, not the menu.'],
     ['oml doctor --selftest', 'Check your setup and run the self-test on this Service Studio build now.'],
     ['oml dashboard', 'Open this dashboard in your browser.'],
     ['oml dashboard --port 5050 --no-open', 'Start the dashboard on port 5050 without opening the browser.'],

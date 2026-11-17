@@ -99,6 +99,7 @@ static class CliUsage
         oml widget-types             (registered widget descriptors)
         oml selftest   (build check; also runs by itself on a Service Studio build not seen before)
         oml doctor [--text] [--selftest]   (checks the setup and says what to fix)
+        oml menu   (for people: an interactive menu of everyday tasks that shows the command it runs; a bare oml in a terminal opens it; agents never use it)
         oml show-change <file.md> [--port N] [--no-open]   (an agent's change walkthrough on the dashboard: call stacks, flows, element links, review, comments)
         oml dashboard [--port N] [--no-open] [--module <file.oml>]   (local web dashboard for developers; reads only, on 127.0.0.1)
         oml hooks [status|install|remove] [--dir <project>] [--agent claude|codex|gemini|all]   (agent guards: no reading big references whole, no .oml edits, no test-data API around oml; gives the project profile to a new session)
@@ -127,7 +128,7 @@ static class CliUsage
         Testing: qa, test bdd, test scenarios, test data (test a running app in a browser and replay it; BDD specs; what to test after a change; dev test data)
         Assets: font, image (woff2 fonts; convert, resize, trace and ICO images)
         Packages: app, extension, templates (.oap and .osp packages; .xif extensions; sample modules)
-        Setup: version, selftest, doctor, explorer-menu, log, model-types, widget-types (the build and its checks; Explorer right-click entries; the usage log; OutSystems API members)
+        Setup: version, selftest, doctor, menu, explorer-menu, log, model-types, widget-types (the build and its checks; a menu for people; Explorer right-click entries; the usage log; OutSystems API members)
 
         Usage of one command, with its options: oml <command> --help
         Every usage line: oml help --all

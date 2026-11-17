@@ -303,18 +303,27 @@ static class ProjectConfig
                 return 0;
             case ["set", var key, .. var words] when words.Count > 0:
                 if (Find(key) is not { } setting) return Fail($"Unknown setting '{key}'.", "oml config show lists the settings.");
-                if (Normalize(setting, string.Join(setting.Kind == "list" ? "," : " ", words), out var value) is { } problem) return Fail($"{setting.Key}: {problem}");
-                if (setting.Locked && value != setting.Default) return Fail($"{setting.Key} cannot be turned off.", setting.About);
                 var target = RootOf(start) ?? start;
-                var current = Load(target);
-                if (current.Error is not null) return Fail(current.Error, "Fix or remove the file first. Nothing was changed.");
-                current.Put(setting.Key, value);
-                Save(target, current);
-                TerminalOutput.PrintObject(new { file = PathIn(target), key = setting.Key, value, profile = Profile(current), note = "Agents see it in a new session (the session-start hook), or at once with oml config." });
+                var (bad, hint, saved, current) = Change(target, setting, string.Join(setting.Kind == "list" ? "," : " ", words));
+                if (bad is not null) return Fail(bad, hint);
+                TerminalOutput.PrintObject(new { file = PathIn(target), key = setting.Key, value = saved, profile = Profile(current!), note = "Agents see it in a new session (the session-start hook), or at once with oml config." });
                 return 0;
             default:
                 return Fail($"Unknown or incomplete config command. {Usage}");
         }
+    }
+
+    // One change, validated and saved: the path of `oml config set` and of the menu's settings editor, so both follow the
+    // same rules. Problem is null when the file was written; Saved is then the values as written.
+    internal static (string? Problem, string? Hint, string Value, Values? Saved) Change(string root, Setting setting, string text)
+    {
+        if (Normalize(setting, text, out var value) is { } problem) return ($"{setting.Key}: {problem}", null, value, null);
+        if (setting.Locked && value != setting.Default) return ($"{setting.Key} cannot be turned off.", setting.About, value, null);
+        var current = Load(root);
+        if (current.Error is not null) return (current.Error, "Fix or remove the file first. Nothing was changed.", value, null);
+        current.Put(setting.Key, value);
+        Save(root, current);
+        return (null, null, value, current);
     }
 
     static int Fail(string message, string? hint = null)
