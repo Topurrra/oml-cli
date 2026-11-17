@@ -26,13 +26,13 @@ function Tokens($path) { [math]::Ceiling((Get-Content -Raw $path).Replace("`r`n"
 
 # Size budget per topic in tokens (characters / 4). A file may be at most 15% over its budget. data-rules, rest and
 # troubleshooting were raised by 50-100 for the SQL column order, CrossSiteRequests and same-name publish notes; ui-reactive by 50 for the polling-block pattern and by 100 for the JavaScript output, AMD and virtualization notes; troubleshooting by 200 for the strong dependency, client timeout, charset and open-tab notes. memory
-# traditional-to-reactive was raised from 900 to 1250 for the `oml migrate` flow and what the developer decides. memory
+# traditional-to-reactive was raised from 900 to 1250 for the `oml migrate` flow and what the developer decides, then to 1700 for the screen translation (4-screens.json, client variables, layout, css, other content). memory
 # was raised by 200 for "What recall learns" (usefulness, newest wins, stale records, suggested traps, oml learn). warnings was
 # raised by 50 because the command is now named `oml explain-warning` (was `oml warn`) and the file names it twice.
 $budget = [ordered]@{
   'ui-reactive' = 1650; 'osui-patterns' = 2000; 'data-rules' = 1250; 'logic-rules' = 1200; 'security' = 800
   'rest' = 950; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2200
-  'traditional-to-reactive' = 1250; 'troubleshooting' = 2300; 'ui-checklist' = 700; 'testing' = 2000
+  'traditional-to-reactive' = 1700; 'troubleshooting' = 2300; 'ui-checklist' = 700; 'testing' = 2000
   'best-practices' = 1300; 'rules' = 900; 'memory' = 1300; 'dif' = 800; 'harnesses' = 300
 }
 # Where a topic's file is: skill/reference/<topic>.md, except rules (skill/rules.md; SKILL.md holds the same 11 rules).
@@ -172,10 +172,10 @@ foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Include *.md, *
 $help = [math]::Ceiling((Run '--help').Text.Length / 4)
 if ($help -gt 700 * 1.15) { Fail "oml --help is $help tokens; budget 700 (+15%)" }
 # oml help --all: every usage line. 2550: raised from 2400 for the three oml learn lines and the qa lines; 2700 for the oml map
-# and oml mock lines; 2900 for the longer renamed commands and the test scenarios and test data lines; 2950 for oml skill refresh and qa page --style-conflicts; 3050 for oml config and the create options. Agents read the overview
+# and oml mock lines; 2900 for the longer renamed commands and the test scenarios and test data lines; 2950 for oml skill refresh and qa page --style-conflicts; 3050 for oml config and the create options; 3150 for oml export and the --template and --plan options of oml migrate. Agents read the overview
 # (oml --help), not this.
 $helpAll = [math]::Ceiling((Run 'help', '--all').Text.Length / 4)
-if ($helpAll -gt 3050 * 1.15) { Fail "oml help --all is $helpAll tokens; budget 3050 (+15%)" }
+if ($helpAll -gt 3150 * 1.15) { Fail "oml help --all is $helpAll tokens; budget 3150 (+15%)" }
 # every command word of the full usage is named in the overview (a word is whole: `test` is not `testing`)
 $fullUsage = (Run 'help', '--all').Text
 $overview = (Run '--help').Text

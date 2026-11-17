@@ -31,6 +31,7 @@ export const cookbook = [
     ['oml inspect C:\\Work\\Orders.oml --own --history', 'Also show who changed each element last, and when.'],
     ['oml inspect C:\\Work\\Orders.oml --own --changed-since 2026-10-01', 'List only the elements changed on or after a day.'],
     ['oml describe C:\\Work\\Orders.oml OrderDetail --css', 'Print the whole style sheet of a screen, block, email or theme, to edit before a restyle.'],
+    ['oml export C:\\Work\\Orders.oml OrderDetail Block:OrderCard', 'A screen, web block or email as JSON for tools (oml migrate uses it). To read an element, use describe.'],
     ['oml stats C:\\Work\\Orders.oml', 'Count the elements in the module.'],
     ['oml tree C:\\Work\\Orders.oml Order_Save', 'Show the object tree of one element with exact paths.'],
     ['oml tree C:\\Work\\Orders.oml OrderDetail --depth 2', 'Show only the top levels of a big screen; then open one part with its path.'],
@@ -59,8 +60,8 @@ export const cookbook = [
   ] },
   { group: 'Change a module', items: [
     ['oml new C:\\Work\\Sandbox.oml --name Sandbox --kind CrossDevice', 'Create a new blank Reactive module.'],
-    ['oml migrate plan C:\\Work\\Orders.oml --name OrdersApp --in C:\\Work\\Producers', 'Prepare the move of a Traditional Web module to Reactive: specs for the old and new module and a screens worklist. Changes no module.'],
-    ['oml migrate status C:\\Work\\Orders.oml C:\\Work\\OrdersApp.oml', 'Compare old and new by name: what is done, what is left, what exists twice.'],
+    ['oml migrate plan C:\\Work\\Orders.oml --name OrdersApp --in C:\\Work\\Producers --template C:\\Work\\Starter.oml', 'Prepare the move of a Traditional Web module to Reactive: specs for the old and new module, screens translated as far as possible and a worklist for the rest. Changes no module.'],
+    ['oml migrate status C:\\Work\\Orders.oml C:\\Work\\OrdersApp.oml --plan migrate\\OrdersApp', 'Compare old and new by name: what is done, what is left, what exists twice, and the screens by status.'],
     ['oml spec entities', 'Read the reference for one spec key.'],
     ['oml spec check C:\\Work\\change.json', 'Check a spec for typos and wrong types in milliseconds.'],
     ['oml spec schema --out C:\\Work\\spec.schema.json', 'Write a JSON Schema for autocomplete in VS Code.'],

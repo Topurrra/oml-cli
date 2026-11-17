@@ -1,37 +1,42 @@
 # Traditional Web to Reactive
 
-How Traditional Web parts map to Reactive, and how `oml migrate` prepares the move. oml cannot run the Service Studio converter: `oml migrate` copies logic and data definitions, references what must stay, and leaves a worklist of screens and blocks to rebuild by hand.
+How Traditional Web parts map to Reactive, and how `oml migrate` prepares the move. oml cannot run the Service Studio converter: `oml migrate` copies logic and data definitions, references what must stay, translates screens, web blocks and emails by code as far as it can, and leaves a worklist for the rest.
 
 ## The oml migrate flow
 
 ```text
-oml migrate plan Orders.oml --name OrdersApp --in C:\producers --out migrate\OrdersApp
-oml migrate status Orders.oml OrdersApp.oml
+oml migrate plan Orders.oml --name OrdersApp --in C:\producers --template Starter.oml --out migrate\OrdersApp
+oml migrate status Orders.oml OrdersApp.oml --plan migrate\OrdersApp
 ```
 
-`plan` reads the old module (it must be Traditional Web) and writes, into a new folder, files for `oml apply`. It changes no module. Its output lists `next` (the commands in order) and `notes`.
+`plan` reads the old module (it must be Traditional Web) and writes, into a new folder, files for `oml apply`. It changes no module. Its output lists `next` (the commands in order), `notes` and `coverage` (`screens: 7 translated, 3 partial, 1 worklist of 11`). `--template` is a Reactive template module: its layout block (`LayoutTopMenu`, `LayoutSideMenu`, else the first `Layout...`) and placeholders are given to the translation. Without it the screens have no layout block.
 
 | File | What it is |
 |---|---|
-| `plan.json` | Each element (`stay`, `copy`, `worklist`, `manual`, with why), the wrappers, the references (`add`, `skip-ui`, `unresolved`, `builtin`), the notes |
-| `1-prepare-old.json` | Spec for the OLD module: entities, static entities and roles made public (`exposeReadOnly` stays) and the wrapper actions. Absent when nothing is needed |
-| `2-source.json` | `repoint` edits, applied to the prepared module to make `<Old>.migrate-source.oml`, a copy source (never install it). Absent when nothing is needed |
-| `3-new-module.json` | Spec for the NEW module: `references`, then `copy` from the working copy |
-| `4-screens.md` | Worklist: a checkbox per screen and block, with `screens/<Name>.txt` (`oml describe` of the original) |
+| `plan.json` | Each element and its decision, the wrappers, references, `screens` (status and todo count), `otherContent`, notes |
+| `1-prepare-old.json` | Spec for the OLD module: entities, static entities and roles made public (`exposeReadOnly` stays) and the wrapper actions (also those the screens need) |
+| `2-source.json` | `repoint` edits, applied to the prepared module to make `<Old>.migrate-source.oml`, a copy source (never install it) |
+| `3-new-module.json` | Spec for the NEW module: `references`, then `copy` from the working copy (also SOAP and integration elements) |
+| `4-screens.json` | Spec for the NEW module, applied after 3: `clientVariables`, `blocks`, `screens` as far as translated |
+| `4-screens.md` | Summary table, then a section per `partial` or `worklist` element: TODO checkboxes, `screens/<Name>.json` (raw `oml export`) and `screens/<Name>.txt` (`oml describe`) |
+| `css/` | One sheet per style sheet of the old module, and `css/README.md` |
 
-Order: apply 1 to a staged copy; the person installs and publishes it; apply 2 to the prepared file; `oml new` a Reactive module from a template; apply 3; install and publish it; work through 4. `status` shows by name what is done, left, and duplicated.
+Order: apply 1 to a staged copy; the person installs and publishes it; apply 2 to the prepared file; `oml new` a Reactive module from the template; apply 3, then 4; install and publish; work through 4-screens.md. `status --plan` shows by name what is done and how many elements of each status exist in the new module.
 
 What stays and what is copied:
 
 - Entities, static entities and roles stay in the old module (a copied role has no users); the new module references them, read only.
 - Server and service actions, structures, exceptions, site properties, timers, processes and REST are copied.
-- Entity writes: the old module gets a public wrapper (`Order_Create`, `Order_CreateOrUpdate`, `Order_Update`, `Order_Delete`) for each entity action the copied logic calls, with the same inputs and outputs. `2-source.json` re-points each call to its wrapper in the working copy, before the copy (in the new module the entity actions do not exist). A rebuilt screen writes through a wrapper too; add a missing one to the old module the same way and reference it.
+- Entity writes: the old module gets a public wrapper (`Order_Create`, `Order_CreateOrUpdate`, `Order_Update`, `Order_Delete`) for each entity action that copied logic or a screen calls, with the same inputs and outputs. `2-source.json` re-points each call in copied logic to its wrapper before the copy. A write the translation missed needs a wrapper added to the old module the same way, and a reference.
 - Producers found under `--in` are referenced by themselves; an `unresolved` one needs its producer file (`--in`) or Manage Dependencies. Traditional UI references are left out.
-- You decide: timers and processes now exist in both modules (deactivate or delete one); site property values, timer schedules and integration settings in Service Center do not follow a copy; session variables are not copied. Once its UI is gone, propose making the old module a service module (rule 3).
+- Session variables: used only by screens and blocks, a basic type and a harmless name: a client variable in 4-screens.json. Else `manual` with the reason: used by copied server logic (client variables do not exist on the server: pass the value as an input or read it there), not a basic type, or a sensitive name (never in the browser).
+- Style: screens and blocks carry their own sheet. Theme sheets target Traditional markup and are not added: port them from `css/` selector by selector into the new module's theme.
+- Emails, SOAP, entry points: a SOAP or integration element is copied (Service Center settings do not follow); an email is translated like a screen; an entry point is manual (use a screen URL or a redirect screen); anything else is listed by kind and name in the notes.
+- You decide: timers and processes now exist in both modules (deactivate or delete one); site property values, timer schedules and integration settings in Service Center do not follow a copy. Once its UI is gone, propose making the old module a service module (rule 3).
 
 ## Screens worklist
 
-Read the original first (`screens/<Name>.txt`). Rebuild producers before consumers, not as a one-to-one copy.
+`partial` and `worklist` elements are yours: read `screens/<Name>.txt` and the raw export, finish the TODO stubs, tick the box. Rebuild producers before consumers, not as a one-to-one copy.
 
 ## Logic
 
