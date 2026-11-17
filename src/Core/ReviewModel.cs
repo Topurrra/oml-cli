@@ -149,6 +149,48 @@ static class ReviewModel
         return item.Props;
     }
 
+    // Lists of the elements that point at this one, not elements it points at.
+    static readonly HashSet<string> Incoming = new(StringComparer.Ordinal) { "Referers", "IncomingConnectors" };
+
+    // Every property whose value is another element or a list of elements, as names: what Properties leaves out (a list,
+    // such as the widgets an Ajax Refresh node refreshes). Export puts them in a node's `_targets`. The element's own
+    // parts, the elements it sits in, expressions, types and unnamed elements are left out. Properties come from the same
+    // model interfaces as Readable's (without its Skip list: a node's widgets are there); getters that throw are added to
+    // `unreadable`, as Properties does.
+    internal static List<(string property, bool list, string[] names)> Targets(IObjectSignature o, List<Unreadable.Item> unreadable)
+    {
+        var snap = new Snapshot { Module = "", Key = "" };
+        var above = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        var up = Get(o, "Parent", snap);
+        while (up is IObjectSignature parent && above.Add(parent)) up = Get(parent, "Parent", snap);
+        bool Wanted(object x) => x is IObjectSignature element && x is not IExpression && x is not ITypeSignature && !ReferenceEquals(x, o)
+            && !above.Contains(x) && !Owns(o, element) && Model.NameOf(x) is { Length: > 0 };
+        var targets = new List<(string property, bool list, string[] names)>();
+        var properties = Reflect.Interfaces(o)
+            .SelectMany(i => i.GetProperties()).Where(p => p.CanRead && p.GetIndexParameters().Length == 0 && !Incoming.Contains(p.Name)
+                && !p.PropertyType.IsValueType && p.PropertyType != typeof(string) && p.PropertyType != typeof(byte[]))
+            .GroupBy(p => p.Name).Select(g => g.First()).OrderBy(p => p.Name, StringComparer.Ordinal).ToArray();
+        foreach (var p in properties)
+        {
+            object? v;
+            try { v = p.GetValue(o); }
+            catch (TargetInvocationException e) { snap.Fail(() => Unreadable.Where(o) + " property " + p.Name, e); continue; }
+            if (v is IObjectSignature single)
+            {
+                if (Wanted(single)) targets.Add((p.Name, false, new[] { Model.NameOf(single)! }));
+            }
+            else if (v is IEnumerable items)
+            {
+                string[] names;
+                try { names = items.Cast<object>().Where(Wanted).Select(x => Model.NameOf(x)!).ToArray(); }
+                catch (TargetInvocationException e) { snap.Fail(() => Unreadable.Where(o) + " property " + p.Name, e); continue; }
+                if (names.Length > 0) targets.Add((p.Name, true, names));
+            }
+        }
+        unreadable.AddRange(snap.Unreadable);
+        return targets;
+    }
+
     // A reference lists the elements this module uses from another module, by name: their insides belong to the producer.
     // Screens and blocks sit inside the reference's UI flows (and folders), so those are walked through, not listed.
     static void References(IObjectSignature reference, string key, Snapshot snap)

@@ -103,5 +103,32 @@ $without = Read-Oml @('describe',$consumer,'Use')
 Require (!$without.text.Contains('if Total >= 0:') -and $without.text.Contains('[signature only: in DescribeTest; add --in')) "reference proxy treated as body: $($without.text)"
 $with = Read-Oml @('describe',$consumer,'Use','--depth','1','--in',$out)
 Require ($with.text.Contains('if Total >= 0:')) 'producer body not expanded'
+# Widget keys that set a model property by its name (spec.md, Reactive UI): each one must read back in describe.
+# Reactive and Traditional Web take the same keys for a Button. A key the build lacks fails the apply and names the key.
+$keysSpec = Join-Path $Tmp 'describe-keys.json'
+$keysButton = @{ type='Button'; name='GoButton'; onClick='Go'; isDefault=$true; confirmationMessage='"Go now?"'; children=@(@{type='Text';text='Go'}) }
+$keysScreen = @{ name='Keys'; locals=@(@{name='Secret';type='Text'}); actions=@(@{name='Go';flow=@(@{kind='assign';assign=@{Secret='""'}})}) }
+$keysScreen.widgets = @(@{ type='Input'; name='SecretInput'; variable='Secret'; inputType='Password'; prompt='"Secret"'; maxLength=20 }, $keysButton)
+@{ screens=@($keysScreen) } | ConvertTo-Json -Depth 30 | Set-Content $keysSpec
+$keysOut = Join-Path $Tmp 'describe-keys.oml'
+Remove-Item $keysOut -ErrorAction SilentlyContinue
+$r = Read-Oml @('apply',$blank,$keysSpec,$keysOut)
+Require ($r.saved -and !$r.newErrors -and !$r.reopenNewErrors) "Reactive widget keys did not save cleanly: $($r | ConvertTo-Json -Depth 8 -Compress)"
+$keys = Read-Oml @('describe',$keysOut,'Keys')
+foreach ($line in @('type=Password', 'prompt="Secret"', '[default button]', 'confirm="Go now?"')) {
+    Require ($keys.text.Contains($line)) "Reactive widget keys: describe missing $line in: $($keys.text)"
+}
+$webKeysBlank = Join-Path $Tmp 'describe-web-blank.oml'
+$webKeysOut = Join-Path $Tmp 'describe-web-keys.oml'
+Remove-Item $webKeysBlank,$webKeysOut -ErrorAction SilentlyContinue
+Read-Oml @('new',$webKeysBlank,'--kind','WebResponsive','--name','DescribeWebKeys') | Out-Null
+$keysScreen.widgets = @($keysButton)
+@{ screens=@($keysScreen) } | ConvertTo-Json -Depth 30 | Set-Content $keysSpec
+$r = Read-Oml @('apply',$webKeysBlank,$keysSpec,$webKeysOut)
+Require ($r.saved -and !$r.newErrors -and !$r.reopenNewErrors) "Traditional widget keys did not save cleanly: $($r | ConvertTo-Json -Depth 8 -Compress)"
+$keys = Read-Oml @('describe',$webKeysOut,'Keys')
+foreach ($line in @('[default button]', 'confirm="Go now?"')) {
+    Require ($keys.text.Contains($line)) "Traditional widget keys: describe missing $line in: $($keys.text)"
+}
 Write-Host 'ok   describe, public flags, filters, compact and pretty JSON'
 } finally { Remove-TestWorkFolder $Tmp }
