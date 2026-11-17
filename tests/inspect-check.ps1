@@ -31,12 +31,13 @@ Require ($homeScreen.inputs -contains 'Who' -and $homeScreen.inputDescriptions.W
 # Session variables exist in Traditional Web modules only.
 $webBlank = Join-Path $dir 'webblank.oml'; $web = Join-Path $dir 'InspW.oml'
 & $Oml new $webBlank --name InspW --kind WebResponsive | Out-Null
-$webSpec = Join-Path $dir 'web.json'; Set-Content $webSpec '{ "sessionVariables": [ { "name": "CartId", "type": "Integer" } ] }' -Encoding utf8
+$webSpec = Join-Path $dir 'web.json'; Set-Content $webSpec '{ "sessionVariables": [ { "name": "CartId", "type": "Integer", "default": "5" } ] }' -Encoding utf8
 Require ((& $Oml apply $webBlank $webSpec $web | ConvertFrom-Json).saved) 'inspect-check: web fixture did not save'
 $w = & $Oml inspect $web --own --only sessionVariables | ConvertFrom-Json
 $pretty = & $Oml inspect $mod --pretty | Out-String
 Require ($pretty -notlike '*sessionVariables*') 'a module without session variables must keep its output (also --pretty)'
 Require (($w.sessionVariables | Where-Object name -eq 'CartId').type -eq 'Integer') 'sessionVariables section'
+Require (($w.sessionVariables | Where-Object name -eq 'CartId').default -eq '5') "sessionVariables default: $($w.sessionVariables | ConvertTo-Json -Compress)"
 
 
 # 2. --only aliases, any case: the output key and the filter name both work.

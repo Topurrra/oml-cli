@@ -113,6 +113,19 @@ static class Export
             return props;
         }
 
+        // The elements its properties point at, read generically (ReviewModel.Targets): { "<property>": "<name>" | ["<names>"] }.
+        JsonObject GenericTargets(object o)
+        {
+            var targets = new JsonObject();
+            if (o is not IObjectSignature element) return targets;
+            var failures = new List<Unreadable.Item>();
+            var found = Unreadable.Try(() => "properties of " + Unreadable.Where(o), () => ReviewModel.Targets(element, failures),
+                new List<(string property, bool list, string[] names)>());
+            foreach (var f in failures) Notes.Add($"could not read {f.part}: {f.reason}");
+            foreach (var (property, list, names) in found) targets[Lower(property)] = list ? (JsonNode?)Strings(names) : JsonValue.Create(names[0]);
+            return targets;
+        }
+
         // Spec keys read from the generic properties by name, ignoring case. A key that is not there is unsupported when required.
         void SpecKeys(object owner, JsonObject o, Action<string> unsupported, bool required, params (string key, bool flag)[] keys)
         {
@@ -448,10 +461,12 @@ static class Export
                 var props = new JsonObject();
                 foreach (var (key, value) in GenericProps(n)) props[key] = value;
                 o["_props"] = props;
+                // The elements it points at (an Ajax Refresh node's widgets), which _props cannot hold because they are lists.
+                if (GenericTargets(n) is { Count: > 0 } targets) o["_targets"] = targets;
                 if (Describe.Target(n, "Sequence") is not null) Connect("next", "Sequence");
                 unsupported(kind.Contains("Ajax", StringComparison.Ordinal)
-                    ? "a spec flow has no Ajax Refresh node (Traditional Web only); the properties that could be read are in _props, but the widgets it refreshes are a list that the reader does not read"
-                    : $"a spec flow has no {kind} node; the properties that could be read are in _props");
+                    ? "a spec flow has no Ajax Refresh node (Traditional Web only); the properties that could be read are in _props, and the widgets it refreshes are in _targets when they could be read"
+                    : $"a spec flow has no {kind} node; the properties that could be read are in _props, and the elements it points at in _targets");
             }
             o["_path"] = path;
             if (reference is not null) o["_ref"] = reference;

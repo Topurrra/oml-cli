@@ -655,7 +655,7 @@ Inspect reports platform names and key fields, including generated role actions.
 | Styling and access | styleSheet, isDefault, access | Raw CSS; true selects the landing screen; access uses the platform shape. |
 | Layout/scaffold | layout, placeholders, template, entity | See layouts below. |
 | Widget | type, name, children, content area arrays | Built-in type or registered descriptor type. |
-| Widget property | value, variable, source, style, visible, enabled, mandatory, prompt, text, sourceBlock | Uses installed setters/properties. Expression properties need OutSystems expressions. |
+| Widget property | value, variable, source, style, visible, enabled, mandatory, prompt, text, sourceBlock; any other key | Uses installed setters/properties: any other key sets the model property of that name (its `Set<Key>` setter, else the writable property), so `isDefault` sets `IsDefault`. A key the widget does not have is a problem (`has no settable '<key>'`). Expression properties need OutSystems expressions. |
 | Widget attributes | attributes | HTML attributes (Service Studio's Attributes list): `{ "aria-label": "\"Close\"", "role": "\"tab\"", "style": "\"width:\" + Value + \"%\"" }`. Each value is an expression. An existing attribute with the same name gets the new value. |
 | Widget event | onClick, onChange, other installed events; args | Action name, screen name, or destination object. Arguments bind by parameter name. |
 | BlockInstance | sourceBlock, args, placeholders, events | Source block, input expressions, named placeholder content, event handlers. |
@@ -688,8 +688,17 @@ Widgets whose keys are easy to get wrong (Reactive):
 | Expression | `value` | Reactive ignores Visible on an Expression (apply warns): put it in a Container with `visible`. |
 | BlockInstance | `sourceBlock`, `args`, `events`, `placeholders` | No Visible: wrap it in a Container with `visible`. |
 | AdvancedHtml (HTML Element) | `tag`, `attributes` | Refuses `svg`, `path`, `circle` and `dialog`. Icons: CSS `mask-image` with a data: URL (or an Icon widget). Dialogs and sheets: a div with the `popover` attribute and `popovertarget` on the opener. |
-| Dropdown | `variable`, `list`, `optionsText`, `optionsValue` | Its options must be a record list (an aggregate, or a list of a static entity or structure); a List of Text cannot name its labels and values. |
+| Dropdown | `variable`, `list`, `optionsText`, `optionsValue` | Its options must be a record list (an aggregate, or a list of a static entity or structure); a List of Text cannot name its labels and values. No key for an empty-value or special-list option: add that option to the options list in a data action. |
+| Button, Link | `confirmationMessage` (expression), `isDefault` (`true` or `false`) | `confirmationMessage`: the text the user must confirm before On Click runs (describe: `confirm=`). `isDefault`: pressing Enter clicks it (describe: `[default button]`). Traditional Web takes the same keys. No key for an external URL as the target: use an HTML Element (`AdvancedHtml`) with `"tag": "a"` and `attributes.href`. |
+| Icon | `icon` (the icon name as plain text, for example `"check"`) | describe: `icon=`. |
+| Input | `inputType` (`Password`, `Email`, `Number` or another value of the model's input type, as describe prints `type=`), `prompt` (expression), `maxLength` (number), `mandatory` (expression) | The validation message is not a widget property: assign `<Input>.ValidationMessage` in a client action (see Known model behaviour). |
+| Image | `image` (image name), `attributes.width`, `attributes.height` | describe: `image=`. No key for a URL or binary source: the image's source type cannot be set from a spec. Size: the `width` and `height` attributes, or CSS through `style`. |
+| Popup | `showPopup` (Boolean expression), `children` | Shows while the expression is True. No title or size property: put the title in its children and size it with CSS (`style`). |
+| TableRecords, List | `source` | Paging and sorting belong to the aggregate: `maxRecords` and `startIndex`, and `sorts` with `"dynamic": true` for a sort chosen at run time. For page links add the OutSystems UI `Pagination` block (see Block events). A column has no sort key. |
 | any | `attributes.style` | Reactive drops CSS custom properties (`--name: value`) from it (apply warns); plain properties such as `width` stay. Put the values in a `data-` attribute and set them with `element.style.setProperty` from a Script. `attributes.id` is refused: the platform sets the id (use `Name.Id`). |
+
+A Reactive screen or block has no JavaScript of its own (a Traditional one has): put the code in a `javaScript` node of a client action (called from `onReady` to run at page start) or in a script (`scripts`, `requiredScripts`).
+
 Text is plain text. Expression properties need quoted expressions for literals:
 
 ```json
