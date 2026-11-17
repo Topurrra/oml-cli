@@ -28,6 +28,7 @@ internal static class CommandTable
         new("mock", (_, f) => MockCommand.Run(Rest(f))),
         new("create", (_, f) => CreateCommand.Run(Rest(f))),
         new("skill", (_, f) => CreateCommand.Skill(Rest(f))),
+        new("migrate", (_, f) => Migrate.Run(Rest(f)), NoTimings: true, Help: true),
         new("config", (_, f) => ProjectConfig.Run(Rest(f)), NoTimings: true),
         // oml test data: the module spec needs the producer module (Core); the rest calls the test-data API here.
         new("test", (_, f) => TestDataCommand.Run(Rest(f, 2)), f => f.Length > 1 && f[1] == "data" && !(f.Length > 2 && f[2] == "module")),

@@ -12,6 +12,8 @@ static class CliUsage
         oml new <out.oml> [--name N] [--kind WebResponsive|Mobile|Service|ReactiveLibrary|...]
         oml new <out.oml> --template <name-or-exported.oml> [--name N]
         oml new <out.oml> --from-template <template.oml> [--name N] [--kind K]
+        oml migrate plan <old.oml> --name <NewModule> [--in <folder|file.oml>]... [--out <folder>]   (a Traditional Web module's move to Reactive: plan, specs for the old and new module, screens worklist; changes no module)
+        oml migrate status <old.oml> <new.oml>   (by name: done, still to do, only in new, duplicates)
         oml app list <file.oap|file.osp>
         oml app extract <file.oap|file.osp> <outdir>
         oml app check <file.oap|file.osp> --producers <folder|package> [--deep]
@@ -118,7 +120,7 @@ static class CliUsage
         Commands by area (OutSystems 11 modules; compact JSON out, a readable view in a console):
         Read a module: inspect, describe, find, tree, flow, stats, header, expression, openapi (what a module holds, one element, search, counts, the header, an expression, OpenAPI)
         Start a project: create, config (a folder ready to work in; the project profile: what agents do, skip and ask)
-        Change a module: new, apply, install, validate, spec, translations (new module; edit by spec into a staged copy; install after checks; spec keys; translation files)
+        Change a module: new, migrate, apply, install, validate, spec, translations (new module; Traditional to Reactive plan; edit by spec into a staged copy; install after checks; spec keys; translation files)
         Application map: map, mock (every app of a project: who calls what, which APIs feed which; mocks chained across APIs)
         Check and review: check, review, architecture (rules and findings; a change before and after; module map and publish order)
         Docs and search: doc, spec, explain-warning, outsystems-docs, team-rules (OutSystems rules by topic and search; spec keys; cause and fix of a warning; the OutSystems 11 docs; company rules)

@@ -11,6 +11,8 @@ oml version
 oml new <out.oml> [--name N] [--kind WebResponsive|Mobile|Service|ReactiveLibrary|...]
 oml new <out.oml> --template <name-or-exported.oml> [--name N]
 oml new <out.oml> --from-template <template.oml> [--name N] [--kind K]
+oml migrate plan <old.oml> --name <NewModule> [--in <folder|file.oml>]... [--out <folder>]   (a Traditional Web module's move to Reactive: plan, specs for the old and new module, screens worklist; changes no module)
+oml migrate status <old.oml> <new.oml>   (by name: done, still to do, only in new, duplicates)
 oml app list <file.oap|file.osp>
 oml app extract <file.oap|file.osp> <outdir>
 oml app check <file.oap|file.osp> --producers <folder|package> [--deep]
@@ -209,6 +211,23 @@ oml expression "Amount > 100"         parse an expression; ok + canonical form, 
 - `oml header --diff <a.oml> <b.oml>` compares the two headers field by field and prints `same` plus the `differing` fields (`left` and `right`). This is the quick way to see what a save, a pull, or a round trip changed: a bumped `lastUpgradeVersion`, a new `elementsOrderVersion`, a regenerated `signature`, or a changed `contentHash`. Compare the open module's manual Save As against a pulled copy to see why the copy opens differently.
 - `oml expression "<text>"` parses an expression with the same parser `oml spec check` uses. Ok: `{"ok":true,"canonical":"<normalized text>"}` - keyword casing and spacing are normalized (`NOT A AND B` -> `not A and B`, `A+B` -> `A + B`), which is also how review reads expressions so whitespace changes are not edits. Invalid: `{"ok":false,"error":{...}}` with the parser's error id and position, and exit 1. It accepts the operators (`+ - * /`, comparisons, `and or not like`), literals (string, number, `#yyyy-M-d#`/`#H:m:s#` dates and times), identifiers, indexers, calls with named arguments, and record/list literals. It is a syntax check: it does not know whether a name or function exists (that needs a module).
 - The same parser powers the expression checks in `oml spec check` (below) and the optional strict write guard `OML_EXPR_STRICT=1` (refuses an apply that writes an unparsable expression to a module property).
+
+#### Migrate: oml migrate
+
+`oml migrate plan` prepares the move of a Traditional Web module to a new Reactive module. It runs in the launcher and starts `oml inspect`, `oml header`, `oml batch` (one `tree` step per copied element) and `oml describe` as child processes, so it needs Service Studio like they do. It never changes a module and refuses an `--out` folder that has files (default `migrate/<NewModule>`). A module that is not Traditional Web is refused. Every refusal that needs no module (missing file, missing `--name`, existing folder) comes before any child process.
+
+```text
+oml migrate plan Orders.oml --name OrdersApp --in C:\producers
+oml migrate status Orders.oml OrdersApp.oml
+```
+
+- `--in` (folder or `.oml`, repeatable): producer files, matched to the old module's references by module name (one `oml header` call). A reference with no file is `unresolved`; `System` is `builtin`; a reference that only uses web blocks, screens or themes is `skip-ui`.
+- Entities, static entities and roles stay in the old module and are referenced. Logic and data definitions (server and service actions, structures, exceptions, site properties, timers, processes, REST) are copied with the `copy` spec key. Screens and blocks become a worklist; session variables are `manual`.
+- The old module's entities stay read only for other modules (`exposeReadOnly` is never changed). For each entity action (CreateX, CreateOrUpdateX, UpdateX, DeleteX) that a copied element calls, found in its `oml tree`, `1-prepare-old.json` creates a public wrapper server action `<Entity>_<Create|CreateOrUpdate|Update|Delete>` with the same inputs and outputs (`Source`, `Id`); an action of that name that exists is kept. `2-new-module.json` references the wrappers and, after the `copy`, has one `repoint` edit per call (`element` the node path from `tree`, `action` `<OldModule>.<Wrapper>`). Screens are not scanned: a screen that writes needs a wrapper added by hand.
+- Files written: `plan.json`, `1-prepare-old.json` (absent when nothing is needed), `2-new-module.json`, `3-screens.md` and `screens/<Name>.txt`. The JSON result has `counts`, `wrappers`, `references`, `files`, `next` (the commands in order) and `notes` (timers and processes exist in both modules; the old module is best a service module; Service Center settings do not follow; session variables; unresolved references).
+- `oml migrate status <old.oml> <new.oml>` compares both by name: per kind (`screens`, `blocks`, `serverActions`, `serviceActions`, `structures`, `exceptions`, `siteProperties`, `timers`, `processes`, `roles`, `rest`) the names in both, `onlyOld` (still to do) and `onlyNew`; `duplicates` (timers and processes in both); `wrappers.presentInOld`; and one `progress` line. A role the new module references counts as present. Exit 0.
+
+See `oml doc traditional-to-reactive` for how to rebuild the screens.
 
 #### Spec reference, check and schema
 

@@ -59,6 +59,8 @@ export const cookbook = [
   ] },
   { group: 'Change a module', items: [
     ['oml new C:\\Work\\Sandbox.oml --name Sandbox --kind CrossDevice', 'Create a new blank Reactive module.'],
+    ['oml migrate plan C:\\Work\\Orders.oml --name OrdersApp --in C:\\Work\\Producers', 'Prepare the move of a Traditional Web module to Reactive: specs for the old and new module and a screens worklist. Changes no module.'],
+    ['oml migrate status C:\\Work\\Orders.oml C:\\Work\\OrdersApp.oml', 'Compare old and new by name: what is done, what is left, what exists twice.'],
     ['oml spec entities', 'Read the reference for one spec key.'],
     ['oml spec check C:\\Work\\change.json', 'Check a spec for typos and wrong types in milliseconds.'],
     ['oml spec schema --out C:\\Work\\spec.schema.json', 'Write a JSON Schema for autocomplete in VS Code.'],
