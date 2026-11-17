@@ -51,8 +51,10 @@ static class Export
     static readonly HashSet<string> FactSources = new(StringComparer.OrdinalIgnoreCase)
     {
         "Value", "Text", "Variable", "Source", "SourceBlock", "Visible", "Condition", "TargetWidget", "Style", "StyleClasses", "CustomStyle",
-        "Tag", "Icon", "MarginLeft", "InputType", "Prompt", "Mandatory", "Enabled", "IsDefault", "ConfirmationMessage", "Image", "Url",
+        "Tag", "Icon", "MarginLeft", "InputType", "Prompt", "Mandatory", "Enabled", "IsDefault", "ConfirmationMessage", "Image",
     };
+    // "Url" is not in the list: describe writes url only for an Image, so a Link's address must come from the generic
+    // reader, which skips a key the facts already wrote.
 
     // Node kinds the spec has but no typed reader here reads: their spec keys are read from the generic properties, by
     // name. A flag key is a boolean in the spec. `missing` is a part that cannot be read this way.
