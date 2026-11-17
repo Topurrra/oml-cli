@@ -313,6 +313,10 @@ Unit 'search-check' {
   try { & (Join-Path $tests 'search-check.ps1') -Oml $oml -Tmp $tmp -Module $reactive }
   catch { $global:fail++; Write-Host "FAIL search checks: $_" }
 }
+Unit 'migrate-check' {
+  try { & (Join-Path $tests 'migrate-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL migrate checks: $_" }
+}
 Unit 'hooks-check' {
   try { & (Join-Path $tests 'hooks-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL hooks checks: $_" }
@@ -421,7 +425,7 @@ Unit 'selftest' -Group selftest {
 # --- Smoke tier: -Smoke keeps only the quick units. The fixtures (tmp\base) are built once above, as for the full run. ---
 # Chosen for speed and breadth: text and parser checks, the spec and doc tooling, hooks, the usage log, encoding, and a few apply fixtures.
 $smokeUnits = 'improvements-check', 'corpus-check', 'map-check', 'scenarios-check', 'logic.json', 'service.json', 'web.json', 'datamodel.json', 'edits.json', 'edits-check', 'names-check', 'validate-check', 'parsers-check', 'encoding-check',
-  'hooks-check', 'spec-check', 'doc-check', 'evolve-check', 'inspect-check', 'turns-check', 'log-check', 'aliases-check'
+  'hooks-check', 'migrate-check', 'spec-check', 'doc-check', 'evolve-check', 'inspect-check', 'turns-check', 'log-check', 'aliases-check'
 if ($Smoke) {
   $unknown = @($smokeUnits | Where-Object { $n = $_; -not ($units | Where-Object { $_.Name -eq $n }) })
   if ($unknown) { throw "-Smoke names units that do not exist: $($unknown -join ', ')" }

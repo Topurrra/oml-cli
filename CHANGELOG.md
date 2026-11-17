@@ -4,8 +4,11 @@ Keep a Changelog style: one section per release, newest first.
 
 ## 1.23.0
 
+Traditional Web to Reactive, prepared by code, and an interactive menu for people.
+
 ### Added
 
+- **`oml migrate plan` and `oml migrate status`.** `plan` reads a Traditional Web module and writes, into a new folder, a plan, a spec for the old module (entities, static entities and roles made public, plus a public wrapper action for each entity action the copied logic calls), a spec for the new Reactive module (references from producer files found with `--in`, the `copy` of logic and data definitions, then `repoint` edits so the copied logic calls the wrappers) and a worklist of screens and blocks with their descriptions. It changes no module. `status` compares old and new by name and shows the progress and the timers and processes that now exist in both. `oml doc traditional-to-reactive` starts with this flow.
 - **`oml menu`: an interactive menu for people.** Tasks in groups (start, project settings, module, application, agents, docs, assets, every command) with a one-line description each; arrows or `j`/`k`, Enter, type to filter, Esc back, `q` quit. It shows the exact command line before it runs the task, with the human view of the output, and has a file picker and an editor for the project profile. A bare `oml` opens it only at a real terminal (input and output not redirected, `OML_OUTPUT` not `json`, `OML_MENU` not `0`, no agent or CI variable); everywhere else a bare `oml` prints the overview and every command behaves as before. Tasks that need a yes from a person are not in it.
 
 ## 1.22.0
