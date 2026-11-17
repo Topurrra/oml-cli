@@ -26,9 +26,9 @@ static class Describe
         return same == 1 ? "" : "  [path " + ElementPaths.Segment(n, owner) + "]";
     }
 
-    static string Name(object? o) => o is null ? "?" : Model.NameOf(o) ?? Reflect.Get(o, "DisplayName") as string ?? ElementPaths.Kind(o);
-    static string Expr(object o, string key) => Text(Reflect.Get(o, key));
-    static string Text(object? o) => o is IExpression e ? e.Text : o as string ?? "";
+    internal static string Name(object? o) => o is null ? "?" : Model.NameOf(o) ?? Reflect.Get(o, "DisplayName") as string ?? ElementPaths.Kind(o);
+    internal static string Expr(object o, string key) => Text(Reflect.Get(o, key));
+    internal static string Text(object? o) => o is IExpression e ? e.Text : o as string ?? "";
     internal static string Kind(object o)
     {
         if (FieldMappings.Is(o)) return FieldMappings.Kind;
@@ -39,7 +39,7 @@ static class Describe
         if (o is IObjectSignature s) return s.GetInterface().Name[1..].Replace("Signature", "");
         return ElementPaths.Kind(o);
     }
-    static string Qualified(IESpace m, object o)
+    internal static string Qualified(IESpace m, object o)
     {
         var hit = Refs.All(m).FirstOrDefault(x => ReferenceEquals(x.element, o));
         var name = Name(o);
@@ -50,6 +50,100 @@ static class Describe
     }
     static bool EntityAction(object o) => o.GetType().GetInterfaces().Any(i => i.Name.Contains("EntityAction"))
         || o.GetType().Name.Contains("EntityAction");
+
+    // Readers that describe and export share: describe prints these facts as text, export as JSON.
+    // A parameter's or variable's type as a spec writes it ("Customer Identifier", "List of Order").
+    internal static string TypeOf(IESpace m, object p) => Unreadable.Try(() => "type of " + Unreadable.Where(p), () => Model.Describe(m, Reflect.Get(p, "DataType") as ITypeSignature), "?");
+    // The handler of a lifecycle or widget event (OnInitialize, OnAfterFetch, ...), or null.
+    internal static object? Handler(object o, string key) => Reflect.Get(o, key) is { } evt ? Reflect.Get(evt, "Destination") : null;
+    // The arguments that have a value, by parameter name.
+    internal static IEnumerable<object> ArgItems(object o) => List(o, "Arguments").Where(a => Expr(a, "Value").Length > 0).OrderBy(ArgName, StringComparer.Ordinal);
+    internal static string ArgName(object argument) => Name(Reflect.Get(argument, "Parameter"));
+    internal static string Args(object o) => string.Join(", ", ArgItems(o).Select(a => ArgName(a) + " = " + OneLine(Expr(a, "Value")) + FieldMappings.Suffix(a)));
+    // An expression typed over several lines in Service Studio stays on its describe line. A very long one (a big text
+    // literal) is cut, so one widget cannot fill the output: oml tree shows the whole expression.
+    static string OneLine(string text)
+    {
+        if (text.Contains('\n')) text = System.Text.RegularExpressions.Regex.Replace(text, @"\s*[\r\n]+\s*", " ").Trim();
+        const int max = 500;
+        return text.Length <= max ? text : text[..max] + " ... (" + (text.Length - max) + " more characters: oml tree)";
+    }
+    // The node a connector of this kind (Sequence, True, False, Cycle, Otherwise) leads to, or null.
+    internal static object? Target(object node, string kind)
+    {
+        if (node is not IObjectSignature obj) return null;
+        return Unreadable.Try(() => $"{kind} connector of {Unreadable.Where(node)}", () =>
+            ElementPaths.Children(obj).FirstOrDefault(c => ElementPaths.Kind(c).Equals(kind, StringComparison.OrdinalIgnoreCase)) is { } connector
+                ? Reflect.Get(connector, "TargetNode") : null, null);
+    }
+    // The node a switch case leads to: the target of its Link connector.
+    internal static object? CaseTarget(object condition) => Reflect.Get(Reflect.Get(condition, "Link") ?? condition, "TargetNode");
+    internal static string CommentText(object comment)
+    {
+        foreach (var key in new[] { "Text", "Comment", "Label", "Description" })
+            if (Text(Reflect.Get(comment, key)) is { Length: > 0 } t) return t;
+        return "";
+    }
+    // The query part of a flow or screen aggregate (sources, joins, filters, ...).
+    internal static object QueryBody(object node) => Reflect.Get(node, "AsDatabaseAggregate") ?? node;
+    // A join's type in the words of Service Studio and the spec: only with (Inner), with or without (Left), with.
+    internal static string JoinWords(object join) => Reflect.Get(join, "JoinType")?.ToString() switch { "Inner" => "only with", "Left" => "with or without", _ => "with" };
+    internal static bool Descending(object sort) => Reflect.Get(sort, "SortDirection")?.ToString() == "Descending";
+
+    // One fact of a widget line: describe prints Text; export reads Group, Key and Value. Group is "prop", "attr"
+    // (an HTML attribute), "args" (the widget's own arguments) or "event" (a block instance's event handler).
+    // Source is the event object of onClick, onChange and an event handler, for their arguments.
+    internal sealed record WidgetFact(string Group, string Key, string Value, string Text, object? Source = null);
+
+    // The facts describe prints for one widget, in its order.
+    internal static List<WidgetFact> WidgetFacts(object o)
+    {
+        var facts = new List<WidgetFact>();
+        void Add(string key, string value, string text, string group = "prop", object? source = null) => facts.Add(new(group, key, value, text, source));
+        foreach (var key in new[] { "Value", "Text", "Variable", "Source", "SourceBlock", "Visible", "Condition" })
+            if (Reflect.Get(o, key) is { } v && (Text(v).Length > 0 || v is IObjectSignature))
+            {
+                if (key == "Text" && Expr(o, "Value") == Text(v) || key == "Visible" && Text(v).Equals("True", StringComparison.OrdinalIgnoreCase)) continue;
+                var label = char.ToLowerInvariant(key[0]) + key[1..];
+                var value = Text(v).Length > 0 ? Text(v) : Name(v);
+                Add(label, value, label + "=" + value);
+            }
+        if (Reflect.Get(o, "TargetWidget") is IObjectSignature target) { var targetName = Name(target); Add("targetWidget", targetName, "targetWidget=" + targetName); }
+        // How it looks and behaves: classes, inline style, HTML tag and attributes, input options.
+        if (Reflect.Get(o, "Style") is IExpression styleClasses && styleClasses.Text is { Length: > 0 } classes && classes != "\"\"") Add("style", classes, "style=" + classes);
+        else if (Text(Reflect.Get(o, "StyleClasses")) is { Length: > 0 } classNames && classNames != "\"\"") Add("style", classNames, "style=" + classNames);
+        if (Reflect.Get(o, "CustomStyle") is string inline && inline.Trim().Length > 0) Add("inlineStyle", inline.Trim(), "inlineStyle=\"" + inline.Trim() + "\"");
+        if (Reflect.Get(o, "Tag") is string tag && tag.Length > 0) Add("tag", tag, "tag=" + tag);
+        if (Reflect.Get(o, "Icon") is string icon && icon.Length > 0) Add("icon", icon, "icon=" + icon);
+        if (Reflect.Get(o, "MarginLeft") is { } marginLeft && marginLeft.ToString() is { Length: > 0 } ml) Add("marginLeft", ml, "marginLeft=" + ml);
+        if (Reflect.Property(o, "InputType") is not null && Reflect.Get(o, "InputType")?.ToString() is { } inputType && inputType != "Text") Add("inputType", inputType, "type=" + inputType);
+        if (Expr(o, "Prompt") is { Length: > 0 } prompt) Add("prompt", prompt, "prompt=" + prompt);
+        if (Expr(o, "Mandatory") is { Length: > 0 } mandatory && !mandatory.Equals("False", StringComparison.OrdinalIgnoreCase)) Add("mandatory", mandatory, "mandatory=" + mandatory);
+        if (Expr(o, "Enabled") is { Length: > 0 } enabled && !enabled.Equals("True", StringComparison.OrdinalIgnoreCase)) Add("enabled", enabled, "enabled=" + enabled);
+        if (Reflect.Get(o, "IsDefault") is true) Add("isDefault", "True", "[default button]");
+        if (Expr(o, "ConfirmationMessage") is { Length: > 0 } confirm) Add("confirm", confirm, "confirm=" + confirm);
+        if (ElementPaths.Kind(o) == "Image")
+        {
+            if (Reflect.Get(o, "Image") is IObjectSignature image) { var imageName = Name(image); Add("image", imageName, "image=" + imageName); }
+            else if (Expr(o, "Url") is { Length: > 0 } url) Add("url", url, "url=" + url);
+        }
+        foreach (var attribute in List(o, "ExtendedProperties"))
+            if (Reflect.Get(attribute, "Property") is string attributeName && attributeName.Length > 0)
+            { var value = Expr(attribute, "Value"); Add(attributeName, value, "attr " + attributeName + "=" + value, "attr"); }
+        var arguments = Args(o);
+        if (arguments.Length > 0) Add("args", arguments, "args=(" + arguments + ")", "args");
+        var click = Reflect.Get(o, "OnClick");
+        if (click is not null && Reflect.Get(click, "Destination") is { } destination)
+        { var handler = Name(destination); Add("onClick", handler, "onClick=" + handler + (Args(click) is { Length: > 0 } args ? "(" + args + ")" : ""), source: click); }
+        if (Reflect.Get(o, "OnChange") is { } change && Reflect.Get(change, "Destination") is { } changeHandler)
+        { var handler = Name(changeHandler); Add("onChange", handler, "onChange=" + handler + (Args(change) is { Length: > 0 } changeArgs ? "(" + changeArgs + ")" : ""), source: change); }
+        foreach (var evt in List(o, "Events"))
+            if (Reflect.Get(evt, "Handler") is { } handler) { var eventName = Name(evt); var handlerName = Name(handler); Add(eventName, handlerName, eventName + "=" + handlerName); }
+        foreach (var h in List(o, "EventHandlers"))
+            if (Reflect.Get(h, "Handler") is { } handler)
+            { var eventName = Name(Reflect.Get(h, "Event")); var handlerName = Name(handler); Add(eventName, handlerName, "event " + eventName + "=" + handlerName + "(" + Args(h) + ")", "event", h); }
+        return facts;
+    }
 
     internal sealed record DescribeError(string element, string error);
 
@@ -155,7 +249,7 @@ static class Describe
             Buffer.Length = length;
             if (indent >= 0) Line(indent, part + " [unreadable]");
         }
-        string TypeOf(object p) => Unreadable.Try(() => "type of " + Unreadable.Where(p), () => Model.Describe(m, Reflect.Get(p, "DataType") as ITypeSignature), "?");
+        string TypeOf(object p) => Describe.TypeOf(m, p);
         // Parameters in model order: it is the saved order, and a function action is called by position.
         object[] Parameters(object o, string key) => List(o, key).Select(p => (object)new { name = Name(p), type = TypeOf(p) }).ToArray();
         // An input's default value follows its type, as Service Studio shows it: Size: Text = "md".
@@ -167,16 +261,7 @@ static class Describe
             + (Reflect.Get(o, "Public") is true ? " [public]" : "")
             + (Reflect.Get(o, "Fetch") is { } fetch ? (fetch.ToString() == "OnDemand" ? " [on demand]" : "")
                 + (Reflect.Get(o, "ServerRequestTimeout") is int timeout ? " timeout " + timeout + " s" : "") + AfterFetch(o) : ""); // data actions
-        string AfterFetch(object o) => Reflect.Get(o, "OnAfterFetch") is { } evt && Reflect.Get(evt, "Destination") is { } handler ? " on after fetch -> " + Name(handler) : "";
-        string Args(object o) => string.Join(", ", List(o, "Arguments").Where(a => Expr(a, "Value").Length > 0).OrderBy(a => Name(Reflect.Get(a, "Parameter")), StringComparer.Ordinal).Select(a => Name(Reflect.Get(a, "Parameter")) + " = " + OneLine(Expr(a, "Value")) + FieldMappings.Suffix(a)));
-        // An expression typed over several lines in Service Studio stays on its describe line. A very long one (a big text
-        // literal) is cut, so one widget cannot fill the output: oml tree shows the whole expression.
-        static string OneLine(string text)
-        {
-            if (text.Contains('\n')) text = System.Text.RegularExpressions.Regex.Replace(text, @"\s*[\r\n]+\s*", " ").Trim();
-            const int max = 500;
-            return text.Length <= max ? text : text[..max] + " ... (" + (text.Length - max) + " more characters: oml tree)";
-        }
+        static string AfterFetch(object o) => Handler(o, "OnAfterFetch") is { } handler ? " on after fetch -> " + Name(handler) : "";
 
         public void Element(object root, int indent)
         {
@@ -199,7 +284,7 @@ static class Describe
                 foreach (var evt in List(root, "Events").OrderBy(Name, StringComparer.Ordinal))
                     Part("event " + Name(evt), () => Line(indent + 1, "event " + Name(evt) + "(" + ParametersText(evt, "InputParameters") + ")" + (Reflect.Get(evt, "IsMandatory") is true ? " [mandatory]" : "")), indent + 1, evt);
                 foreach (var key in new[] { "OnInitialize", "OnReady", "OnRender", "OnDestroy", "OnAfterFetch", "OnParametersChanged" })
-                    if (Reflect.Get(root, key) is { } evt && Reflect.Get(evt, "Destination") is { } handler) Line(indent + 1, key + " -> " + Name(handler));
+                    if (Handler(root, key) is { } handler) Line(indent + 1, key + " -> " + Name(handler));
                 foreach (var aggregate in List(root, "ScreenAggregates").OrderBy(Name, StringComparer.Ordinal))
                     Part("query " + Name(aggregate), () => Line(indent + 1, Query(aggregate)), indent + 1, aggregate);
                 foreach (var action in List(root, "DataActions").OrderBy(Name, StringComparer.Ordinal))
@@ -259,14 +344,6 @@ static class Describe
                 Line(indent, "index " + OmlCli.EntityOptions.IndexName(index) + "(" + string.Join(", ", OmlCli.EntityOptions.Columns(index)) + ")" + (Reflect.Get(index, "Unique") is true ? " [unique]" : ""));
         }
 
-        static object? Target(object node, string kind)
-        {
-            if (node is not IObjectSignature obj) return null;
-            return Unreadable.Try(() => $"{kind} connector of {Unreadable.Where(node)}", () =>
-                ElementPaths.Children(obj).FirstOrDefault(c => ElementPaths.Kind(c).Equals(kind, StringComparison.OrdinalIgnoreCase)) is { } connector
-                    ? Reflect.Get(connector, "TargetNode") : null, null);
-        }
-
         void Flow(object? node, int indent, HashSet<object> visited)
         {
             while (node is not null)
@@ -295,7 +372,7 @@ static class Describe
             {
                 Line(indent, "switch:");
                 foreach (var c in List(node, "Conditions"))
-                { Line(indent + 1, "case " + Expr(c, "Value") + ":"); Flow(Reflect.Get(Reflect.Get(c, "Link") ?? c, "TargetNode"), indent + 2, visited); }
+                { Line(indent + 1, "case " + Expr(c, "Value") + ":"); Flow(CaseTarget(c), indent + 2, visited); }
                 Line(indent + 1, "otherwise:"); Flow(Target(node, "Otherwise"), indent + 2, visited); return true;
             }
             if (kind == "ForEachNode")
@@ -346,21 +423,14 @@ static class Describe
             if (lines.Count > max) Line(indent, "... " + (lines.Count - max) + " more lines not shown");
         }
 
-        static string CommentText(object comment)
-        {
-            foreach (var key in new[] { "Text", "Comment", "Label", "Description" })
-                if (Text(Reflect.Get(comment, key)) is { Length: > 0 } t) return t;
-            return "";
-        }
-
         string Query(object node)
         {
-            var db = Reflect.Get(node, "AsDatabaseAggregate") ?? node;
+            var db = QueryBody(node);
             var sources = List(db, "Sources").OrderBy(Name, StringComparer.Ordinal).ToArray();
             foreach (var s in sources) if (Reflect.Get(s, "Source") is { } source) Entities.Add(Qualified(m, source));
             var joins = List(db, "Joins").ToArray();
             var text = "query " + Name(node) + ": " + string.Join(", ", sources.Where(s => !joins.Any(j => ReferenceEquals(Reflect.Get(j, "RightSource"), s))).Select(Name));
-            foreach (var j in joins) text += " " + (Reflect.Get(j, "JoinType")?.ToString() switch { "Inner" => "only with", "Left" => "with or without", _ => "with" }) + " " + Name(Reflect.Get(j, "RightSource")) + " on " + Expr(j, "Condition");
+            foreach (var j in joins) text += " " + JoinWords(j) + " " + Name(Reflect.Get(j, "RightSource")) + " on " + Expr(j, "Condition");
             void Add(string key, string label, Func<object, string> render) { var values = List(db, key).Select(render).ToArray(); if (key.Contains("Attributes")) Array.Sort(values, StringComparer.Ordinal); if (values.Length > 0) text += " " + label + " " + string.Join(", ", values); }
             Add("Filters", "where", f => Expr(f, "Condition"));
             // A computed group shows its output name: group by Year = Year(Order.PlacedOn).
@@ -369,7 +439,7 @@ static class Describe
             Add("CalculatedAttributes", "calculate", a => Name(a) + " = " + Expr(a, "Value"));
             Add("FiltersInGroupBy", "having", f => Expr(f, "Condition"));
             Add("CalculatedAttributesInGroupBy", "calculate grouped", a => Name(a) + " = " + Expr(a, "Value"));
-            string Sort(object a) => Expr(a, "Attribute") + (Reflect.Get(a, "SortDirection")?.ToString() == "Descending" ? " desc" : "") + (Reflect.Get(a, "IsDynamic") is true ? " [dynamic]" : "");
+            string Sort(object a) => Expr(a, "Attribute") + (Descending(a) ? " desc" : "") + (Reflect.Get(a, "IsDynamic") is true ? " [dynamic]" : "");
             Add("Sorts", "order by", Sort);
             Add("SortsInGroupBy", "order groups by", Sort);
             if (Expr(node, "MaxRecords") is { Length: > 0 } max) text += " max " + max;
@@ -398,43 +468,7 @@ static class Describe
             }
             string WidgetLine(object o)
             {
-                var properties = new List<string>();
-                foreach (var key in new[] { "Value", "Text", "Variable", "Source", "SourceBlock", "Visible", "Condition" })
-                    if (Reflect.Get(o, key) is { } v && (Text(v).Length > 0 || v is IObjectSignature))
-                    {
-                        if (key == "Text" && Expr(o, "Value") == Text(v) || key == "Visible" && Text(v).Equals("True", StringComparison.OrdinalIgnoreCase)) continue;
-                        properties.Add(char.ToLowerInvariant(key[0]) + key[1..] + "=" + (Text(v).Length > 0 ? Text(v) : Name(v)));
-                    }
-                if (Reflect.Get(o, "TargetWidget") is IObjectSignature target) properties.Add("targetWidget=" + Name(target));
-                // How it looks and behaves: classes, inline style, HTML tag and attributes, input options.
-                if (Reflect.Get(o, "Style") is IExpression styleClasses && styleClasses.Text is { Length: > 0 } classes && classes != "\"\"") properties.Add("style=" + classes);
-                else if (Text(Reflect.Get(o, "StyleClasses")) is { Length: > 0 } classNames && classNames != "\"\"") properties.Add("style=" + classNames);
-                if (Reflect.Get(o, "CustomStyle") is string inline && inline.Trim().Length > 0) properties.Add("inlineStyle=\"" + inline.Trim() + "\"");
-                if (Reflect.Get(o, "Tag") is string tag && tag.Length > 0) properties.Add("tag=" + tag);
-                if (Reflect.Get(o, "Icon") is string icon && icon.Length > 0) properties.Add("icon=" + icon);
-                if (Reflect.Get(o, "MarginLeft") is { } marginLeft && marginLeft.ToString() is { Length: > 0 } ml) properties.Add("marginLeft=" + ml);
-                if (Reflect.Property(o, "InputType") is not null && Reflect.Get(o, "InputType")?.ToString() is { } inputType && inputType != "Text") properties.Add("type=" + inputType);
-                if (Expr(o, "Prompt") is { Length: > 0 } prompt) properties.Add("prompt=" + prompt);
-                if (Expr(o, "Mandatory") is { Length: > 0 } mandatory && !mandatory.Equals("False", StringComparison.OrdinalIgnoreCase)) properties.Add("mandatory=" + mandatory);
-                if (Expr(o, "Enabled") is { Length: > 0 } enabled && !enabled.Equals("True", StringComparison.OrdinalIgnoreCase)) properties.Add("enabled=" + enabled);
-                if (Reflect.Get(o, "IsDefault") is true) properties.Add("[default button]");
-                if (Expr(o, "ConfirmationMessage") is { Length: > 0 } confirm) properties.Add("confirm=" + confirm);
-                if (ElementPaths.Kind(o) == "Image")
-                {
-                    if (Reflect.Get(o, "Image") is IObjectSignature image) properties.Add("image=" + Name(image));
-                    else if (Expr(o, "Url") is { Length: > 0 } url) properties.Add("url=" + url);
-                }
-                foreach (var attribute in List(o, "ExtendedProperties"))
-                    if (Reflect.Get(attribute, "Property") is string attributeName && attributeName.Length > 0) properties.Add("attr " + attributeName + "=" + Expr(attribute, "Value"));
-                var arguments = Args(o);
-                if (arguments.Length > 0) properties.Add("args=(" + arguments + ")");
-                var click = Reflect.Get(o, "OnClick");
-                if (click is not null && Reflect.Get(click, "Destination") is { } destination) properties.Add("onClick=" + Name(destination) + (Args(click) is { Length: > 0 } args ? "(" + args + ")" : ""));
-                if (Reflect.Get(o, "OnChange") is { } change && Reflect.Get(change, "Destination") is { } changeHandler) properties.Add("onChange=" + Name(changeHandler) + (Args(change) is { Length: > 0 } changeArgs ? "(" + changeArgs + ")" : ""));
-                foreach (var evt in List(o, "Events"))
-                    if (Reflect.Get(evt, "Handler") is { } handler) properties.Add(Name(evt) + "=" + Name(handler));
-                foreach (var h in List(o, "EventHandlers"))
-                    if (Reflect.Get(h, "Handler") is { } handler) properties.Add("event " + Name(Reflect.Get(h, "Event")) + "=" + Name(handler) + "(" + Args(h) + ")");
+                var properties = WidgetFacts(o).Select(f => f.Text).ToList();
                 return ElementPaths.Kind(o) + (Model.NameOf(o) is { Length: > 0 } name ? " " + name : "") + (properties.Count > 0 ? " " + string.Join(" ", properties) : "");
             }
             foreach (var w in List(root, "Widgets")) Walk(w, 0);

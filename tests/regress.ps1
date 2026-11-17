@@ -226,6 +226,10 @@ Unit 'describe-check' {
   try { & (Join-Path $tests "describe-check.ps1") -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL describe checks: $_" }
 }
+Unit 'export-check' {
+  try { & (Join-Path $tests "export-check.ps1") -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL export checks: $_" }
+}
 Unit 'paths-check' {
   try { & (Join-Path $tests "paths-check.ps1") -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL element paths: $_" }

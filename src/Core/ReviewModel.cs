@@ -137,6 +137,18 @@ static class ReviewModel
         return string.Concat(roots.Select(r => Walk(r, 0)));
     }
 
+    // Every readable property of one element as text, read generically (no member names), as review compares them; also
+    // its arguments, attributes, assignments and event handlers under keys with a space. Export reads with it what its
+    // typed readers do not cover. Parts whose getters throw are added to `unreadable` and left out.
+    internal static SortedDictionary<string, string> Properties(IESpace m, IObjectSignature o, List<Unreadable.Item> unreadable)
+    {
+        var snap = new Snapshot { Module = "", Key = "" };
+        var item = new Item { Key = "", Kind = Kind(o), Name = Model.NameOf(o), Unit = "" };
+        Fill(m, o, item, snap);
+        unreadable.AddRange(snap.Unreadable);
+        return item.Props;
+    }
+
     // A reference lists the elements this module uses from another module, by name: their insides belong to the producer.
     // Screens and blocks sit inside the reference's UI flows (and folders), so those are walked through, not listed.
     static void References(IObjectSignature reference, string key, Snapshot snap)

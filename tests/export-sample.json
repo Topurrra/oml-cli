@@ -1,0 +1,200 @@
+{
+  "kind": "Screen",
+  "name": "WebItems",
+  "flow": "MainFlow",
+  "path": "MainFlow/WebItems",
+  "moduleKind": "Traditional",
+  "title": "\"Web items\"",
+  "locals": [
+    { "name": "ItemName", "type": "Text", "default": "" },
+    { "name": "Item", "type": "WebItem", "default": "" }
+  ],
+  "access": { "anonymous": false, "registered": true },
+  "styleSheet": "",
+  "javaScript": "",
+  "preparation": {
+    "nodes": [
+      {
+        "kind": "aggregate",
+        "name": "FetchItems",
+        "sources": ["WebItem"],
+        "maxRecords": "10",
+        "next": "End",
+        "_path": "MainFlow/WebItems/WebPreparation[0]/FetchItems"
+      }
+    ],
+    "complete": true
+  },
+  "actions": [
+    {
+      "name": "Save",
+      "flow": {
+        "nodes": [
+          {
+            "kind": "assign",
+            "name": "SetName",
+            "assign": { "Item.Name": "ItemName" },
+            "next": "CreateOrUpdateWebItem",
+            "_path": "MainFlow/WebItems/Save/SetName"
+          },
+          {
+            "kind": "execute",
+            "name": "CreateOrUpdateWebItem",
+            "action": "CreateOrUpdateWebItem",
+            "args": { "Source": "Item" },
+            "next": "End",
+            "_path": "MainFlow/WebItems/Save/CreateOrUpdateWebItem",
+            "_ref": "CreateOrUpdateWebItem"
+          }
+        ],
+        "complete": true
+      },
+      "_path": "MainFlow/WebItems/Save"
+    }
+  ],
+  "widgets": [
+    {
+      "kind": "WebContainer",
+      "type": "Container",
+      "name": "Editor",
+      "path": "MainFlow/WebItems/Editor",
+      "props": { "style": "editor" },
+      "children": [
+        {
+          "kind": "WebInput",
+          "type": "Input",
+          "name": "NameInput",
+          "path": "MainFlow/WebItems/Editor/NameInput",
+          "props": { "variable": "ItemName" }
+        },
+        {
+          "kind": "WebButton",
+          "type": "Button",
+          "name": "SaveButton",
+          "path": "MainFlow/WebItems/Editor/SaveButton",
+          "props": { "onClick": "Save", "label": "\"Save\"" }
+        }
+      ]
+    },
+    {
+      "kind": "WebBlockInstance",
+      "type": "BlockInstance",
+      "name": "Summary",
+      "path": "MainFlow/WebItems/Summary",
+      "props": { "sourceBlock": "WebCard" },
+      "args": { "Caption": "\"Summary\"" },
+      "sourceBlock": "WebCard"
+    },
+    {
+      "kind": "WebIf",
+      "type": "If",
+      "path": "MainFlow/WebItems/WebIf[0]",
+      "props": { "condition": "not FetchItems.List.Empty" },
+      "true": [
+        {
+          "kind": "WebTableRecords",
+          "type": "TableRecords",
+          "name": "ItemsTable",
+          "path": "MainFlow/WebItems/WebIf[0]/WebIfBranch[0]/ItemsTable",
+          "props": { "sourceRecordList": "FetchItems.List" },
+          "header": [
+            {
+              "kind": "WebCell",
+              "type": "Cell",
+              "path": "MainFlow/WebItems/WebIf[0]/WebIfBranch[0]/ItemsTable/WebTableRow[0]/WebCell[0]",
+              "children": [
+                {
+                  "kind": "WebText",
+                  "type": "Text",
+                  "path": "MainFlow/WebItems/WebIf[0]/WebIfBranch[0]/ItemsTable/WebTableRow[0]/WebCell[0]/WebText[0]",
+                  "props": { "text": "Name" }
+                }
+              ]
+            }
+          ],
+          "row": [
+            {
+              "kind": "WebCell",
+              "type": "Cell",
+              "path": "MainFlow/WebItems/WebIf[0]/WebIfBranch[0]/ItemsTable/WebTableRow[1]/WebCell[0]",
+              "children": [
+                {
+                  "kind": "WebLink",
+                  "type": "Link",
+                  "name": "OpenDetail",
+                  "path": "MainFlow/WebItems/WebIf[0]/WebIfBranch[0]/ItemsTable/WebTableRow[1]/WebCell[0]/OpenDetail",
+                  "props": { "onClick": "WebDetail", "destination": "WebDetail" },
+                  "args": { "ItemId": "FetchItems.List.Current.WebItem.Id" },
+                  "children": [
+                    {
+                      "kind": "WebExpression",
+                      "type": "Expression",
+                      "path": "MainFlow/WebItems/WebIf[0]/WebIfBranch[0]/ItemsTable/WebTableRow[1]/WebCell[0]/OpenDetail/WebExpression[0]",
+                      "props": { "value": "FetchItems.List.Current.WebItem.Name" }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "false": [
+        {
+          "kind": "WebText",
+          "type": "Text",
+          "path": "MainFlow/WebItems/WebIf[0]/WebIfBranch[1]/WebText[0]",
+          "props": { "text": "No items" }
+        }
+      ]
+    },
+    {
+      "kind": "WebListRecords",
+      "type": "ListRecords",
+      "name": "ItemsList",
+      "path": "MainFlow/WebItems/ItemsList",
+      "props": { "sourceRecordList": "FetchItems.List" },
+      "children": [
+        {
+          "kind": "WebExpression",
+          "type": "Expression",
+          "path": "MainFlow/WebItems/ItemsList/WebExpression[0]",
+          "props": { "value": "FetchItems.List.Current.WebItem.Name" }
+        }
+      ]
+    },
+    {
+      "kind": "WebEditRecord",
+      "type": "EditRecord",
+      "name": "ItemForm",
+      "path": "MainFlow/WebItems/ItemForm",
+      "props": { "sourceRecord": "Item" },
+      "children": [
+        {
+          "kind": "WebRow",
+          "type": "Row",
+          "path": "MainFlow/WebItems/ItemForm/WebRow[0]",
+          "children": [
+            {
+              "kind": "WebCell",
+              "type": "Cell",
+              "path": "MainFlow/WebItems/ItemForm/WebRow[0]/WebCell[0]",
+              "children": [
+                {
+                  "kind": "WebText",
+                  "type": "Text",
+                  "path": "MainFlow/WebItems/ItemForm/WebRow[0]/WebCell[0]/WebText[0]",
+                  "props": { "text": "Edit item" }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "MainFlow/WebItems/Editor/SaveButton: the method of its On Click (Submit, Ajax Submit or Navigate) could not be read",
+    "MainFlow/WebItems/WebIf[0]/WebIfBranch[0]/ItemsTable/WebTableRow[1]/WebCell[0]/OpenDetail: the method of its On Click (Submit, Ajax Submit or Navigate) could not be read"
+  ]
+}
