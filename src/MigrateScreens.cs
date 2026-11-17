@@ -1,3 +1,29 @@
+// KEYS OF `oml export` READ HERE. Source of truth: src/Core/Export.cs (E, line numbers) and Describe.WidgetFacts (D). Check both sides against this table.
+// The compact JSON drops null, empty arrays and {} (JsonOutput.Prune): EVERY key may be absent, absent = null/empty. Values are TEXT (expressions as typed:
+// "\"x\"", True), a JSON boolean only where marked (bool).
+// element  kind Screen|Block|Email, name, flow, path, moduleKind Traditional|Mobile|Reactive, title (expr), subject (Email, expr), styleSheet, javaScript (expr),
+//          inputs/locals [{name,type,default,mandatory (bool, inputs),description}], access {anonymous,registered (bool),roles[]} (not Email), preparation (a flow),
+//          actions [{name,inputs,locals,outputs,flow,_path}], widgets [widget], notes [text] (E 128-164). Reactive-only keys (aggregates, dataActions, onX, events) are not read.
+// flow     {nodes[], complete (bool, written whenever there is a flow; = unsupported empty), unsupported [{path,kind,why}]}. Main path from Start first, comments, then
+//          handlers; End nodes are not listed, a connector to one says "End"; unnamed nodes and all comments get made-up names (AssignNode -> Assign1) (E 234-298).
+// node     kind = a spec kind (assign if switch forEach execute aggregate sql raiseException destination triggerEvent sendEmail refreshData javaScript message comment
+//          exceptionHandler jsonSerialize jsonDeserialize ...) or, for a kind the spec lacks, the real one (AjaxRefreshNode) with _props {Property: text} and an
+//          "unsupported" entry; name; next|true|false|cycle|otherwise = node name or "End"; condition; cases [{condition,next}]; assign {variable: expr}; recordList;
+//          action + _ref (name, or Module.Name); args {parameter: expr}; screen; exception; message (expr); type (message: info|success|warning|error); text (comment);
+//          javaScript/inputs/outputs; _async (bool, javaScript); _path. `_reads` does not exist. A Destination or Raise Exception node has no next (E 311-452).
+// aggregate (preparation node): sources[] joins[{type,left,right,condition}] filters[] sorts[{attribute,descending,dynamic}] groupBy[{attribute,as}]
+//          aggregates[{name,function,attribute}] calculated[{name,expression}] groupFilters groupSorts groupCalculated maxRecords startIndex (text) timeout (int) (E 486-550).
+// widget   kind = CLR type name (WebContainer; a Reactive descriptor name), type = spec type (Container Input BlockInstance TableRecords Cell Row If ...: the interface name
+//          without Web/Mobile and Widget, E 657-666), name (real names only), path, props {key: text}, attrs {html attribute: expr}, args {parameter: expr}, events
+//          {event: handler | {action,args}} (block instance), sourceBlock, children[], true[] false[] (If), header[] row[] (table), placeholders {slot: [widget]} (empty
+//          slots are absent) (E 590-653). The translator decides from `type`, then `kind` without Web/Mobile/Widget.
+// props    facts (D 99-145): value text variable source sourceBlock visible (not "True") condition targetWidget style inlineStyle tag icon marginLeft inputType (not Text)
+//          prompt mandatory (not "False") enabled (not "True") isDefault confirm image url (Image only) onClick onChange (handler names) and one key per Events entry;
+//          then destination (screen an On Click goes to, E 619), method (a property of the click event with "Method" in its name, E 623: often absent), then every other
+//          readable property named with letters only, first letter lowered (E 621). Those generic names (label, sourceRecordList, sourceRecord, ...) are not checkable here.
+// NOT in the export: session variable defaults (nor in inspect), the widgets an Ajax Refresh refreshes, the click method when no property says it, a Link's own
+// Url (Export.cs 53 lists Url in FactSources, so only an Image's url is written), a node's reads (`_reads`), End nodes, a block's Reactive events.
+
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -5,7 +31,7 @@ using System.Text.RegularExpressions;
 namespace OmlCli;
 
 // The screen translator of `oml migrate`: a PURE function from the structured export of one Traditional Web screen, web block or
-// email (`oml export`, contract in the migrate design notes) to the spec entry of the same thing in a Reactive Web module, plus an
+// email (`oml export`, the keys are in the table above) to the spec entry of the same thing in a Reactive Web module, plus an
 // honest list of what is left to do. Nothing here reads a file, starts a process or touches a model. The rules are the owner's: build
 // what can be built without guessing, build a stub where a part cannot be translated, and say so in one plain Todo sentence that
 // names the element and the widget or action. A spec key is only emitted when skill/reference/spec.md has it.
@@ -38,6 +64,9 @@ static class ScreenTranslator
             return new Result(null, kind, "worklist", [$"{kind} {Run.S(element["name"]) ?? "?"}: the export could not be read ({e.Message}); rebuild it by hand from oml describe."], [], []);
         }
     }
+
+    // For the plan: is this exported widget a Placeholder (of a layout block)? Decided like every widget, by `type` then `kind`.
+    internal static bool IsPlaceholder(JsonObject widget) => Run.WType(widget) == "placeholder";
 
     // ---------- one translation ----------
 
@@ -75,6 +104,20 @@ static class ScreenTranslator
         static string Leaf(string s) => s[(s.LastIndexOfAny(['.', '/']) + 1)..];
         static string Quote(string text) => "\"" + text.Replace("\"", "\"\"") + "\"";
         static IEnumerable<JsonObject> Objs(JsonNode? n) => n is JsonArray a ? a.OfType<JsonObject>() : [];
+        // A flag as the export writes it: a JSON boolean (mandatory, complete, _async) or the text True/False of an expression.
+        static bool? Flag(JsonNode? n) => n is JsonValue v ? v.TryGetValue<bool>(out var b) ? b : S(v) is { } t && bool.TryParse(t.Trim(), out var tb) ? tb : null : null;
+        // The widget kind that decides its translation: `type` (the spec's name, Export.WidgetType), else `kind` without the Web or Mobile
+        // prefix and the Widget suffix (the CLR or interface name), compared without case, spaces and punctuation.
+        internal static string WType(JsonObject w)
+        {
+            var t = Norm(S(w["type"]) is { Length: > 0 } ty ? ty : S(w["kind"]));
+            foreach (var prefix in new[] { "web", "mobile" }) if (t.StartsWith(prefix, StringComparison.Ordinal) && t.Length > prefix.Length) { t = t[prefix.Length..]; break; }
+            return t.EndsWith("widget", StringComparison.Ordinal) && t.Length > 6 ? t[..^6] : t;
+        }
+        // A node kind without the Node suffix: a spec kind (assign, forEach) or the real kind of an unsupported node (AjaxRefreshNode).
+        static string NodeKind(JsonObject n) { var k = Norm(S(n["kind"])); return k.EndsWith("node", StringComparison.Ordinal) && k.Length > 4 ? k[..^4] : k; }
+        // Export writes `complete` whenever there is a flow, and means "nothing unsupported"; read it that way when it is missing.
+        static bool Complete(JsonObject flow) => Flag(flow["complete"]) ?? !Objs(flow["unsupported"]).Any();
 
         void Todo(string text)
         {
@@ -199,14 +242,15 @@ static class ScreenTranslator
             if (moduleKind is not null && !moduleKind.Equals("Traditional", StringComparison.OrdinalIgnoreCase))
                 return Worklist(kind, $"{kind} {name}: it comes from a {moduleKind} module, and oml migrate translates only Traditional Web screens, blocks and emails.");
             if (kind.Equals("Email", StringComparison.OrdinalIgnoreCase))
-                return new Result(null, "Email", "worklist", [$"Email {name}: build the Reactive email with the spec's emails key (subject, inputs, widgets and styleSheet) from the exported content; this version does not translate emails."], [], []);
+                return new Result(null, "Email", "worklist", [$"Email {name}: build the Reactive email with the spec's emails key (subject{(S(el["subject"]) is { Length: > 0 } subject ? " " + subject : "")}, inputs, widgets and styleSheet) from the exported content; this version does not translate emails."], [], []);
             if (!kind.Equals("Screen", StringComparison.OrdinalIgnoreCase) && !block)
                 return Worklist(kind, $"{kind} {name}: only screens, web blocks and emails can be translated.");
 
             Collect(el["widgets"]);
             foreach (var a in Objs(el["actions"])) if (S(a["name"]) is { } an) actionNames.Add(an);
             foreach (var v in Objs(el["inputs"]).Concat(Objs(el["locals"]))) if (S(v["name"]) is { } vn) varTypes[vn] = S(v["type"]) ?? "Text";
-            foreach (var note in el["notes"] as JsonArray ?? []) if (S(note) is { Length: > 0 } text) Todo($"the export could read it only in part: {text}");
+            // The method of a click is decided in Click (a destination means Navigate, an action means Submit), which says so when it cannot: the note is not repeated.
+            foreach (var note in el["notes"] as JsonArray ?? []) if (S(note) is { Length: > 0 } text && !text.Contains("the method of its On Click")) Todo($"the export could read it only in part: {text}");
 
             var spec = new JsonObject { ["name"] = name, ["flow"] = S(el["flow"]) ?? (block ? "Common" : "MainFlow") };
             if (!block && S(el["title"]) is { Length: > 0 } title) spec["title"] = Rw(title, "the title");
@@ -241,8 +285,9 @@ static class ScreenTranslator
             foreach (var v in Objs(list))
             {
                 var o = new JsonObject { ["name"] = S(v["name"]), ["type"] = S(v["type"]) ?? "Text" };
-                if (input && v["mandatory"] is JsonValue m && m.TryGetValue<bool>(out var mandatory)) o["mandatory"] = mandatory;
+                if (input && Flag(v["mandatory"]) is { } mandatory) o["mandatory"] = mandatory;
                 if (S(v["default"]) is { Length: > 0 } d) o["default"] = Rw(d, $"the default of {S(v["name"])}");
+                if (S(v["description"]) is { Length: > 0 } description) o["description"] = description;
                 result.Add(o);
             }
             return result;
@@ -252,8 +297,8 @@ static class ScreenTranslator
         {
             var o = new JsonObject
             {
-                ["anonymous"] = a["anonymous"] is JsonValue an && an.TryGetValue<bool>(out var x) && x,
-                ["registered"] = a["registered"] is JsonValue re && re.TryGetValue<bool>(out var y) && y,
+                ["anonymous"] = Flag(a["anonymous"]) == true,
+                ["registered"] = Flag(a["registered"]) == true,
             };
             if (a["roles"] is JsonArray { Count: > 0 } roles) o["roles"] = new JsonArray(roles.Select(r => (JsonNode?)JsonValue.Create(S(r))).ToArray());
             return o;
@@ -266,10 +311,12 @@ static class ScreenTranslator
             if (preparation is not JsonObject p) return result;
             var nodes = Objs(p["nodes"]).ToList();
             if (nodes.Count == 0) return result;
-            var complete = !(p["complete"] is JsonValue c && c.TryGetValue<bool>(out var b) && !b);
-            if (complete && nodes.All(n => Norm(S(n["kind"])) == "aggregate"))
+            var complete = Complete(p);
+            // Comments are listed after the main path and change nothing.
+            var calls = nodes.Where(n => NodeKind(n) != "comment").ToList();
+            if (complete && calls.All(n => NodeKind(n) == "aggregate"))
             {
-                foreach (var n in nodes)
+                foreach (var n in calls)
                 {
                     var a = new JsonObject();
                     foreach (var key in new[] { "name", "sources", "joins", "filters", "sorts", "groupBy", "aggregates", "calculated", "groupFilters", "groupSorts", "groupCalculated", "maxRecords", "startIndex", "timeout" })
@@ -279,7 +326,7 @@ static class ScreenTranslator
                 }
                 return result;
             }
-            var what = Summary(nodes);
+            var what = Summary(calls);
             Todo(complete
                 ? $"its Preparation does more than fetch data ({what}); lift it into one data action that calls one server action (skill/reference/traditional-to-reactive.md) and set the screen's data from its outputs, and re-create the aggregates its widgets read"
                 : $"its Preparation could not be read completely ({what}); lift it into one data action that calls one server action (skill/reference/traditional-to-reactive.md)");
@@ -300,7 +347,7 @@ static class ScreenTranslator
 
         // ---------- screen and block actions ----------
 
-        static readonly HashSet<string> ActionKinds = ["assign", "if", "switch", "foreach", "execute", "destination", "raiseexception", "message", "comment", "end", "ajaxrefresh"];
+        static readonly HashSet<string> ActionKinds = ["assign", "if", "switch", "foreach", "execute", "destination", "raiseexception", "message", "comment", "javascript", "end", "ajaxrefresh"];
 
         JsonObject Action(JsonObject a)
         {
@@ -324,20 +371,23 @@ static class ScreenTranslator
             return o;
         }
 
-        static bool IsNotify(JsonObject n) => Norm(S(n["kind"])) == "execute" && Leaf(S(n["action"]) ?? S(n["_ref"]) ?? "") is var l && (l.Equals("Notify", StringComparison.OrdinalIgnoreCase) || l.Equals("Deprecated_Notify", StringComparison.OrdinalIgnoreCase));
+        static bool IsNotify(JsonObject n) => NodeKind(n) == "execute" && Leaf(S(n["action"]) ?? S(n["_ref"]) ?? "") is var l && (l.Equals("Notify", StringComparison.OrdinalIgnoreCase) || l.Equals("Deprecated_Notify", StringComparison.OrdinalIgnoreCase));
+
+        // The Ajax Refresh node is the one unsupported thing that is handled (DropRefreshes); its entry says so in `why` (Export.cs 445), so another
+        // reason on a node of that kind (a repeated name) still makes a stub.
+        static bool AjaxEntry(JsonObject u) => NodeKind(u) == "ajaxrefresh" && (S(u["why"]) ?? "").Contains("Ajax Refresh node", StringComparison.Ordinal);
 
         (JsonArray? flow, string? why) ActionFlow(string an, JsonObject a)
         {
             if (a["flow"] is not JsonObject f) return (null, "its flow could not be read from the export");
             var nodes = Objs(f["nodes"]).ToList();
             var unsupported = Objs(f["unsupported"]).ToList();
-            var complete = !(f["complete"] is JsonValue c && c.TryGetValue<bool>(out var b) && !b);
-            if (unsupported.FirstOrDefault(u => Norm(S(u["kind"])) != "ajaxrefresh") is { } bad)
+            if (unsupported.FirstOrDefault(u => !AjaxEntry(u)) is { } bad)
                 return (null, $"it contains {S(bad["kind"])} ({S(bad["why"]) ?? "unsupported"}) at {S(bad["path"])}");
-            if (!complete && unsupported.Count == 0) return (null, "the export marks its flow as incomplete");
+            if (!Complete(f) && unsupported.Count == 0) return (null, "the export marks its flow as incomplete");
             foreach (var n in nodes)
             {
-                var kind = Norm(S(n["kind"]));
+                var kind = NodeKind(n);
                 var nn = S(n["name"]) ?? S(n["kind"]);
                 if (!ActionKinds.Contains(kind))
                     return (null, kind is "aggregate" or "sql" ? $"it contains the {S(n["kind"])} node {nn}, which needs a server action" : $"it contains a {S(n["kind"])} node ({nn}) that has no client equivalent here");
@@ -345,33 +395,27 @@ static class ScreenTranslator
                 if (kind == "destination" && (S(n["screen"]) is not { Length: > 0 } scr || scr.Contains('.')))
                     return (null, $"its Destination {nn} does not name a screen of this module");
             }
-            if (nodes.Any(n => Norm(S(n["kind"])) == "ajaxrefresh")) nodes = DropRefreshes(nodes);
+            if (nodes.Any(n => NodeKind(n) == "ajaxrefresh")) nodes = DropRefreshes(nodes, an);
             var result = new JsonArray();
             foreach (var n in nodes) result.Add(Node(n, an));
             return (result, null);
         }
 
-        // Ajax Refresh nodes: a table or list fed by a screen aggregate gets refreshData nodes in its place; any other refresh is removed and
-        // its incoming connectors join its outgoing one. Every default "next" is made explicit first, so removing a node cannot change the path.
-        List<JsonObject> DropRefreshes(List<JsonObject> source)
+        // Ajax Refresh nodes: the export cannot read which widgets they refresh (Export.cs 446), so each is removed and its incoming connectors join its
+        // outgoing one, and a Todo says so. Every default "next" is made explicit first, so removing a node cannot change the path.
+        List<JsonObject> DropRefreshes(List<JsonObject> source, string an)
         {
             var nodes = source.Select(n => (JsonObject)n.DeepClone()).ToList();
-            static bool Defaults(JsonObject n) => Norm(S(n["kind"])) is "assign" or "execute" or "message" or "foreach" or "ajaxrefresh";
-            string? Following(int index) => nodes.Skip(index + 1).FirstOrDefault(x => Norm(S(x["kind"])) != "comment") is { } nx ? S(nx["name"]) : null;
+            static bool Defaults(JsonObject n) => NodeKind(n) is "assign" or "execute" or "message" or "foreach" or "javascript" or "ajaxrefresh";
+            string? Following(int index) => nodes.Skip(index + 1).FirstOrDefault(x => NodeKind(x) != "comment") is { } nx ? S(nx["name"]) : null;
             for (var i = 0; i < nodes.Count; i++)
                 if (Defaults(nodes[i]) && nodes[i]["next"] is null && Following(i) is { } follow) nodes[i]["next"] = follow;
-            foreach (var r in nodes.Where(n => Norm(S(n["kind"])) == "ajaxrefresh").ToList())
+            foreach (var r in nodes.Where(n => NodeKind(n) == "ajaxrefresh").ToList())
             {
                 var rName = S(r["name"]);
                 var target = S(r["next"]) ?? "End";
-                var refreshes = RefreshTargets(r).Select((agg, k) => new JsonObject { ["kind"] = "refreshData", ["name"] = k == 0 ? rName : $"{rName}_{k + 1}", ["dataSource"] = agg }).ToList();
+                Todo($"the action {an} had the Ajax Refresh node {rName}, which was removed because the export cannot read which widgets it refreshed (a Reactive aggregate refetches only when its inputs change); if a table or list no longer updates, add a refreshData node for the aggregate behind it");
                 var at = nodes.IndexOf(r);
-                if (refreshes.Count > 0)
-                {
-                    for (var k = 0; k < refreshes.Count; k++) refreshes[k]["next"] = k + 1 < refreshes.Count ? S(refreshes[k + 1]["name"]) : target;
-                    nodes.RemoveAt(at); nodes.InsertRange(at, refreshes);
-                    continue;
-                }
                 foreach (var n in nodes)
                 {
                     foreach (var key in new[] { "next", "true", "false", "cycle", "otherwise" }) if (S(n[key]) == rName) n[key] = target;
@@ -383,32 +427,12 @@ static class ScreenTranslator
             return nodes;
         }
 
-        // The aggregates an Ajax Refresh refreshes: those that feed a table or list in the refreshed widget (or the widget itself).
-        IEnumerable<string> RefreshTargets(JsonObject refresh)
-        {
-            JsonObject? widget = null;
-            var skip = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "kind", "name", "next", "_path" };
-            IEnumerable<string?> candidates = refresh.Where(kv => !skip.Contains(kv.Key) && kv.Key != "_reads").SelectMany(kv => kv.Value is JsonArray a ? a.Select(S) : new[] { S(kv.Value) })
-                .Concat((refresh["_reads"] as JsonArray ?? []).Select(S));
-            foreach (var cand in candidates)
-                if (!Blank(cand) && (widgetByName.TryGetValue(cand!, out widget) || widgetByName.TryGetValue(Leaf(cand!), out widget))) break;
-            if (widget is null) return [];
-            var found = new List<string>();
-            void Walk(JsonObject w)
-            {
-                if (S(w["name"]) is { } wn && tables.TryGetValue(wn, out var src) && Regex.Match(src, @"^(\w+)\.List$") is { Success: true } m && aggregates.Contains(m.Groups[1].Value) && !found.Contains(m.Groups[1].Value)) found.Add(m.Groups[1].Value);
-                foreach (var child in Children(w)) Walk(child);
-            }
-            Walk(widget);
-            return found;
-        }
-
         static readonly string[] Connectors = ["next", "true", "false", "cycle", "otherwise"];
 
         // One node of a translatable client flow, in the spec's own shape (keys of that kind only, no `_` facts).
         JsonObject Node(JsonObject n, string an)
         {
-            var kind = Norm(S(n["kind"]));
+            var kind = NodeKind(n);
             var at = $"the action {an}";
             var o = new JsonObject();
             void Copy(params string[] keys) { foreach (var k in keys) if (n[k] is { } v && S(v) is not { Length: 0 }) o[k] = v.DeepClone(); }
@@ -437,7 +461,11 @@ static class ScreenTranslator
                 case "destination": o["kind"] = "destination"; Copy("name"); o["screen"] = Leaf(S(n["screen"])!); Args(); break;
                 case "raiseexception": o["kind"] = "raiseException"; Copy("name", "exception"); Expr("message"); break;
                 case "message": o["kind"] = "message"; Copy("name"); Expr("message"); Copy("type", "next"); if (o["type"] is null) o["type"] = "info"; break;
-                case "comment": o["kind"] = "comment"; o["text"] = S(n["text"]) ?? ""; break;
+                case "comment": o["kind"] = "comment"; o["text"] = S(n["text"]) ?? ""; break;   // its name is made up (Comment1) and nothing connects to it
+                case "javascript":
+                    o["kind"] = "javaScript"; Copy("name", "javaScript", "inputs", "outputs"); Args(); Copy("next");
+                    if (Flag(n["_async"]) == true) Todo($"{at} has the JavaScript node {S(n["name"])}, which is asynchronous in the original; the spec has no key for that, so set it in Service Studio");
+                    break;
                 case "end": o["kind"] = "end"; Copy("name"); break;
                 case "refreshdata": o["kind"] = "refreshData"; Copy("name", "dataSource", "next"); Args(); break;
             }
@@ -509,12 +537,12 @@ static class ScreenTranslator
             foreach (var w in Objs(list))
             {
                 var wn = S(w["name"]);
-                var kind = Norm(S(w["kind"]));
+                var kind = WType(w);
                 if (!Blank(wn))
                 {
                     widgetByName[wn!] = w;
                     if (kind is "form" or "editrecord" or "showrecord") forms[wn!] = wn + "Record";
-                    if (kind is "tablerecords" or "listrecords" && Prop(w, "source", "sourceRecordList", "recordList") is { } src && Regex.IsMatch(src, @"^\w+\.List$")) tables[wn!] = src;
+                    if (kind is "tablerecords" or "listrecords" && Prop(w, "source", "sourceRecordList") is { } src && Regex.IsMatch(src, @"^\w+\.List$")) tables[wn!] = src;
                 }
                 foreach (var c in Children(w)) Collect(new JsonArray(c.DeepClone()));
             }
@@ -533,7 +561,7 @@ static class ScreenTranslator
 
         string Label(JsonObject w)
         {
-            var kind = S(w["kind"]) ?? "widget";
+            var kind = S(w["type"]) ?? S(w["kind"]) ?? "widget";
             return !Blank(S(w["name"])) ? $"the widget {S(w["name"])} ({kind})" : S(w["path"]) is { Length: > 0 } p ? $"the {kind} widget at {p}" : $"a {kind} widget";
         }
 
@@ -550,7 +578,7 @@ static class ScreenTranslator
             var o = new JsonObject { ["type"] = type };
             if (!Blank(S(w["name"]))) o["name"] = S(w["name"]);
             var at = Label(w);
-            if (Prop(w, used, "style", "styleClasses") is { } style) o["style"] = Rw(style, at);
+            if (Prop(w, used, "style") is { } style) o["style"] = Rw(style, at);
             var attrs = new JsonObject();
             foreach (var (k, v) in w["attrs"] as JsonObject ?? [])
             {
@@ -564,14 +592,14 @@ static class ScreenTranslator
 
         void Visible(JsonObject w, HashSet<string> used, JsonObject o)
         {
-            if (Prop(w, used, "visible", "display") is { } v && !IsTrue(v)) o["visible"] = Rw(v, Label(w));
+            if (Prop(w, used, "visible") is { } v && !IsTrue(v)) o["visible"] = Rw(v, Label(w));
             if (Prop(w, used, "enabled") is { } e && !IsTrue(e)) o["enabled"] = Rw(e, Label(w));
         }
 
         // Expression, Text and BlockInstance have no Visible in Reactive: a Container carries it.
         JsonObject Wrapped(JsonObject w, HashSet<string> used, JsonObject o)
         {
-            if (Prop(w, used, "visible", "display") is { } v && !IsTrue(v))
+            if (Prop(w, used, "visible") is { } v && !IsTrue(v))
                 return new JsonObject { ["type"] = "Container", ["visible"] = Rw(v, Label(w)), ["children"] = new JsonArray(o) };
             return o;
         }
@@ -607,7 +635,7 @@ static class ScreenTranslator
         void One(JsonObject w, JsonArray into)
         {
             var used = new HashSet<string>();
-            var kind = Norm(S(w["kind"]));
+            var kind = WType(w);
             JsonObject? o;
             switch (kind)
             {
@@ -617,7 +645,7 @@ static class ScreenTranslator
                     break;
                 case "expression":
                     o = New("Expression", w, used);
-                    o["value"] = Rw(Prop(w, used, "value", "expression") ?? "\"\"", Label(w));
+                    o["value"] = Rw(Prop(w, used, "value") ?? "\"\"", Label(w));
                     if (Prop(w, used, "escapeContent", "escape") is { } esc && (esc.Trim().Equals("No", StringComparison.OrdinalIgnoreCase) || esc.Trim().Equals("False", StringComparison.OrdinalIgnoreCase)))
                         Todo($"{Label(w)} has escaping turned off, so it shows unescaped content (an XSS risk) and was built as an ordinary Expression; sanitize the content or build an unescaped expression block by hand");
                     o = Wrapped(w, used, o);
@@ -628,7 +656,7 @@ static class ScreenTranslator
                 case "label":
                     o = New("Label", w, used);
                     o["children"] = new JsonArray(Prop(w, used, "text") is { } lt ? new JsonObject { ["type"] = "Text", ["text"] = lt } : LabelWidget(Prop(w, used, "value", "label") ?? "\"\"", x => Rw(x, Label(w))));
-                    if (Prop(w, used, "inputWidget", "targetWidget", "for") is { } target)
+                    if (Prop(w, used, "targetWidget") is { } target)
                     {
                         if (widgetByName.ContainsKey(target)) o["targetWidget"] = target;
                         else Todo($"{Label(w)} describes the input {target}, which is not a widget of this {kindWord.ToLowerInvariant()}; set its targetWidget");
@@ -647,42 +675,42 @@ static class ScreenTranslator
                     break;
                 case "icon":
                     o = New("Icon", w, used); Visible(w, used, o);
-                    if (Prop(w, used, "icon", "name", "iconName") is { } icon) Todo($"{Label(w)} shows the icon {icon}, which the spec cannot set; choose it in Service Studio");
+                    if (Prop(w, used, "icon") is { } icon) Todo($"{Label(w)} shows the icon {icon}, which the spec cannot set; choose it in Service Studio");
                     break;
                 case "placeholder": o = New("Placeholder", w, used); break;
-                case "upload":
+                case "upload": case "fileupload":
                     o = New("Upload", w, used); Visible(w, used, o);
                     if (Prop(w, used, "fileContent", "variable") is { } fc) o["fileContent"] = Rw(fc, Label(w));
                     if (Prop(w, used, "fileName", "filename") is { } fnm) o["fileName"] = Rw(fnm, Label(w));
-                    if (ActionRef(w, used, "its On Change", "onChange", "onUpload") is { } up) o["onChange"] = up;
+                    if (ActionRef(w, used, "its On Change", "onChange") is { } up) o["onChange"] = up;
                     break;
                 case "checkbox":
                     o = New("Checkbox", w, used); Visible(w, used, o);
                     if (Prop(w, used, "variable") is { } cv) o["variable"] = Rw(cv, Label(w));
                     if (ActionRef(w, used, "its On Change", "onChange") is { } cc) o["onChange"] = cc;
                     break;
-                case "combobox": o = Combo(w, used); break;
-                case "radiobutton": case "radio":
+                case "combobox": case "combo": case "dropdown": o = Combo(w, used); break;
+                case "radiobutton": case "radiogroup":
                     o = TodoBox(w, $"is a Radio Button (variable {Prop(w, "variable") ?? "none"}, value {Prop(w, "value", "valueText") ?? "none"}); the spec has no Radio Group widget, so build the group in Service Studio", false);
                     used.UnionWith(["variable", "value", "valuetext", "style", "visible", "enabled", "display", "onchange", "mandatory"]);
                     break;
                 case "tablerecords": o = Records(w, used, true); break;
                 case "listrecords": o = Records(w, used, false); break;
-                case "blockinstance": case "webblock": case "block": o = Instance(w, used); break;
+                case "blockinstance": o = Instance(w, used); break;
                 case "form": case "editrecord": case "showrecord": o = Form(w, used); break;
                 case "popup": o = Popup(w, used, w["children"]); break;
                 case "editabletable": o = TodoBox(w, "is an Editable Table, which Reactive does not have; rebuild it as a Table with inputs"); break;
                 case "listbox": o = TodoBox(w, "is a List Box, which Reactive does not have; rebuild it as a list of Checkboxes"); break;
                 case "comment": return;
-                case "row": case "cell": case "headercell": case "rowcell":
+                case "row": case "tablerow": case "cell": case "headercell": case "rowcell":
                     foreach (var c in Objs(w["children"])) One(c, into);   // a Reactive Form has no rows and cells: the content moves up
                     return;
                 default:
-                    o = TodoBox(w, $"is a {S(w["kind"])} widget that has no Reactive translation here; rebuild it (its content is kept inside)");
+                    o = TodoBox(w, $"is a {S(w["type"]) ?? S(w["kind"])} widget that has no Reactive translation here; rebuild it (its content is kept inside)");
                     used.UnionWith(w["props"] is JsonObject props ? props.Select(kv => kv.Key.ToLowerInvariant()) : []);
                     break;
             }
-            if (kind is not ("editabletable" or "listbox" or "radiobutton" or "radio" or "popup")) Unhandled(w, used);
+            if (kind is not ("editabletable" or "listbox" or "radiobutton" or "radiogroup" or "popup")) Unhandled(w, used);
             into.Add(o);
         }
 
@@ -693,13 +721,13 @@ static class ScreenTranslator
             var o = New(area ? "TextArea" : "Input", w, used); Visible(w, used, o);
             if (Prop(w, used, "variable") is { } v) o["variable"] = Rw(v, at);
             if (Prop(w, used, "mandatory") is { } m && !IsFalse(m)) o["mandatory"] = Rw(m, at);
-            if (Prop(w, used, "prompt", "placeholder") is { } pr) o["prompt"] = Rw(pr, at);
-            if (Prop(w, used, "maxLength", "length") is { } ml && int.TryParse(ml, out var len)) o["maxLength"] = len;
+            if (Prop(w, used, "prompt") is { } pr) o["prompt"] = Rw(pr, at);
+            if (Prop(w, used, "maxLength") is { } ml && int.TryParse(ml, out var len)) o["maxLength"] = len;
             if (ActionRef(w, used, "its On Change", "onChange") is { } oc) o["onChange"] = oc;
             if (!area)
             {
                 string? type = null;
-                foreach (var raw in new[] { Prop(w, used, "inputType", "type"), Prop(w, used, "validationType") })
+                foreach (var raw in new[] { Prop(w, used, "inputType", "type"), Prop(w, used, "validationType") })   // inputType is a fact, the others generic properties
                 {
                     if (Blank(raw)) continue;
                     var t = Norm(raw);
@@ -713,7 +741,9 @@ static class ScreenTranslator
             return o;
         }
 
-        // Rule 5: Button and Link. Navigate -> onClick destination with args; Submit and AjaxSubmit -> onClick calls the client action.
+        // Rule 5: Button and Link. Navigate -> onClick destination with args; Submit and AjaxSubmit -> onClick calls the client action. The export says the
+        // method only when a property of the click event has "Method" in its name (Export.cs 623); without it a screen `destination` means Navigate
+        // (Export.cs 619 writes it only for a screen) and an On Click handler without one means a call of a screen action (Submit).
         JsonObject Click(JsonObject w, HashSet<string> used, bool button)
         {
             var at = Label(w);
@@ -721,34 +751,32 @@ static class ScreenTranslator
             var method = Norm(Prop(w, used, "method"));
             var dest = Prop(w, used, "destination");
             var onClick = Prop(w, used, "onClick");
-            var url = Prop(w, used, "url");
             var args = w["args"] as JsonObject;
-            Prop(w, used, "ajaxRefresh", "ajaxRefreshTargets", "refresh");   // Reactive refreshes bound data by itself
-            if (method == "") method = dest is not null && onClick is null ? "navigate" : onClick is not null ? "submit" : "";
+            if (method == "") method = dest is not null ? "navigate" : onClick is not null ? "submit" : "";
             if (method == "navigate")
             {
                 var screen = dest ?? onClick;
-                if (screen is null && url is null) Todo($"{at} navigates, but the export gives no destination; set its On Click");
-                else if (screen is not null && (screen.Contains('.') || Regex.IsMatch(screen, @"^\w+://")))
+                if (screen is null) Todo($"{at} navigates, but the export gives no destination; set its On Click");
+                else if (screen.Contains('.') || Regex.IsMatch(screen, @"^\w+://"))
                     Todo($"{at} navigates to {screen}, which is not a screen of this module (a Reactive screen cannot link to a Traditional screen or a URL this way); set its On Click");
-                else if (screen is not null)
+                else
                 {
                     var d = new JsonObject { ["destination"] = Leaf(screen) };
                     if (args is { Count: > 0 }) d["args"] = RwTree(args, at);
                     o["onClick"] = d;
                 }
-                if (url is not null && screen is null) Todo($"{at} links to the external address {url}, which the spec cannot set on a Link; set it in Service Studio");
             }
             else if (method is "submit" or "ajaxsubmit")
             {
-                if (ActionRef(w, used, "its On Click", "onClick", "destination") is { } action)
+                if (ActionRef(w, used, "its On Click", "onClick") is { } action)
                 {
                     o["onClick"] = action;
                     if (args is { Count: > 0 }) o["args"] = RwTree(args, at);
                 }
-                else if (onClick is null && dest is null) Todo($"{at} submits, but the export gives no action; set its On Click");
+                else if (onClick is null) Todo($"{at} submits, but the export gives no action; set its On Click");
             }
-            else Todo($"{at} has the method {method}, which has no Reactive translation here; set its On Click");
+            else if (method == "") Todo($"{at} has no On Click in the export (it could not read the method, and a link to an address is not exported); set its On Click");
+            else Todo($"{at} has the method {Prop(w, "method")}, which has no Reactive translation here; set its On Click");
             if (Prop(w, used, "confirm") is { } confirm) Todo($"{at} asks the user to confirm with {confirm}, and the spec has no key for a confirmation; add a confirmation popup or a JavaScript confirm before its action");
             var children = Ws(w["children"]);
             if (children.Count == 0 && Prop(w, used, "label", "text", "value") is { } label) children.Add(LabelWidget(label, x => Rw(x, at)));
@@ -758,7 +786,7 @@ static class ScreenTranslator
 
         JsonObject If(JsonObject w, HashSet<string> used)
         {
-            var cond = Prop(w, used, "condition", "value", "expression");
+            var cond = Prop(w, used, "condition");
             if (cond is null) return TodoBox(w, "is an If without a readable condition");
             var o = new JsonObject { ["type"] = "If", ["condition"] = Rw(cond, Label(w)) };
             if (!Blank(S(w["name"]))) o["name"] = S(w["name"]);
@@ -774,7 +802,7 @@ static class ScreenTranslator
             var o = New("Dropdown", w, used); Visible(w, used, o);
             if (Prop(w, used, "variable") is { } v) o["variable"] = Rw(v, at);
             if (Prop(w, used, "mandatory") is { } m && !IsFalse(m)) o["mandatory"] = Rw(m, at);
-            var source = Prop(w, used, "source", "list", "sourceList");
+            var source = Prop(w, used, "source", "sourceList");
             if (source is not null) o["list"] = Rw(source, at);
             string Option(string expr) => Regex.Replace(Rw(expr, at), @"^\w+\.List\.Current\.", "");
             if (Prop(w, used, "valueAttribute", "optionValue", "optionsValue", "value") is { } val) o["values"] = Option(val);
@@ -790,7 +818,7 @@ static class ScreenTranslator
         JsonObject Records(JsonObject w, HashSet<string> used, bool table)
         {
             var at = Label(w);
-            var source = Prop(w, used, "source", "sourceRecordList", "recordList");
+            var source = Prop(w, used, "source", "sourceRecordList");
             if (source is null) return TodoBox(w, $"is a {(table ? "Table" : "List")} Records without a readable source");
             var o = New(table ? "TableRecords" : "List", w, used); Visible(w, used, o);
             o["source"] = Rw(source, at);
@@ -808,7 +836,7 @@ static class ScreenTranslator
             var result = new JsonArray();
             foreach (var w in Objs(widgets))
             {
-                if (Norm(S(w["kind"])).EndsWith("cell"))
+                if (WType(w).EndsWith("cell"))
                 {
                     var used = new HashSet<string>();
                     var cell = new JsonObject { ["type"] = cellType };
@@ -826,7 +854,8 @@ static class ScreenTranslator
         JsonObject Instance(JsonObject w, HashSet<string> used)
         {
             var at = Label(w);
-            var source = S(w["sourceBlock"]) ?? Prop(w, used, "sourceBlock") ?? "";
+            var viaProp = Prop(w, used, "sourceBlock");   // the fact repeats the widget's own sourceBlock key (Export.cs 632)
+            var source = S(w["sourceBlock"]) ?? viaProp ?? "";
             var dot = source.IndexOf('.');
             var local = dot > 0 && source[..dot].Equals(cx.OldModule, StringComparison.OrdinalIgnoreCase) ? source[(dot + 1)..] : source;
             if (Regex.IsMatch(Leaf(source), @"^Popup(_Editor|_Info|_Help)?$", RegexOptions.IgnoreCase) && dot > 0 && !cx.LocalBlocks.Contains(local))
@@ -848,8 +877,11 @@ static class ScreenTranslator
                 foreach (var (k, list) in phs) map[k] = Ws(list);
                 o["placeholders"] = map;
             }
-            if (Prop(w, used, "onNotify") is { } handler)
-                Todo($"{at} handles OnNotify with {handler}, which cannot be translated by rule; create an event on the block {local} (the spec's events key), fire it with triggerEvent where the block called Notify, and set events on this instance to call {handler}");
+            // An event handler of the instance: `events` {event: handler | {action,args}} (Export.cs 605), or a prop named after an Events entry.
+            var handlers = (w["events"] as JsonObject ?? []).Select(kv => (name: kv.Key, handler: S(kv.Value is JsonObject h ? h["action"] : kv.Value))).ToList();
+            if (Prop(w, used, "notify", "onNotify") is { } notify) handlers.Add(("Notify", notify));
+            foreach (var (evt, handler) in handlers)
+                Todo($"{at} handles {(evt.StartsWith("On", StringComparison.OrdinalIgnoreCase) ? evt : "On" + evt)} with {handler}, which cannot be translated by rule; create an event on the block {local} (the spec's events key), fire it with triggerEvent where the block called Notify, and set events on this instance to call {handler}");
             return Wrapped(w, used, o);
         }
 
@@ -860,7 +892,7 @@ static class ScreenTranslator
             var formName = !Blank(S(w["name"])) ? S(w["name"])! : "Form";
             var local = formName + "Record";
             var source = Prop(w, used, "source", "sourceRecord");
-            var type = Prop(w, used, "recordType", "entity", "dataType");
+            string? type = null;   // the record type is the type of the source expression; the export does not give it
             if (type is null && source is not null)
             {
                 if (varTypes.TryGetValue(source.Trim(), out var vt)) type = vt;
@@ -902,7 +934,7 @@ static class ScreenTranslator
             var result = new List<(string, JsonNode)>();
             var top = el["widgets"] as JsonArray ?? [];
             var groups = new List<(string ph, JsonArray widgets)>();
-            var wrapper = top.Count == 1 && top[0] is JsonObject only && Norm(S(only["kind"])).Contains("blockinstance") && only["placeholders"] is JsonObject { Count: > 0 } && IsLayoutInstance(only) ? only : null;
+            var wrapper = top.Count == 1 && top[0] is JsonObject only && WType(only) == "blockinstance" && only["placeholders"] is JsonObject { Count: > 0 } && IsLayoutInstance(only) ? only : null;
             if (wrapper is not null) foreach (var (k, list) in (JsonObject)wrapper["placeholders"]!) groups.Add((k, list as JsonArray ?? []));
             else
             {
@@ -940,15 +972,15 @@ static class ScreenTranslator
         bool IsLayoutInstance(JsonObject w)
         {
             var source = S(w["sourceBlock"]) ?? Prop(w, "sourceBlock") ?? "";
-            return S(el["layout"]) is { Length: > 0 } declared && Leaf(declared).Equals(Leaf(source), StringComparison.OrdinalIgnoreCase)
-                || Leaf(source).Contains("layout", StringComparison.OrdinalIgnoreCase)
+            return Leaf(source).Contains("layout", StringComparison.OrdinalIgnoreCase)
                 || !cx.LocalBlocks.Any(b => b.Equals(Leaf(source), StringComparison.OrdinalIgnoreCase));
         }
     }
 
     // ---------- self-test ----------
 
-    // Built-in samples that follow the export contract exactly. Each rule of the translator is exercised at least once; the failures come back.
+    // Built-in samples in the form Export.cs writes (the table at the top): `kind` and `type` on every widget, no `_reads`, empty values left out, expressions
+    // as text, node names made up where the original had none. Each rule of the translator is exercised at least once; the failures come back.
     internal static List<string> SelfTest()
     {
         var failures = new List<string>();
@@ -969,44 +1001,43 @@ static class ScreenTranslator
         var plain = layout with { Layout = null, LayoutPlaceholders = [] };
 
         // 1. A list screen: aggregate-only Preparation, layout with placeholders, a table, a link that navigates with an argument,
-        //    a button that submits through Ajax, an Ajax-refreshing search action and an Ajax Refresh of a widget with no aggregate.
+        //    a button that submits through Ajax, and two actions with an Ajax Refresh node (the export cannot say what it refreshes).
         var orders = Parse("""
         { "kind": "Screen", "name": "Orders", "flow": "MainFlow", "path": "MainFlow/Orders", "moduleKind": "Traditional", "title": "\"Orders\"",
           "inputs": [ { "name": "CustomerId", "type": "Customer Identifier", "mandatory": false, "default": "" } ],
           "locals": [ { "name": "Search", "type": "Text", "default": "\"\"" } ],
           "access": { "anonymous": false, "registered": true, "roles": ["OrderManager"] },
           "styleSheet": ".orders { margin: 0; }", "javaScript": "",
-          "preparation": { "complete": true, "unsupported": [], "nodes": [
+          "preparation": { "complete": true, "nodes": [
             { "kind": "aggregate", "name": "GetOrders", "sources": ["Order"], "filters": ["Order.Name like \"%\" + Search + \"%\""],
-              "sorts": [ { "attribute": "Order.Id", "descending": true } ], "maxRecords": 50, "next": "End", "_path": "MainFlow/Orders/Preparation/GetOrders", "_reads": ["Search"] } ] },
+              "sorts": [ { "attribute": "Order.Id", "descending": true } ], "maxRecords": "50", "next": "End", "_path": "MainFlow/Orders/Preparation/GetOrders" } ] },
           "actions": [
-            { "name": "DoSearch", "inputs": [], "locals": [], "outputs": [], "flow": { "complete": false,
-              "unsupported": [ { "path": "MainFlow/Orders/DoSearch/Refresh1", "kind": "AjaxRefresh", "why": "no spec node" } ],
+            { "name": "DoSearch", "_path": "MainFlow/Orders/DoSearch", "flow": { "complete": false,
+              "unsupported": [ { "path": "MainFlow/Orders/DoSearch/AjaxRefresh1", "kind": "AjaxRefreshNode", "why": "a spec flow has no Ajax Refresh node (Traditional Web only); the properties that could be read are in _props, but the widgets it refreshes are a list that the reader does not read" } ],
               "nodes": [
-                { "kind": "assign", "name": "Reset", "assign": { "Search": "Trim(Search)" }, "next": "Refresh1" },
-                { "kind": "AjaxRefresh", "name": "Refresh1", "widget": "OrdersTable", "next": "End", "_path": "MainFlow/Orders/DoSearch/Refresh1" } ] } },
-            { "name": "Tidy", "inputs": [], "locals": [], "outputs": [], "flow": { "complete": false,
-              "unsupported": [ { "path": "p", "kind": "AjaxRefresh", "why": "no spec node" } ],
+                { "kind": "assign", "name": "Reset", "assign": { "Search": "Trim(Search)" }, "next": "AjaxRefresh1", "_path": "MainFlow/Orders/DoSearch/Reset" },
+                { "kind": "AjaxRefreshNode", "name": "AjaxRefresh1", "_props": { "Visible": "True" }, "next": "End", "_path": "MainFlow/Orders/DoSearch/AjaxRefresh1" } ] } },
+            { "name": "Tidy", "flow": { "complete": false,
+              "unsupported": [ { "path": "p", "kind": "AjaxRefreshNode", "why": "a spec flow has no Ajax Refresh node (Traditional Web only); the properties that could be read are in _props, but the widgets it refreshes are a list that the reader does not read" } ],
               "nodes": [
                 { "kind": "assign", "name": "A", "assign": { "Search": "\"\"" }, "next": "R" },
-                { "kind": "AjaxRefresh", "name": "R", "widget": "Header", "next": "B" },
+                { "kind": "AjaxRefreshNode", "name": "R", "next": "B" },
                 { "kind": "assign", "name": "B", "assign": { "Search": "\"x\"" }, "next": "End" } ] } } ],
-          "widgets": [ { "kind": "BlockInstance", "name": "Layout", "sourceBlock": "Layouts.Main", "placeholders": {
-            "Title": [ { "kind": "Text", "name": "", "props": { "text": "Orders" } } ],
+          "widgets": [ { "kind": "WebBlockInstance", "type": "BlockInstance", "name": "Layout", "props": { "sourceBlock": "Layouts.Main" }, "sourceBlock": "Layouts.Main", "placeholders": {
+            "Title": [ { "kind": "WebText", "type": "Text", "props": { "text": "Orders" } } ],
             "MainContent": [
-              { "kind": "Container", "name": "Header", "props": { "style": "\"header\"" }, "children": [
-                { "kind": "Input", "name": "SearchInput", "props": { "variable": "Search", "onChange": "DoSearch" } },
-                { "kind": "Button", "name": "SearchButton", "props": { "method": "AjaxSubmit", "onClick": "DoSearch", "ajaxRefresh": "OrdersTable" }, "children": [ { "kind": "Text", "props": { "text": "Search" } } ] },
-                { "kind": "Expression", "name": "Count", "props": { "value": "OrdersTable.LineCount" } } ] },
-              { "kind": "TableRecords", "name": "OrdersTable", "props": { "source": "GetOrders.List", "style": "\"table\"" },
-                "header": [ { "kind": "HeaderCell", "children": [ { "kind": "Text", "props": { "text": "Name" } } ] } ],
-                "row": [ { "kind": "RowCell", "children": [
-                  { "kind": "Link", "name": "Open", "props": { "method": "Navigate", "destination": "OrderDetail" }, "args": { "OrderId": "GetOrders.List.Current.Order.Id" },
-                    "children": [ { "kind": "Expression", "props": { "value": "GetOrders.List.Current.Order.Name" } } ] } ] } ] } ] } } ],
-          "notes": [] }
+              { "kind": "WebContainer", "type": "Container", "name": "Header", "props": { "style": "\"header\"" }, "children": [
+                { "kind": "WebInput", "type": "Input", "name": "SearchInput", "props": { "variable": "Search", "onChange": "DoSearch" } },
+                { "kind": "WebButton", "type": "Button", "name": "SearchButton", "props": { "method": "AjaxSubmit", "onClick": "DoSearch" }, "children": [ { "kind": "WebText", "type": "Text", "props": { "text": "Search" } } ] },
+                { "kind": "WebExpression", "type": "Expression", "name": "Count", "props": { "value": "OrdersTable.LineCount" } } ] },
+              { "kind": "WebTableRecords", "type": "TableRecords", "name": "OrdersTable", "props": { "source": "GetOrders.List", "style": "\"table\"" },
+                "header": [ { "kind": "WebCell", "type": "Cell", "children": [ { "kind": "WebText", "type": "Text", "props": { "text": "Name" } } ] } ],
+                "row": [ { "kind": "WebCell", "type": "Cell", "children": [
+                  { "kind": "WebLink", "type": "Link", "name": "Open", "props": { "method": "Navigate", "onClick": "OrderDetail", "destination": "OrderDetail" }, "args": { "OrderId": "GetOrders.List.Current.Order.Id" },
+                    "children": [ { "kind": "WebExpression", "type": "Expression", "props": { "value": "GetOrders.List.Current.Order.Name" } } ] } ] } ] } ] } } ] }
         """);
         var r = Translate(orders, layout);
-        Check(r.Status == "translated" && r.Todo.Count == 0, $"Orders: status {r.Status}, todo [{string.Join(" | ", r.Todo)}] (translated, nothing left)");
+        Check(r.Status == "partial" && r.Todo.Count == 2 && Has(r.Todo, "DoSearch", "Ajax Refresh", "cannot read which widgets") && Has(r.Todo, "Tidy", "node R"), $"Orders: status {r.Status}, todo [{string.Join(" | ", r.Todo)}] (partial: only the two removed Ajax Refresh nodes are left)");
         var s = r.Spec;
         Check(Text(s, "name") == "Orders" && Text(s, "flow") == "MainFlow" && Text(s, "title") == "\"Orders\"" && Text(s, "styleSheet") == ".orders { margin: 0; }", "Orders: name, flow, title and styleSheet are carried");
         Check(Text(s, "access", "registered") == "true" && Text(s, "access", "roles", 0) == "OrderManager", "Orders: access comes from roles and registered");
@@ -1017,33 +1048,32 @@ static class ScreenTranslator
         var table = At(s, "placeholders", "MainContent", 1);
         Check(Text(table, "source") == "GetOrders.List" && Text(table, "headerRow", 0, "type") == "HeaderCell" && Text(table, "row", 0, "children", 0, "onClick", "destination") == "OrderDetail"
             && Text(table, "row", 0, "children", 0, "onClick", "args", "OrderId") == "GetOrders.List.Current.Order.Id", "Orders: table keeps source, header cells, row cells and the navigating link with its argument");
-        Check(Text(s, "actions", 0, "flow", 1, "kind") == "refreshData" && Text(s, "actions", 0, "flow", 1, "dataSource") == "GetOrders" && Text(s, "actions", 0, "flow", 1, "name") == "Refresh1", "Orders: an Ajax Refresh of a table fed by an aggregate becomes refreshData");
-        Check(Text(s, "actions", 1, "flow", 0, "next") == "B" && At(s, "actions", 1, "flow")!.AsArray().Count == 2, "Orders: any other Ajax Refresh is removed and its connectors are joined");
+        Check(At(s, "actions", 0, "flow")!.AsArray().Count == 1 && Text(s, "actions", 0, "flow", 0, "next") == "End" && At(s, "actions", 0, "flow", 0, "_path") is null, "Orders: an Ajax Refresh node is removed (the export cannot read its widgets) and the connector before it goes to End");
+        Check(Text(s, "actions", 1, "flow", 0, "next") == "B" && At(s, "actions", 1, "flow")!.AsArray().Count == 2, "Orders: the connectors around a removed Ajax Refresh are joined");
         Check(Text(s, "placeholders", "MainContent", 0, "children", 1, "onClick") == "DoSearch" && Text(s, "placeholders", "MainContent", 0, "children", 0, "onChange") == "DoSearch", "Orders: submit buttons and inputs call the client action");
 
         // Layout placeholder with no match, and no layout at all (rule 1).
         var layoutless = Translate(orders, plain);
         Check(At(layoutless.Spec, "layout") is null && At(layoutless.Spec, "placeholders") is null && Text(layoutless.Spec, "widgets", 0, "type") == "Text" && At(layoutless.Spec, "widgets")!.AsArray().Count == 3, "Orders without a layout: one flat widgets list");
-        var odd = (JsonObject)orders.DeepClone(); ((JsonObject)At(odd, "widgets", 0, "placeholders")!)["Sidebar"] = JsonNode.Parse("""[ { "kind": "Text", "props": { "text": "Side" } } ]""");
+        var odd = (JsonObject)orders.DeepClone(); ((JsonObject)At(odd, "widgets", 0, "placeholders")!)["Sidebar"] = JsonNode.Parse("""[ { "kind": "WebText", "type": "Text", "props": { "text": "Side" } } ]""");
         var oddResult = Translate(odd, layout);
         Check(Has(oddResult.Todo, "Sidebar", "MainContent") && Text(oddResult.Spec, "placeholders", "MainContent", 2, "text") == "Side", "Orders with an unmatched placeholder: its content goes to the main placeholder and a Todo says so");
 
         // 2. A detail screen: Edit Record form, save action with a wrapper, feedback message and redirect, validation.
         var detail = Parse("""
         { "kind": "Screen", "name": "OrderDetail", "flow": "MainFlow", "moduleKind": "Traditional", "title": "\"Order\"",
-          "inputs": [ { "name": "OrderId", "type": "Order Identifier", "mandatory": true, "default": "" } ], "locals": [],
-          "preparation": { "complete": true, "unsupported": [], "nodes": [ { "kind": "aggregate", "name": "GetOrder", "sources": ["Order"], "filters": ["Order.Id = OrderId"] } ] },
-          "actions": [ { "name": "Save", "inputs": [], "locals": [], "outputs": [], "flow": { "complete": true, "unsupported": [], "nodes": [
+          "inputs": [ { "name": "OrderId", "type": "Order Identifier", "mandatory": true, "default": "" } ], "preparation": { "complete": true, "nodes": [ { "kind": "aggregate", "name": "GetOrder", "sources": ["Order"], "filters": ["Order.Id = OrderId"] } ] },
+          "actions": [ { "name": "Save", "flow": { "complete": true, "nodes": [
             { "kind": "execute", "name": "Store", "action": "CreateOrUpdateOrder", "args": { "Source": "OrderForm.Record" }, "next": "Msg", "_ref": "CreateOrUpdateOrder" },
-            { "kind": "execute", "name": "Msg", "action": "Feedback_Message", "_ref": "RichWidgets.Feedback_Message", "args": { "Message": "\"Saved\"", "Type": "Entities.MessageType.Success" }, "next": "Go" },
+            { "kind": "execute", "name": "Msg", "action": "RichWidgets.Feedback_Message", "_ref": "RichWidgets.Feedback_Message", "args": { "Message": "\"Saved\"", "Type": "Entities.MessageType.Success" }, "next": "Go" },
             { "kind": "destination", "name": "Go", "screen": "Orders", "args": { "CustomerId": "OrderForm.Record.CustomerId" } } ] } } ],
-          "widgets": [ { "kind": "EditRecord", "name": "OrderForm", "props": { "source": "GetOrder.List.Current.Order" }, "children": [
-            { "kind": "Row", "children": [ { "kind": "Cell", "children": [
-              { "kind": "Input", "name": "NameInput", "props": { "variable": "OrderForm.Record.Name", "mandatory": "True", "inputType": "Text" } },
-              { "kind": "Input", "name": "EmailInput", "props": { "variable": "OrderForm.Record.Email", "validationType": "Email" } },
-              { "kind": "Input", "name": "PhoneInput", "props": { "variable": "OrderForm.Record.Phone", "validationType": "Phone Number" } },
-              { "kind": "Expression", "name": "Valid", "props": { "value": "NameInput.Valid and not OrderForm.Valid" } },
-              { "kind": "Button", "name": "SaveButton", "props": { "method": "Submit", "onClick": "Save", "confirm": "\"Sure?\"" }, "children": [ { "kind": "Text", "props": { "text": "Save" } } ] } ] } ] } ] } ] }
+          "widgets": [ { "kind": "WebEditRecord", "type": "EditRecord", "name": "OrderForm", "props": { "sourceRecord": "GetOrder.List.Current.Order" }, "children": [
+            { "kind": "WebRow", "type": "Row", "children": [ { "kind": "WebCell", "type": "Cell", "children": [
+              { "kind": "WebInput", "type": "Input", "name": "NameInput", "props": { "variable": "OrderForm.Record.Name", "mandatory": "True", "inputType": "Text" } },
+              { "kind": "WebInput", "type": "Input", "name": "EmailInput", "props": { "variable": "OrderForm.Record.Email", "validationType": "Email" } },
+              { "kind": "WebInput", "type": "Input", "name": "PhoneInput", "props": { "variable": "OrderForm.Record.Phone", "validationType": "Phone Number" } },
+              { "kind": "WebExpression", "type": "Expression", "name": "Valid", "props": { "value": "NameInput.Valid and not OrderForm.Valid" } },
+              { "kind": "WebButton", "type": "Button", "name": "SaveButton", "props": { "method": "Submit", "onClick": "Save", "confirm": "\"Sure?\"" }, "children": [ { "kind": "WebText", "type": "Text", "props": { "text": "Save" } } ] } ] } ] } ] } ] }
         """);
         var d = Translate(detail, plain);
         Check(d.Status == "partial", "OrderDetail: partial (the form must be filled, the phone type and the confirm text are Todo)");
@@ -1062,24 +1092,24 @@ static class ScreenTranslator
 
         // 3. A Preparation with an if and a server call is not translated (rule 2); the screen is still built.
         var prep = Parse("""
-        { "kind": "Screen", "name": "Dash", "flow": "MainFlow", "moduleKind": "Traditional", "inputs": [], "locals": [],
-          "preparation": { "complete": true, "unsupported": [], "nodes": [
+        { "kind": "Screen", "name": "Dash", "flow": "MainFlow", "moduleKind": "Traditional", "preparation": { "complete": true, "nodes": [
             { "kind": "if", "name": "IsAdmin", "condition": "Role", "true": "Load", "false": "End" },
-            { "kind": "execute", "name": "Load", "action": "LoadDashboard", "args": {} },
+            { "kind": "execute", "name": "Load", "action": "LoadDashboard", "_ref": "LoadDashboard" },
             { "kind": "aggregate", "name": "GetStats", "sources": ["Stat"] } ] },
-          "actions": [], "widgets": [ { "kind": "Text", "props": { "text": "Hi" } } ] }
+          "actions": [], "widgets": [ { "kind": "WebText", "type": "Text", "props": { "text": "Hi" } } ] }
         """);
         var pr = Translate(prep, plain);
         Check(pr.Status == "partial" && At(pr.Spec, "aggregates") is null && Text(pr.Spec, "widgets", 0, "text") == "Hi" && Has(pr.Todo, "Preparation", "if IsAdmin", "execute Load", "data action"), "Dash: the Preparation is not translated, the Todo lists its nodes and asks for a data action");
 
         // 4. A screen action with an aggregate becomes a stub that keeps the widget binding valid (rule 3).
         var stub = Parse("""
-        { "kind": "Screen", "name": "Report", "flow": "MainFlow", "moduleKind": "Traditional", "inputs": [], "locals": [ { "name": "Total", "type": "Integer", "default": "" } ],
+        { "kind": "Screen", "name": "Report", "flow": "MainFlow", "moduleKind": "Traditional", "locals": [ { "name": "Total", "type": "Integer", "default": "" } ],
           "preparation": null,
-          "actions": [ { "name": "Calc", "inputs": [ { "name": "Year", "type": "Integer", "mandatory": true } ], "locals": [ { "name": "Tmp", "type": "Integer", "default": "0" } ], "outputs": [], "flow": { "complete": true, "unsupported": [], "nodes": [
+          "actions": [ { "name": "Calc", "inputs": [ { "name": "Year", "type": "Integer", "mandatory": true } ], "locals": [ { "name": "Tmp", "type": "Integer", "default": "0" } ], "flow": { "complete": true, "nodes": [
             { "kind": "aggregate", "name": "CountOrders", "sources": ["Order"] }, { "kind": "assign", "name": "Set", "assign": { "Total": "CountOrders.Count" } } ] } },
-            { "name": "Odd", "inputs": [], "locals": [], "outputs": [], "flow": { "complete": false, "unsupported": [ { "path": "x", "kind": "CommitTransaction", "why": "no spec node" } ], "nodes": [] } } ],
-          "widgets": [ { "kind": "Button", "name": "Go", "props": { "method": "Submit", "onClick": "Calc" }, "children": [ { "kind": "Text", "props": { "text": "Go" } } ] } ] }
+            { "name": "Odd", "flow": { "complete": false, "unsupported": [ { "path": "x", "kind": "CommitTransactionNode", "why": "a spec flow has no CommitTransactionNode node; the properties that could be read are in _props" } ],
+              "nodes": [ { "kind": "CommitTransactionNode", "name": "CommitTransaction1", "next": "End", "_path": "x" } ] } } ],
+          "widgets": [ { "kind": "WebButton", "type": "Button", "name": "Go", "props": { "method": "Submit", "onClick": "Calc" }, "children": [ { "kind": "WebText", "type": "Text", "props": { "text": "Go" } } ] } ] }
         """);
         var st = Translate(stub, plain);
         Check(st.Status == "partial" && Text(st.Spec, "actions", 0, "name") == "Calc" && Text(st.Spec, "actions", 0, "inputs", 0, "name") == "Year" && Text(st.Spec, "actions", 0, "locals", 0, "name") == "Tmp"
@@ -1088,10 +1118,9 @@ static class ScreenTranslator
 
         // 5. A web block with a Notify; the block has a placeholder and an input.
         var blockInput = Parse("""
-        { "kind": "Block", "name": "OrderCard", "flow": "Common", "moduleKind": "Traditional", "inputs": [ { "name": "OrderId", "type": "Order Identifier", "mandatory": true, "default": "" } ], "locals": [],
-          "access": { "anonymous": true, "registered": true, "roles": [] }, "preparation": null,
-          "actions": [ { "name": "Pick", "inputs": [], "locals": [], "outputs": [], "flow": { "complete": true, "unsupported": [], "nodes": [ { "kind": "execute", "name": "Tell", "action": "Notify", "args": { "Message": "\"picked\"" } } ] } } ],
-          "widgets": [ { "kind": "Link", "name": "PickLink", "props": { "method": "Submit", "onClick": "Pick" }, "children": [ { "kind": "Text", "props": { "text": "Pick" } } ] }, { "kind": "Placeholder", "name": "Extra" } ] }
+        { "kind": "Block", "name": "OrderCard", "flow": "Common", "moduleKind": "Traditional", "inputs": [ { "name": "OrderId", "type": "Order Identifier", "mandatory": true, "default": "" } ], "access": { "anonymous": true, "registered": true }, "preparation": null,
+          "actions": [ { "name": "Pick", "flow": { "complete": true, "nodes": [ { "kind": "execute", "name": "Tell", "action": "Notify", "args": { "Message": "\"picked\"" } } ] } } ],
+          "widgets": [ { "kind": "WebLink", "type": "Link", "name": "PickLink", "props": { "onClick": "Pick" }, "children": [ { "kind": "WebText", "type": "Text", "props": { "text": "Pick" } } ] }, { "kind": "WebPlaceholder", "type": "Placeholder", "name": "Extra" } ] }
         """);
         var b = Translate(blockInput, layout);
         Check(b.Kind == "Block" && b.Status == "partial" && At(b.Spec, "access") is null && At(b.Spec, "layout") is null && At(b.Spec, "title") is null, "OrderCard: a block has no layout, title or access");
@@ -1100,11 +1129,11 @@ static class ScreenTranslator
 
         // 6. Block instances: a local block, one of another module, and an OnNotify handler.
         var inst = Parse("""
-        { "kind": "Screen", "name": "Cards", "flow": "MainFlow", "moduleKind": "Traditional", "inputs": [], "locals": [], "preparation": null,
-          "actions": [ { "name": "Got", "inputs": [], "locals": [], "outputs": [], "flow": { "complete": true, "unsupported": [], "nodes": [] } } ],
+        { "kind": "Screen", "name": "Cards", "flow": "MainFlow", "moduleKind": "Traditional", "preparation": null,
+          "actions": [ { "name": "Got", "flow": { "complete": true, "nodes": [] } } ],
           "widgets": [
-            { "kind": "BlockInstance", "name": "Card1", "sourceBlock": "OrderCard", "props": { "onNotify": "Got" }, "args": { "OrderId": "OrderId" }, "placeholders": { "Extra": [ { "kind": "Text", "props": { "text": "x" } } ] } },
-            { "kind": "BlockInstance", "name": "Tip", "sourceBlock": "RichWidgets.Tooltip", "args": { "Text": "\"hi\"" }, "placeholders": { "Content": [ { "kind": "Text", "props": { "text": "inner" } } ] } } ] }
+            { "kind": "WebBlockInstance", "type": "BlockInstance", "name": "Card1", "sourceBlock": "OrderCard", "events": { "Notify": "Got" }, "args": { "OrderId": "OrderId" }, "placeholders": { "Extra": [ { "kind": "WebText", "type": "Text", "props": { "text": "x" } } ] } },
+            { "kind": "WebBlockInstance", "type": "BlockInstance", "name": "Tip", "sourceBlock": "RichWidgets.Tooltip", "args": { "Text": "\"hi\"" }, "placeholders": { "Content": [ { "kind": "WebText", "type": "Text", "props": { "text": "inner" } } ] } } ] }
         """);
         var i6 = Translate(inst, plain);
         Check(Text(i6.Spec, "widgets", 0, "type") == "BlockInstance" && Text(i6.Spec, "widgets", 0, "sourceBlock") == "OrderCard" && Text(i6.Spec, "widgets", 0, "args", "OrderId") == "OrderId" && Text(i6.Spec, "widgets", 0, "placeholders", "Extra", 0, "text") == "x", "Cards: an instance of a local block keeps its name, args and placeholder content");
@@ -1113,9 +1142,9 @@ static class ScreenTranslator
 
         // 7. Session variables, with and without a client variable; a string literal is not touched.
         var sess = Parse("""
-        { "kind": "Screen", "name": "Hello", "flow": "MainFlow", "moduleKind": "Traditional", "inputs": [], "locals": [], "preparation": null,
-          "actions": [ { "name": "Remember", "inputs": [], "locals": [], "outputs": [], "flow": { "complete": true, "unsupported": [], "nodes": [ { "kind": "assign", "name": "Keep", "assign": { "Session.Lang": "\"en\"", "Session.Last": "Session.Last + 1" } } ] } } ],
-          "widgets": [ { "kind": "Expression", "name": "Who", "props": { "value": "\"Session.Lang: \" + Session.Lang + Session.UserName + MyEntity.Session" } } ] }
+        { "kind": "Screen", "name": "Hello", "flow": "MainFlow", "moduleKind": "Traditional", "preparation": null,
+          "actions": [ { "name": "Remember", "flow": { "complete": true, "nodes": [ { "kind": "assign", "name": "Keep", "assign": { "Session.Lang": "\"en\"", "Session.Last": "Session.Last + 1" } } ] } } ],
+          "widgets": [ { "kind": "WebExpression", "type": "Expression", "name": "Who", "props": { "value": "\"Session.Lang: \" + Session.Lang + Session.UserName + MyEntity.Session" } } ] }
         """);
         var se = Translate(sess, plain);
         Check(Text(se.Spec, "widgets", 0, "value") == "\"Session.Lang: \" + Client.Lang + Session.UserName + MyEntity.Session", "Hello: Session.<client variable> becomes Client.<it>, other session reads and string literals stay");
@@ -1124,19 +1153,19 @@ static class ScreenTranslator
 
         // 8. Widgets: Editable Table, an unknown kind, a combo box, a radio button, a checkbox, an image, an upload, a popup, an unescaped expression.
         var misc = Parse("""
-        { "kind": "Screen", "name": "Misc", "flow": "MainFlow", "moduleKind": "Traditional", "inputs": [], "locals": [ { "name": "Pick", "type": "Integer", "default": "" } ], "preparation": { "complete": true, "unsupported": [], "nodes": [ { "kind": "aggregate", "name": "GetKinds", "sources": ["Kind"] } ] },
+        { "kind": "Screen", "name": "Misc", "flow": "MainFlow", "moduleKind": "Traditional", "locals": [ { "name": "Pick", "type": "Integer", "default": "" } ], "preparation": { "complete": true, "nodes": [ { "kind": "aggregate", "name": "GetKinds", "sources": ["Kind"] } ] },
           "actions": [], "widgets": [
-            { "kind": "EditableTable", "name": "Grid", "children": [ { "kind": "Text", "props": { "text": "cell" } } ] },
-            { "kind": "Tabs", "name": "TabSet", "children": [ { "kind": "Text", "props": { "text": "kept" } } ] },
-            { "kind": "Combo Box", "name": "KindBox", "props": { "variable": "Pick", "source": "GetKinds.List", "valueAttribute": "GetKinds.List.Current.Kind.Id", "labelAttribute": "GetKinds.List.Current.Kind.Name", "emptyValue": "\"none\"" } },
-            { "kind": "RadioButton", "name": "Opt", "props": { "variable": "Pick", "value": "1" } },
-            { "kind": "CheckBox", "name": "Agree", "props": { "variable": "Flag", "visible": "Pick > 0" } },
-            { "kind": "Image", "name": "Logo", "props": { "image": "Logo" } },
-            { "kind": "Upload", "name": "File", "props": { "variable": "Data", "fileName": "FileName" } },
-            { "kind": "Popup", "name": "Dlg", "children": [ { "kind": "Text", "props": { "text": "inside" } } ] },
-            { "kind": "Expression", "name": "Raw", "props": { "value": "Html", "escapeContent": "No", "visible": "Pick = 1" } },
-            { "kind": "If", "name": "Branch", "props": { "condition": "Pick = 1" }, "true": [ { "kind": "Text", "props": { "text": "yes" } } ], "false": [ { "kind": "Text", "props": { "text": "no" } } ] },
-            { "kind": "ListRecords", "name": "KindList", "props": { "source": "GetKinds.List" }, "row": [ { "kind": "Expression", "props": { "value": "GetKinds.List.Current.Kind.Name" } } ] } ] }
+            { "kind": "WebEditableTable", "type": "EditableTable", "name": "Grid", "children": [ { "kind": "WebText", "type": "Text", "props": { "text": "cell" } } ] },
+            { "kind": "WebTabs", "type": "Tabs", "name": "TabSet", "children": [ { "kind": "WebText", "type": "Text", "props": { "text": "kept" } } ] },
+            { "kind": "WebCombo", "type": "Combo", "name": "KindBox", "props": { "variable": "Pick", "source": "GetKinds.List", "valueAttribute": "GetKinds.List.Current.Kind.Id", "labelAttribute": "GetKinds.List.Current.Kind.Name", "emptyValue": "\"none\"" } },
+            { "kind": "WebRadioButton", "type": "RadioButton", "name": "Opt", "props": { "variable": "Pick", "value": "1" } },
+            { "kind": "WebCheckbox", "type": "Checkbox", "name": "Agree", "props": { "variable": "Flag", "visible": "Pick > 0" } },
+            { "kind": "WebImage", "type": "Image", "name": "Logo", "props": { "image": "Logo" } },
+            { "kind": "WebUpload", "type": "Upload", "name": "File", "props": { "variable": "Data", "fileName": "FileName" } },
+            { "kind": "WebPopup", "type": "Popup", "name": "Dlg", "children": [ { "kind": "WebText", "type": "Text", "props": { "text": "inside" } } ] },
+            { "kind": "WebExpression", "type": "Expression", "name": "Raw", "props": { "value": "Html", "escapeContent": "No", "visible": "Pick = 1" } },
+            { "kind": "WebIf", "type": "If", "name": "Branch", "props": { "condition": "Pick = 1" }, "true": [ { "kind": "WebText", "type": "Text", "props": { "text": "yes" } } ], "false": [ { "kind": "WebText", "type": "Text", "props": { "text": "no" } } ] },
+            { "kind": "WebListRecords", "type": "ListRecords", "name": "KindList", "props": { "source": "GetKinds.List" }, "row": [ { "kind": "WebExpression", "type": "Expression", "props": { "value": "GetKinds.List.Current.Kind.Name" } } ] } ] }
         """);
         var m = Translate(misc, plain);
         var w = At(m.Spec, "widgets")!.AsArray();
@@ -1152,34 +1181,258 @@ static class ScreenTranslator
         Check(Text(w[9], "type") == "If" && Text(w[9], "trueBranch", 0, "text") == "yes" && Text(w[9], "falseBranch", 0, "text") == "no", "Misc: an If keeps both branches");
         Check(Text(w[10], "type") == "List" && Text(w[10], "source") == "GetKinds.List" && Text(w[10], "children", 0, "value") == "GetKinds.List.Current.Kind.Name", "Misc: List Records becomes a List with the row content");
 
-        // 10. Every node kind of a client flow, a server action call that stays as it is, JavaScript that is not carried.
+        // 10. Every node kind of a client flow: a server action call that stays as it is, an async JavaScript node, a comment with a made-up name, and the
+        //     screen's own JavaScript, which is not carried. End nodes are not listed: a connector says "End".
         var flows = Parse("""
-        { "kind": "Screen", "name": "Flows", "flow": "MainFlow", "moduleKind": "Traditional", "inputs": [], "locals": [], "preparation": null, "javaScript": "alert(1);",
-          "actions": [ { "name": "Run", "inputs": [ { "name": "Id", "type": "Integer", "mandatory": true, "default": "" } ], "locals": [], "outputs": [], "flow": { "complete": true, "unsupported": [], "nodes": [
+        { "kind": "Screen", "name": "Flows", "flow": "MainFlow", "moduleKind": "Traditional", "javaScript": "alert(1);",
+          "actions": [ { "name": "Run", "inputs": [ { "name": "Id", "type": "Integer", "mandatory": true, "default": "" } ], "flow": { "complete": true, "nodes": [
             { "kind": "if", "name": "Ok", "condition": "Id > 0", "true": "Each", "false": "Bad", "_path": "p" },
             { "kind": "forEach", "name": "Each", "recordList": "Items.List", "cycle": "Place", "next": "Pick" },
             { "kind": "execute", "name": "Place", "action": "PlaceOrder", "args": { "Id": "Items.List.Current.Item.Id", "Qty": "2" }, "next": "Each", "_ref": "PlaceOrder" },
-            { "kind": "switch", "name": "Pick", "cases": [ { "condition": "Id = 1", "next": "Done" } ], "otherwise": "Bad" },
-            { "kind": "comment", "text": "note" },
+            { "kind": "switch", "name": "Pick", "cases": [ { "condition": "Id = 1", "next": "Js" } ], "otherwise": "Bad" },
+            { "kind": "javaScript", "name": "Js", "javaScript": "alert(1);", "_async": true, "next": "Say" },
+            { "kind": "message", "name": "Say", "message": "\"Done\"", "type": "success", "next": "End" },
             { "kind": "raiseException", "name": "Bad", "exception": "InvalidOrder", "message": "\"Bad id\"" },
-            { "kind": "end", "name": "Done" } ] } } ],
-          "widgets": [] }
+            { "kind": "comment", "name": "Comment1", "text": "note" } ] } } ] }
         """);
         var fl = Translate(flows, plain);
         var fn = At(fl.Spec, "actions", 0, "flow")!.AsArray();
-        Check(fl.Status == "partial" && Has(fl.Todo, "JavaScript") && fl.Todo.Count == 1, "Flows: only the JavaScript is left (a flow of supported nodes is translated whole)");
-        Check(fn.Count == 7 && Text(fn[0], "kind") == "if" && Text(fn[1], "kind") == "forEach" && Text(fn[1], "recordList") == "Items.List" && Text(fn[2], "action") == "PlaceOrder" && Text(fn[2], "args", "Qty") == "2"
-            && Text(fn[3], "cases", 0, "next") == "Done" && Text(fn[3], "otherwise") == "Bad" && Text(fn[5], "kind") == "raiseException" && Text(fn[6], "kind") == "end" && At(fn[0], "_path") is null && fl.EntityActions.Count == 0, "Flows: if, forEach, a server action call, switch, comment, raiseException and end are carried");
+        Check(fl.Status == "partial" && fl.Todo.Count == 2 && Has(fl.Todo, "own JavaScript") && Has(fl.Todo, "Js", "asynchronous"), "Flows: the screen's JavaScript and the async JavaScript node are left (a flow of supported nodes is translated whole)");
+        Check(fn.Count == 8 && Text(fn[0], "kind") == "if" && Text(fn[1], "kind") == "forEach" && Text(fn[1], "recordList") == "Items.List" && Text(fn[2], "action") == "PlaceOrder" && Text(fn[2], "args", "Qty") == "2"
+            && Text(fn[3], "cases", 0, "next") == "Js" && Text(fn[3], "otherwise") == "Bad" && Text(fn[4], "kind") == "javaScript" && Text(fn[4], "javaScript") == "alert(1);" && At(fn[4], "_async") is null && Text(fn[4], "next") == "Say"
+            && Text(fn[5], "type") == "success" && Text(fn[5], "next") == "End" && Text(fn[6], "kind") == "raiseException" && Text(fn[7], "kind") == "comment" && At(fn[7], "name") is null && At(fn[0], "_path") is null && fl.EntityActions.Count == 0,
+            "Flows: if, forEach, a server action call, switch, javaScript, message, raiseException and comment are carried without _ keys");
 
         // 9. Emails, other module kinds and a failed export are worklist entries.
-        var email = Translate(Parse("""{ "kind": "Email", "name": "Welcome", "flow": "Emails", "moduleKind": "Traditional", "inputs": [], "locals": [], "widgets": [] }"""), layout);
-        Check(email.Spec is null && email.Status == "worklist" && email.Kind == "Email" && Has(email.Todo, "Welcome", "emails"), "Welcome: an email is a worklist entry that names the emails key");
+        var email = Translate(Parse("""{ "kind": "Email", "name": "Welcome", "flow": "Emails", "moduleKind": "Traditional", "subject": "\"Hello\"" }"""), layout);
+        Check(email.Spec is null && email.Status == "worklist" && email.Kind == "Email" && Has(email.Todo, "Welcome", "emails", "subject \"Hello\""), "Welcome: an email is a worklist entry that names the emails key");
         var reactive = Translate(Parse("""{ "kind": "Screen", "name": "R", "moduleKind": "Reactive" }"""), layout);
         Check(reactive.Spec is null && reactive.Status == "worklist", "R: a Reactive element is not translated");
         var failed = Translate(Parse("""{ "element": "X", "name": "X", "kind": "Screen", "error": "no such screen" }"""), layout);
         Check(failed.Spec is null && failed.Status == "worklist", "X: an element that failed to export is a worklist entry");
         var broken = Translate(Parse("""{ "kind": "Screen", "name": "Broken", "moduleKind": "Traditional", "actions": [ { "name": "A", "flow": "not an object" } ], "widgets": "no" }"""), layout);
         Check(broken.Status is "partial" or "worklist", "Broken: an unreadable input does not throw");
+
+        // 11. tests/export-sample.json (embedded as ExportSampleJson).
+        //     No layout, the block WebCard is local, the entity action has its wrapper: what is left is filling the form's record. The two "method could not
+        //     be read" notes are not Todo lines: a screen destination is a Navigate, an action an ordinary Submit.
+        var sampleContext = new Context("Shop", new Dictionary<string, string> { ["CreateOrUpdateWebItem"] = "WebItem_CreateOrUpdate" }, new HashSet<string>(), new HashSet<string> { "WebCard" }, null, []);
+        var sm = Translate(Parse(ExportSampleJson), sampleContext);
+        var ss = sm.Spec;
+        Check(sm.Status == "partial" && sm.Todo.Count == 1 && Has(sm.Todo, "ItemForm", "ItemFormRecord") && !Has(sm.Todo, "method"), $"Sample: only the form record is left: [{string.Join(" | ", sm.Todo)}]");
+        Check(Text(ss, "name") == "WebItems" && Text(ss, "flow") == "MainFlow" && Text(ss, "title") == "\"Web items\"" && Text(ss, "access", "registered") == "true" && Text(ss, "locals", 1, "name") == "Item" && Text(ss, "locals", 2, "name") == "ItemFormRecord" && Text(ss, "locals", 2, "type") == "WebItem", "Sample: element facts and the form's record local");
+        Check(Text(ss, "aggregates", 0, "name") == "FetchItems" && Text(ss, "aggregates", 0, "sources", 0) == "WebItem" && Text(ss, "aggregates", 0, "maxRecords") == "10" && At(ss, "aggregates", 0, "_path") is null, "Sample: the Preparation aggregate");
+        Check(Text(ss, "actions", 0, "flow", 0, "assign", "Item.Name") == "ItemName" && Text(ss, "actions", 0, "flow", 1, "action") == "Shop.WebItem_CreateOrUpdate" && Text(ss, "actions", 0, "flow", 1, "next") == "End" && sm.EntityActions.SequenceEqual(["CreateOrUpdateWebItem"]), "Sample: the Save action, its entity action through the wrapper");
+        Check(Text(ss, "widgets", 0, "type") == "Container" && Text(ss, "widgets", 0, "style") == "\"editor\"" && Text(ss, "widgets", 0, "children", 0, "variable") == "ItemName" && Text(ss, "widgets", 0, "children", 1, "onClick") == "Save" && Text(ss, "widgets", 0, "children", 1, "children", 0, "text") == "Save", "Sample: container, input and the button whose method is inferred");
+        Check(Text(ss, "widgets", 1, "type") == "BlockInstance" && Text(ss, "widgets", 1, "sourceBlock") == "WebCard" && Text(ss, "widgets", 1, "args", "Caption") == "\"Summary\"", "Sample: the block instance");
+        Check(Text(ss, "widgets", 2, "type") == "If" && Text(ss, "widgets", 2, "condition") == "not FetchItems.List.Empty" && Text(ss, "widgets", 2, "trueBranch", 0, "source") == "FetchItems.List" && Text(ss, "widgets", 2, "falseBranch", 0, "text") == "No items"
+            && Text(ss, "widgets", 2, "trueBranch", 0, "row", 0, "children", 0, "onClick", "destination") == "WebDetail" && Text(ss, "widgets", 2, "trueBranch", 0, "row", 0, "children", 0, "onClick", "args", "ItemId") == "FetchItems.List.Current.WebItem.Id", "Sample: the If with a table in its true branch and the navigating link");
+        Check(Text(ss, "widgets", 3, "type") == "List" && Text(ss, "widgets", 3, "source") == "FetchItems.List" && Text(ss, "widgets", 4, "type") == "Form" && Text(ss, "widgets", 4, "children", 0, "text") == "Edit item", "Sample: the list and the form (rows and cells are flattened)");
         return failures;
     }
+
+    // A COPY of tests/export-sample.json (the hand-built export of a Traditional screen; the launcher cannot read tests/ at run time). Keep the two in step:
+    // when the file changes, paste it here again and check the assertions of SelfTest (section 11).
+    const string ExportSampleJson = """"
+{
+  "kind": "Screen",
+  "name": "WebItems",
+  "flow": "MainFlow",
+  "path": "MainFlow/WebItems",
+  "moduleKind": "Traditional",
+  "title": "\"Web items\"",
+  "locals": [
+    { "name": "ItemName", "type": "Text", "default": "" },
+    { "name": "Item", "type": "WebItem", "default": "" }
+  ],
+  "access": { "anonymous": false, "registered": true },
+  "styleSheet": "",
+  "javaScript": "",
+  "preparation": {
+    "nodes": [
+      {
+        "kind": "aggregate",
+        "name": "FetchItems",
+        "sources": ["WebItem"],
+        "maxRecords": "10",
+        "next": "End",
+        "_path": "MainFlow/WebItems/WebPreparation[0]/FetchItems"
+      }
+    ],
+    "complete": true
+  },
+  "actions": [
+    {
+      "name": "Save",
+      "flow": {
+        "nodes": [
+          {
+            "kind": "assign",
+            "name": "SetName",
+            "assign": { "Item.Name": "ItemName" },
+            "next": "CreateOrUpdateWebItem",
+            "_path": "MainFlow/WebItems/Save/SetName"
+          },
+          {
+            "kind": "execute",
+            "name": "CreateOrUpdateWebItem",
+            "action": "CreateOrUpdateWebItem",
+            "args": { "Source": "Item" },
+            "next": "End",
+            "_path": "MainFlow/WebItems/Save/CreateOrUpdateWebItem",
+            "_ref": "CreateOrUpdateWebItem"
+          }
+        ],
+        "complete": true
+      },
+      "_path": "MainFlow/WebItems/Save"
+    }
+  ],
+  "widgets": [
+    {
+      "kind": "WebContainer",
+      "type": "Container",
+      "name": "Editor",
+      "path": "MainFlow/WebItems/Editor",
+      "props": { "style": "\"editor\"" },
+      "children": [
+        {
+          "kind": "WebInput",
+          "type": "Input",
+          "name": "NameInput",
+          "path": "MainFlow/WebItems/Editor/NameInput",
+          "props": { "variable": "ItemName" }
+        },
+        {
+          "kind": "WebButton",
+          "type": "Button",
+          "name": "SaveButton",
+          "path": "MainFlow/WebItems/Editor/SaveButton",
+          "props": { "onClick": "Save", "label": "\"Save\"" }
+        }
+      ]
+    },
+    {
+      "kind": "WebBlockInstance",
+      "type": "BlockInstance",
+      "name": "Summary",
+      "path": "MainFlow/WebItems/Summary",
+      "props": { "sourceBlock": "WebCard" },
+      "args": { "Caption": "\"Summary\"" },
+      "sourceBlock": "WebCard"
+    },
+    {
+      "kind": "WebIf",
+      "type": "If",
+      "path": "MainFlow/WebItems/WebIf[0]",
+      "props": { "condition": "not FetchItems.List.Empty" },
+      "true": [
+        {
+          "kind": "WebTableRecords",
+          "type": "TableRecords",
+          "name": "ItemsTable",
+          "path": "MainFlow/WebItems/WebIf[0]/WebIfBranch[0]/ItemsTable",
+          "props": { "sourceRecordList": "FetchItems.List" },
+          "header": [
+            {
+              "kind": "WebCell",
+              "type": "Cell",
+              "path": "MainFlow/WebItems/WebIf[0]/WebIfBranch[0]/ItemsTable/WebTableRow[0]/WebCell[0]",
+              "children": [
+                {
+                  "kind": "WebText",
+                  "type": "Text",
+                  "path": "MainFlow/WebItems/WebIf[0]/WebIfBranch[0]/ItemsTable/WebTableRow[0]/WebCell[0]/WebText[0]",
+                  "props": { "text": "Name" }
+                }
+              ]
+            }
+          ],
+          "row": [
+            {
+              "kind": "WebCell",
+              "type": "Cell",
+              "path": "MainFlow/WebItems/WebIf[0]/WebIfBranch[0]/ItemsTable/WebTableRow[1]/WebCell[0]",
+              "children": [
+                {
+                  "kind": "WebLink",
+                  "type": "Link",
+                  "name": "OpenDetail",
+                  "path": "MainFlow/WebItems/WebIf[0]/WebIfBranch[0]/ItemsTable/WebTableRow[1]/WebCell[0]/OpenDetail",
+                  "props": { "onClick": "WebDetail", "destination": "WebDetail" },
+                  "args": { "ItemId": "FetchItems.List.Current.WebItem.Id" },
+                  "children": [
+                    {
+                      "kind": "WebExpression",
+                      "type": "Expression",
+                      "path": "MainFlow/WebItems/WebIf[0]/WebIfBranch[0]/ItemsTable/WebTableRow[1]/WebCell[0]/OpenDetail/WebExpression[0]",
+                      "props": { "value": "FetchItems.List.Current.WebItem.Name" }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "false": [
+        {
+          "kind": "WebText",
+          "type": "Text",
+          "path": "MainFlow/WebItems/WebIf[0]/WebIfBranch[1]/WebText[0]",
+          "props": { "text": "No items" }
+        }
+      ]
+    },
+    {
+      "kind": "WebListRecords",
+      "type": "ListRecords",
+      "name": "ItemsList",
+      "path": "MainFlow/WebItems/ItemsList",
+      "props": { "sourceRecordList": "FetchItems.List" },
+      "children": [
+        {
+          "kind": "WebExpression",
+          "type": "Expression",
+          "path": "MainFlow/WebItems/ItemsList/WebExpression[0]",
+          "props": { "value": "FetchItems.List.Current.WebItem.Name" }
+        }
+      ]
+    },
+    {
+      "kind": "WebEditRecord",
+      "type": "EditRecord",
+      "name": "ItemForm",
+      "path": "MainFlow/WebItems/ItemForm",
+      "props": { "sourceRecord": "Item" },
+      "children": [
+        {
+          "kind": "WebRow",
+          "type": "Row",
+          "path": "MainFlow/WebItems/ItemForm/WebRow[0]",
+          "children": [
+            {
+              "kind": "WebCell",
+              "type": "Cell",
+              "path": "MainFlow/WebItems/ItemForm/WebRow[0]/WebCell[0]",
+              "children": [
+                {
+                  "kind": "WebText",
+                  "type": "Text",
+                  "path": "MainFlow/WebItems/ItemForm/WebRow[0]/WebCell[0]/WebText[0]",
+                  "props": { "text": "Edit item" }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "MainFlow/WebItems/Editor/SaveButton: the method of its On Click (Submit, Ajax Submit or Navigate) could not be read",
+    "MainFlow/WebItems/WebIf[0]/WebIfBranch[0]/ItemsTable/WebTableRow[1]/WebCell[0]/OpenDetail: the method of its On Click (Submit, Ajax Submit or Navigate) could not be read"
+  ]
+}
+"""";
 }

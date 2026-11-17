@@ -35,7 +35,7 @@ static partial class Migrate
         if (!IsBasicType(type)) why.Add($"its type ({(type.Length > 0 ? type : "unknown")}) is not a basic type");
         if (SensitiveName(name)) why.Add("its name looks sensitive and a client variable can be read by the user: never put it in the browser");
         if (!usedByScreens && serverActions.Length == 0) why.Add("no screen or block was found using it, so check by hand whether it is still needed");
-        return why.Count == 0 ? ("client", "used only by screens and blocks and a basic type: becomes a client variable of the same name in 4-screens.json") : ("manual", string.Join("; ", why));
+        return why.Count == 0 ? ("client", "used only by screens and blocks and a basic type: becomes a client variable of the same name in 4-screens.json; its default value is not read (inspect and export do not give it), so set it by hand if it had one") : ("manual", string.Join("; ", why));
     }
 
     // Variable -> the actions whose describe text names Session.<Variable> as a whole identifier. texts: action query (Kind:Name) -> text.
@@ -51,7 +51,8 @@ static partial class Migrate
         return use;
     }
 
-    // What becomes of an element that no inspect section lists, by its kind name (the interface name the model gives it).
+    // What becomes of an element that no inspect section lists (otherContent), by its kind name. Inspect writes ReviewModel.Kind, that is the model
+    // interface name without its leading I and without "Signature" (ISOAPClient -> SOAPClient, IEmail -> Email); a name with the I is accepted too.
     internal static (string decision, string why) DecideOther(string kind)
     {
         bool Has(string w) => kind.Contains(w, StringComparison.OrdinalIgnoreCase);
@@ -190,7 +191,8 @@ static partial class Migrate
         return layouts.FirstOrDefault(n => n == "LayoutTopMenu") ?? layouts.FirstOrDefault(n => n == "LayoutSideMenu") ?? layouts.FirstOrDefault();
     }
 
-    // The placeholder names in the export of a layout block: Placeholder widgets anywhere in its tree.
+    // The placeholder names in the export of a layout block: its Placeholder widgets (type Placeholder, with a name) anywhere in the tree: in
+    // children, an If's true and false, a table's header and row, and the slots of a block instance (Export.cs 590-653).
     internal static List<string> Placeholders(JsonNode? export)
     {
         var names = new List<string>();
@@ -198,7 +200,7 @@ static partial class Migrate
         {
             if (n is JsonObject o)
             {
-                if (S(o, "kind") == "Placeholder" && S(o, "name") is { } name && !names.Contains(name)) names.Add(name);
+                if (ScreenTranslator.IsPlaceholder(o) && S(o, "name") is { } name && !names.Contains(name)) names.Add(name);
                 foreach (var kv in o) Walk(kv.Value);
             }
             else if (n is JsonArray a) foreach (var x in a) Walk(x);

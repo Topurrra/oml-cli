@@ -204,8 +204,9 @@ static partial class Migrate
     static readonly Regex UiKind = new("Screen|Block|Theme|Flow", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     // Kind is Screen, Block or Email (the emails come from otherContent); File is the describe text, screens/<Name>.json is its raw export.
-    internal sealed record Screen(string Name, string Kind, string Flow, string[] Inputs, string[] Roles, string File)
-    { public string Query => Kind + ":" + Name; public string Export => File[..^4] + ".json"; }
+    // QueryKind: the kind word of the path `Kind:Name` when it is not Kind; an email takes the kind inspect printed for it (otherContent).
+    internal sealed record Screen(string Name, string Kind, string Flow, string[] Inputs, string[] Roles, string File, string? QueryKind = null)
+    { public string Query => (QueryKind ?? Kind) + ":" + Name; public string Export => File[..^4] + ".json"; }
 
     // One session variable of the old module and what becomes of it (item 3 of the plan): client or manual.
     internal sealed record SessionDecision(string Name, string Type, string? Default, string Decision, string Why);
@@ -327,7 +328,7 @@ static partial class Migrate
             var n = S(x, "name")!; var type = S(x, "type") ?? "";
             extra.ServerSession.TryGetValue(n, out var serverUse);
             var (decision, why) = DecideSession(n, type, serverUse ?? [], extra.ScreenSession.Contains(n));
-            var def = S(x, "default");
+            var def = S(x, "default");   // inspect gives name and type only (Inspect.cs 64), so this is null today; used if a Core ever adds it
             r.SessionDecisions.Add(new SessionDecision(n, type, def, decision, why));
             El("sessionVariable", n, decision, why);
             if (decision == "client")
@@ -343,7 +344,7 @@ static partial class Migrate
         string FileFor(string kind, string n, int taken) => "screens/" + Regex.Replace(n, @"[^A-Za-z0-9_-]", "_") + (taken > 0 ? "-" + kind.ToLowerInvariant() : "") + ".txt";
         foreach (var x in screenRows) r.Screens.Add(new Screen(S(x, "name")!, "Screen", S(x, "flow") ?? "", Strings(x, "inputs"), Strings(x, "roles"), FileFor("Screen", S(x, "name")!, 0)));
         foreach (var x in Rows(inspect, "blocks")) r.Screens.Add(new Screen(S(x, "name")!, "Block", S(x, "flow") ?? "", Strings(x, "inputs"), Strings(x, "roles"), FileFor("Block", S(x, "name")!, r.Screens.Count(q => q.Name == S(x, "name")))));
-        foreach (var x in emails) r.Screens.Add(new Screen(S(x, "name")!, "Email", "", [], [], FileFor("Email", S(x, "name")!, r.Screens.Count(q => q.Name == S(x, "name")))));
+        foreach (var x in emails) r.Screens.Add(new Screen(S(x, "name")!, "Email", "", [], [], FileFor("Email", S(x, "name")!, r.Screens.Count(q => q.Name == S(x, "name"))), S(x, "kind")));
 
         // Everything else the inspect lists under otherContent: a decision by kind name, nothing dropped silently.
         r.NoOtherContent = P(inspect, "otherContent") is not JsonArray;
@@ -489,7 +490,7 @@ static partial class Migrate
         head.Add("Wrappers are made for the entity actions the copied logic and the exported screens and blocks call. A rebuilt screen that writes an entity in a way the translator did not see needs one more: add a wrapper to the old module the same way (a public server action with the entity action's inputs and outputs), add it to the references of the new module and call it.");
         head.Add("Site property values, timer schedules and integration settings (REST, e-mail) set in Service Center do not follow a copy: set them again for the new module.");
         var clients = r.SessionDecisions.Where(d => d.Decision == "client").Select(d => d.Name).ToArray();
-        if (clients.Length > 0) head.Add($"Session variable(s) used only by screens and blocks become client variables of the same name in 4-screens.json ({string.Join(", ", clients)}); a client variable is readable by the user, so nothing sensitive goes there.");
+        if (clients.Length > 0) head.Add($"Session variable(s) used only by screens and blocks become client variables of the same name in 4-screens.json ({string.Join(", ", clients)}); a client variable is readable by the user, so nothing sensitive goes there. The default value of a session variable is not read by oml inspect or oml export: set the default of each client variable by hand if the session variable had one.");
         foreach (var d in r.SessionDecisions.Where(d => d.Decision == "manual")) head.Add($"Session variable {d.Name} is not migrated, it needs a decision by hand: {d.Why}.");
         if (r.Others.Count > 0)
             foreach (var g in r.Others.GroupBy(o => (o.Decision, o.Kind)).OrderBy(g => g.Key.Decision, StringComparer.Ordinal).ThenBy(g => g.Key.Kind, StringComparer.Ordinal))
