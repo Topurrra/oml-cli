@@ -27,7 +27,7 @@ Require (-not $r.saved -and ($r.problems -join ' ') -match 'NamesCore\.Badge' -a
 $r = Apply $consumer '{ "serverActions": [{ "name": "Use", "locals": [{ "name": "C", "type": "NamesCore.Customer Identifier" }, { "name": "L", "type": "List of NamesCore.Customer" }], "flow": [{ "kind": "execute", "action": "NamesLegacy.Badge" }] }] }' (Join-Path $Tmp 'names-q.oml')
 Require $r.saved 'qualified names did not resolve'
 $r = Apply $consumer '{ "serverActions": [{ "name": "Use", "flow": [{ "kind": "execute", "action": "Billing.FetchCustomer" }] }] }' (Join-Path $Tmp 'names-u.oml')
-Require (-not $r.saved -and ($r.problems -join ' ') -match "no module 'Billing'" -and ($r.problems -join ' ') -match 'Manage Dependencies') 'unknown module not explained'
+Require (-not $r.saved -and ($r.problems -join ' ') -match "no module 'Billing'" -and ($r.problems -join ' ') -match 'already references it') 'unknown module not explained'
 $f = & $Oml find FetchCustomer $consumer --in $dir 2>$null | ConvertFrom-Json
 Require (@($f.matches | Where-Object { $_.qualified -eq 'NamesCore.FetchCustomer' -and $_.source -eq 'producer file' }).Count -eq 1) 'find missed NamesCore.FetchCustomer'
 Require (@($f.matches | Where-Object { $_.qualified -eq 'NamesLegacy.FetchCustomer' -and $_.source -eq 'referenced' }).Count -eq 1) 'find missed the referenced NamesLegacy.FetchCustomer'
