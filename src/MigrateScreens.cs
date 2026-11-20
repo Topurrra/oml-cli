@@ -1917,8 +1917,10 @@ static class ScreenTranslator
                 currentTable = before;
                 o["row"] = Cells(w["row"], "RowCell");
                 if (tn is not null && sorting.TryGetValue(tn, out var st))
-                    Todo($"{at} sorts by clicking its header: in Service Studio set the table's On Sort to {st.Handler} (built, with the local {st.Local})"
-                        + (st.Columns.Count > 0 ? $" and the Sort Attribute of its header cells: {string.Join(", ", st.Columns)}" : " and the Sort Attribute of each sortable header cell"));
+                {
+                    o["onSort"] = st.Handler;   // the handler gets ClickedColumn, the Sort Attribute of the clicked header cell
+                    if (st.Columns.Count == 0) Todo($"{at} sorts by clicking its header, but no column was read: set the Sort Attribute of each sortable header cell");
+                }
             }
             else o["children"] = Ws(w["row"] ?? w["children"]);
             // Empty Message: Reactive shows nothing for an empty list; an If shows the text instead.
@@ -1948,7 +1950,14 @@ static class ScreenTranslator
                     if (Prop(w, used, "verticalAlignment") is { } va && Norm(va) is "top" or "middle" or "bottom")
                         cell["attributes"] = new JsonObject { ["style"] = Quote("vertical-align: " + Norm(va)) };
                     Quiet(w, used);
+                    var before = currentTable is not null && sorting.TryGetValue(currentTable, out var sb0) ? sb0.Columns.Count : 0;
                     cell["children"] = Ws(w["children"]);
+                    // A List_SortColumn in this header cell (ListBlock noted its column): the cell sorts by that attribute.
+                    if (currentTable is not null && sorting.TryGetValue(currentTable, out var sb1) && sb1.Columns.Count > before && tables.TryGetValue(currentTable, out var tsrc))
+                    {
+                        cell["source"] = tsrc;
+                        cell["sortAttribute"] = Regex.Replace(sb1.Columns[^1], @"\s+DESC\s*$", "", RegexOptions.IgnoreCase);
+                    }
                     Unhandled(w, used);
                     result.Add(cell);
                 }
@@ -2682,8 +2691,9 @@ static class ScreenTranslator
         Check(Text(search, "flow", 1, "kind") == "assign" && Text(search, "flow", 1, "assign", "StartIndex") == "0" && Text(search, "flow", 2, "kind") == "refreshData"
             && (At(search, "flow") as JsonArray)!.Count == 3,
             $"List: the search resets the page and refreshes once: {search.ToJsonString()}");
-        Check(list.Todo.Count == 1 && list.Todo[0].Contains("On Sort to OnSort") && list.Todo[0].Contains("Contact.Name"),
-            $"List: one Todo is left, for On Sort and the Sort Attribute: [{string.Join(" | ", list.Todo)}]");
+        Check(list.Todo.Count == 0 && Text(wrap, 0, "falseBranch", 0, "onSort") == "OnSort" && Text(wrap, 0, "falseBranch", 0, "headerRow", 0, "sortAttribute") == "Contact.Name"
+            && Text(wrap, 0, "falseBranch", 0, "headerRow", 0, "source") == "GetContacts.List",
+            $"List: the table sorts by its header (onSort, the cell's source and Sort Attribute), nothing is left: [{string.Join(" | ", list.Todo)}] {wrap?.ToJsonString()}");
 
         // 19. Two server calls in a row become one server action (one request, one transaction) with the screen's access check; a run that
         //     reads a widget stays as it is. A missing role raises the user exception AccessDenied.

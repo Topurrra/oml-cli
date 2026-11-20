@@ -8,7 +8,7 @@ namespace OmlCli;
 
 record RestSpec(string Name, string? BaseUrl = null, List<RestActionSpec>? Actions = null,
     string? Authentication = null, bool? InternalAccessOnly = null, RestCallbackSpec? OnAuthentication = null,
-    RestCallbackSpec? OnBeforeRequest = null, RestCallbackSpec? OnAfterResponse = null);
+    RestCallbackSpec? OnBeforeRequest = null, RestCallbackSpec? OnAfterResponse = null, RestCallbackSpec? OnRequest = null, RestCallbackSpec? OnResponse = null);
 record RestActionSpec(string Name, string Method = "GET", string Url = "",
     List<RestParamSpec>? Inputs = null, List<RestParamSpec>? Outputs = null, List<JsonElement>? Flow = null, List<VarSpec>? Locals = null);
 // The flow of a REST callback: consumed OnBeforeRequest and OnAfterResponse, exposed OnAuthentication. Their inputs and
@@ -106,7 +106,23 @@ partial class Builder
     void RestSecurity(object integration, RestSpec s, string label)
     {
         if (s.OnBeforeRequest is not null || s.OnAfterResponse is not null)
-            throw new ModelError("onBeforeRequest and onAfterResponse are for consumed REST APIs (restClients); an exposed API has onAuthentication");
+            throw new ModelError("onBeforeRequest and onAfterResponse are for consumed REST APIs (restClients); an exposed API has onAuthentication, onRequest and onResponse");
+        // OnRequest and OnResponse of an exposed API: the RESTService plugin makes them (CreateOrReuseOnRequestFlow), as Service Studio does.
+        foreach (var (key, factory, cbSpec) in new[] { ("onRequest", "CreateOrReuseOnRequestFlow", s.OnRequest), ("onResponse", "CreateOrReuseOnResponseFlow", s.OnResponse) })
+        {
+            if (cbSpec is null) continue;
+            var descriptor = RestModel.Contract(true).Assembly.GetType("ServiceStudio.Plugin.RESTService.RestServiceCallbackActionFlowDescriptor")
+                ?? throw new ModelError($"{key}: the RESTService plugin has no callback descriptor on this build");
+            var make = descriptor.GetMethod(factory, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static) ?? throw new ModelError($"{key}: no {factory} on this build");
+            var made = make.Invoke(null, [integration]) ?? throw new ModelError($"the model did not create {key} on this build");
+            // The API uses it only when its On Request / On Response property names it (RestServiceDescriptor.On...CallbackProperty).
+            var reference = RestModel.Contract(true).Assembly.GetType("ServiceStudio.Plugin.RESTService.RestServiceDescriptor")
+                ?.GetField(key == "onRequest" ? "OnRequestCallbackProperty" : "OnResponseCallbackProperty", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)?.GetValue(null)
+                ?? throw new ModelError($"{key}: no callback property on this build");
+            reference.GetType().GetMethods().First(x => x.Name == "SetValue" && x.GetParameters().Length == 2).Invoke(reference, [integration, made]);
+            CallbackFlow(made, cbSpec, $"{label}.{key}");
+            created.Add($"{label}.{key}");
+        }
         if (s.InternalAccessOnly is { } only) RestSet(integration, "InternalAccess", only ? "Yes" : "No");
         var kind = (s.Authentication ?? "none").ToLowerInvariant();
         if (kind is not ("none" or "basic" or "custom")) throw new ModelError($"authentication must be none, basic or custom, not '{s.Authentication}'");
@@ -153,8 +169,8 @@ partial class Builder
     // onBeforeRequest and onAfterResponse of a consumed API, created when the client has none.
     void RestCallbacks(object integration, RestSpec s, string label)
     {
-        if (s.Authentication is not null || s.InternalAccessOnly is not null || s.OnAuthentication is not null)
-            throw new ModelError("authentication, internalAccessOnly and onAuthentication are for exposed REST APIs (restServices)");
+        if (s.Authentication is not null || s.InternalAccessOnly is not null || s.OnAuthentication is not null || s.OnRequest is not null || s.OnResponse is not null)
+            throw new ModelError("authentication, internalAccessOnly, onAuthentication, onRequest and onResponse are for exposed REST APIs (restServices)");
         foreach (var (key, property, factory, callback) in new[]
                  { ("onBeforeRequest", "OnBeforeRequestCallback", "CreateOnBeforeRequestCallback", s.OnBeforeRequest),
                    ("onAfterResponse", "OnAfterResponseCallback", "CreateOnAfterResponseCallback", s.OnAfterResponse) })

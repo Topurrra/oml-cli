@@ -23,6 +23,7 @@ build: build, building
 button: button, buttons
 call: call, called, calling, calls
 call: call, calling, calls
+callback: callback, callbacks
 cas: case, cases
 cell: cell, cells
 chang: change, changed, changes, changing

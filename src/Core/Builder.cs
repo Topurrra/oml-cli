@@ -573,7 +573,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
             }
         if (widget is OutSystems.Model.UI.Mobile.Widgets.IMobileBlockInstanceWidget)
             Try($"{where}.events", () => BlockInstanceEvents(widget, w, where, screenActions));
-        else if (w.TryGetProperty("events", out _)) problems.Add($"{where}: events is only for BlockInstance; use onClick, onChange or another event key on other widgets");
+        else if (w.TryGetProperty("events", out var jsEvents)) Try($"{where}.events", () => WidgetEvents(widget, jsEvents, where, screenActions));
         foreach (var p in w.EnumerateObject().Where(p => p.Name is not ("type" or "name" or "args" or "sourceBlock" or "placeholders" or "events")))
         {
             if (p.Value.ValueKind == JsonValueKind.Array)
@@ -591,13 +591,19 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                     var handler = screenActions.GetValueOrDefault(p.Value.GetString()!)
                         ?? Refs.Find(m, p.Value.GetString()!, typeof(OutSystems.Model.UI.IScreenSignature));
                     Event(widget, p.Name, handler);
+                    // A built-in event that gives its handler a value: the handler's input of that name gets it (OnSort: ClickedColumn).
+                    if (EventValues.TryGetValue(p.Name, out var given) && Reflect.Get(widget, p.Name) is { } builtin
+                        && Elements(Reflect.Get(handler, "InputParameters")).Select(x => Model.NameOf(x)).Intersect(given, StringComparer.OrdinalIgnoreCase).ToList() is { Count: > 0 } bound)
+                        Defer(widget, ($"{where}.{p.Name}.args", () => Arguments(builtin, JsonSerializer.SerializeToElement(bound.ToDictionary(b => b!, b => b!)))));
                 });
-            // Object form: { "destination": "<Screen>", "args": { ... } }.
+            // Object form: { "destination": "<Screen or screen action>", "args": { ... } } ("action" is the same key).
             else if (p.Name.StartsWith("on", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.Object)
                 Try($"{where}.{p.Name}", () =>
                 {
                     var evt = Reflect.Get(widget, p.Name) ?? throw new ModelError($"no event '{p.Name}'");
-                    var destination = Refs.Find(m, p.Value.GetProperty("destination").GetString()!, typeof(IObjectSignature));
+                    var target = (p.Value.TryGetProperty("destination", out var d) ? d : p.Value.TryGetProperty("action", out var a) ? a : default).GetString()
+                        ?? throw new ModelError($"{p.Name} needs \"destination\" (a screen or screen action) or \"action\"");
+                    var destination = screenActions.GetValueOrDefault(target) ?? Refs.Find(m, target, typeof(IObjectSignature));
                     Reflect.Property(evt, "Destination", writable: true)!.SetValue(evt, destination);
                     if (p.Value.TryGetProperty("args", out var eventArgs)) Defer(widget, ($"{where}.{p.Name}.args", () => Arguments(evt, eventArgs)));
                 });
@@ -683,6 +689,36 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         && placeholders.Cast<object>().FirstOrDefault() is { } first ? first : widget;
 
     // Prefer the typed event; retain the descriptor fallback for builds that expose only a handler setter.
+    // The widget's Events list (Service Studio: Events, in the widget's properties): JavaScript events such as onblur, onkeyup or onmouseover,
+    // each with a screen action as its handler. { "events": { "onblur": "Check", "onkeyup": { "action": "Count", "args": { ... } } } }. An event
+    // already on the widget gets the new handler, so the same spec applied again changes nothing.
+    void WidgetEvents(object widget, JsonElement events, string where, Dictionary<string, object> screenActions)
+    {
+        if (events.ValueKind != JsonValueKind.Object) throw new ModelError("events must be an object: { \"onblur\": \"<screen action>\" }");
+        if (!Reflect.Has(widget, "CreateEvent")) throw new ModelError("this widget has no Events list on this build (block events go on a BlockInstance)");
+        foreach (var e in events.EnumerateObject()) Try($"{where}.events.{e.Name}", () =>
+        {
+            if (!System.Text.RegularExpressions.Regex.IsMatch(e.Name, "^on[a-z]+$"))
+                throw new ModelError($"'{e.Name}' is not a JavaScript event name (onclick, onblur, onkeyup, onmouseover, ...); a block event such as OnSelect goes in events of a BlockInstance");
+            var (actionName, args) = e.Value.ValueKind switch
+            {
+                JsonValueKind.String => (e.Value.GetString()!, (JsonElement?)null),
+                JsonValueKind.Object when e.Value.TryGetProperty("action", out var a) && a.ValueKind == JsonValueKind.String
+                    => (a.GetString()!, e.Value.TryGetProperty("args", out var given) ? given : (JsonElement?)null),
+                _ => throw new ModelError("a handler is a screen action name, or { \"action\": \"<screen action>\", \"args\": { ... } }"),
+            };
+            var action = screenActions.GetValueOrDefault(actionName)
+                ?? throw new ModelError($"no screen action '{actionName}' in this screen or block; the handler must be one of its client actions");
+            var evt = Elements(Reflect.Get(widget, "Events")).FirstOrDefault(x => string.Equals(Reflect.Get(x, "Event") as string, e.Name, StringComparison.OrdinalIgnoreCase))
+                ?? Reflect.Call(widget, "CreateEvent") ?? throw new ModelError("the widget did not create an event");
+            Reflect.Property(evt, "Event", writable: true)!.SetValue(evt, e.Name);
+            Reflect.Property(evt, "Handler", writable: true)!.SetValue(evt, action);
+            if (args is { ValueKind: JsonValueKind.Object } given2) Defer(widget, ($"{where}.events.{e.Name}.args", () => Arguments(evt, given2)));
+        });
+    }
+
+    static readonly Dictionary<string, string[]> EventValues = new(StringComparer.OrdinalIgnoreCase) { ["onSort"] = ["ClickedColumn"] };
+
     static void Event(object widget, string evt, object handler)
     {
         if (Reflect.Get(widget, evt) is { } builtin

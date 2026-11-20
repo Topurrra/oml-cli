@@ -72,7 +72,7 @@ Every server action a screen calls is a public endpoint: start it with identity 
 | Combo Box | Dropdown with a list, Options Value and Options Text |
 | Radio Button | Radio Group with one Radio Button per choice |
 | Edit Record, Show Record | Form; on an aggregate's whole record its inputs bind to that record, else to a local record variable |
-| Table Records, List Records | Table or List on the aggregate. List_Navigation, List_Counter and List_SortColumn are translated by code (OutSystems UI Pagination, locals, handlers); On Sort and Sort Attribute stay Service Studio only |
+| Table Records, List Records | Table or List on the aggregate. List_Navigation, List_Counter and List_SortColumn are translated by code (OutSystems UI Pagination, header sort, locals, handlers) |
 | Expression with escaping off | Avoid; if needed, an unescaped expression block (XSS risk) |
 | Editable Table, List Box | Build a Table with inputs, or a list of Checkboxes |
 | Link with Method Submit, Ajax Submit or Ajax | Button or Link with On Click and a client action |

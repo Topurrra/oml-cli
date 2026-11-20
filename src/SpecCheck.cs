@@ -55,7 +55,7 @@ static class SpecShapes
         "excelToRecordList", "recordListToExcel", "sendEmail", "triggerEvent",
     };
 
-    public static readonly string[] ProcessKinds = { "humanActivity", "automaticActivity", "decision", "end", "start" };
+    public static readonly string[] ProcessKinds = { "humanActivity", "automaticActivity", "decision", "end", "start", "wait", "conditionalStart", "executeProcess" };
 
     // Keys a node of this kind cannot be built without (spec.md, "Logic and flows").
     public static readonly Dictionary<string, string[]> NodeRequired = new(StringComparer.OrdinalIgnoreCase)

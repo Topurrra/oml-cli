@@ -90,17 +90,44 @@ partial class Builder
             && t.Name.Equals($"I{kind}Node", StringComparison.OrdinalIgnoreCase))
         ?? throw new ModelError($"unknown process node kind '{kind}'");
 
+    static readonly string[] ProcessCallbacks = ["onProcessStart", "onActivityOpen", "onActivityStart", "onActivityReady", "onActivityClose", "onActivitySkip"];
+    static readonly string[] NodeCallbacks = ["onOpen", "onReady", "onStart", "onClose", "onSkip"];
+
+    // A process or process node callback: { "locals": [...], "flow": [...] } or the flow array alone. The model creates it (CreateOnProcessStart,
+    // CreateOnClose, ...); a second apply reuses the one there.
+    void Callback(object owner, string key, JsonElement value, string where)
+    {
+        var property = char.ToUpperInvariant(key[0]) + key[1..];
+        if (Reflect.Property(owner, property) is null) throw new ModelError($"{key} is not a callback of this element (process: {string.Join(", ", ProcessCallbacks)}; nodes: {string.Join(", ", NodeCallbacks)})");
+        var callback = Reflect.Get(owner, property) ?? Reflect.Call(owner, "Create" + property) ?? throw new ModelError($"the model did not create {key} on this build");
+        var flow = value.ValueKind == JsonValueKind.Array ? value : value.TryGetProperty("flow", out var f) ? f : default;
+        if (value.ValueKind == JsonValueKind.Object && value.TryGetProperty("locals", out var locals))
+            Variables(callback, "CreateLocalVariable", JsonSerializer.Deserialize<List<VarSpec>>(locals.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!, where);
+        var body = flow.ValueKind == JsonValueKind.Array ? flow.EnumerateArray().ToList() : new();
+        foreach (var node in Elements(Reflect.Get(callback, "Nodes")).OfType<IObjectSignature>().Where(n => n is not OutSystems.Model.Logic.Nodes.IStartNode).ToList()) node.Delete();
+        flows.Add((where, () => Flow(callback, body, where)));
+    }
+
+    // An entity event that launches a process, or closes or starts a node: "Order" (Create) or { "entity": "Order", "event": "Update" }.
+    void Trigger(object owner, string property, JsonElement value, string where)
+    {
+        var trigger = Reflect.Get(owner, property) ?? throw new ModelError($"{where}: no {property} on this build");
+        var (entityName, evt) = value.ValueKind == JsonValueKind.String ? (value.GetString()!, "Create")
+            : (value.GetProperty("entity").GetString()!, value.TryGetProperty("event", out var e) ? e.GetString()! : "Create");
+        if (evt is not ("Create" or "Update")) throw new ModelError($"{where}: {property} event must be Create or Update, not '{evt}'");
+        Write(m, trigger, "Entity", entityName);
+        Write(m, trigger, "Action", evt);
+    }
+
     void Process(JsonElement spec)
     {
         // Adapted from OutSystems/outsystems11-mcp examples/AddProcessWithHumanActivity.cs (MIT).
         if (PlatformElement("Processes", "CreateProcess", spec) is not { } process) return;
         var label = $"process {RequiredName(spec)}";
-        if (spec.TryGetProperty("launchOn", out var entity))
-        {
-            var trigger = Reflect.Get(process, "LaunchOn")!;
-            Write(m, trigger, "Entity", entity.GetString()!);
-            Write(m, trigger, "Action", "Create");
-        }
+        if (spec.TryGetProperty("launchOn", out var entity)) Trigger(process, "LaunchOn", entity, label);
+        // The process callbacks (Service Studio: the process's On Process Start and On Activity ... handlers), each an action flow.
+        foreach (var key in ProcessCallbacks)
+            if (spec.TryGetProperty(key, out var cb)) Callback(process, key, cb, $"{label}.{key}");
         if (spec.TryGetProperty("inputs", out var inputs))
         {
             var parameters = JsonSerializer.Deserialize<List<VarSpec>>(inputs.GetRawText(),
@@ -111,7 +138,7 @@ partial class Builder
                 if (Elements(Reflect.Get(process, "InputParameters")).FirstOrDefault(p => Model.NameOf(p) == parameter.Name) is { } p)
                     Write(m, p, "IsMandatory", parameter.Mandatory ?? false);
         }
-        foreach (var p in spec.EnumerateObject().Where(p => p.Name is not ("name" or "launchOn" or "inputs" or "flow")))
+        foreach (var p in spec.EnumerateObject().Where(p => p.Name is not ("name" or "launchOn" or "inputs" or "flow") && !ProcessCallbacks.Contains(p.Name)))
             Queue(label, m, process, p.Name, p.Value);
 
         var specs = spec.TryGetProperty("flow", out var flow) ? flow.EnumerateArray().ToList() : new();
@@ -158,7 +185,12 @@ partial class Builder
                 references.Add((where + ".roles", () => SetAccess(node, new(Roles: roleNames.EnumerateArray().Select(r => r.GetString()!).ToList()))));
             if (kind == "humanactivity" && s.TryGetProperty("args", out var screenArgs))
                 Defer(node, (where + ".args", () => Arguments(node, screenArgs)));
-            foreach (var p in s.EnumerateObject().Where(p => p.Name is not ("kind" or "name" or "next" or "true" or "false" or "flow" or "action" or "args" or "roles" or "condition")))
+            // Node callbacks (On Open, On Ready, On Start, On Close, On Skip) and the entity event that closes or starts it.
+            foreach (var key in NodeCallbacks)
+                if (s.TryGetProperty(key, out var cb)) Callback(node, key, cb, $"{where}.{key}");
+            foreach (var key in new[] { "closeOn", "startOn" })
+                if (s.TryGetProperty(key, out var on)) Trigger(node, char.ToUpperInvariant(key[0]) + key[1..], on, where);
+            foreach (var p in s.EnumerateObject().Where(p => p.Name is not ("kind" or "name" or "next" or "true" or "false" or "flow" or "action" or "args" or "roles" or "condition" or "closeOn" or "startOn") && !NodeCallbacks.Contains(p.Name)))
                 Queue(where, m, node, p.Name, p.Value);
             targets.Add((where + ".flow", () =>
             {

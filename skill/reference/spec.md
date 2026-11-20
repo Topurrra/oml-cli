@@ -528,7 +528,7 @@ Export exposed API documentation with `oml openapi`; see `oml doc commands#opena
 |---|---|---|
 | Root | `restClients`, `restServices` | Consumed and exposed REST integrations. |
 | Integration | `name`, `baseUrl`, `actions` | Optional base URL; method definitions. |
-| Exposed integration | `authentication`, `internalAccessOnly`, `onAuthentication` | `none` (default), `basic` or `custom`. Basic gets an `OnAuthentication` with Username and Password inputs. In a module that references Users, Basic must be set in Service Studio (it fills the flow from a template the headless model lacks); apply refuses it there. `onAuthentication`: `{ "locals", "flow" }`. Apply warns when a new API leaves `authentication` out and is not internal only; `"none"` records the decision. An existing API keeps its settings (rule 7). |
+| Exposed integration | `authentication`, `internalAccessOnly`, `onAuthentication`, `onRequest`, `onResponse` | `none` (default), `basic` or `custom`. Basic gets an `OnAuthentication` with Username and Password inputs. In a module that references Users, Basic must be set in Service Studio (it fills the flow from a template the headless model lacks); apply refuses it there. `onAuthentication`: `{ "locals", "flow" }`. Apply warns when a new API leaves `authentication` out and is not internal only; `"none"` records the decision. An existing API keeps its settings (rule 7). `onRequest` and `onResponse` (`{ "locals", "flow" }`) read `Request` and set `CustomizedRequest`, or read `Response` and set `CustomizedResponse`. |
 | Consumed integration | `onBeforeRequest`, `onAfterResponse` | `{ "locals", "flow" }`. The flows read `Request` and set `CustomizedRequest`, or read `Response` and set `CustomizedResponse`. |
 | Method | `name`, `method`, `url`, `inputs`, `outputs`, `flow`, `locals` | HTTP verb defaults GET. Exposed methods support action flows and local variables. |
 | Parameter | `name`, `type`, `location`, `headerName`, `mandatory` | Type defaults Text; mandatory defaults false, except URL inputs. |
@@ -587,9 +587,9 @@ Verified on Service Studio `11.55.92.65269` in a fresh CrossDevice module. See `
 | `roles` | name, description, persistent; other installed properties | Persistent maps to IsPersistent. |
 | `siteProperties` | name, type, default, description, multiTenant; other installed properties | Basic type; defaults to Text. Default is an expression. |
 | `timers` | name, action, schedule, timeout, priority, description; other installed properties | Action must be a module-owned server action. Timeout maps to TimeoutInMinutes. |
-| `processes` | name, launchOn, inputs, flow, detail; other installed properties | Launch On names a module entity's Create event. |
+| `processes` | name, launchOn, inputs, flow, detail, onProcessStart, onActivityOpen, onActivityStart, onActivityReady, onActivityClose, onActivitySkip; other installed properties | Launch On names a module entity (Create) or `{ "entity", "event": "Create" | "Update" }`. A callback is a flow array or `{ "locals", "flow" }`. |
 | Screen `access` | anonymous, registered, roles | Replaces memberships. Flags default false; roles defaults empty. |
-| Process node | kind, name, next; installed properties | Resolves `OutSystems.Model.Processes.Nodes.I<Kind>Node`. |
+| Process node | kind, name, next, onOpen, onReady, onStart, onClose, onSkip, closeOn, startOn; installed properties | Resolves `OutSystems.Model.Processes.Nodes.I<Kind>Node`. Kinds: humanActivity, automaticActivity, decision, wait, conditionalStart, executeProcess, start, end. Callbacks as for the process; `closeOn` (wait, humanActivity) and `startOn` (conditionalStart) like `launchOn`. |
 | Human activity | destination, args, roles, instructions, detail, dueDate | Supplied roles replace Registered. |
 | Automatic activity | flow, or action with args | Nested ordinary flow, or a single-call convenience. |
 | Decision | condition, true, false | Required Boolean condition and Yes/No targets. |
@@ -657,7 +657,7 @@ Inspect reports platform names and key fields, including generated role actions.
 | Widget | type, name, children, content area arrays | Built-in type or registered descriptor type. |
 | Widget property | value, variable, source, style, visible, enabled, mandatory, prompt, text, sourceBlock; any other key | Uses installed setters/properties: any other key sets the model property of that name (its `Set<Key>` setter, else the writable property), so `isDefault` sets `IsDefault`. A key the widget does not have is a problem (`has no settable '<key>'`). Expression properties need OutSystems expressions. |
 | Widget attributes | attributes | HTML attributes (Service Studio's Attributes list): `{ "aria-label": "\"Close\"", "role": "\"tab\"", "style": "\"width:\" + Value + \"%\"" }`. Each value is an expression. An existing attribute with the same name gets the new value. |
-| Widget event | onClick, onChange, other installed events; args | Action name, screen name, or destination object. Arguments bind by parameter name. |
+| Widget event | onClick, onChange, other installed events; args | Action name, screen name, or destination object. Arguments bind by parameter name. `onSort` gives its handler `ClickedColumn`. `events` on a widget (not a BlockInstance): JavaScript events, `{ "onblur": "<action>", "onkeyup": { "action", "args" } }`. |
 | BlockInstance | sourceBlock, args, placeholders, events | Source block, input expressions, named placeholder content, event handlers. |
 | Label | targetWidget | Name of the input it describes, in the same screen, block or email (`""` clears it; also in `edits.set`). See Edits. |
 
@@ -694,7 +694,7 @@ Widgets whose keys are easy to get wrong (Reactive):
 | Input | `inputType` (`Password`, `Email`, `Number` or another value of the model's input type, as describe prints `type=`), `prompt` (expression), `maxLength` (number), `mandatory` (expression) | The validation message is not a widget property: assign `<Input>.ValidationMessage` in a client action (see Known model behaviour). |
 | Image | `image` (image name), `attributes.width`, `attributes.height` | describe: `image=`. No key for a URL or binary source: the image's source type cannot be set from a spec. Size: the `width` and `height` attributes, or CSS through `style`. |
 | Popup | `showPopup` (Boolean expression), `children` | Shows while the expression is True. No title or size property: put the title in its children and size it with CSS (`style`). |
-| TableRecords, List | `source` | Paging and sorting belong to the aggregate: `maxRecords` and `startIndex`, and `sorts` with `"dynamic": true` for a sort chosen at run time. For page links add the OutSystems UI `Pagination` block (see Block events). A column has no sort key. |
+| TableRecords, List | `source` | Paging and sorting belong to the aggregate: `maxRecords` and `startIndex`, and `sorts` with `"dynamic": true` for a sort chosen at run time. For page links add the OutSystems UI `Pagination` block (see Block events). Sorting by header: the table's `onSort` handler, and on each HeaderCell `source` (the table's list) and `sortAttribute` (`Entity.Attribute`). `onScrollEnding` on a List. |
 | any | `attributes.style` | Reactive drops CSS custom properties (`--name: value`) from it (apply warns); plain properties such as `width` stay. Put the values in a `data-` attribute and set them with `element.style.setProperty` from a Script. `attributes.id` is refused: the platform sets the id (use `Name.Id`). |
 
 A Reactive screen or block has no JavaScript of its own (a Traditional one has): put the code in a `javaScript` node of a client action (called from `onReady` to run at page start) or in a script (`scripts`, `requiredScripts`).
