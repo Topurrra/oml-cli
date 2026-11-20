@@ -8,10 +8,11 @@ using OutSystems.Model.Types;
 namespace OmlCli;
 
 record EmailSpec(string Name, string Subject, string Flow = "Emails", List<VarSpec>? Inputs = null, List<VarSpec>? Locals = null,
-    List<JsonElement>? Widgets = null, string? StyleSheet = null, string? Description = null);
+    List<JsonElement>? Widgets = null, string? StyleSheet = null, string? Description = null, List<JsonElement>? Preparation = null);
 
-// Reactive and Mobile emails: a UI flow element built from a small set of widgets, sent by a Send Email node
-// in a server action. Its content sees only its own inputs and locals.
+// Emails: a UI flow element sent by a Send Email node in a server action (or a process). Reactive and Mobile emails are built from a
+// small set of widgets and see only their own inputs and locals. Traditional Web emails take Traditional widgets and a Preparation
+// (a flow run before the email is rendered, where attachFile adds attachments).
 partial class Builder
 {
     static readonly HashSet<string> EmailWidgets = new(StringComparer.OrdinalIgnoreCase)
@@ -25,10 +26,11 @@ partial class Builder
     void CreateEmail(EmailSpec e)
     {
         var label = $"email {e.Name}";
-        if (WebUi.IsTraditional(m) || m.Kind.ToString() == "Service")
-            throw new ModelError("emails builds Reactive and Mobile emails; in Traditional Web, create the Email screen in Service Studio and send it with sendEmail");
+        if (m.Kind.ToString() == "Service") throw new ModelError("a Service module has no emails");
         if (string.IsNullOrWhiteSpace(e.Subject)) throw new ModelError("subject is required: a Text expression; a literal keeps its quotes inside the JSON string");
-        foreach (var w in e.Widgets ?? new()) EmailWidget(w);
+        if (WebUi.IsTraditional(m)) { CreateWebEmail(e, label); return; }
+        if (e.Preparation is not null) throw new ModelError("preparation is for Traditional Web emails; a Reactive email gets its data from its inputs");
+        foreach (var w in e.Widgets ?? new()) EmailWidget(w);   // Reactive and Mobile only: a Traditional email is checked by the model
         var flow = m.MobileFlows.FirstOrDefault(f => f.Name == e.Flow) ?? NewMobileFlow(e.Flow);
         if (ElementPaths.Children(flow).FirstOrDefault(n => Model.NameOf(n) == e.Name) is { } found)
         {
@@ -53,6 +55,40 @@ partial class Builder
         widgets.Add(($"{label}.widgets", () =>
         {
             foreach (var w in e.Widgets ?? new()) Widget(email, w, label, new());
+        }));
+    }
+
+    void CreateWebEmail(EmailSpec e, string label)
+    {
+        if (e.StyleSheet is not null) throw new ModelError("a Traditional Web email takes its style from the theme; leave out styleSheet");
+        var flow = m.WebFlows.FirstOrDefault(f => f.Name == e.Flow);
+        if (flow is null)
+        {
+            flow = m.CreateWebFlow(e.Flow, services.NewKey());
+            if (!Fresh(flow, e.Flow, $"flow {e.Flow}")) return;
+            created.Add($"flow {e.Flow}");
+        }
+        if (flow.Nodes.FirstOrDefault(n => Model.NameOf(n) == e.Name) is { } found)
+        {
+            NotChanged(label, "subject, inputs, locals, preparation and widgets", $"edits: set, replaceWidgets with \"at\": \"{ElementPaths.PathTo(m, (IObjectSignature)found) ?? e.Name}\", or addWidgets");
+            existing.Add(label);
+            return;
+        }
+        var email = flow.CreateEmail(e.Name, services.NewKey());
+        if (!Fresh(email, e.Name, label)) return;
+        created.Add(label);
+        if (e.Description is not null) email.Description = e.Description;
+        Variables(email, "CreateInputParameter", e.Inputs, label);
+        Variables(email, "CreateLocalVariable", e.Locals, label);
+        Defer(email, ($"{label}.subject", () => email.SetSubject(e.Subject)));
+        if (e.Preparation is not null)
+        {
+            var preparation = email.Preparation ?? email.CreatePreparation();
+            flows.Add(($"{label}/Preparation", () => Flow(preparation, e.Preparation, $"{label}/Preparation")));
+        }
+        widgets.Add(($"{label}.widgets", () =>
+        {
+            foreach (var w in e.Widgets ?? new()) WebWidget(email, w, label, new());
         }));
     }
 

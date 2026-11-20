@@ -13,6 +13,7 @@ namespace OmlCli;
 // - connect sets where a node goes next.
 partial class Builder
 {
+    static bool IsComment(JsonElement s) => s.GetProperty("kind").GetString()!.Equals("comment", StringComparison.OrdinalIgnoreCase);
     static string NodeName(JsonElement s) => s.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString()! : s.GetProperty("kind").GetString()!;
     static bool IsKind(object node, string kind) => ProcessNodeType(kind).IsInstanceOfType(node);
     static IEnumerable<object> ProcessNodes(object process) => Elements(Reflect.Get(process, "Nodes"));
@@ -41,6 +42,8 @@ partial class Builder
 
     object MakeNode(object process, string kind, string name, string label)
     {
+        if (kind.Equals("sendEmail", StringComparison.OrdinalIgnoreCase) && !WebUi.IsTraditional(m))
+            throw new ModelError($"{label}/{name}: a Reactive process has no Send Email node; use an automaticActivity whose action sends the email (a sendEmail node in a server action)");
         var node = Reflect.CallGeneric(process, "CreateNode", ProcessNodeType(kind), name, services.NewKey())!;
         if (Reflect.Property(node, "Label", true) is { } lp) lp.SetValue(node, name);
         if ((Reflect.Property(node, "Name", true) is not null || Reflect.Property(node, "Label", true) is not null) && !Fresh(node, name, label))
@@ -99,7 +102,7 @@ partial class Builder
         }
         if (s.TryGetProperty("roles", out var roleNames))
             references.Add((where + ".roles", () => SetAccess(node, new(Roles: roleNames.EnumerateArray().Select(r => r.GetString()!).ToList()))));
-        if (kind is "humanactivity" or "executeprocess" && s.TryGetProperty("args", out var screenArgs))   // the screen's inputs, or the child process's
+        if (kind is "humanactivity" or "executeprocess" or "sendemail" && s.TryGetProperty("args", out var screenArgs))   // the screen's, child process's or email's inputs
             Defer(node, (where + ".args", () => Arguments(node, screenArgs)));
         foreach (var key in NodeCallbacks)
             if (s.TryGetProperty(key, out var cb)) Callback(node, key, cb, $"{where}.{key}");
@@ -118,6 +121,18 @@ partial class Builder
     // Decision to its true and false), else the next listed node, else `exit` (End). Returns the first listed node.
     object? ProcessFlow(object process, List<JsonElement> specs, string label, object? exit = null, bool allowExisting = true)
     {
+        // Comments stand apart from the flow: no name, no connectors. Listed again, a comment with the same text is the one there.
+        foreach (var c in specs.Where(IsComment).ToList())
+        {
+            specs.Remove(c);
+            var text = c.TryGetProperty("text", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString()!
+                : throw new ModelError($"{label}: a comment takes text");
+            var comment = ProcessNodes(process).OfType<ICommentNode>().FirstOrDefault(n => n.Text == text)
+                ?? (ICommentNode)Reflect.CallGeneric(process, "CreateNode", typeof(ICommentNode), "Comment", services.NewKey())!;
+            comment.Text = text;
+            foreach (var p in c.EnumerateObject().Where(p => p.Name is not ("kind" or "text" or "name")))
+                Queue($"{label}/comment", m, comment, p.Name, p.Value);
+        }
         var nodes = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
         static bool IsEnd(JsonElement s) => s.GetProperty("kind").GetString()!.Equals("end", StringComparison.OrdinalIgnoreCase);
         // An End keeps no name in the model: listed again, it is the End its listed predecessor goes to now (so a Decision's exits keep
@@ -205,8 +220,8 @@ partial class Builder
 
         var specs = spec.TryGetProperty("flow", out var flow) ? flow.EnumerateArray().ToList() : new();
         if (!isNew && specs.Count == 0) return;   // an existing process without a flow keeps its connections
-        var first = ProcessFlow(process, specs, label);
-        if (!specs.Any(s => s.GetProperty("kind").GetString()!.Equals("start", StringComparison.OrdinalIgnoreCase)))
+        var first = ProcessFlow(process, specs, label);   // takes the comments out of specs
+        if ((isNew || specs.Count > 0) && !specs.Any(s => s.GetProperty("kind").GetString()!.Equals("start", StringComparison.OrdinalIgnoreCase)))
         {
             var start = ProcessNode(process, "Start");
             targets.Add((label + ".start", () => SetNext(start, first ?? ProcessNode(process, "End"), null, label)));

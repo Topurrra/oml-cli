@@ -52,10 +52,10 @@ static class SpecShapes
     {
         "assign", "if", "forEach", "switch", "aggregate", "sql", "execute", "refreshData", "destination", "raiseException",
         "end", "jsonDeserialize", "jsonSerialize", "javaScript", "exceptionHandler", "comment", "message", "download",
-        "excelToRecordList", "recordListToExcel", "sendEmail", "triggerEvent",
+        "excelToRecordList", "recordListToExcel", "sendEmail", "triggerEvent", "ajaxRefresh", "attachFile",
     };
 
-    public static readonly string[] ProcessKinds = { "humanActivity", "automaticActivity", "decision", "end", "start", "wait", "conditionalStart", "executeProcess" };
+    public static readonly string[] ProcessKinds = { "humanActivity", "automaticActivity", "decision", "end", "start", "wait", "conditionalStart", "executeProcess", "sendEmail", "comment" };
 
     // Keys a node of this kind cannot be built without (spec.md, "Logic and flows").
     public static readonly Dictionary<string, string[]> NodeRequired = new(StringComparer.OrdinalIgnoreCase)

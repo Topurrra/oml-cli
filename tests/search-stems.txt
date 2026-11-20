@@ -178,6 +178,7 @@ scaffold: scaffold, scaffolding
 schedul: schedule, schedules
 screen: screen, screens
 script: script, scripts
+second: second, seconds
 select: select, selected, selects
 servic: service, services
 set: set, sets

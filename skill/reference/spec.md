@@ -55,7 +55,8 @@ One row per top-level key: what it creates or changes, and the section of this f
 | `externalSites` | A UI flow's External Site: `name`, `url`, `flow` (MainFlow), `inputs` (its query string), `description`, `isFrequentDestination` (Traditional Web). A screen goes there like to a screen (onClick, destination node). | Platform elements |
 | `screens`, `blocks` (Reactive, Mobile) | Screens, blocks, aggregates, actions, events, widgets. | Reactive UI and Mobile UI |
 | `events`, `triggerEvent`, `onParametersChanged` | Block events: declare on a block, fire with a node, handle on each block instance. | Block events |
-| `emails`, flow node `sendEmail` | Reactive emails and sending them from a server action. | Emails |
+| `emails`, flow node `sendEmail` | Emails (Reactive, and Traditional Web with a `preparation`) and sending them from a server action or a Traditional process. | Emails |
+| `uiFlows` | A UI flow's `comments` (text, or `{ text, isReminder }`) and, in Traditional Web, `entries` (`name`, `screen`, `isDefault`). Listed again: same text or name is the one there. | Platform elements |
 | `screens`, `blocks` (Traditional Web) | Web screens with `preparation` and web widgets. | Traditional Web UI |
 | `layout`, `placeholders`, `template` | Layout blocks and generated list or detail screens. | Layouts and scaffolding |
 | `edits` | Changes to existing elements. | Edits |
@@ -84,6 +85,7 @@ It does not rename the module or change its key or activation code.
 ```
 
 `description` and `javaScript` are literal strings. The flags are booleans.
+Other settings: `useCookies`, `usesCache`, `useDefaultThemeExceptionHandler` (booleans); `serverRequestTimeout` (seconds, Reactive); `jQueryVersion`, `defaultTransition`, `webScreenRenderingMode` (a value name; a wrong one lists them); `webServicesNamespace`; the validation messages `mandatoryInput`, `invalidText`, `invalidInteger`, `invalidDecimal`, `invalidCurrency`, `invalidDate`, `invalidTime`, `invalidDateTime`, `invalidEmail`, `invalidPhone`, `invalidNumericPassword`; the mobile upgrade messages `upgradeComplete`, `upgradeFailed`, `upgradeFailedOnDataModel`, `upgradeFailedOnResources`, `upgradeRequired`, `upgradeRequiredWithDataLoss`. Messages are plain text. `inspect.module.settings` reads them back.
 `icon` reads PNG bytes from a file path: relative to the spec's folder when the file is there, else to the CLI working directory.
 `defaultTheme` is the exact name of an existing theme, including themes from module references.
 The CLI selects the Traditional Web or Reactive/Mobile theme property for the module kind.
@@ -324,6 +326,8 @@ These use the installed typed node API and the normal expression-last order:
 | `comment` | `text`, optional `isReminder` | No connectors. Text is plain text. A spec name does not persist because the node has no Name or Label. |
 | `message` | `message`, `type`: `info`, `success`, `warning`, `error` | Message is an expression. Verified in client actions. |
 | `download` | `fileContent`, `fileName`, `mimeType`, optional `saveToDisk` | Expressions; terminal node. Verified in Traditional Web screen actions. |
+| `ajaxRefresh` | `widget`, optional `animationEffect` (None, Highlight, Fade, VerticalSlide), `rowNumber` | Traditional Web screen and block actions only. `widget` names a widget or block instance of that screen. |
+| `attachFile` | `fileContent`, optional `fileName`, `mimeType` | Only in a Traditional Web email's `preparation`. Expressions. |
 | `excelToRecordList` | `fileContent`, `sheetName`, `dataType`: `List of <record type>` | Expressions plus list type. Verified in server actions. |
 | `recordListToExcel` | `recordList`, `attributeSelection`: array of field paths such as `Label` | At least one field is required. Selections bind after the list expression. |
 | `sendEmail` | `email`, `from`, `to`, optional `cc`, `bcc`, `logContent` (Traditional Web only), `args` | Reactive: server actions only. Address values are expressions; args map email input names to expressions. See Emails. |
@@ -332,13 +336,13 @@ Missing elements, unsupported node scopes and model refusals prevent saving. The
 
 ### Emails
 
-`emails` creates Reactive and Mobile emails in a UI flow (default `Emails`, created if missing):
-`[{ "name", "subject", "flow", "inputs", "locals", "widgets", "styleSheet", "description" }]`. `subject` is required and is an expression.
+`emails` creates emails in a UI flow (default `Emails`, created if missing):
+`[{ "name", "subject", "flow", "inputs", "locals", "widgets", "styleSheet", "description", "preparation" }]`. `subject` is required and is an expression.
 
 - An email sees only its own inputs and locals. Load data in the server action and pass it as inputs.
 - Allowed widgets: Container, Expression, If, Image, Link, List, TableRecords (with HeaderCell and RowCell), Text. Apply refuses any other widget, at any depth.
 - Keep the CSS small. Mail clients clip large mails. oml creates no email theme, so the flow uses the module's default theme. In Service Studio, give the email flow a light theme, not the OutSystems UI theme.
-- Traditional Web: `emails` is refused. Create the Email screen in Service Studio; `sendEmail` can send it.
+- Traditional Web: Traditional widgets, no `styleSheet` (the theme styles it), and an optional `preparation` flow that runs before the email renders. `attachFile` there adds an attachment. Email inputs cannot be Binary Data; load the file in the preparation.
 
 `sendEmail` sends an email from a server action. In Reactive and Mobile, the model API cannot place a Send Email node in any server action. oml creates Service Studio's own send action for the email once, `Send<Email>`, with the inputs `From`, `To`, `CC`, `BCC` and the email's inputs. Each `sendEmail` node becomes a call to it. An email input named From, To, CC or BCC is refused.
 
@@ -596,7 +600,7 @@ Verified on Service Studio `11.55.92.65269` in a fresh CrossDevice module. See `
 | `timers` | name, action, schedule, timeout, priority, description; other installed properties | Action must be a module-owned server action. Timeout maps to TimeoutInMinutes. |
 | `processes` | name, launchOn, inputs, flow, detail, onProcessStart, onActivityOpen, onActivityStart, onActivityReady, onActivityClose, onActivitySkip; other installed properties | Launch On names a module entity (Create) or `{ "entity", "event": "Create" | "Update" }`. A callback is a flow array or `{ "locals", "flow" }`. Listed again, an existing process gets the nodes it lacks, updates the listed ones and connects them as listed (other nodes stay; delete removes them). `next` may list several nodes (a Start with `"next": ["A", "B"]`): they run at the same time and may join again; `executeProcess` takes `process` and `args`. |
 | Screen `access` | anonymous, registered, roles | Replaces memberships. Flags default false; roles defaults empty. |
-| Process node | kind, name, next, onOpen, onReady, onStart, onClose, onSkip, closeOn, startOn; installed properties | Resolves `OutSystems.Model.Processes.Nodes.I<Kind>Node`. Kinds: humanActivity, automaticActivity, decision, wait, conditionalStart, executeProcess, start, end. Callbacks as for the process; `closeOn` (wait, humanActivity) and `startOn` (conditionalStart) like `launchOn`. |
+| Process node | kind, name, next, onOpen, onReady, onStart, onClose, onSkip, closeOn, startOn; installed properties | Resolves `OutSystems.Model.Processes.Nodes.I<Kind>Node`. Kinds: humanActivity, automaticActivity, decision, wait, conditionalStart, executeProcess, sendEmail (Traditional Web: `email`, `from`, `to`, `cc`, `bcc`, `args`), comment (`text`; no connectors), start, end. Callbacks as for the process; `closeOn` (wait, humanActivity) and `startOn` (conditionalStart) like `launchOn`. |
 | Human activity | destination, args, roles, instructions, detail, dueDate | Supplied roles replace Registered. |
 | Automatic activity | flow, or action with args | Nested ordinary flow, or a single-call convenience. |
 | Decision | condition, true, false | Required Boolean condition and Yes/No targets. |

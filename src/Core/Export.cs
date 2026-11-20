@@ -62,6 +62,7 @@ static class Export
     // name. A flag key is a boolean in the spec. `missing` is a part that cannot be read this way.
     static readonly Dictionary<string, (string spec, (string key, bool flag)[] keys, string? missing)> GenericKinds = new()
     {
+        ["AttachFileNode"] = ("attachFile", new[] { ("fileContent", false), ("fileName", false), ("mimeType", false) }, null),
         ["DownloadNode"] = ("download", new[] { ("fileContent", false), ("fileName", false), ("mimeType", false), ("saveToDisk", true) }, null),
         ["ExcelToRecordListNode"] = ("excelToRecordList", new[] { ("fileContent", false), ("sheetName", false), ("dataType", false) }, null),
         ["RecordListToExcelNode"] = ("recordListToExcel", new[] { ("recordList", false) }, "its attributeSelection is a list that the reader does not read"),
@@ -399,6 +400,14 @@ static class Export
                 if (destination is IScreenSignature) o["screen"] = reference;
                 else unsupported($"it goes to {Describe.Name(destination)}, not to a screen; a spec destination names a screen");
                 Args(n);
+            }
+            else if (kind == "AjaxRefreshNode")
+            {
+                Spec("ajaxRefresh");
+                o["widget"] = Describe.Name(Reflect.Get(n, "WidgetOrWebBlock"));
+                if (Reflect.Get(n, "AnimationEffect")?.ToString() is { } effect && effect != "None") o["animationEffect"] = effect;
+                if (Describe.Expr(n, "RowNumber") is { Length: > 0 } row) o["rowNumber"] = row;
+                Connect("next", "Sequence");
             }
             else if (kind == "TriggerNode") { Spec("triggerEvent"); o["event"] = Describe.Name(Reflect.Get(n, "Event")); Args(n); Connect("next", "Sequence"); }
             else if (kind == "SendEmailNode" || Reflect.Property(n, "EmailScreen") is not null)

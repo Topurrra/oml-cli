@@ -51,6 +51,8 @@ Traditional Web to Reactive, prepared by code, and an interactive menu for peopl
 
 - **References without the producer file.** A reference entry with `module` copies the reference that another module already has to that module or extension, the way Service Studio's copy and paste does: no producer `.oml`, no `.xif`, and platform extensions (Text, BinaryData, HTTPRequestHandler, ...) work too, so they no longer need Manage Dependencies. The reference keeps the producer's own keys. Data and actions only; Service Studio's IP protection allows it between modules of the same environment.
 
+- **Traditional Web emails, Ajax Refresh, process emails and comments, UI flow comments and entries, module settings.** `emails` builds Traditional Web emails too, with a `preparation` flow where `attachFile` adds attachments. `ajaxRefresh` refreshes a named widget or block instance from a Traditional screen action. Traditional processes take `sendEmail` nodes, and every process takes `comment` nodes. `uiFlows` adds a UI flow's comments and, in Traditional Web, its entries. `module` takes cookies, cache, jQuery version, default transition, rendering mode, request timeout, web services namespace and the validation and upgrade messages; a wrong value name lists the right ones. The model's message now shows when a node cannot go where it was put.
+
 ### Fixed
 
 - Re-applying a process whose Decision goes to two named End nodes swapped the Ends and failed ("Cannot change the target node to End"); each End is now found from the node that goes to it.

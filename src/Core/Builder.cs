@@ -259,7 +259,14 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 if (kind.Equals("sql", StringComparison.OrdinalIgnoreCase)) Sql(node, n, where);
                 QueryNode(action, node, n, kind, where);
                 if (node is OutSystems.Model.Logic.Nodes.ITriggerNode) TriggerEvent(action, node, n);
-                foreach (var p in n.EnumerateObject().Where(p => !FlowKeys.Contains(p.Name) && !(node is OutSystems.Model.Logic.Nodes.ITriggerNode && p.Name == "event")))
+                var ajax = node is OutSystems.Model.Logic.Nodes.IAjaxRefreshNode;
+                if (ajax)
+                {
+                    var widgetName = n.TryGetProperty("widget", out var wn) && wn.ValueKind == JsonValueKind.String ? wn.GetString()!
+                        : throw new ModelError("ajaxRefresh requires widget: the name of a widget or block instance of this screen to refresh");
+                    Defer(node, ($"{where}.widget", () => AjaxTarget(node, widgetName)));
+                }
+                foreach (var p in n.EnumerateObject().Where(p => !FlowKeys.Contains(p.Name) && !(node is OutSystems.Model.Logic.Nodes.ITriggerNode && p.Name == "event") && !(ajax && p.Name == "widget")))
                     Queue(where, m, node, p.Name, p.Value);
                 CheckLogicNode(action, node, n, kind, where);
             }
@@ -645,6 +652,20 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 if (a.Name.Equals("style", StringComparison.OrdinalIgnoreCase) && a.Value.ValueKind == JsonValueKind.String
                     && System.Text.RegularExpressions.Regex.IsMatch(a.Value.GetString()!, @"(^|[;""\s])--[A-Za-z]"))
                     Warnings.Add($"{where}: Reactive drops CSS custom properties (--name) from the style attribute, so the app never gets them. Put the declarations in a data- attribute and set them from a Script with element.style.setProperty, or use plain properties (width, height) in style");
+    }
+
+    // Ajax Refresh (Traditional Web screen actions): the widget or block instance it refreshes, by name, in the screen or block that
+    // owns the action, found after every widget exists.
+    static void AjaxTarget(object node, string name)
+    {
+        var owner = Ancestors((IObjectSignature)node).FirstOrDefault(o => o is OutSystems.Model.UI.IScreenSignature or OutSystems.Model.UI.IBlockSignature)
+            ?? throw new ModelError("ajaxRefresh runs in a Traditional Web screen or block action");
+        var property = Reflect.Property(node, "WidgetOrWebBlock", writable: true) ?? throw new ModelError("Ajax Refresh has no settable widget on this build");
+        var hits = ProductionRules.Walk(owner).Where(o => o is OutSystems.Model.UI.IWidgetSignature && Model.NameOf(o) == name).ToList();
+        if (hits.Count != 1) throw new ModelError(hits.Count == 0 ? $"widget: no widget named '{name}' in {Model.NameOf(owner)}; give the widget (a Container, a Table Records, a block instance, ...) a name" : $"widget: several widgets named '{name}'");
+        try { property.SetValue(node, hits[0]); }
+        catch (Exception e) when (e is ArgumentException or InvalidCastException or System.Reflection.TargetInvocationException)
+        { throw new ModelError($"widget: '{name}' is {ElementPaths.Kind(hits[0])}, which Ajax Refresh cannot refresh"); }
     }
 
     // A Label's target widget, by name: a widget of the same screen, block or email, found after every widget exists.

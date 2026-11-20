@@ -75,7 +75,12 @@ static class Reflect
     static object? Invoke(MethodInfo m, object o, object?[] args)
     {
         try { return m.Invoke(o, args); }
-        catch (TargetInvocationException e) { throw new ModelError($"{m.Name}: {e.InnerException?.Message}"); }
+        catch (TargetInvocationException e)
+        {
+            Exception inner = e;
+            while (inner is TargetInvocationException { InnerException: { } next }) inner = next;
+            throw new ModelError($"{m.Name}: {inner.Message}");
+        }
     }
 
     // A Set*(string) method for `key`: exact Set{key}, else (fuzzy) a unique setter whose name ends or starts with it.
@@ -135,7 +140,8 @@ static class Reflect
                 JsonValueKind.True or JsonValueKind.False => value.GetBoolean(),
                 JsonValueKind.Number when target == typeof(int) => value.GetInt32(),
                 JsonValueKind.String when target == typeof(string) => value.GetString(),
-                JsonValueKind.String when target.IsEnum => Enum.Parse(target, value.GetString()!, ignoreCase: true),
+                JsonValueKind.String when target.IsEnum => Enum.TryParse(target, value.GetString()!, ignoreCase: true, out var named) ? named
+                    : throw new ModelError($"'{value.GetString()}' is not a {key} value; use one of: {string.Join(", ", Enum.GetNames(target))}"),
                 JsonValueKind.String when typeof(ITypeSignature).IsAssignableFrom(target) =>
                     Model.Resolve(m, value.GetString()!) ?? throw new ModelError(Model.UnknownType(value.GetString()!)),
                 JsonValueKind.String => Refs.Find(m, value.GetString()!, target),

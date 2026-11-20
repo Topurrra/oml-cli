@@ -74,6 +74,47 @@ static partial class SelfTest
                 failures.Add("sendEmail lost its Email reference");
         }
 
+        // Traditional Web: an email with a Preparation that attaches a file, a process that sends it next to a comment, Ajax Refresh
+        // of a named container, UI flow comments and an entry, module settings.
+        File.WriteAllText(path, """
+            {"module":{"useCookies":false,"invalidEmail":"Bad email address"},
+             "emails":[{"name":"Invoice","subject":"\"Your invoice\"","inputs":[{"name":"Id","type":"Text"}],"locals":[{"name":"Doc","type":"Binary Data"}],
+               "preparation":[{"kind":"attachFile","fileName":"\"invoice.pdf\"","fileContent":"Doc","mimeType":"\"application/pdf\""}],
+               "widgets":[{"type":"Expression","value":"Id"}]}],
+             "serverActions":[{"name":"Prepare","flow":[]}],
+             "processes":[{"name":"Notify","flow":[{"kind":"comment","text":"Sends the invoice"},{"kind":"automaticActivity","name":"Work","action":"Prepare"},
+               {"kind":"sendEmail","name":"SendIt","email":"Invoice","from":"\"a@example.com\"","to":"\"b@example.com\"","args":{"Id":"\"1\""}}]}],
+             "screens":[{"name":"Home","actions":[{"name":"Again","flow":[{"kind":"ajaxRefresh","widget":"Panel","animationEffect":"Highlight"}]}],
+               "widgets":[{"type":"Container","name":"Panel","children":[{"type":"Expression","value":"CurrDateTime()"}]},{"type":"Button","onClick":"Again","children":[{"type":"Text","text":"Go"}]}]},
+               {"name":"Other"}],
+             "uiFlows":[{"name":"MainFlow","comments":["Public pages"],"entries":[{"name":"Start","screen":"Other"}]}]}
+            """);
+        var gaps = Path.Combine(dir, "logic-web-gaps.oml");
+        (code, report) = Apply.Execute(webSource, path, gaps);
+        if (code != 0) failures.Add("traditional gaps: " + JsonSerializer.Serialize(report));
+        else
+        {
+            File.WriteAllText(path, """{"processes":[{"name":"Notify","flow":[{"kind":"comment","text":"Sends the invoice"}]}],"uiFlows":[{"name":"MainFlow","comments":["Public pages"],"entries":[{"name":"Start","screen":"Home"}]}]}""");
+            var again = Path.Combine(dir, "logic-web-gaps-again.oml");
+            (code, report) = Apply.Execute(gaps, path, again);
+            if (code != 0) failures.Add("traditional gaps listed again: " + JsonSerializer.Serialize(report));
+            else
+            {
+                using var web = Model.Load(again);
+                var ajax = ElementPaths.Children(ElementPaths.Resolve(web, "MainFlow/Home/Again")).OfType<OutSystems.Model.Logic.Nodes.IAjaxRefreshNode>().SingleOrDefault();
+                if (ajax is null || Model.NameOf(ajax.WidgetOrWebBlock) != "Panel") failures.Add("ajaxRefresh does not refresh Panel");
+                var email = web.WebFlows.SelectMany(f => f.Nodes).OfType<OutSystems.Model.UI.Web.IWebEmail>().Single(e => e.Name == "Invoice");
+                if (email.Preparation?.Nodes.OfType<OutSystems.Model.Logic.Nodes.IAttachFileNode>().Count() != 1) failures.Add("the email preparation has no attachFile");
+                var process = web.Processes.Single(p => p.Name == "Notify");
+                if (process.Nodes.OfType<OutSystems.Model.Processes.Nodes.ICommentNode>().Count() != 1) failures.Add("process comment missing or doubled");
+                if (process.Nodes.OfType<OutSystems.Model.Processes.Nodes.ISendEmailNode>().SingleOrDefault() is not { Email.Name: "Invoice" }) failures.Add("process sendEmail lost its email");
+                var main = web.WebFlows.Single(f => f.Name == "MainFlow");
+                if (main.Nodes.OfType<OutSystems.Model.UI.Web.IComment>().Count() != 1) failures.Add("UI flow comment missing or doubled");
+                if (main.Nodes.OfType<OutSystems.Model.UI.Web.IEntry>().SingleOrDefault() is not { } entry || Model.NameOf(entry.Target) != "Home") failures.Add("entry Start does not go to Home after it was listed again");
+                if (web.UseCookies || web.InvalidEmail != "Bad email address") failures.Add("module settings useCookies or invalidEmail not set");
+            }
+        }
+
         // repoint: a call node runs another action with the same input and output names. It keeps its key, its argument
         // is bound again by name, and the Assign that reads Run.Id still validates after a reopen.
         File.WriteAllText(path, """
