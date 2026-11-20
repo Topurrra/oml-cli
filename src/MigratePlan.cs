@@ -287,6 +287,68 @@ static partial class Migrate
         new(r.OldName, new Dictionary<string, string>(r.WrapperMap), new HashSet<string>(r.SessionDecisions.Where(d => d.Decision == "client").Select(d => d.Name), StringComparer.OrdinalIgnoreCase),
             new HashSet<string>(r.Screens.Where(s => s.Kind == "Block").Select(s => s.Name), StringComparer.OrdinalIgnoreCase), layout, placeholders);
 
+    // The old module's layout blocks and the blocks only they hold (Layout_Normal, its Menu, Footer, LoginInfo): the template's layout replaces
+    // them in every translated screen, so a block that the old screens reached and that no translated screen or kept block reaches any more is
+    // left out (with a note), instead of being built and failing on Traditional-only parts. A block no old screen used (perhaps public for
+    // other modules) is kept.
+    internal static List<Item> DropReplacedLayouts(Result r, List<Item> items, IReadOnlyDictionary<string, JsonObject> exports, string? layout = null)
+    {
+        var blocks = r.Screens.Where(s => s.Kind == "Block").Select(s => s.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        static IEnumerable<string> Uses(JsonNode? n)
+        {
+            if (n is JsonObject o)
+            {
+                if (o["sourceBlock"] is JsonValue v && v.ToString() is { } sb) yield return sb[(sb.LastIndexOf('.') + 1)..];
+                foreach (var (_, c) in o) foreach (var u in Uses(c)) yield return u;
+            }
+            else if (n is JsonArray a) foreach (var c in a) foreach (var u in Uses(c)) yield return u;
+        }
+        HashSet<string> Reach(IEnumerable<JsonNode?> roots, Func<string, JsonNode?> body)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var todo = new Stack<string>(roots.SelectMany(Uses).Where(blocks.Contains));
+            while (todo.Count > 0) { var b = todo.Pop(); if (!seen.Add(b)) continue; foreach (var u in Uses(body(b)).Where(blocks.Contains)) todo.Push(u); }
+            return seen;
+        }
+        JsonNode? Export(Screen s) => exports.TryGetValue(s.File, out var e) ? e : null;
+        var oldReached = Reach(r.Screens.Where(s => s.Kind == "Screen").Select(Export), b => r.Screens.FirstOrDefault(s => s.Kind == "Block" && s.Name.Equals(b, StringComparison.OrdinalIgnoreCase)) is { } bs ? Export(bs) : null);
+        var newReached = Reach(items.Where(i => i.S.Kind == "Screen").Select(i => (JsonNode?)i.Spec), b => items.FirstOrDefault(i => i.S.Kind == "Block" && i.S.Name.Equals(b, StringComparison.OrdinalIgnoreCase))?.Spec);
+        var dropped = items.Where(i => i.S.Kind == "Block" && (oldReached.Contains(i.S.Name) && !newReached.Contains(i.S.Name) || i.S.Name.Equals(layout, StringComparison.OrdinalIgnoreCase))).ToList();   // the template's own layout name too: building it would replace the template's layout
+        if (dropped.Count == 0) return items;
+        r.Notes.Add($"Blocks that the translated screens no longer use are not built (the template's layout or a native replacement such as OutSystems UI Pagination took their place): {string.Join(", ", dropped.Select(d => d.S.Name).Order(StringComparer.Ordinal))}. Rebuild one in the new module only if you still need it.");
+        return items.Except(dropped).ToList();
+    }
+
+    // Names the copy brings that the Reactive template has already: the paste would rename them and refuse the step. A site property of the
+    // same name (TenantId, TenantName of a template) is the template's own: it is left out of the copy. Any other clash is a note that comes
+    // first in `next`, because only a person can say which one stays.
+    internal static void TemplateClashes(Result r, JsonNode template)
+    {
+        if (r.NewModule["copy"] is not JsonArray { Count: > 0 } copies || copies[0] is not JsonObject copy || copy["elements"] is not JsonArray elements) return;
+        static HashSet<string> Own(JsonNode t, params string[] keys) =>
+            keys.SelectMany(k => (t[k] as JsonArray ?? []).OfType<JsonObject>().Select(e => S(e, "name")).Where(n => n is not null)).ToHashSet(StringComparer.OrdinalIgnoreCase)!;
+        var siteProperties = Own(template, "siteProperties");
+        var others = Own(template, "entities", "structures", "serverActions", "serviceActions", "clientActions", "exceptions", "timers", "processes", "staticEntities");
+        var dropped = new List<string>(); var clashes = new List<string>();
+        foreach (var e in elements.ToList())
+        {
+            var path = e?.ToString() ?? "";
+            var leaf = path[(path.LastIndexOf(':') + 1)..];
+            if (siteProperties.Contains(leaf)) { elements.Remove(e); dropped.Add(leaf); }
+            else if (others.Contains(leaf)) clashes.Add(leaf);
+        }
+        if (dropped.Count > 0) r.Notes.Add($"The template has the site properties {string.Join(", ", dropped)} already, so they are not copied: the new module uses the template's (set their values in Service Center).");
+        if (clashes.Count > 0) r.Notes.Insert(0, $"The template already has {string.Join(", ", clashes)}: the copy in 3-new-module.json would rename them and refuse. Before that step, rename them in the old module or delete them from the new module, as the person decides.");
+    }
+
+    // The old module's static entities with their records, as inspect gives them (identifier, attribute -> value expression).
+    internal static Dictionary<string, IReadOnlyList<(string Id, IReadOnlyDictionary<string, string> Values)>> StaticRecords(JsonNode? inspect) =>
+        (inspect?["staticEntities"] as JsonArray ?? []).OfType<JsonObject>().Where(e => S(e, "name") is not null)
+            .ToDictionary(e => S(e, "name")!, e => (IReadOnlyList<(string, IReadOnlyDictionary<string, string>)>)(e["records"] as JsonArray ?? []).OfType<JsonObject>()
+                .Where(rec => S(rec, "identifier") is not null)
+                .Select(rec => (S(rec, "identifier")!, (IReadOnlyDictionary<string, string>)(rec["values"] as JsonObject ?? []).Where(kv => kv.Value is JsonValue)
+                    .ToDictionary(kv => kv.Key, kv => kv.Value!.ToString(), StringComparer.OrdinalIgnoreCase))).ToList(), StringComparer.OrdinalIgnoreCase);
+
     // The server actions the translated screens call and their outputs: the old module's server and service actions (copied, same name) and the
     // entity wrappers (in the old module: Create and CreateOrUpdate return the new Id).
     internal static Dictionary<string, IReadOnlyDictionary<string, string>> ServerOutputs(JsonNode? inspect, Result r)
@@ -314,12 +376,19 @@ static partial class Migrate
         if (r.ClientVariables.Count > 0) spec["clientVariables"] = r.ClientVariables.DeepClone();
         var scripts = new JsonArray();
         var merged = new JsonArray();
+        var clientActions = new JsonArray();
         foreach (var (kind, key) in new[] { ("Email", "emails"), ("Block", "blocks"), ("Screen", "screens") })
         {
             var list = items.Where(i => i.S.Kind == kind && i.Spec is not null).Select(i => (JsonObject)i.Spec!.DeepClone()).ToArray();
             // A screen's or block's own JavaScript (the translator leaves it in _javaScript): a script of the new module, required by the element.
             foreach (var e in list)   // server actions the translator made of consecutive server calls: top-level serverActions
                 if (e["_serverActions"] is JsonArray sas) { e.Remove("_serverActions"); foreach (var x in sas.ToList()) { sas.Remove(x); merged.Add(x); } }
+            foreach (var e in list)   // client functions the translator made (static entity reads): once per name
+                if (e["_clientActions"] is JsonArray cas)
+                {
+                    e.Remove("_clientActions");
+                    foreach (var x in cas.ToList()) { cas.Remove(x); if (!clientActions.OfType<JsonObject>().Any(c => S(c, "name") == S(x, "name"))) clientActions.Add(x); }
+                }
             foreach (var e in list)
                 if (e["_javaScript"] is JsonValue js && S(e, "name") is { } en)
                 {
@@ -335,7 +404,7 @@ static partial class Migrate
         // The session key of the server store: made once per browser when the app starts (a random UUID), kept in the client variable SessionKey.
         if (r.Store is not null)
         {
-            spec["clientActions"] = new JsonArray(new JsonObject
+            clientActions.Add(new JsonObject
             {
                 ["name"] = "InitSessionKey", ["description"] = "Makes the key of the server-side session store once per browser (oml migrate).",
                 ["flow"] = new JsonArray(
@@ -347,6 +416,7 @@ static partial class Migrate
             });
             spec["systemEvents"] = new JsonObject { ["onApplicationReady"] = "InitSessionKey" };
         }
+        if (clientActions.Count > 0) spec["clientActions"] = clientActions;
         if (merged.ToJsonString().Contains($"\"{ScreenTranslator.AccessDenied}\"", StringComparison.Ordinal))   // raised by the role checks of merged server actions
             spec["exceptions"] = new JsonArray(ScreenTranslator.AccessDenied);
         return spec.Count == 0 ? null : spec;
@@ -505,9 +575,10 @@ static partial class Migrate
         var exports = ParseExports(exportBatch, chunks);
         // 4. the layout of a Reactive template
         string? layout = null; var placeholders = new List<string>();
+        JsonNode? ti = null;
         if (template is not null)
         {
-            var ti = run(["inspect", template], null);
+            ti = run(["inspect", template], null);
             if (IsTraditional(ti)) throw new Refusal($"--template {template} is a {S(ti, "kind")} module: give a Reactive template.");
             layout = PickLayout(ti);
             if (layout is null) notes.Add($"The template has no layout block (a block named Layout...): the screens are built without a layout block.");
@@ -524,12 +595,26 @@ static partial class Migrate
         var first = TranslateAll(r.Screens, exports, new ScreenTranslator.Context(r.OldName, allWrappers, new HashSet<string>(), new HashSet<string>(r.Screens.Where(s => s.Kind == "Block").Select(s => s.Name)), layout, placeholders), translate);
         r = Build(inspect, old, name, outDir, map, calls, ExtraFrom(first, r.EntityNames, serverUse) with { CopyExposed = copyExposed, ServerTexts = serverTexts, ActionCalls = actionCalls, SessionWrites = sessionWrites });
         r.Notes.AddRange(producerNotes); r.Notes.AddRange(notes);
+        if (ti is not null) TemplateClashes(r, ti);
         var context = MakeContext(r, layout, placeholders) with { ServerOutputs = ServerOutputs(inspect, r), SessionInputs = r.SessionInputs,
+            StaticRecords = StaticRecords(inspect),
+            StoreVariables = r.SessionDecisions.Where(d => d.Decision == "store").ToDictionary(d => d.Name, d => d.Type, StringComparer.OrdinalIgnoreCase),
             ClientTypes = r.ClientVariables.OfType<JsonObject>().Where(c => S(c, "name") is not null).ToDictionary(c => S(c, "name")!, c => S(c, "type") ?? "Text", StringComparer.OrdinalIgnoreCase) };
         var items = TranslateAll(r.Screens, exports, context, translate);
         foreach (var i in items.Where(i => i.Error is not null && i.Error != "no export")) r.Notes.Add($"{i.S.Kind} {i.S.Name} was not translated: {i.Error}.");
         foreach (var a in items.SelectMany(i => i.EntityActions).Distinct().Where(a => EntityActionMap(r.EntityNames).ContainsKey(a) && !r.WrapperMap.ContainsKey(a)))
             r.Notes.Add($"A translation reported the entity action {a} without a wrapper for it: add the wrapper by hand.");
+        items = DropReplacedLayouts(r, items, exports, layout);
+        // The images the translated widgets show: copied with the logic (3-new-module.json), so 4-screens.json finds them.
+        var shown = items.Where(i => i.Spec?["_images"] is JsonArray).SelectMany(i => ((JsonArray)i.Spec!["_images"]!).Select(x => x!.ToString())).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal).ToList();
+        foreach (var i in items) i.Spec?.Remove("_images");
+        if (shown.Count > 0)
+        {
+            if (r.NewModule["copy"] is not JsonArray { Count: > 0 } cps)
+                r.NewModule["copy"] = cps = new JsonArray(new JsonObject { ["from"] = r.Source is null ? r.Prepared : r.MigrateSource, ["elements"] = new JsonArray() });
+            var els = (JsonArray)((JsonObject)cps[0]!)["elements"]!;
+            foreach (var img in shown) if (!els.Any(e => e?.ToString() == "Image:" + img)) els.Add("Image:" + img);
+        }
         r.ScreensSpec = ScreensSpec(r, items);
         // Reactive library blocks the translation uses (from the Traditional UI library map): the new module must reference them.
         if (r.ScreensSpec is not null)

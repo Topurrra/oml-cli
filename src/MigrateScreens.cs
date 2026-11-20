@@ -53,7 +53,13 @@ static class ScreenTranslator
         // Copied server actions that read a session variable through an input now (MigratePlan.ThreadSession): action -> (input, variable).
         // A screen's call passes Client.<variable>.
         IReadOnlyDictionary<string, List<(string input, string variable)>>? SessionInputs = null,
-        IReadOnlyDictionary<string, string>? ClientTypes = null);         // client variable -> its type, for merged server calls that read one
+        IReadOnlyDictionary<string, string>? ClientTypes = null,          // client variable -> its type, for merged server calls that read one
+        // The old module's static entities and their records (identifier -> attribute -> value expression): Get<Entity>(...) in a screen is
+        // a server function, so its reads become literals or a generated client function (StaticReads).
+        IReadOnlyDictionary<string, IReadOnlyList<(string Id, IReadOnlyDictionary<string, string> Values)>>? StaticRecords = null,
+        // Session variables kept in the server store (MigratePlan.StoreSessions): name -> type. A screen reads them through its data action
+        // SessionValues and writes them with SetSession_<Name>.
+        IReadOnlyDictionary<string, string>? StoreVariables = null);
 
     // The blocks among the exports whose actions call Notify (or Deprecated_Notify): in Reactive each gets a Notify event.
     internal static HashSet<string> NotifyingBlocks(IEnumerable<JsonObject> exports) =>
@@ -118,7 +124,10 @@ static class ScreenTranslator
         string? currentTable;
         bool notifies;                                                                                        // a block action calls Notify: the block gets the Notify event
         readonly HashSet<string> notifyHandlers = new(StringComparer.OrdinalIgnoreCase);                      // actions that handle a block's Notify
-        string? currentAction;                                                                                 // the table whose header cells are being built
+        string? currentAction;
+        const string SessionValues = "SessionValues";
+        readonly SortedSet<string> images = new(StringComparer.OrdinalIgnoreCase);                             // images of the old module the widgets show                                                         // the data action that reads stored session variables
+        readonly SortedSet<string> storeUsed = new(StringComparer.OrdinalIgnoreCase);                                                                                 // the table whose header cells are being built
 
         public Run(JsonObject element, Context context)
         {
@@ -183,6 +192,7 @@ static class ScreenTranslator
         {
             if (string.IsNullOrEmpty(text)) return text ?? "";
             text = ListCalls(text);
+            text = StaticReads(text);
             var sb = new StringBuilder();
             int i = 0, n = text.Length;
             var last = '\0';
@@ -238,6 +248,8 @@ static class ScreenTranslator
                 var variable = m.Value;
                 if (!session.Contains(variable, StringComparer.OrdinalIgnoreCase)) session.Add(variable);
                 if (cx.ClientVariables.Any(v => v.Equals(variable, StringComparison.OrdinalIgnoreCase))) { replacement = "Client"; return true; }
+                if (cx.StoreVariables?.Keys.FirstOrDefault(v => v.Equals(variable, StringComparison.OrdinalIgnoreCase)) is { } stored)
+                { storeUsed.Add(stored); replacement = SessionValues; return true; }
                 Todo($"{at} uses the session variable Session.{variable}, which is not one of the client variables, so it is left as it is; keep it on the server (read it in a data action or server action) or add it to the client variables");
                 return false;
             }
@@ -287,6 +299,48 @@ static class ScreenTranslator
             if (sorting.Count > 0 && text.Contains("List_SortColumn_GetOrderBy", StringComparison.Ordinal))
                 text = OrderByCall.Replace(text, m => sorting.TryGetValue(m.Groups[1].Value, out var s) ? s.Local : m.Value);
             return text;
+        }
+
+        // Get<Entity>(<id>).<Entity>.<Attribute> of a static entity of the old module. Get<Entity> is an entity action, a server function that a
+        // client expression cannot call; static records never change, so a literal record reads its value here (Id is the record itself), and
+        // any other id goes through a client function Get<Entity><Attribute>(Id), a Switch over the records, made once for the module.
+        static readonly Regex StaticGet = new(@"(?<![\w.])(?:\w+\.)?Get(\w+)\(\s*([^()]*?)\s*\)\.(\w+)\.(\w+)(?!\w)", RegexOptions.CultureInvariant);
+        readonly List<JsonObject> clientFunctions = [];   // hoisted to the spec's clientActions by the plan (_clientActions)
+
+        string StaticReads(string text)
+        {
+            if (cx.StaticRecords is not { Count: > 0 } statics || !text.Contains("Get", StringComparison.Ordinal)) return text;
+            return StaticGet.Replace(text, m =>
+            {
+                var entity = m.Groups[1].Value;
+                if (!m.Groups[3].Value.Equals(entity, StringComparison.OrdinalIgnoreCase) || !statics.TryGetValue(entity, out var records)) return m.Value;
+                var arg = m.Groups[2].Value.Trim();
+                var attr = m.Groups[4].Value;
+                if (Regex.Match(arg, @"^Entities\.(\w+)\.(\w+)$") is { Success: true } lit && lit.Groups[1].Value.Equals(entity, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (attr.Equals("Id", StringComparison.OrdinalIgnoreCase)) return arg;
+                    var rec = records.FirstOrDefault(r => r.Id.Equals(lit.Groups[2].Value, StringComparison.OrdinalIgnoreCase));
+                    return rec.Values is not null && rec.Values.FirstOrDefault(kv => kv.Key.Equals(attr, StringComparison.OrdinalIgnoreCase)).Value is { } v
+                        ? (Regex.IsMatch(v.Trim(), @"^(""([^""]|"""")*""|-?\d+(\.\d+)?|True|False)$") ? v.Trim() : "(" + v.Trim() + ")") : m.Value;
+                }
+                if (attr.Equals("Id", StringComparison.OrdinalIgnoreCase)) return arg;
+                var values = records.Select(r => (r.Id, Value: r.Values.FirstOrDefault(kv => kv.Key.Equals(attr, StringComparison.OrdinalIgnoreCase)).Value)).ToList();
+                if (values.Count == 0 || values.Any(x => x.Value is null)) return m.Value;   // a record without that value: left for a person (validation names it)
+                var fn = $"Get{entity}{attr}";
+                if (!clientFunctions.Any(f => S(f["name"]) == fn))
+                {
+                    var type = values.All(x => Regex.IsMatch(x.Value!.Trim(), @"^-?\d+$")) ? "Integer" : values.All(x => Regex.IsMatch(x.Value!.Trim(), @"^-?\d+(\.\d+)?$")) ? "Decimal"
+                        : values.All(x => x.Value!.Trim() is "True" or "False") ? "Boolean" : "Text";
+                    var flow = new JsonArray(new JsonObject { ["kind"] = "switch", ["name"] = "Which",
+                        ["cases"] = new JsonArray(values.Select(x => (JsonNode?)new JsonObject { ["condition"] = $"Id = Entities.{entity}.{x.Id}", ["next"] = "Is" + x.Id }).ToArray()), ["otherwise"] = "End" });
+                    foreach (var x in values) flow.Add(new JsonObject { ["kind"] = "assign", ["name"] = "Is" + x.Id, ["assign"] = new JsonObject { ["Value"] = x.Value }, ["next"] = "End" });
+                    clientFunctions.Add(new JsonObject { ["name"] = fn, ["function"] = true,
+                        ["description"] = $"The {attr} of a {entity} record, read in the browser from the static records (oml migrate; Get{entity} is server only).",
+                        ["inputs"] = new JsonArray(new JsonObject { ["name"] = "Id", ["type"] = entity + " Identifier" }),
+                        ["outputs"] = new JsonArray(new JsonObject { ["name"] = "Value", ["type"] = type }), ["flow"] = flow });
+                }
+                return $"{fn}({arg})";
+            });
         }
 
         // "{Contact}.[Name] DESC" (the SQL spelling of the RichWidgets sort) as an aggregate sort: "Contact.Name DESC".
@@ -455,6 +509,15 @@ static class ScreenTranslator
             foreach (var a in Objs(el["actions"])) actions.Add(Action(a));
 
             var content = Content(spec);
+            if (storeUsed.Count > 0)   // the screen reads stored session variables: a data action, with the key from the client variable
+            {
+                var outputs = new JsonArray(storeUsed.Select(x => (JsonNode?)new JsonObject { ["name"] = x, ["type"] = cx.StoreVariables![x] }).ToArray());
+                var reads = new JsonObject(storeUsed.Select(x => KeyValuePair.Create(x, (JsonNode?)JsonValue.Create($"GetSession_{x}(SessionKey)"))));
+                spec["dataActions"] = new JsonArray(new JsonObject { ["name"] = SessionValues, ["outputs"] = outputs,
+                    ["flow"] = new JsonArray(new JsonObject { ["kind"] = "assign", ["name"] = "Read", ["assign"] = reads, ["next"] = "End" }) });
+                extraLocals["SessionKey"] = new JsonObject { ["name"] = "SessionKey", ["type"] = "Text" };
+                initFills.Insert(0, ("SessionKey", "Client.SessionKey"));
+            }
             foreach (var a in extraActions) actions.Add(a);   // list handlers and actions that widgets needed (after the widgets)
             Lifecycle(aggs, actions, spec);
             foreach (var l in extraLocals.Values) locals.Add(l);
@@ -463,6 +526,8 @@ static class ScreenTranslator
             if (actions.Count > 0) spec["actions"] = actions;
             foreach (var (key, value) in content) spec[key] = value;
             if (serverActions.Count > 0) spec["_serverActions"] = new JsonArray(serverActions.Select(x => (JsonNode?)x).ToArray());
+            if (images.Count > 0) spec["_images"] = new JsonArray(images.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
+            if (clientFunctions.Count > 0) spec["_clientActions"] = new JsonArray(clientFunctions.Select(x => (JsonNode?)x.DeepClone()).ToArray());
             if (block && notifies)
                 spec["events"] = new JsonArray(new JsonObject { ["name"] = "Notify", ["mandatory"] = false,
                     ["inputs"] = new JsonArray(new JsonObject { ["name"] = "Message", ["type"] = "Text", ["mandatory"] = false }) });
@@ -833,7 +898,7 @@ static class ScreenTranslator
                 }
                 else Todo($"the action {an} was created as a stub because {why}{did}");
             }
-            else { o["flow"] = flow; Merge(o); }
+            else { o["flow"] = flow; StoreWrites(o); Merge(o); }
             return o;
         }
 
@@ -1001,6 +1066,47 @@ static class ScreenTranslator
                 case "refreshdata": o["kind"] = "refreshData"; Copy("name", "dataSource", "next"); Args(); break;
             }
             return o;
+        }
+
+        // ---------- stored session variables written in a screen action ----------
+
+        // An Assign of a screen action that writes SessionValues.<X> (the rewrite of Session.<X> for a stored variable) writes a screen local
+        // Session<X> instead: it is loaded from SessionValues before the Assign, saved with SetSession_<X> after it, and SessionValues is
+        // refreshed, so what the screen shows follows.
+        void StoreWrites(JsonObject action)
+        {
+            if (cx.StoreVariables is not { Count: > 0 } || action["flow"] is not JsonArray flow) return;
+            foreach (var n in flow.OfType<JsonObject>().Where(x => S(x["kind"]) == "assign").ToList())
+            {
+                if (n["assign"] is not JsonObject map) continue;
+                var written = map.Select(kv => Regex.Match(kv.Key, @"^SessionValues\.(\w+)")).Where(m => m.Success).Select(m => m.Groups[1].Value).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                if (written.Count == 0) continue;
+                var name0 = S(n["name"]) ?? "Assign";
+                var after = S(n["next"]) ?? (flow.IndexOf(n) + 1 < flow.Count ? S(((JsonObject)flow[flow.IndexOf(n) + 1]!)["name"]) ?? "End" : "End");
+                var fixedMap = new JsonObject();
+                string Local(string text) => written.Aggregate(text, (t, x) => Regex.Replace(t, @"(?<![\w.])SessionValues\." + Regex.Escape(x) + @"(?!\w)", "Session" + x));
+                foreach (var (k, v) in map) fixedMap[Local(k)] = v is JsonValue jv && jv.GetValueKind() == System.Text.Json.JsonValueKind.String ? Local(jv.ToString()) : v?.DeepClone();
+                n["assign"] = fixedMap;
+                var load = new JsonObject { ["kind"] = "assign", ["name"] = "Load" + name0, ["assign"] = new JsonObject(written.Select(x => KeyValuePair.Create("Session" + x, (JsonNode?)JsonValue.Create($"{SessionValues}.{x}")))), ["next"] = name0 };
+                var chain = new List<JsonObject>();
+                foreach (var x in written)
+                {
+                    extraLocals["Session" + x] = new JsonObject { ["name"] = "Session" + x, ["type"] = cx.StoreVariables[x] };
+                    varTypes["Session" + x] = cx.StoreVariables[x];
+                    chain.Add(new JsonObject { ["kind"] = "execute", ["name"] = $"Save{x}{name0}", ["action"] = $"SetSession_{x}", ["args"] = new JsonObject { ["SessionKey"] = "Client.SessionKey", ["Value"] = "Session" + x } });
+                }
+                chain.Add(new JsonObject { ["kind"] = "refreshData", ["name"] = "Refresh" + name0, ["dataSource"] = SessionValues });
+                for (var i = 0; i < chain.Count; i++) chain[i]["next"] = i + 1 < chain.Count ? S(chain[i + 1]["name"]) : after;
+                n["next"] = S(chain[0]["name"]);
+                foreach (var other in flow.OfType<JsonObject>())
+                {
+                    foreach (var key in Connectors) if (S(other[key]) == name0 && !ReferenceEquals(other, n)) other[key] = "Load" + name0;
+                    foreach (var cse in Objs(other["cases"])) if (S(cse["next"]) == name0) cse["next"] = "Load" + name0;
+                }
+                var at = flow.IndexOf(n);
+                flow.Insert(at, load);
+                for (var i = 0; i < chain.Count; i++) flow.Insert(at + 2 + i, chain[i]);
+            }
         }
 
         // ---------- consecutive server calls become one server action ----------
@@ -1551,7 +1657,11 @@ static class ScreenTranslator
                 case "image":
                     o = New("Image", w, used);
                     if (Prop(w, used, "image", "resource", "imageName") is { } image)
-                    { o["image"] = image; Todo($"{Label(w)} shows the image {image}, which must exist in the new module (images are not copied by oml migrate)"); }
+                    {
+                        o["image"] = image;
+                        if (image.Contains('.')) Todo($"{Label(w)} shows the image {image} of another module, which the new module must reference or have");
+                        else images.Add(image);   // the plan copies it into the new module (3-new-module.json)
+                    }
                     if (Prop(w, used, "url") is { } url) Carry(o, "imageUrl", Rw(url, Label(w)), $"{Label(w)} shows the image at {url}, which the spec cannot set; set the source in Service Studio");
                     var sizes = new JsonObject();
                     foreach (var dim in new[] { "width", "height" }) if (Prop(w, used, dim) is { } dv) sizes[dim] = dv;
@@ -2033,8 +2143,15 @@ static class ScreenTranslator
             var result = new List<(string, JsonNode)>();
             var top = el["widgets"] as JsonArray ?? [];
             var groups = new List<(string ph, JsonArray widgets)>();
-            var wrapper = top.Count == 1 && top[0] is JsonObject only && WType(only) == "blockinstance" && only["placeholders"] is JsonObject { Count: > 0 } && IsLayoutInstance(only) ? only : null;
-            if (wrapper is not null) foreach (var (k, list) in (JsonObject)wrapper["placeholders"]!) groups.Add((k, list as JsonArray ?? []));
+            // The layout: the one top-level block instance with placeholders that is a layout; widgets next to it go to the main content.
+            var layouts = Objs(top).Where(w => WType(w) == "blockinstance" && w["placeholders"] is JsonObject { Count: > 0 } && IsLayoutInstance(w)
+                && (top.Count == 1 || Leaf(S(w["sourceBlock"]) ?? Prop(w, "sourceBlock") ?? "").Contains("layout", StringComparison.OrdinalIgnoreCase))).ToList();   // next to other widgets, only a block named Layout...
+            var wrapper = layouts.Count == 1 ? layouts[0] : null;
+            if (wrapper is not null)
+            {
+                foreach (var (k, list) in (JsonObject)wrapper["placeholders"]!) groups.Add((k, list as JsonArray ?? []));
+                if (top.Count > 1) groups.Add(("", new JsonArray(Objs(top).Where(w => !ReferenceEquals(w, wrapper)).Select(w => (JsonNode?)w.DeepClone()).ToArray())));
+            }
             else
             {
                 if (el["placeholders"] is JsonObject given) foreach (var (k, list) in given) groups.Add((k, list as JsonArray ?? []));
@@ -2599,6 +2716,34 @@ static class ScreenTranslator
             $"Merge: the client action calls it once and reads its output: {saveFlow.ToJsonString()}");
         var checkFlow = (At(mg, "actions") as JsonArray)!.OfType<JsonObject>().First(a => Text(a, "name") == "Check")["flow"] as JsonArray;
         Check(checkFlow!.Count == 2 && At(mg, "_serverActions", 1) is null, $"Merge: calls that read a widget stay as they are: {checkFlow.ToJsonString()}");
+
+        // 20. Static entity reads: a literal record is its value, any other id a client function made once; a stored session variable is read
+        //     through the data action SessionValues and written with SetSession_<Name>; an image of the old module is listed for the copy.
+        var stIn = Parse("""
+        { "kind": "Screen", "name": "Status", "flow": "MainFlow", "moduleKind": "Traditional", "access": { "anonymous": true },
+          "locals": [ { "name": "Pick", "type": "State Identifier" } ],
+          "actions": [ { "name": "Fill", "flow": { "complete": true, "nodes": [
+            { "kind": "assign", "name": "Add", "assign": { "Session.Cart.Total": "Session.Cart.Total + 1" }, "next": "End" } ] } } ],
+          "widgets": [
+            { "kind": "Expression", "props": { "value": "GetState(Entities.State.Open).State.Label" } },
+            { "kind": "Expression", "props": { "value": "GetState(Pick).State.Label + GetState(Pick).State.Id" } },
+            { "kind": "Expression", "props": { "value": "Session.Cart.Total" } },
+            { "kind": "Image", "props": { "image": "Logo" } } ] }
+        """);
+        var stCx = new Context("Shop", new Dictionary<string, string>(), new HashSet<string>(), new HashSet<string>(), null, [],
+            StaticRecords: new Dictionary<string, IReadOnlyList<(string, IReadOnlyDictionary<string, string>)>> { ["State"] = [
+                ("Open", new Dictionary<string, string> { ["Label"] = "\"Open\"" }), ("Closed", new Dictionary<string, string> { ["Label"] = "\"Closed\"" })] },
+            StoreVariables: new Dictionary<string, string> { ["Cart"] = "CartState" });
+        var sr = Translate(stIn, stCx);
+        var sw = sr.Spec!["widgets"] as JsonArray;
+        Check(Text(sw, 0, "value") == "\"Open\"" && Text(sw, 1, "value") == "GetStateLabel(Pick) + Pick" && Text(sr.Spec, "_clientActions", 0, "name") == "GetStateLabel"
+            && Text(sr.Spec, "_clientActions", 0, "flow", 0, "cases", 1, "condition") == "Id = Entities.State.Closed",
+            $"Static: a literal record is its value, Id is the id, another id a client function: {sw?.ToJsonString()} {At(sr.Spec, "_clientActions")?.ToJsonString()}");
+        var fillFlow = (At(sr.Spec, "actions") as JsonArray)!.OfType<JsonObject>().First(a => Text(a, "name") == "Fill")["flow"] as JsonArray;
+        Check(Text(sw, 2, "value") == "SessionValues.Cart.Total" && Text(sr.Spec, "dataActions", 0, "name") == "SessionValues" && Text(sr.Spec, "dataActions", 0, "flow", 0, "assign", "Cart") == "GetSession_Cart(SessionKey)"
+            && Text(fillFlow, 0, "name") == "LoadAdd" && Text(fillFlow, 1, "assign", "SessionCart.Total") == "SessionCart.Total + 1" && Text(fillFlow, 2, "action") == "SetSession_Cart"
+            && Text(fillFlow, 3, "kind") == "refreshData" && Text(sr.Spec, "onInitialize") is not null && Text(sr.Spec, "_images", 0) == "Logo" && !sr.Todo.Any(t => t.Contains("Logo") || t.Contains("Session.Cart")),
+            $"Store: read through SessionValues, written with SetSession_Cart, the key filled at initialize; the image is copied: {sr.Spec?.ToJsonString()} [{string.Join(" | ", sr.Todo)}]");
         return failures;
     }
 

@@ -29,15 +29,15 @@ What stays and what is copied:
 - Server and service actions, structures, exceptions, site properties, timers, processes and consumed REST are copied.
 - Exposed REST and SOAP services stay in the old module, so their consumers keep working. `next` starts with a question for the person: copy them too? Only on a yes, plan again with `--copy-exposed`; the person then owns moving every consumer to the new URL.
 - Entity writes: the old module gets a public wrapper (`Order_Create`, `Order_CreateOrUpdate`, `Order_Update`, `Order_Delete`) for each entity action that copied logic or a screen calls, with the same inputs and outputs. `2-source.json` re-points each call in copied logic to its wrapper before the copy. A write the translation missed needs a wrapper added to the old module the same way, and a reference.
-- Producers found under `--in` are referenced by themselves; an `unresolved` one needs its producer file (`--in`) or Manage Dependencies. Traditional UI references are left out.
-- Session variables (Reactive has none): basic and harmless, a client variable in 4-screens.json; copied server actions that read it get it as an input, passed on by callers (`2-source.json`: `addVariables`, `rewrite`, `setArgs`). Written there, sensitive or a record: the server store, entity `SessionValue` with `GetSession_<Name>`/`SetSession_<Name>` by session key and user (screens pass `Client.SessionKey`). Else `manual` with the reason.
+- Migrate producers before consumers. Producers found under `--in` are referenced by themselves; an `unresolved` one needs its producer file (`--in`) or Manage Dependencies. Traditional UI references are left out.
+- Session variables (Reactive has none): basic and harmless, a client variable in 4-screens.json; copied server actions that read it get it as an input, passed on by callers (`2-source.json`: `addVariables`, `rewrite`, `setArgs`). Written there, sensitive or a record: the server store, entity `SessionValue` with `GetSession_<Name>`/`SetSession_<Name>` by session key and user. Else `manual` with the reason.
 - Style: screens and blocks carry their own sheet. Theme sheets target Traditional markup and are not added: port them from `css/` selector by selector into the new module's theme.
 - Emails, SOAP, entry points: a consumed SOAP or integration element is copied (Service Center settings do not follow); an email is translated like a screen; an entry point is manual (use a screen URL or a redirect screen); anything else is listed by kind and name in the notes.
 - You decide: timers and processes now exist in both modules (deactivate or delete one); site property values, timer schedules and integration settings in Service Center do not follow a copy. Once its UI is gone, propose making the old module a service module (rule 3).
 
 ## Screens worklist
 
-`partial` and `worklist` elements are yours: read `screens/<Name>.txt` and the raw export, finish the TODO stubs, tick the box. Rebuild producers before consumers, not as a one-to-one copy. Code fills a Form's record (aggregate `onAfterFetch`, input, local) and carries confirm text, icon, prompt, max length, input types, default button, image size. Todos: Link URL, Radio Group, validation message, image URL, table sort and paging.
+`partial` and `worklist` elements are yours: read `screens/<Name>.txt` and the raw export, finish the TODO stubs, tick the box. Code fills a Form's record (aggregate `onAfterFetch`, input, local) and carries confirm text, icon, prompt, max length, input types, default button, image size. Todos: Link URL, Radio Group, validation message, image URL, table sort and paging.
 
 ## UI libraries
 
@@ -52,6 +52,7 @@ OutSystemsUIWeb, RichWidgets and OutSystemsChartsWeb blocks are translated by a 
 | Screen action (server) | Client action; two or more server calls in a row become one server action `<Screen>_<Action>` that starts with the screen's access check (`AccessDenied`) (code) |
 | Session variable | Client variable when it holds nothing sensitive (the user can read it), passed as an input to server logic; else data read again on the server |
 | Site property read in the screen | Read it in a server action or data action |
+| `Get<Static>(id).<Static>.<Attr>` in a screen | The value, or a client function `Get<Static><Attr>(Id)` (code) |
 | `CheckRole` | Stays on the server, in the server action; the client check only hides parts |
 | Ajax Refresh | Nothing: bound data updates; code emits `refreshData` for the aggregates behind a refreshed table or list when the export names its targets, else a Todo |
 | Notify and OnNotify of web blocks | The block's `Notify` event (input `Message`), a `triggerEvent` node, the handler on the instance; `NotifyGetMessage()` is `Message` (code) |

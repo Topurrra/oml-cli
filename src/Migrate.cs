@@ -362,14 +362,15 @@ static partial class Migrate
                 }
             }
             // Used by copied server logic but not fit for the browser (written there, a sensitive name, a record or list): the server store.
-            if (decision == "manual" && serverUse is { Length: > 0 } && extra.ServerTexts is not null && type.Length > 0
+            if (decision == "manual" && extra.ServerTexts is not null && type.Length > 0 && (serverUse is { Length: > 0 } || extra.ScreenSession.Contains(n))
                 && ((extra.SessionWrites ?? []).Any(w => w.Variable.Equals(n, StringComparison.OrdinalIgnoreCase)) || SensitiveName(n) || !IsBasicType(type)))
             {
-                var users = serverUse.Concat((extra.SessionWrites ?? []).Where(w => w.Variable.Equals(n, StringComparison.OrdinalIgnoreCase)).Select(w => w.Action))
+                var users = (serverUse ?? []).Concat((extra.SessionWrites ?? []).Where(w => w.Variable.Equals(n, StringComparison.OrdinalIgnoreCase)).Select(w => w.Action))
                     .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
                 storeVars.Add(new StoreVariable(n, type, def, users));
-                (decision, why) = ("store", $"kept on the server: copied server logic ({string.Join(", ", users)}) reads and writes it through GetSession_{n} and SetSession_{n}, stored in the entity SessionValue by session key and user (2-source.json)"
-                    + (extra.ScreenSession.Contains(n) ? $"; the screens that use it must read it on the server too (a data action calling GetSession_{n} with the session key)" : ""));
+                (decision, why) = ("store", $"kept on the server, in the entity SessionValue by session key and user (2-source.json)"
+                    + (users.Length > 0 ? $": copied server logic ({string.Join(", ", users)}) reads and writes it through GetSession_{n} and SetSession_{n}" : "")
+                    + (extra.ScreenSession.Contains(n) ? $"; screens read it through their data action SessionValues and write it with SetSession_{n}" : ""));
             }
             r.SessionDecisions.Add(new SessionDecision(n, type, def, decision, why));
             El("sessionVariable", n, decision, why);
