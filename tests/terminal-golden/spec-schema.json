@@ -1573,6 +1573,28 @@
             "element",
             "action"
           ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "rewrite"
+            },
+            "element": {
+              "type": "string"
+            },
+            "from": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "element",
+            "from",
+            "to"
+          ]
         }
       ]
     }
