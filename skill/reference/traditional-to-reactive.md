@@ -54,7 +54,8 @@ OutSystemsUIWeb, RichWidgets and OutSystemsChartsWeb blocks are translated by a 
 | Site property read in the screen | Read it in a server action or data action |
 | `CheckRole` | Stays on the server, in the server action; the client check only hides parts |
 | Ajax Refresh | Nothing: bound data updates; code emits `refreshData` for the aggregates behind a refreshed table or list when the export names its targets, else a Todo |
-| Notify and OnNotify of web blocks | Block `events`, a `triggerEvent` node and a handler on the instance (`oml spec triggerEvent`) |
+| Notify and OnNotify of web blocks | The block's `Notify` event (input `Message`), a `triggerEvent` node, the handler on the instance; `NotifyGetMessage()` is `Message` (code) |
+| JavaScript of a screen or block | A script of the module that it requires (code); jQuery and `osjs` code must be rewritten |
 | Send Email in a screen action | Server action with `sendEmail` of a Reactive email from `emails` (`oml spec emails`) |
 | Commit Transaction in screen logic | Server action |
 
@@ -76,7 +77,7 @@ Every server action a screen calls is a public endpoint: start it with identity 
 | Link with Method Submit, Ajax Submit or Ajax | Button or Link with On Click and a client action |
 | Link to an External URL | HTML element `a` with `href`; a button calls `RedirectToURL` (code) |
 | Validation (Client & Server) | Built-in Validations on the button, `<Input>.Valid` in the client action, checks again on the server |
-| Screen entry and Preparation redirects | OnInitialize redirect with a `destination` |
+| Screen entry and Preparation redirects | OnInitialize redirect with a `destination`; an External URL is `RedirectToURL`; `AddFaviconTag` goes |
 
 ## Data and UI rules that change
 

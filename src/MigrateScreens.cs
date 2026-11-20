@@ -45,7 +45,14 @@ static class ScreenTranslator
         IReadOnlySet<string> ClientVariables,               // session variables that become client variables (Session.X -> Client.X)
         IReadOnlySet<string> LocalBlocks,                   // web blocks of the old module (they are translated too, same name)
         string? Layout,                                     // Reactive layout block to use, or null for none
-        IReadOnlyList<string> LayoutPlaceholders);          // its placeholder names
+        IReadOnlyList<string> LayoutPlaceholders,           // its placeholder names
+        IReadOnlySet<string>? NotifyingBlocks = null);      // blocks of the old module that call Notify (they get a Notify event)
+
+    // The blocks among the exports whose actions call Notify (or Deprecated_Notify): in Reactive each gets a Notify event.
+    internal static HashSet<string> NotifyingBlocks(IEnumerable<JsonObject> exports) =>
+        new(exports.Where(e => string.Equals(Run.S(e["kind"]), "Block", StringComparison.OrdinalIgnoreCase) && Run.S(e["name"]) is not null
+                && (e["actions"] as JsonArray ?? []).OfType<JsonObject>().Any(a => ((a["flow"] as JsonObject)?["nodes"] as JsonArray ?? []).OfType<JsonObject>().Any(Run.IsNotify)))
+            .Select(e => Run.S(e["name"])!), StringComparer.OrdinalIgnoreCase);
 
     internal sealed record Result(
         JsonObject? Spec,                                   // one entry for the spec's `screens` or `blocks` list; null when nothing could be built
@@ -98,7 +105,10 @@ static class ScreenTranslator
         readonly Dictionary<string, Paging> paging = new(StringComparer.OrdinalIgnoreCase);
         readonly Dictionary<string, Sorting> sorting = new(StringComparer.OrdinalIgnoreCase);
         readonly List<JsonObject> extraActions = [];
-        string? currentTable;                                                                                 // the table whose header cells are being built
+        string? currentTable;
+        bool notifies;                                                                                        // a block action calls Notify: the block gets the Notify event
+        readonly HashSet<string> notifyHandlers = new(StringComparer.OrdinalIgnoreCase);                      // actions that handle a block's Notify
+        string? currentAction;                                                                                 // the table whose header cells are being built
 
         public Run(JsonObject element, Context context)
         {
@@ -260,6 +270,8 @@ static class ScreenTranslator
         // The calls of the RichWidgets list functions for a list that pages or sorts here become its locals.
         string ListCalls(string text)
         {
+            if (currentAction is not null && notifyHandlers.Contains(currentAction) && text.Contains("NotifyGetMessage", StringComparison.Ordinal))
+                text = Regex.Replace(text, @"\b(?:\(System\)\.)?NotifyGetMessage\s*\(\s*\)", "Message");
             if (paging.Count > 0 && text.Contains("List_Navigation_GetStartIndex", StringComparison.Ordinal))
                 text = StartIndexCall.Replace(text, m => paging.TryGetValue(m.Groups[1].Value, out var p) ? p.Start : m.Value);
             if (sorting.Count > 0 && text.Contains("List_SortColumn_GetOrderBy", StringComparison.Ordinal))
@@ -415,6 +427,9 @@ static class ScreenTranslator
             foreach (var a in Objs(el["actions"])) if (S(a["name"]) is { } an) actionNames.Add(an);
             foreach (var v in Objs(el["inputs"]).Concat(Objs(el["locals"]))) if (S(v["name"]) is { } vn) varTypes[vn] = S(v["type"]) ?? "Text";
             ListPatterns();
+            foreach (var w in AllWidgets(el["widgets"]))
+                if (WType(w) == "blockinstance" && w["events"] is JsonObject evs && evs["Notify"] is { } h && cx.NotifyingBlocks?.Contains(Leaf(S(w["sourceBlock"]) ?? "")) == true
+                    && S(h is JsonObject ho ? ho["action"] : h) is { } hn) notifyHandlers.Add(hn);
             // The method of a click is decided in Click (a destination means Navigate, an action means Submit), which says so when it cannot: the note is not repeated.
             foreach (var note in el["notes"] as JsonArray ?? []) if (S(note) is { Length: > 0 } text && !text.Contains("the method of its On Click")) Todo($"the export could read it only in part: {text}");
 
@@ -437,8 +452,18 @@ static class ScreenTranslator
             if (aggs.Count > 0) spec["aggregates"] = aggs;
             if (actions.Count > 0) spec["actions"] = actions;
             foreach (var (key, value) in content) spec[key] = value;
+            if (block && notifies)
+                spec["events"] = new JsonArray(new JsonObject { ["name"] = "Notify", ["mandatory"] = false,
+                    ["inputs"] = new JsonArray(new JsonObject { ["name"] = "Message", ["type"] = "Text", ["mandatory"] = false }) });
             if (S(el["styleSheet"]) is { Length: > 0 } css) spec["styleSheet"] = css;
-            if (S(el["javaScript"]) is { Length: > 0 }) Todo("it has its own JavaScript, which is not carried over: add it as a javaScript node in a client action run from onReady, or with the spec's scripts and requiredScripts keys");
+            // Its own JavaScript becomes a script of the new module that it requires (the plan writes scripts/<Name>Script.js). Reactive loads no jQuery
+            // and has no osjs: code that uses them must be rewritten.
+            if (S(el["javaScript"]) is { Length: > 0 } js)
+            {
+                spec["_javaScript"] = js;
+                if (Regex.IsMatch(js, @"\bjQuery\b|\bosjs\b|\$\s*\(|\$\.\w"))
+                    Todo($"its JavaScript is now the script {name}Script, but it uses jQuery or osjs, which Reactive does not load; rewrite it with plain JavaScript (document.querySelector, addEventListener)");
+            }
 
             return new Result(spec, kindWord, todo.Count == 0 ? "translated" : "partial", todo, entityActions, session);
         }
@@ -480,6 +505,19 @@ static class ScreenTranslator
             if (preparation is not JsonObject p) return result;
             var nodes = Objs(p["nodes"]).ToList();
             if (nodes.Count == 0) return result;
+            // AddFaviconTag adds the page's favicon in Traditional; a Reactive app shows the module's icon. The node goes, its connectors pass through.
+            foreach (var fav in nodes.Where(n => NodeKind(n) == "execute" && Leaf(S(n["action"]) ?? S(n["_ref"]) ?? "").Equals("AddFaviconTag", StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                var fn = S(fav["name"]);
+                var after = S(fav["next"]) ?? (nodes.IndexOf(fav) + 1 < nodes.Count ? S(nodes[nodes.IndexOf(fav) + 1]["name"]) : null) ?? "End";
+                nodes = nodes.Select(n => (JsonObject)n.DeepClone()).Where(n => S(n["name"]) != fn).ToList();
+                foreach (var n in nodes)
+                {
+                    foreach (var key in Connectors) if (S(n[key]) == fn) n[key] = after;
+                    foreach (var cse in Objs(n["cases"])) if (S(cse["next"]) == fn) cse["next"] = after;
+                }
+                if (nodes.Count == 0) return result;
+            }
             var unsupported = Objs(p["unsupported"]).ToList();
             var complete = Complete(p) || (unsupported.Count > 0 && unsupported.All(AjaxEntry));
             // Comments are listed after the main path and change nothing.
@@ -601,7 +639,7 @@ static class ScreenTranslator
             var names = calls.Select(n => S(n["name"])).ToList();
             if (names.Any(Blank) || names.Distinct(StringComparer.OrdinalIgnoreCase).Count() != names.Count) return "its nodes have no unique names";
             foreach (var d in logic.Where(n => NodeKind(n) == "destination"))
-                if (S(d["screen"]) is not { Length: > 0 } scr || scr.Contains('.')) return $"its Destination {S(d["name"])} does not name a screen of this module";
+                if (!External(d) && (S(d["screen"]) is not { Length: > 0 } scr || scr.Contains('.'))) return $"its Destination {S(d["name"])} does not name a screen of this module";   // an External URL is RedirectToURL
             var byName = calls.ToDictionary(n => S(n["name"])!, StringComparer.OrdinalIgnoreCase);
             var order = names.Select(x => x!).ToList();
 
@@ -752,9 +790,18 @@ static class ScreenTranslator
         JsonObject Action(JsonObject a)
         {
             var an = S(a["name"]) ?? "Action";
+            currentAction = an;
             var (flow, why) = ActionFlow(an, a);
+            currentAction = null;
             var o = new JsonObject { ["name"] = an };
             if (Vars(a["inputs"], true) is { Count: > 0 } i) o["inputs"] = i;
+            if (notifyHandlers.Contains(an) && (a["flow"]?.ToJsonString() ?? "").Contains("NotifyGetMessage", StringComparison.Ordinal))
+            {
+                var ins = o["inputs"] as JsonArray ?? new JsonArray();
+                if (!ins.OfType<JsonObject>().Any(x => string.Equals(S(x["name"]), "Message", StringComparison.OrdinalIgnoreCase)))
+                    ins.Add(new JsonObject { ["name"] = "Message", ["type"] = "Text", ["mandatory"] = false });
+                o["inputs"] = ins;
+            }
             if (Vars(a["outputs"], false) is { Count: > 0 } outs) o["outputs"] = outs;
             if (Vars(a["locals"], false) is { Count: > 0 } l) o["locals"] = l;
             if (flow is null)
@@ -779,7 +826,7 @@ static class ScreenTranslator
             return o;
         }
 
-        static bool IsNotify(JsonObject n) => NodeKind(n) == "execute" && Leaf(S(n["action"]) ?? S(n["_ref"]) ?? "") is var l && (l.Equals("Notify", StringComparison.OrdinalIgnoreCase) || l.Equals("Deprecated_Notify", StringComparison.OrdinalIgnoreCase));
+        internal static bool IsNotify(JsonObject n) => NodeKind(n) == "execute" && Leaf(S(n["action"]) ?? S(n["_ref"]) ?? "") is var l && (l.Equals("Notify", StringComparison.OrdinalIgnoreCase) || l.Equals("Deprecated_Notify", StringComparison.OrdinalIgnoreCase));
 
         // The Ajax Refresh node is the one unsupported thing that is handled (DropRefreshes); its entry says so in `why` (Export.cs 445), so another
         // reason on a node of that kind (a repeated name) still makes a stub.
@@ -804,7 +851,7 @@ static class ScreenTranslator
                 var nn = S(n["name"]) ?? S(n["kind"]);
                 if (!ActionKinds.Contains(kind))
                     return (null, kind is "aggregate" or "sql" ? $"it contains the {S(n["kind"])} node {nn}, which needs a server action" : $"it contains a {S(n["kind"])} node ({nn}) that has no client equivalent here");
-                if (IsNotify(n)) return (null, $"it calls Notify at {nn}");
+                if (IsNotify(n) && !block) return (null, $"it calls Notify at {nn}");
                 if (kind == "destination" && !External(n) && (S(n["screen"]) is not { Length: > 0 } scr || scr.Contains('.')))
                     return (null, $"its Destination {nn} does not name a screen of this module");
             }
@@ -952,6 +999,16 @@ static class ScreenTranslator
             var action = S(n["action"]) ?? S(n["_ref"]) ?? "";
             var nodeName = S(n["name"]);
             var leaf = Leaf(action);
+            if (block && IsNotify(n))   // the block's Notify event (Go adds it): the parent's handler gets the message as the input Message
+            {
+                o["kind"] = "triggerEvent";
+                if (nodeName is not null) o["name"] = nodeName;
+                o["event"] = "Notify";
+                if ((n["args"] as JsonObject)?.FirstOrDefault().Value is { } msg && S(msg) is { Length: > 0 } mt) o["args"] = new JsonObject { ["Message"] = Rw(mt, at) };
+                if (S(n["next"]) is { } tn) o["next"] = tn;
+                notifies = true;
+                return;
+            }
             if (leaf.Equals("Feedback_Message", StringComparison.OrdinalIgnoreCase))
             {
                 var args = n["args"] as JsonObject;
@@ -1605,6 +1662,14 @@ static class ScreenTranslator
             // An event handler of the instance: `events` {event: handler | {action,args}} (Export.cs 605), or a prop named after an Events entry.
             var handlers = (w["events"] as JsonObject ?? []).Select(kv => (name: kv.Key, handler: S(kv.Value is JsonObject h ? h["action"] : kv.Value))).ToList();
             if (Prop(w, used, "notify", "onNotify") is { } notify) handlers.Add(("Notify", notify));
+            var notifyBlock = cx.NotifyingBlocks?.Contains(local) == true;
+            foreach (var (evt, handler) in handlers.Where(h => notifyBlock && h.name.Equals("Notify", StringComparison.OrdinalIgnoreCase)).ToList())
+            {
+                var ev = (w["events"] as JsonObject)?["Notify"];
+                o["events"] = new JsonObject { ["Notify"] = ev is JsonObject ej && ej["args"] is JsonObject ea && ea.Count > 0
+                    ? new JsonObject { ["action"] = handler, ["args"] = RwTree(ea, at) } : JsonValue.Create(handler) };
+                handlers.Remove((evt, handler));
+            }
             foreach (var (evt, handler) in handlers)
                 Todo($"{at} handles {(evt.StartsWith("On", StringComparison.OrdinalIgnoreCase) ? evt : "On" + evt)} with {handler}, which cannot be translated by rule; create an event on the block {local} (the spec's events key), fire it with triggerEvent where the block called Notify, and set events on this instance to call {handler}");
             return Wrapped(w, used, o);
@@ -1945,8 +2010,10 @@ static class ScreenTranslator
           "widgets": [ { "kind": "WebLink", "type": "Link", "name": "PickLink", "props": { "onClick": "Pick" }, "children": [ { "kind": "WebText", "type": "Text", "props": { "text": "Pick" } } ] }, { "kind": "WebPlaceholder", "type": "Placeholder", "name": "Extra" } ] }
         """);
         var b = Translate(blockInput, layout);
-        Check(b.Kind == "Block" && b.Status == "partial" && At(b.Spec, "access") is null && At(b.Spec, "layout") is null && At(b.Spec, "title") is null, "OrderCard: a block has no layout, title or access");
-        Check(Text(b.Spec, "actions", 0, "flow", 0, "kind") == "comment" && Has(b.Todo, "Pick", "Notify", "events", "triggerEvent"), "OrderCard: the action with Notify is a stub and the Todo names the event to create");
+        Check(b.Kind == "Block" && At(b.Spec, "access") is null && At(b.Spec, "layout") is null && At(b.Spec, "title") is null, "OrderCard: a block has no layout, title or access");
+        Check(Text(b.Spec, "actions", 0, "flow", 0, "kind") == "triggerEvent" && Text(b.Spec, "actions", 0, "flow", 0, "event") == "Notify" && Text(b.Spec, "actions", 0, "flow", 0, "args", "Message") == "\"picked\""
+            && Text(b.Spec, "events", 0, "name") == "Notify" && Text(b.Spec, "events", 0, "inputs", 0, "name") == "Message" && !b.Todo.Any(t => t.Contains("Notify")),
+            $"OrderCard: Notify is a triggerEvent of the block's Notify event (input Message): {b.Spec?.ToJsonString()}");
         Check(Text(b.Spec, "widgets", 1, "type") == "Placeholder" && Text(b.Spec, "widgets", 0, "onClick") == "Pick", "OrderCard: widgets and the placeholder are carried");
 
         // 6. Block instances: a local block, one of another module, and an OnNotify handler.
@@ -1959,7 +2026,13 @@ static class ScreenTranslator
         """);
         var i6 = Translate(inst, plain);
         Check(Text(i6.Spec, "widgets", 0, "type") == "BlockInstance" && Text(i6.Spec, "widgets", 0, "sourceBlock") == "OrderCard" && Text(i6.Spec, "widgets", 0, "args", "OrderId") == "OrderId" && Text(i6.Spec, "widgets", 0, "placeholders", "Extra", 0, "text") == "x", "Cards: an instance of a local block keeps its name, args and placeholder content");
-        Check(Has(i6.Todo, "Card1", "OnNotify", "events"), "Cards: OnNotify on an instance is a Todo that names the event");
+        Check(Has(i6.Todo, "Card1", "OnNotify", "events"), "Cards: OnNotify on an instance of a block that is not known to notify is a Todo that names the event");
+        // With the block known to call Notify (the plan reads that from the exports), the handler is the instance's Notify event and reads the message as its input.
+        var inst2 = Parse(inst.ToJsonString().Replace("\"nodes\":[]", "\"nodes\": [ { \"kind\": \"message\", \"name\": \"Show\", \"message\": \"NotifyGetMessage()\", \"type\": \"info\" } ]"));
+        var i6b = Translate(inst2, plain with { NotifyingBlocks = new HashSet<string> { "OrderCard" } });
+        Check(Text(i6b.Spec, "widgets", 0, "events", "Notify") == "Got" && !i6b.Todo.Any(t => t.Contains("Card1"))
+            && Text(i6b.Spec, "actions", 0, "inputs", 0, "name") == "Message" && Text(i6b.Spec, "actions", 0, "flow", 0, "message") == "Message",
+            $"Cards: a Notify handler is the instance's Notify event and NotifyGetMessage() is its input Message: {i6b.Spec?.ToJsonString()} [{string.Join(" | ", i6b.Todo)}]");
         Check(Text(i6.Spec, "widgets", 1, "type") == "Container" && (Text(i6.Spec, "widgets", 1, "children", 0, "text") ?? "").StartsWith("TODO migrate") && Text(i6.Spec, "widgets", 1, "children", 1, "text") == "inner" && Has(i6.Todo, "Tip", "RichWidgets.Tooltip"), "Cards: an instance of a block of another module is a Todo container that keeps its content");
 
         // 7. Session variables, with and without a client variable; a string literal is not touched.
@@ -2004,9 +2077,9 @@ static class ScreenTranslator
         Check(Text(w[10], "type") == "List" && Text(w[10], "source") == "GetKinds.List" && Text(w[10], "children", 0, "value") == "GetKinds.List.Current.Kind.Name", "Misc: List Records becomes a List with the row content");
 
         // 10. Every node kind of a client flow: a server action call that stays as it is, an async JavaScript node, a comment with a made-up name, and the
-        //     screen's own JavaScript, which is not carried. End nodes are not listed: a connector says "End".
+        //     screen's own JavaScript, carried as a script but with a Todo because it uses jQuery. End nodes are not listed: a connector says "End".
         var flows = Parse("""
-        { "kind": "Screen", "name": "Flows", "flow": "MainFlow", "moduleKind": "Traditional", "javaScript": "alert(1);",
+        { "kind": "Screen", "name": "Flows", "flow": "MainFlow", "moduleKind": "Traditional", "javaScript": "$('.note').hide();",
           "actions": [ { "name": "Run", "inputs": [ { "name": "Id", "type": "Integer", "mandatory": true, "default": "" } ], "flow": { "complete": true, "nodes": [
             { "kind": "if", "name": "Ok", "condition": "Id > 0", "true": "Each", "false": "Bad", "_path": "p" },
             { "kind": "forEach", "name": "Each", "recordList": "Items.List", "cycle": "Place", "next": "Pick" },
@@ -2019,7 +2092,8 @@ static class ScreenTranslator
         """);
         var fl = Translate(flows, plain);
         var fn = At(fl.Spec, "actions", 0, "flow")!.AsArray();
-        Check(fl.Status == "partial" && fl.Todo.Count == 2 && Has(fl.Todo, "own JavaScript") && Has(fl.Todo, "Js", "asynchronous"), "Flows: the screen's JavaScript and the async JavaScript node are left (a flow of supported nodes is translated whole)");
+        Check(fl.Status == "partial" && fl.Todo.Count == 2 && Has(fl.Todo, "FlowsScript", "jQuery") && Text(fl.Spec, "_javaScript") == "$('.note').hide();" && Has(fl.Todo, "Js", "asynchronous"),
+            $"Flows: the screen's jQuery JavaScript (carried as a script) and the async JavaScript node are left (a flow of supported nodes is translated whole): [{string.Join(" | ", fl.Todo)}]");
         Check(fn.Count == 8 && Text(fn[0], "kind") == "if" && Text(fn[1], "kind") == "forEach" && Text(fn[1], "recordList") == "Items.List" && Text(fn[2], "action") == "PlaceOrder" && Text(fn[2], "args", "Qty") == "2"
             && Text(fn[3], "cases", 0, "next") == "Js" && Text(fn[3], "otherwise") == "Bad" && Text(fn[4], "kind") == "javaScript" && Text(fn[4], "javaScript") == "alert(1);" && At(fn[4], "_async") is null && Text(fn[4], "next") == "Say"
             && Text(fn[5], "type") == "success" && Text(fn[5], "next") == "End" && Text(fn[6], "kind") == "raiseException" && Text(fn[7], "kind") == "comment" && At(fn[7], "name") is null && At(fn[0], "_path") is null && fl.EntityActions.Count == 0,

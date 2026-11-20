@@ -651,6 +651,11 @@ static class Export
                     if (key.Contains("Method", StringComparison.Ordinal)) { props["method"] = value; break; }
             if (click is not null && WebUi.IsTraditional(m) && !props.ContainsKey("method"))
                 Note("the method of its On Click (Submit, Ajax Submit or Navigate) could not be read");
+            // A Traditional block instance's On Notify: the action that runs when the block calls Notify (Reactive: a block event).
+            if (!events.ContainsKey("Notify") && Reflect.Property(w, "OnNotify") is not null && Reflect.Get(w, "OnNotify") is { } onNotify
+                && Reflect.Get(onNotify, "Destination") is IObjectSignature notifyTarget)
+                events["Notify"] = ArgsOf(onNotify, Note) is { Count: > 0 } notifyArgs
+                    ? new JsonObject { ["action"] = Describe.Name(notifyTarget), ["args"] = notifyArgs } : JsonValue.Create(Describe.Name(notifyTarget));
             if (props.Count > 0) o["props"] = props;
             if (attrs.Count > 0) o["attrs"] = attrs;
             if (args.Count > 0) o["args"] = args;

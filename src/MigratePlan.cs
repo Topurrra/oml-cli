@@ -92,6 +92,7 @@ static partial class Migrate
     internal static List<Item> TranslateAll(IEnumerable<Screen> screens, IReadOnlyDictionary<string, JsonObject> exports, ScreenTranslator.Context ctx, Func<JsonObject, ScreenTranslator.Context, ScreenTranslator.Result> translate)
     {
         var items = new List<Item>();
+        if (ctx.NotifyingBlocks is null) ctx = ctx with { NotifyingBlocks = ScreenTranslator.NotifyingBlocks(exports.Values) };
         foreach (var s in screens)
         {
             if (!exports.TryGetValue(s.File, out var exp) || exp["error"] is not null || exp["kind"] is null)
@@ -140,11 +141,22 @@ static partial class Migrate
     {
         var spec = new JsonObject();
         if (r.ClientVariables.Count > 0) spec["clientVariables"] = r.ClientVariables.DeepClone();
+        var scripts = new JsonArray();
         foreach (var (kind, key) in new[] { ("Email", "emails"), ("Block", "blocks"), ("Screen", "screens") })
         {
-            var list = items.Where(i => i.S.Kind == kind && i.Spec is not null).Select(i => (JsonNode?)i.Spec!.DeepClone()).ToArray();
-            if (list.Length > 0) spec[key] = new JsonArray(list);
+            var list = items.Where(i => i.S.Kind == kind && i.Spec is not null).Select(i => (JsonObject)i.Spec!.DeepClone()).ToArray();
+            // A screen's or block's own JavaScript (the translator leaves it in _javaScript): a script of the new module, required by the element.
+            foreach (var e in list)
+                if (e["_javaScript"] is JsonValue js && S(e, "name") is { } en)
+                {
+                    e.Remove("_javaScript");
+                    var script = $"{en}Script";
+                    scripts.Add(new JsonObject { ["name"] = script, ["file"] = $"scripts/{script}.js", ["_text"] = js.ToString() });
+                    e["requiredScripts"] = new JsonArray(script);
+                }
+            if (list.Length > 0) spec[key] = new JsonArray(list.Select(x => (JsonNode?)x).ToArray());
         }
+        if (scripts.Count > 0) spec["scripts"] = scripts;
         return spec.Count == 0 ? null : spec;
     }
 
@@ -349,6 +361,9 @@ static partial class Migrate
         if (r.Prepare is not null) files.Add(("1-prepare-old.json", Json(r.Prepare)));
         if (r.Source is not null) files.Add(("2-source.json", Json(r.Source)));
         files.Add(("3-new-module.json", Json(r.NewModule)));
+        if (r.ScreensSpec?["scripts"] is JsonArray scriptList)   // the script files next to 4-screens.json, their text out of the spec
+            foreach (var sc in scriptList.OfType<JsonObject>())
+                if (sc["_text"] is JsonValue t) { files.Add((S(sc, "file")!, t.ToString())); sc.Remove("_text"); }
         if (r.ScreensSpec is not null) files.Add(("4-screens.json", Json(r.ScreensSpec)));
         files.Add(("4-screens.md", ScreensMd(r, items, r.ScreensSpec is not null)));
         files.AddRange(css);
