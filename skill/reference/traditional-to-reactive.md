@@ -69,17 +69,17 @@ Every server action a screen calls is a public endpoint: start it with identity 
 | Layout HTML Table, Width, Align, `InWebBlockPreview`, Example | Handled by the translator: HTML elements, CSS and classes; preview and design-time parts dropped |
 | Combo Box | Dropdown with a list, Options Value and Options Text |
 | Radio Button | Radio Group with one Radio Button per choice |
-| Edit Record, Show Record | Form with inputs bound to a local record variable |
-| Table Records, List Records | Table or List with an aggregate source and a dynamic sort (`"dynamic": true`); the table's On Sort is Service Studio only, so tell the user |
+| Edit Record, Show Record | Form; on an aggregate's whole record its inputs bind to that record, else to a local record variable |
+| Table Records, List Records | Table or List on the aggregate. List_Navigation, List_Counter and List_SortColumn are translated by code (OutSystems UI Pagination, locals, handlers); On Sort and Sort Attribute stay Service Studio only |
 | Expression with escaping off | Avoid; if needed, an unescaped expression block (XSS risk) |
 | Editable Table, List Box | Build a Table with inputs, or a list of Checkboxes |
 | Link with Method Submit, Ajax Submit or Ajax | Button or Link with On Click and a client action |
+| Link to an External URL | HTML element `a` with `href`; a button calls `RedirectToURL` (code) |
 | Validation (Client & Server) | Built-in Validations on the button, `<Input>.Valid` in the client action, checks again on the server |
 | Screen entry and Preparation redirects | OnInitialize redirect with a `destination` |
 
 ## Data and UI rules that change
 
 - No viewstate: fetch only the fields the screen shows.
-- Style Classes is an expression (`"card"`). Layouts differ (`oml doc ui-reactive`).
-- Paging: locals `StartIndex` and `MaxRecords` and the Pagination block.
+- Style Classes is an expression (`"card"`); the translator quotes Traditional classes. Layouts differ (`oml doc ui-reactive`).
 - Dynamic sort text comes from a fixed list, never from user text that reaches SQL.

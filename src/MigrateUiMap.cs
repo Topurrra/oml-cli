@@ -39,6 +39,8 @@ static class UiLibraryMap
 
     internal static Row? Block(string qualified) => Rows.Value.GetValueOrDefault("block:" + qualified);
 
+    internal static Row? Action(string qualified) => Rows.Value.GetValueOrDefault("serverAction:" + qualified);
+
     internal static IEnumerable<Row> All => Rows.Value.Values;
 
     // The rows for the library elements a module references, as Markdown for the plan folder: what each becomes and what to check.

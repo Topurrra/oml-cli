@@ -92,6 +92,13 @@ static class ScreenTranslator
         readonly Dictionary<string, JsonObject> afterFetch = new(StringComparer.OrdinalIgnoreCase);           // aggregate name -> the client action behind its onAfterFetch
         readonly List<(string agg, string form, string expr)> afterFills = [];                                // form record = aggregate record, after each fetch
         readonly List<(string form, string expr)> initFills = [];                                             // form record = input or local, at initialize
+        // Lists that page or sort the RichWidgets way (List_Navigation, List_Counter, List_SortColumn): table name -> the locals and handlers built.
+        sealed record Paging(string Agg, string Start, string Max, string Handler);
+        sealed record Sorting(string Agg, string Local, string Handler, List<string> Columns);
+        readonly Dictionary<string, Paging> paging = new(StringComparer.OrdinalIgnoreCase);
+        readonly Dictionary<string, Sorting> sorting = new(StringComparer.OrdinalIgnoreCase);
+        readonly List<JsonObject> extraActions = [];
+        string? currentTable;                                                                                 // the table whose header cells are being built
 
         public Run(JsonObject element, Context context)
         {
@@ -155,6 +162,7 @@ static class ScreenTranslator
         string Rw(string? text, string at)
         {
             if (string.IsNullOrEmpty(text)) return text ?? "";
+            text = ListCalls(text);
             var sb = new StringBuilder();
             int i = 0, n = text.Length;
             var last = '\0';
@@ -216,6 +224,9 @@ static class ScreenTranslator
             if (forms.TryGetValue(id, out var local) && text.AsSpan(after).StartsWith(".Record", StringComparison.OrdinalIgnoreCase)
                 && (after + 7 >= text.Length || !(char.IsLetterOrDigit(text[after + 7]) || text[after + 7] == '_')))
             { replacement = local; end = after + 7; return true; }
+            if (paging.TryGetValue(id, out var pg) && text.AsSpan(after).StartsWith(".LineCount", StringComparison.OrdinalIgnoreCase)
+                && (after + 10 >= text.Length || !(char.IsLetterOrDigit(text[after + 10]) || text[after + 10] == '_')))
+            { replacement = pg.Max; end = after + 10; return true; }
             if (tables.TryGetValue(id, out var source))
             {
                 if (text.AsSpan(after).StartsWith(".List", StringComparison.OrdinalIgnoreCase) && (after + 5 >= text.Length || !(char.IsLetterOrDigit(text[after + 5]) || text[after + 5] == '_')))
@@ -241,6 +252,151 @@ static class ScreenTranslator
             }
         }
 
+        // ---------- lists that page and sort (RichWidgets List_Navigation, List_Counter, List_SortColumn) ----------
+
+        static readonly Regex StartIndexCall = new(@"\b(?:RichWidgets\.)?List_Navigation_GetStartIndex\s*\(\s*(\w+)\.Id\b[^()]*\)", RegexOptions.CultureInvariant);
+        static readonly Regex OrderByCall = new(@"\b(?:RichWidgets\.)?List_SortColumn_GetOrderBy\s*\(\s*(\w+)\.Id\s*,\s*(""(?:[^""]|"""")*"")\s*\)", RegexOptions.CultureInvariant);
+
+        // The calls of the RichWidgets list functions for a list that pages or sorts here become its locals.
+        string ListCalls(string text)
+        {
+            if (paging.Count > 0 && text.Contains("List_Navigation_GetStartIndex", StringComparison.Ordinal))
+                text = StartIndexCall.Replace(text, m => paging.TryGetValue(m.Groups[1].Value, out var p) ? p.Start : m.Value);
+            if (sorting.Count > 0 && text.Contains("List_SortColumn_GetOrderBy", StringComparison.Ordinal))
+                text = OrderByCall.Replace(text, m => sorting.TryGetValue(m.Groups[1].Value, out var s) ? s.Local : m.Value);
+            return text;
+        }
+
+        // "{Contact}.[Name] DESC" (the SQL spelling of the RichWidgets sort) as an aggregate sort: "Contact.Name DESC".
+        static string SortText(string sql) => Regex.Replace(sql, @"\{(\w+)\}\.\[(\w+)\]", "$1.$2");
+
+        string FreeName(string wanted, string table, int count) =>
+            count == 1 && !varTypes.ContainsKey(wanted) && !actionNames.Contains(wanted) && !extraLocals.ContainsKey(wanted) ? wanted : table + wanted;
+
+        // Before the Preparation is read: a table or list fed by a Preparation aggregate that pages with List_Navigation (its Start Index reads
+        // List_Navigation_GetStartIndex, or a List_Navigation instance names it) gets Integer locals StartIndex and MaxRecords (its Line Count), which
+        // the aggregate uses, and a GoToPage handler for the OutSystems UI Pagination block. One whose aggregate sorts by List_SortColumn_GetOrderBy
+        // gets a Text local TableSort (the default order, as an aggregate sort) and an OnSort handler. With several such lists, names get the table's name first.
+        void ListPatterns()
+        {
+            var prep = Objs((el["preparation"] as JsonObject)?["nodes"]).Where(n => NodeKind(n) == "aggregate" && S(n["name"]) is not null)
+                .ToDictionary(n => S(n["name"])!, StringComparer.OrdinalIgnoreCase);
+            var navTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var w in widgetByName.Values.Concat(AllWidgets(el["widgets"])))
+                if (WType(w) == "blockinstance" && Leaf(S(w["sourceBlock"]) ?? Prop(w, "sourceBlock") ?? "").Equals("List_Navigation", StringComparison.OrdinalIgnoreCase))
+                    foreach (var (k, v) in w["args"] as JsonObject ?? [])
+                        if (k.StartsWith("ListWidget", StringComparison.OrdinalIgnoreCase) && Regex.Match(S(v) ?? "", @"^\s*(\w+)\.Id\s*$") is { Success: true } t) navTargets.Add(t.Groups[1].Value);
+            var paged = new List<(string table, string agg, string lines)>();
+            var sorted = new List<(string table, string agg, string order)>();
+            foreach (var (table, source) in tables)
+            {
+                var agg = source.Split('.')[0];
+                if (!prep.TryGetValue(agg, out var def) || !widgetByName.TryGetValue(table, out var w)) continue;
+                var lines = Prop(w, "lineCount");
+                if (lines is not null && int.TryParse(lines.Trim(), out var n) && n > 0
+                    && ((Prop(w, "startIndex") ?? "").Contains("List_Navigation_GetStartIndex", StringComparison.Ordinal) || navTargets.Contains(table)))
+                    paged.Add((table, agg, lines.Trim()));
+                foreach (var s in Objs(def["sorts"]))
+                    if (OrderByCall.Match(S(s["attribute"]) ?? "") is { Success: true } m && m.Groups[1].Value.Equals(table, StringComparison.OrdinalIgnoreCase))
+                    { sorted.Add((table, agg, Literal(m.Groups[2].Value) ?? "")); break; }
+            }
+            foreach (var (table, agg, lines) in paged)
+            {
+                string start = FreeName("StartIndex", table, paged.Count), max = FreeName("MaxRecords", table, paged.Count), handler = FreeName("GoToPage", table, paged.Count);
+                extraLocals[start] = new JsonObject { ["name"] = start, ["type"] = "Integer", ["default"] = "0" };
+                extraLocals[max] = new JsonObject { ["name"] = max, ["type"] = "Integer", ["default"] = lines };
+                varTypes[start] = varTypes[max] = "Integer";
+                extraActions.Add(new JsonObject
+                {
+                    ["name"] = handler,
+                    ["inputs"] = new JsonArray(new JsonObject { ["name"] = "NewStartIndex", ["type"] = "Integer", ["mandatory"] = true }),
+                    ["flow"] = new JsonArray(
+                        new JsonObject { ["kind"] = "assign", ["name"] = "SetStartIndex", ["assign"] = new JsonObject { [start] = "NewStartIndex" }, ["next"] = "Refresh" + agg },
+                        new JsonObject { ["kind"] = "refreshData", ["name"] = "Refresh" + agg, ["dataSource"] = agg }),
+                });
+                actionNames.Add(handler);
+                paging[table] = new Paging(agg, start, max, handler);
+            }
+            foreach (var (table, agg, order) in sorted)
+            {
+                string local = FreeName("TableSort", table, sorted.Count), handler = FreeName("OnSort", table, sorted.Count);
+                extraLocals[local] = new JsonObject { ["name"] = local, ["type"] = "Text", ["default"] = Quote(SortText(order)) };
+                varTypes[local] = "Text";
+                var flow = new JsonArray(
+                    new JsonObject { ["kind"] = "if", ["name"] = "SameColumn", ["condition"] = $"{local} = ClickedColumn", ["true"] = "Descending", ["false"] = "Ascending" },
+                    new JsonObject { ["kind"] = "assign", ["name"] = "Descending", ["assign"] = new JsonObject { [local] = "ClickedColumn + \" DESC\"" }, ["next"] = "Refresh" + agg },
+                    new JsonObject { ["kind"] = "assign", ["name"] = "Ascending", ["assign"] = new JsonObject { [local] = "ClickedColumn" }, ["next"] = "Refresh" + agg },
+                    new JsonObject { ["kind"] = "refreshData", ["name"] = "Refresh" + agg, ["dataSource"] = agg });
+                if (paging.TryGetValue(table, out var p))   // a new order starts again at the first page
+                {
+                    ((JsonObject)flow[1]!)["assign"]![p.Start] = "0";
+                    ((JsonObject)flow[2]!)["assign"]![p.Start] = "0";
+                }
+                extraActions.Add(new JsonObject
+                {
+                    ["name"] = handler,
+                    ["inputs"] = new JsonArray(new JsonObject { ["name"] = "ClickedColumn", ["type"] = "Text", ["mandatory"] = true }),
+                    ["flow"] = flow,
+                });
+                actionNames.Add(handler);
+                sorting[table] = new Sorting(agg, local, handler, []);
+            }
+        }
+
+        static IEnumerable<JsonObject> AllWidgets(JsonNode? list)
+        {
+            foreach (var w in Objs(list)) { yield return w; foreach (var c in AllWidgets(new JsonArray(Children(w).Select(x => (JsonNode)x.DeepClone()).ToArray()))) yield return c; }
+        }
+
+        // A RichWidgets list block for a list that pages or sorts here: List_Navigation becomes the OutSystems UI Pagination block, List_Counter an
+        // Expression with the same "x to y of z records" text, List_SortColumn in a header cell goes (the column is noted for the Sort Attribute).
+        // Null when the block is not one of these or its list is not known: then the usual translation runs.
+        (bool handled, JsonObject? widget) ListBlock(JsonObject w, HashSet<string> used, string source)
+        {
+            var leaf = Leaf(source);
+            var args = w["args"] as JsonObject ?? [];
+            string? Arg(string prefix) => args.FirstOrDefault(kv => kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).Value is { } v ? S(v) : null;
+            string? TableOf(params string[] exprs)
+            {
+                foreach (var e in exprs.Where(x => x is not null))
+                {
+                    if (Regex.Match(e, @"^\s*(\w+)\.(Id|LineCount)\s*$") is { Success: true } m && paging.ContainsKey(m.Groups[1].Value)) return m.Groups[1].Value;
+                    if (StartIndexCall.Match(e) is { Success: true } c && paging.ContainsKey(c.Groups[1].Value)) return c.Groups[1].Value;
+                }
+                return null;
+            }
+            if (leaf.Equals("List_Navigation", StringComparison.OrdinalIgnoreCase) && TableOf(Arg("ListWidget")!, Arg("LineCount")!) is { } nt)
+            {
+                var p = paging[nt];
+                var o = new JsonObject
+                {
+                    ["type"] = "BlockInstance", ["sourceBlock"] = "OutSystemsUI.Pagination",
+                    ["args"] = new JsonObject { ["StartIndex"] = p.Start, ["MaxRecords"] = p.Max, ["TotalCount"] = $"LongIntegerToInteger({p.Agg}.Count)" },
+                    ["events"] = new JsonObject { ["OnNavigate"] = p.Handler },
+                };
+                if (!Blank(S(w["name"]))) o["name"] = S(w["name"]);
+                return (true, Wrapped(w, used, o));
+            }
+            if (leaf.Equals("List_Counter", StringComparison.OrdinalIgnoreCase) && TableOf(Arg("LineCount")!, Arg("StartIndex")!) is { } ct)
+            {
+                var p = paging[ct];
+                var count = $"LongIntegerToInteger({p.Agg}.Count)";
+                var o = new JsonObject
+                {
+                    ["type"] = "Expression",
+                    ["value"] = $"If({count} = 0, \"0 records\", ({p.Start} + 1) + \" to \" + Min({p.Start} + {p.Max}, {count}) + \" of \" + {count} + \" records\")",
+                };
+                if (!Blank(S(w["name"]))) o["name"] = S(w["name"]);
+                return (true, Wrapped(w, used, o));
+            }
+            if (leaf.Equals("List_SortColumn", StringComparison.OrdinalIgnoreCase) && currentTable is not null && sorting.TryGetValue(currentTable, out var st))
+            {
+                if (Arg("Column") is { } col) st.Columns.Add(SortText(Literal(col) ?? col));
+                return (true, null);
+            }
+            return (false, null);
+        }
+
         // ---------- the entry point ----------
 
         public Result Go()
@@ -258,6 +414,7 @@ static class ScreenTranslator
             Collect(el["widgets"]);
             foreach (var a in Objs(el["actions"])) if (S(a["name"]) is { } an) actionNames.Add(an);
             foreach (var v in Objs(el["inputs"]).Concat(Objs(el["locals"]))) if (S(v["name"]) is { } vn) varTypes[vn] = S(v["type"]) ?? "Text";
+            ListPatterns();
             // The method of a click is decided in Click (a destination means Navigate, an action means Submit), which says so when it cannot: the note is not repeated.
             foreach (var note in el["notes"] as JsonArray ?? []) if (S(note) is { Length: > 0 } text && !text.Contains("the method of its On Click")) Todo($"the export could read it only in part: {text}");
 
@@ -273,6 +430,7 @@ static class ScreenTranslator
             foreach (var a in Objs(el["actions"])) actions.Add(Action(a));
 
             var content = Content(spec);
+            foreach (var a in extraActions) actions.Add(a);   // list handlers and actions that widgets needed (after the widgets)
             Lifecycle(aggs, actions, spec);
             foreach (var l in extraLocals.Values) locals.Add(l);
             if (locals.Count > 0) spec["locals"] = locals;
@@ -336,6 +494,8 @@ static class ScreenTranslator
                 var a = new JsonObject();
                 foreach (var key in new[] { "name", "sources", "joins", "filters", "sorts", "groupBy", "aggregates", "calculated", "groupFilters", "groupSorts", "groupCalculated", "maxRecords", "startIndex", "timeout" })
                     if (n[key] is { } v) a[key] = RwTree(v, $"the aggregate {S(n["name"])}", "name", "sources", "type", "function", "as", "left", "right");
+                if (paging.Values.FirstOrDefault(pg => pg.Agg.Equals(S(n["name"]), StringComparison.OrdinalIgnoreCase)) is { } pg)
+                { a["maxRecords"] = pg.Max; a["startIndex"] = pg.Start; }
                 result.Add(a);
                 if (S(n["name"]) is { } an) { aggregates.Add(an); aggDefs[an] = n; }
             }
@@ -587,7 +747,7 @@ static class ScreenTranslator
 
         // ---------- screen and block actions ----------
 
-        static readonly HashSet<string> ActionKinds = ["assign", "if", "switch", "foreach", "execute", "destination", "raiseexception", "message", "comment", "javascript", "end", "ajaxrefresh", "exceptionhandler"];
+        static readonly HashSet<string> ActionKinds = ["assign", "if", "switch", "foreach", "execute", "destination", "raiseexception", "message", "comment", "javascript", "end", "ajaxrefresh", "exceptionhandler", "refreshdata"];
 
         JsonObject Action(JsonObject a)
         {
@@ -623,6 +783,9 @@ static class ScreenTranslator
 
         // The Ajax Refresh node is the one unsupported thing that is handled (DropRefreshes); its entry says so in `why` (Export.cs 445), so another
         // reason on a node of that kind (a repeated name) still makes a stub.
+        bool Handled(JsonObject u) => AjaxEntry(u)
+            || NodeKind(u) == "refreshdata" && Regex.Match(S(u["why"]) ?? "", @"^it refreshes (\w+), which is not an aggregate or data action of a screen or block \(a Preparation aggregate\)") is { Success: true } m && aggregates.Contains(m.Groups[1].Value);
+
         static bool AjaxEntry(JsonObject u) => NodeKind(u) == "ajaxrefresh" && (S(u["why"]) ?? "").Contains("Ajax Refresh node", StringComparison.Ordinal)
             || NodeKind(u) == "destination" && (S(u["why"]) ?? "").Contains("ExternalURL", StringComparison.Ordinal);   // it becomes RedirectToURL
         static bool External(JsonObject n) => NodeKind(n) == "destination" && S(n["_ref"]) == "ExternalURL";
@@ -632,7 +795,7 @@ static class ScreenTranslator
             if (a["flow"] is not JsonObject f) return (null, "its flow could not be read from the export");
             var nodes = Objs(f["nodes"]).ToList();
             var unsupported = Objs(f["unsupported"]).ToList();
-            if (unsupported.FirstOrDefault(u => !AjaxEntry(u)) is { } bad)
+            if (unsupported.FirstOrDefault(u => !Handled(u)) is { } bad)
                 return (null, $"it contains {S(bad["kind"])} ({S(bad["why"]) ?? "unsupported"}) at {S(bad["path"])}");
             if (!Complete(f) && unsupported.Count == 0) return (null, "the export marks its flow as incomplete");
             foreach (var n in nodes)
@@ -667,6 +830,7 @@ static class ScreenTranslator
                 var rName = S(r["name"])!;
                 var target = S(r["next"]) ?? "End";
                 var (aggs, unknown, known) = RefreshTargets(r);
+                aggs.RemoveAll(a => nodes.Any(x => NodeKind(x) == "refreshdata" && string.Equals(S(x["dataSource"]), a, StringComparison.OrdinalIgnoreCase)));
                 if (!known)
                     Todo($"the action {an} had the Ajax Refresh node {rName}, which was removed because the export cannot read which widgets it refreshed (a Reactive aggregate refetches only when its inputs change); if a table or list no longer updates, add a refreshData node for the aggregate behind it");
                 else if (unknown.Count > 0)
@@ -695,7 +859,7 @@ static class ScreenTranslator
             var aggs = new List<string>(); var unknown = new List<string>();
             var names = new List<string>();
             if (r["_targets"] is JsonObject t)
-                foreach (var (_, v) in t)
+                foreach (var (_, v) in t.Where(kv => !kv.Key.Equals("target", StringComparison.OrdinalIgnoreCase)))   // target is the next node
                     if (v is JsonArray a) names.AddRange(a.Select(x => S(x)).Where(x => !Blank(x))!);
                     else if (S(v) is { Length: > 0 } one) names.Add(one);
             if (names.Count == 0) return (aggs, unknown, false);
@@ -706,7 +870,9 @@ static class ScreenTranslator
                 void Walk(JsonObject x)
                 {
                     var kind = WType(x);
-                    if (kind == "blockinstance") ok = false;
+                    // A block of this module may hold data of its own; the list and library blocks hold none (ListBlock, UiLibraryMap).
+                    if (kind == "blockinstance" && S(x["sourceBlock"]) is var sb && !(UiLibraryMap.IsLibrary(sb ?? "") || Regex.IsMatch(Leaf(sb ?? ""), "^List_(Navigation|Counter|SortColumn)$")))
+                        ok = false;
                     if (kind is "tablerecords" or "listrecords")
                     {
                         var src = Prop(x, "source", "sourceRecordList");
@@ -800,6 +966,37 @@ static class ScreenTranslator
                 if (S(n["next"]) is { } nx) o["next"] = nx;
                 return;
             }
+            // A Traditional UI library action with an OutSystems UI client action (by the map), called directly or through a local copy of RichWidgets.
+            if ((UiLibraryMap.IsLibrary(action) || !action.Contains('.')) && UiLibraryMap.Action(action.Contains('.') ? action : "RichWidgets." + leaf) is { ReactiveKind: "clientAction", Reactive: { Length: > 0 } ra } row)
+            {
+                o["kind"] = "execute";
+                if (nodeName is not null) o["name"] = nodeName;
+                o["action"] = ra;
+                var mapped = new JsonObject();
+                foreach (var (k, v) in n["args"] as JsonObject ?? [])
+                {
+                    var target = row.Inputs.FirstOrDefault(kv => kv.Key.Equals(k, StringComparison.OrdinalIgnoreCase));
+                    if (S(target.Value) is { Length: > 0 } to) mapped[to] = Rw(S(v), at);
+                    else Todo($"{at} calls {action} with {k} = {S(v)}, which {ra} has no input for");
+                }
+                if (leaf.Equals("Input_FocusFirstInvalid", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (forms.Count == 1) mapped["WidgetId"] = forms.Keys.First() + ".Id";
+                    else Todo($"{at} calls Input_FocusFirstInvalid, now {ra}: set its WidgetId to the Id of the form or container to search");
+                }
+                if (mapped.Count > 0) o["args"] = mapped;
+                if (S(n["next"]) is { } ln) o["next"] = ln;
+                return;
+            }
+            if (leaf.Equals("List_Navigation_ResetStartIndex", StringComparison.OrdinalIgnoreCase)
+                && (n["args"] as JsonObject)?.Select(kv => Regex.Match(S(kv.Value) ?? "", @"^\s*(\w+)\.Id\s*$")).FirstOrDefault(x => x.Success && paging.ContainsKey(x.Groups[1].Value)) is { } rt)
+            {
+                o["kind"] = "assign";
+                if (nodeName is not null) o["name"] = nodeName;
+                o["assign"] = new JsonObject { [paging[rt.Groups[1].Value].Start] = "0" };
+                if (S(n["next"]) is { } rn) o["next"] = rn;
+                return;
+            }
             o["kind"] = "execute";
             if (nodeName is not null) o["name"] = nodeName;
             var argKeys = (n["args"] as JsonObject)?.Select(kv => kv.Key).ToList() ?? [];
@@ -880,7 +1077,9 @@ static class ScreenTranslator
                 if (!Blank(wn))
                 {
                     widgetByName[wn!] = w;
-                    if (kind is "form" or "editrecord" or "showrecord") forms[wn!] = wn + "Record";
+                    // A form on the whole record of a Preparation aggregate binds to it, as Reactive scaffolding does (no local); others get a local.
+                    if (kind is "form" or "editrecord" or "showrecord")
+                        forms[wn!] = Prop(w, "source", "sourceRecord")?.Trim() is { } fs && Regex.Match(fs, @"^(\w+)\.List\.Current$") is { Success: true } fm && PrepAggregate(fm.Groups[1].Value) ? fs : wn + "Record";
                     if (kind is "tablerecords" or "listrecords" && Prop(w, "source", "sourceRecordList") is { } src && Regex.IsMatch(src, @"^\w+\.List$")) tables[wn!] = src;
                 }
                 foreach (var c in Children(w)) Collect(new JsonArray(c.DeepClone()));
@@ -917,14 +1116,14 @@ static class ScreenTranslator
             var o = new JsonObject { ["type"] = type };
             if (!Blank(S(w["name"]))) o["name"] = S(w["name"]);
             var at = Label(w);
-            if (Prop(w, used, "style") is { } style) o["style"] = Rw(style, at);
+            if (Prop(w, used, "style") is { } style) o["style"] = StyleText(style);
             var attrs = new JsonObject();
             foreach (var (k, v) in w["attrs"] as JsonObject ?? [])
             {
                 if (k.Equals("id", StringComparison.OrdinalIgnoreCase)) { Todo($"{at} has an HTML attribute id, which Reactive refuses (the platform sets it); use the widget name in expressions instead"); continue; }
                 if (S(v) is { } s) attrs[k] = Rw(s, at);
             }
-            if (Prop(w, used, "inlineStyle") is { } inline) attrs["style"] = Rw(inline, at);
+            if (Prop(w, used, "inlineStyle") is { } inline) attrs["style"] = StyleText(inline);
             var css = new List<string>();
             if (Prop(w, used, "width") is { } wd && Css("width", wd) is { } cw) css.Add(cw);
             if (Prop(w, used, "height") is { } ht && Css("height", ht) is { } ch) css.Add(ch);
@@ -942,6 +1141,10 @@ static class ScreenTranslator
             if (attrs.Count > 0) o["attributes"] = attrs;
             return o;
         }
+
+        // Style Classes and the inline style of a Traditional widget are plain text; in Reactive both are expressions: "btn btn-primary" in quotes.
+        // A value that is a string literal already is kept.
+        static string StyleText(string value) => Literal(value.Trim()) is not null ? value.Trim() : Quote(value.Trim());
 
         // A Traditional width or height as CSS: 40char is 40ch, a number is pixels, px and % stay. (fill parent) and empty are the Reactive default.
         static string? Css(string prop, string value)
@@ -963,6 +1166,8 @@ static class ScreenTranslator
         // Properties with no Reactive meaning: design-time text, Ajax and validation-parent settings, Edit Record and table layout, values that are the default.
         static readonly string[] Dropped = ["example", "isAjaxRefreshed", "validationParent", "cellSpacing", "displayColumns", "lineSeparator", "effectiveCaptionWidth", "effectiveValueWidth", "masterEntity",
             "description", "marginLeft", "isEditable", "labelsPosition"];   // a widget description is a design note; Adaptive and 0 margins are the default
+        static readonly string[] DefaultStyles = ["evenLineStyle=TableRecords_EvenLine", "oddLineStyle=TableRecords_OddLine", "headerStyle=TableRecords_Header",
+            "labelStyle=EditRecord_Label", "labelStyle=EditRecord_Caption", "valueStyle=EditRecord_Value", "labelStyle=ShowRecord_Label", "valueStyle=ShowRecord_Value"];
         void Quiet(JsonObject w, HashSet<string> used)
         {
             if (w["props"] is not JsonObject p) return;
@@ -976,7 +1181,13 @@ static class ScreenTranslator
                     || k.Equals("textLines", StringComparison.OrdinalIgnoreCase) && val == "1"
                     || k.Equals("startIndex", StringComparison.OrdinalIgnoreCase) && val == "0"
                     || k.Equals("lineCount", StringComparison.OrdinalIgnoreCase) && WType(w) == "listrecords"
-                    || k.Equals("type", StringComparison.OrdinalIgnoreCase) && WType(w) == "image")
+                    || k.Equals("type", StringComparison.OrdinalIgnoreCase) && WType(w) == "image"
+                    // the record type of a list or form (the source decides it in Reactive), and the default Traditional styles of tables and records
+                    || k.Equals("type", StringComparison.OrdinalIgnoreCase) && val.StartsWith("List of ", StringComparison.Ordinal)
+                    || k.Equals("recordDefinition", StringComparison.OrdinalIgnoreCase)
+                    || DefaultStyles.Contains(k + "=" + val.Trim('"'), StringComparer.OrdinalIgnoreCase)
+                    // an input's Null Value that is the type's own null: Reactive shows an empty input for it
+                    || k.Equals("nullValue", StringComparison.OrdinalIgnoreCase) && Regex.IsMatch(val, @"^(Null\w*\(\)|#1900-01-01( 00:00:00)?#|#00:00:00#|0|""""|)$"))
                     used.Add(k.ToLowerInvariant());
             }
         }
@@ -1053,7 +1264,9 @@ static class ScreenTranslator
                         else Todo($"{Label(w)} describes the input {target}, which is not a widget of this {kindWord.ToLowerInvariant()}; set its targetWidget");
                     }
                     break;
-                case "input": case "textarea": o = Input(w, used, kind == "textarea"); break;
+                case "input": case "textarea":   // an Input of more than one line is a Text Area in Reactive
+                    var multi = Prop(w, used, "textLines") is { } tl && int.TryParse(tl.Trim(), out var lines) && lines > 1;
+                    o = Input(w, used, kind == "textarea" || multi); break;
                 case "inputpassword":   // a Password Input of Traditional Web is an Input of type Password
                     o = Input(w, used, false); o["inputType"] = "Password"; used.Add("passwordtype"); break;
                 case "customplaceholder": case "placeholdercontent":   // the content area of a Form or a block instance: its widgets move up
@@ -1134,6 +1347,7 @@ static class ScreenTranslator
             if (Prop(w, used, "prompt") is { } pr) Carry(o, "prompt", Rw(pr, at), $"{at} has the prompt {pr}, which the spec cannot set; set it in Service Studio");
             if (Prop(w, used, "maxLength") is { } ml && int.TryParse(ml, out var len)) Carry(o, "maxLength", len, $"{at} has the maximum length {len}, which the spec cannot set; set it in Service Studio");
             if (ActionRef(w, used, "its On Change", "onChange") is { } oc) o["onChange"] = oc;
+            if (area && Prop(w, used, "type", "inputType") is { } at2 && Norm(at2) is not ("text" or "")) Todo($"{at} has the input type {at2}, which a Text Area does not have");
             if (!area)
             {
                 string? type = null;
@@ -1157,6 +1371,35 @@ static class ScreenTranslator
         JsonObject Click(JsonObject w, HashSet<string> used, bool button)
         {
             var at = Label(w);
+            // Navigate to an External URL: a link is an HTML a element with href (the spec has no external target); a button runs a client
+            // action that calls RedirectToURL.
+            if ((Prop(w, "destination") ?? Prop(w, "onClick")) == "ExternalURL" && (w["args"] as JsonObject)?.FirstOrDefault(kv => kv.Key.Equals("URL", StringComparison.OrdinalIgnoreCase)).Value is { } urlNode && S(urlNode) is { } url)
+            {
+                Prop(w, used, "destination", "onClick", "method");
+                if (!button)
+                {
+                    var a = New("AdvancedHtml", w, used);
+                    a["tag"] = "a";
+                    var attrs = a["attributes"] as JsonObject ?? new JsonObject();
+                    attrs["href"] = Rw(url, at);
+                    a["attributes"] = attrs;
+                    if (Ws(w["children"]) is { Count: > 0 } kids) a["children"] = kids;
+                    else if (Prop(w, used, "label", "text", "value") is { } lbl) a["children"] = new JsonArray(LabelWidget(lbl, x => Rw(x, at)));
+                    return Wrapped(w, used, a);
+                }
+                var handler = "Open" + (Blank(S(w["name"])) ? "Url" + (extraActions.Count + 1) : S(w["name"]));
+                extraActions.Add(new JsonObject
+                {
+                    ["name"] = handler,
+                    ["flow"] = new JsonArray(new JsonObject { ["kind"] = "execute", ["name"] = "Redirect", ["action"] = "RedirectToURL", ["args"] = new JsonObject { ["URL"] = Rw(url, at) }, ["next"] = "End" }),
+                });
+                actionNames.Add(handler);
+                var b = New("Button", w, used); Visible(w, used, b);
+                b["onClick"] = handler;
+                if (Ws(w["children"]) is { Count: > 0 } bk) b["children"] = bk;
+                else if (Prop(w, used, "label", "text", "value") is { } bl) b["children"] = new JsonArray(LabelWidget(bl, x => Rw(x, at)));
+                return b;
+            }
             var o = New(button ? "Button" : "Link", w, used); Visible(w, used, o);
             var method = Norm(Prop(w, used, "method"));
             var dest = Prop(w, used, "destination");
@@ -1206,9 +1449,9 @@ static class ScreenTranslator
             {
                 var e = New("AdvancedHtml", x, u);
                 e["tag"] = tag;
-                foreach (var span in new[] { "colSpan", "rowSpan" })
+                foreach (var (span, attr) in new[] { ("colSpan", "colspan"), ("columnSpan", "colspan"), ("rowSpan", "rowspan") })
                     if (Prop(x, u, span) is { } sv && int.TryParse(sv, out var n) && n > 1)
-                        (e["attributes"] as JsonObject ?? (JsonObject)(e["attributes"] = new JsonObject()))[span.ToLowerInvariant()] = Quote(n.ToString());
+                        (e["attributes"] as JsonObject ?? (JsonObject)(e["attributes"] = new JsonObject()))[attr] = Quote(n.ToString());
                 return e;
             }
             var table = Element(w, used, "table");
@@ -1276,14 +1519,35 @@ static class ScreenTranslator
             if (source is null) return TodoBox(w, $"is a {(table ? "Table" : "List")} Records without a readable source");
             var o = New(table ? "TableRecords" : "List", w, used); Visible(w, used, o);
             o["source"] = Rw(source, at);
+            var tn = S(w["name"]);
+            var paged = tn is not null && paging.ContainsKey(tn);
+            if (paged) { Prop(w, used, "lineCount"); Prop(w, used, "startIndex"); }   // the aggregate pages with the locals (ListPatterns)
             if (table)
             {
                 if (Prop(w, used, "sortable", "sortColumn", "sortAttribute") is { } sort) Carry(o, "tableSort", Rw(sort, at), $"{at} sorts by {sort}, which the spec cannot set; set the sorting in Service Studio");
-                if (Prop(w, used, "lineCount", "linesPerPage", "pagination") is { } paging) Carry(o, "tablePaging", Rw(paging, at), $"{at} pages with {paging}, which the spec cannot set; set the paging in Service Studio");
-                o["headerRow"] = Cells(w["header"], "HeaderCell");
+                if (Prop(w, used, "lineCount", "linesPerPage", "pagination") is { } lines && !paged)
+                    Todo($"{at} shows {lines} lines at a time, but no List_Navigation pages it here; set Max. Records of its aggregate, or add the OutSystems UI Pagination block");
+                var showHeader = Prop(w, used, "showHeader");
+                var before = currentTable; currentTable = tn;
+                if (!IsFalse(showHeader) || showHeader is null) o["headerRow"] = Cells(w["header"], "HeaderCell");
+                currentTable = before;
                 o["row"] = Cells(w["row"], "RowCell");
+                if (tn is not null && sorting.TryGetValue(tn, out var st))
+                    Todo($"{at} sorts by clicking its header: in Service Studio set the table's On Sort to {st.Handler} (built, with the local {st.Local})"
+                        + (st.Columns.Count > 0 ? $" and the Sort Attribute of its header cells: {string.Join(", ", st.Columns)}" : " and the Sort Attribute of each sortable header cell"));
             }
             else o["children"] = Ws(w["row"] ?? w["children"]);
+            // Empty Message: Reactive shows nothing for an empty list; an If shows the text instead.
+            if (Prop(w, used, "emptyMessage") is { } empty && Literal(empty) is not "")
+            {
+                var list = Rw(source, at);
+                return new JsonObject
+                {
+                    ["type"] = "If", ["condition"] = $"{list}.Empty",
+                    ["trueBranch"] = new JsonArray(new JsonObject { ["type"] = "Expression", ["value"] = Rw(empty, at) }),
+                    ["falseBranch"] = new JsonArray(o),
+                };
+            }
             return o;
         }
 
@@ -1296,7 +1560,10 @@ static class ScreenTranslator
                 {
                     var used = new HashSet<string>();
                     var cell = new JsonObject { ["type"] = cellType };
-                    if (Prop(w, used, "style", "styleClasses") is { } st) cell["style"] = Rw(st, Label(w));
+                    if (Prop(w, used, "style", "styleClasses") is { } st) cell["style"] = StyleText(st);
+                    if (Prop(w, used, "verticalAlignment") is { } va && Norm(va) is "top" or "middle" or "bottom")
+                        cell["attributes"] = new JsonObject { ["style"] = Quote("vertical-align: " + Norm(va)) };
+                    Quiet(w, used);
                     cell["children"] = Ws(w["children"]);
                     Unhandled(w, used);
                     result.Add(cell);
@@ -1320,6 +1587,7 @@ static class ScreenTranslator
                 if (w["placeholders"] is JsonObject ph) foreach (var (_, list) in ph) foreach (var c in Objs(list)) inner.Add(c.DeepClone());
                 return Popup(w, used, inner);
             }
+            if (ListBlock(w, used, source) is { handled: true } lb) return lb.widget;
             var isLocal = !local.Contains('.') && cx.LocalBlocks.Any(b => b.Equals(local, StringComparison.OrdinalIgnoreCase));
             if (!isLocal && UiLibraryMap.IsLibrary(source) && UiLibraryMap.Block(source) is { } mapped) return Library(w, used, source, mapped);
             if (!isLocal)
@@ -1416,6 +1684,12 @@ static class ScreenTranslator
             var formName = !Blank(S(w["name"])) ? S(w["name"])! : "Form";
             var local = formName + "Record";
             var source = Prop(w, used, "source", "sourceRecord");
+            if (source is not null && forms.TryGetValue(formName, out var bound) && bound == source.Trim())   // bound to the aggregate's record (Collect)
+            {
+                var f = New("Form", w, used); Visible(w, used, f);
+                f["children"] = Ws(w["children"]);
+                return f;
+            }
             string? type = null;   // the record type is the type of the source expression; the export does not give it
             if (type is null && source is not null)
             {
@@ -1445,6 +1719,8 @@ static class ScreenTranslator
             o["children"] = Ws(w["children"]);
             return o;
         }
+
+        bool PrepAggregate(string name) => Objs((el["preparation"] as JsonObject)?["nodes"]).Any(n => NodeKind(n) == "aggregate" && string.Equals(S(n["name"]), name, StringComparison.OrdinalIgnoreCase));
 
         // Is `entity` one of the plain sources of the aggregate (not a grouped one), so that List.Current.<entity> is a record of that entity?
         static bool EntityOf(JsonObject aggregateNode, string entity) =>
@@ -1802,7 +2078,7 @@ static class ScreenTranslator
             """, ["if Gone", "ends in a Destination"]);
 
         // 13. Rule 2: forms. A record of a screen aggregate (done above, in OrderDetail); an input is the local's default; a local is copied at initialize unless the
-        //     Preparation assigns it; a one-source aggregate's own record, a function result or an unknown source stay Todo lines.
+        //     Preparation assigns it; an aggregate's own record binds the form directly (Reactive scaffolding); a function result or an unknown source stay Todo lines.
         var forms = Parse("""
         { "kind": "Screen", "name": "Forms", "flow": "MainFlow", "moduleKind": "Traditional",
           "inputs": [ { "name": "Seed", "type": "Order", "mandatory": false, "default": "" } ], "locals": [ { "name": "Draft", "type": "Order", "default": "" }, { "name": "Built", "type": "Order", "default": "" } ],
@@ -1817,7 +2093,9 @@ static class ScreenTranslator
         var fo = Translate(forms, plain);
         Check(Text(fo.Spec, "locals", 2, "name") == "FromInputRecord" && Text(fo.Spec, "locals", 2, "default") == "Seed" && Text(fo.Spec, "locals", 2, "type") == "Order", "Forms: an input of the same type is the record local's default");
         Check(Text(fo.Spec, "onInitialize") == "OnInitialize" && Text(fo.Spec, "actions", 0, "flow", 0, "assign", "FromLocalRecord") == "Draft", "Forms: a local that nothing assigns is copied in onInitialize");
-        Check(fo.Todo.Count == 5 && Has(fo.Todo, "FromBuilt", "FromBuiltRecord") && Has(fo.Todo, "FromCurrent", "own record structure") && Has(fo.Todo, "FromOther", "Lookup.Record"), $"Forms: a local the Preparation assigns, the aggregate's own record and an unknown source are Todo lines: [{string.Join(" | ", fo.Todo)}]");
+        Check(fo.Todo.Count == 3 && Has(fo.Todo, "FromBuilt", "FromBuiltRecord") && !fo.Todo.Any(t => t.Contains("FromCurrent")) && Has(fo.Todo, "FromOther", "Lookup.Record")
+            && !(At(fo.Spec, "locals") as JsonArray)!.OfType<JsonObject>().Any(l => Text(l, "name") == "FromCurrentRecord"),
+            $"Forms: a local the Preparation assigns and an unknown source are Todo lines; the aggregate's own record binds the form without a local: [{string.Join(" | ", fo.Todo)}]");
         Check(At(fo.Spec, "actions")!.AsArray().Count == 1 && Text(fo.Spec, "actions", 0, "flow", 0, "name") == "FillFromLocalRecord" && Text(fo.Spec, "actions", 0, "flow", 1, "name") == "Make", "Forms: the Preparation's own logic (Make) is onInitialize, and the fill is its first node, connected to it");
 
         // 14. Rule 3: an Ajax Refresh node with `_targets`: a table fed by an aggregate, a container holding two lists, a container fed by nothing, no targets, a name
@@ -1954,6 +2232,50 @@ static class ScreenTranslator
             "Library: a Traditional Card is an OutSystemsUI Card with its input and placeholder");
         Check(Text(lt, "widgets", 1, "type") == "Icon" && At(lt, "widgets", 2) is null && !lib.Todo.Any(t => t.Contains("Feedback_AjaxWait")),
             $"Library: the wait box is dropped and the RichWidgets icon is an Icon widget: [{string.Join(" | ", lib.Todo)}]");
+
+        // 18. A list screen as Service Studio scaffolds it in Traditional: List_Navigation pages it, List_SortColumn sorts it, List_Counter counts,
+        // a search action resets the page and refreshes the Preparation aggregate. All of it becomes native Reactive: locals, the aggregate's paging
+        // and dynamic sort, OutSystems UI Pagination with its handler, an OnSort handler, an If for the Empty Message.
+        var list = Translate(Parse("""
+        { "kind": "Screen", "name": "Contacts", "flow": "MainFlow", "path": "MainFlow/Contacts", "moduleKind": "Traditional", "access": { "registered": true },
+          "preparation": { "complete": true, "nodes": [
+            { "kind": "aggregate", "name": "GetContacts", "sources": ["Contact"],
+              "sorts": [ { "attribute": "List_SortColumn_GetOrderBy(ContactTable.Id, \"{Contact}.[Name]\")", "dynamic": true } ], "next": "End" } ] },
+          "actions": [ { "name": "Search", "inputs": [ { "name": "ResetPagination", "type": "Boolean" } ], "flow": { "complete": false, "nodes": [
+              { "kind": "if", "name": "If1", "condition": "ResetPagination", "true": "ResetStartIndex", "false": "RefreshData1" },
+              { "kind": "execute", "name": "ResetStartIndex", "action": "RichWidgets.List_Navigation_ResetStartIndex", "args": { "ListWidgetId": "ContactTable.Id" }, "next": "RefreshData1" },
+              { "kind": "refreshData", "name": "RefreshData1", "dataSource": "GetContacts", "next": "AjaxRefresh1" },
+              { "kind": "AjaxRefreshNode", "name": "AjaxRefresh1", "_targets": { "target": "End", "widgetOrWebBlock": "TableWrapper" }, "next": "End" } ],
+            "unsupported": [
+              { "kind": "RefreshDataNode", "path": "MainFlow/Contacts/Search/RefreshQuery[0]", "why": "it refreshes GetContacts, which is not an aggregate or data action of a screen or block (a Preparation aggregate); a spec refreshData names one of those" },
+              { "kind": "AjaxRefreshNode", "path": "MainFlow/Contacts/Search/AjaxRefresh[0]", "why": "the spec has no Ajax Refresh node" } ] } } ],
+          "widgets": [ { "kind": "Container", "name": "TableWrapper", "children": [
+            { "kind": "TableRecords", "name": "ContactTable", "props": { "sourceRecordList": "GetContacts.List", "lineCount": "20", "startIndex": "List_Navigation_GetStartIndex(ContactTable.Id, True)",
+                "emptyMessage": "\"No contacts\"", "showHeader": "True", "evenLineStyle": "TableRecords_EvenLine", "type": "List of Contact Record" },
+              "header": [ { "kind": "TableRecordsHeaderCell", "props": { "verticalAlignment": "Null" }, "children": [ { "kind": "Text", "props": { "text": "Name" } },
+                { "kind": "WebBlockInstance", "sourceBlock": "RichWidgets.List_SortColumn", "args": { "Column": "\"{Contact}.[Name]\"" } } ] } ],
+              "row": [ { "kind": "TableRecordsDataCell", "children": [ { "kind": "Expression", "props": { "value": "GetContacts.List.Current.Contact.Name" } } ] } ] },
+            { "kind": "WebBlockInstance", "sourceBlock": "RichWidgets.List_Counter", "args": { "LineCount": "ContactTable.LineCount", "StartIndex": "List_Navigation_GetStartIndex(ContactTable.Id, True)", "TotalRowCount": "GetContacts.Count" } },
+            { "kind": "WebBlockInstance", "sourceBlock": "RichWidgets.List_Navigation", "args": { "ListWidgetId": "ContactTable.Id", "LineCount": "ContactTable.LineCount", "TotalRowCount": "GetContacts.Count", "MaxPageNumbers": "5" } },
+            { "kind": "TextArea", "name": "Notes", "props": { "variable": "Note", "textLines": "3", "type": "Text" } } ] } ] }
+        """), new Context("Shop", new Dictionary<string, string>(), new HashSet<string>(), new HashSet<string>(), null, []));
+        var ls = list.Spec;
+        Check(Text(ls, "aggregates", 0, "maxRecords") == "MaxRecords" && Text(ls, "aggregates", 0, "startIndex") == "StartIndex" && Text(ls, "aggregates", 0, "sorts", 0, "attribute") == "TableSort"
+            && At(ls, "locals") is JsonArray locs && locs.OfType<JsonObject>().Any(l => Text(l, "name") == "MaxRecords" && Text(l, "default") == "20")
+            && locs.OfType<JsonObject>().Any(l => Text(l, "name") == "TableSort" && Text(l, "default") == "\"Contact.Name\""),
+            $"List: the aggregate pages and sorts with the locals: {ls.ToJsonString()}");
+        var wrap = At(ls, "widgets", 0, "children") as JsonArray;
+        Check(Text(wrap, 0, "type") == "If" && Text(wrap, 0, "condition") == "GetContacts.List.Empty" && Text(wrap, 0, "falseBranch", 0, "type") == "TableRecords"
+            && At(wrap, 0, "falseBranch", 0, "headerRow", 0, "children", 1) is null
+            && Text(wrap, 1, "type") == "Expression" && (Text(wrap, 1, "value") ?? "").Contains("StartIndex + 1")
+            && Text(wrap, 2, "sourceBlock") == "OutSystemsUI.Pagination" && Text(wrap, 2, "events", "OnNavigate") == "GoToPage" && Text(wrap, 3, "type") == "TextArea",
+            $"List: empty message, counter, Pagination, no sort block in the header, text area: {wrap?.ToJsonString()}");
+        var search = (At(ls, "actions") as JsonArray)!.OfType<JsonObject>().First(a => Text(a, "name") == "Search");
+        Check(Text(search, "flow", 1, "kind") == "assign" && Text(search, "flow", 1, "assign", "StartIndex") == "0" && Text(search, "flow", 2, "kind") == "refreshData"
+            && (At(search, "flow") as JsonArray)!.Count == 3,
+            $"List: the search resets the page and refreshes once: {search.ToJsonString()}");
+        Check(list.Todo.Count == 1 && list.Todo[0].Contains("On Sort to OnSort") && list.Todo[0].Contains("Contact.Name"),
+            $"List: one Todo is left, for On Sort and the Sort Attribute: [{string.Join(" | ", list.Todo)}]");
         return failures;
     }
 

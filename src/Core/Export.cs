@@ -673,7 +673,7 @@ static class Export
             if (placeholders.Count > 0) o["placeholders"] = placeholders;
             if (kind.Contains("If", StringComparison.Ordinal) && !areas.Any(a => a.key is "true" or "false") && children.Count > 0)
                 Note("its True and False branches could not be told apart: the widgets of both are under children");
-            if (kind.Contains("TableRecords", StringComparison.Ordinal) && !areas.Any(a => a.key is "header" or "row") && children.Count > 0)
+            if (kind.EndsWith("TableRecords", StringComparison.Ordinal) && !areas.Any(a => a.key is "header" or "row") && children.Count > 0)
                 Note("its header and row could not be told apart: the widgets of both are under children");
             return o;
         }
