@@ -136,16 +136,39 @@ static partial class Migrate
         new(r.OldName, new Dictionary<string, string>(r.WrapperMap), new HashSet<string>(r.SessionDecisions.Where(d => d.Decision == "client").Select(d => d.Name), StringComparer.OrdinalIgnoreCase),
             new HashSet<string>(r.Screens.Where(s => s.Kind == "Block").Select(s => s.Name), StringComparer.OrdinalIgnoreCase), layout, placeholders);
 
+    // The server actions the translated screens call and their outputs: the old module's server and service actions (copied, same name) and the
+    // entity wrappers (in the old module: Create and CreateOrUpdate return the new Id).
+    internal static Dictionary<string, IReadOnlyDictionary<string, string>> ServerOutputs(JsonNode? inspect, Result r)
+    {
+        var map = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var key in new[] { "serverActions", "serviceActions" })
+            foreach (var a in (inspect?[key] as JsonArray ?? []).OfType<JsonObject>())
+                if (S(a, "name") is { } n && !r.WrapperMap.ContainsValue(n))
+                    map[n] = (a["outputs"] as JsonArray ?? []).OfType<JsonObject>().Where(o => S(o, "name") is not null)
+                        .ToDictionary(o => S(o, "name")!, o => S(o, "type") ?? "Text", StringComparer.OrdinalIgnoreCase);
+        foreach (var (entityAction, wrapper) in r.WrapperMap)
+        {
+            var entity = r.EntityNames.OrderByDescending(e => e.Length).FirstOrDefault(e => entityAction.EndsWith(e, StringComparison.Ordinal) && entityAction.Length > e.Length);
+            var returnsId = entityAction.StartsWith("Create", StringComparison.Ordinal);
+            map[$"{r.OldName}.{wrapper}"] = returnsId && entity is not null
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["Id"] = entity + " Identifier" } : new Dictionary<string, string>();
+        }
+        return map;
+    }
+
     // 4-screens.json: client variables, then emails, blocks and screens (the non-null specs), applied to the new module after 3-new-module.json.
     internal static JsonObject? ScreensSpec(Result r, IEnumerable<Item> items)
     {
         var spec = new JsonObject();
         if (r.ClientVariables.Count > 0) spec["clientVariables"] = r.ClientVariables.DeepClone();
         var scripts = new JsonArray();
+        var merged = new JsonArray();
         foreach (var (kind, key) in new[] { ("Email", "emails"), ("Block", "blocks"), ("Screen", "screens") })
         {
             var list = items.Where(i => i.S.Kind == kind && i.Spec is not null).Select(i => (JsonObject)i.Spec!.DeepClone()).ToArray();
             // A screen's or block's own JavaScript (the translator leaves it in _javaScript): a script of the new module, required by the element.
+            foreach (var e in list)   // server actions the translator made of consecutive server calls: top-level serverActions
+                if (e["_serverActions"] is JsonArray sas) { e.Remove("_serverActions"); foreach (var x in sas.ToList()) { sas.Remove(x); merged.Add(x); } }
             foreach (var e in list)
                 if (e["_javaScript"] is JsonValue js && S(e, "name") is { } en)
                 {
@@ -157,6 +180,9 @@ static partial class Migrate
             if (list.Length > 0) spec[key] = new JsonArray(list.Select(x => (JsonNode?)x).ToArray());
         }
         if (scripts.Count > 0) spec["scripts"] = scripts;
+        if (merged.Count > 0) spec["serverActions"] = merged;
+        if (merged.ToJsonString().Contains($"\"{ScreenTranslator.AccessDenied}\"", StringComparison.Ordinal))   // raised by the role checks of merged server actions
+            spec["exceptions"] = new JsonArray(ScreenTranslator.AccessDenied);
         return spec.Count == 0 ? null : spec;
     }
 
@@ -322,7 +348,7 @@ static partial class Migrate
         var first = TranslateAll(r.Screens, exports, new ScreenTranslator.Context(r.OldName, allWrappers, new HashSet<string>(), new HashSet<string>(r.Screens.Where(s => s.Kind == "Block").Select(s => s.Name)), layout, placeholders), translate);
         r = Build(inspect, old, name, outDir, map, calls, ExtraFrom(first, r.EntityNames, serverUse) with { CopyExposed = copyExposed });
         r.Notes.AddRange(producerNotes); r.Notes.AddRange(notes);
-        var context = MakeContext(r, layout, placeholders);
+        var context = MakeContext(r, layout, placeholders) with { ServerOutputs = ServerOutputs(inspect, r) };
         var items = TranslateAll(r.Screens, exports, context, translate);
         foreach (var i in items.Where(i => i.Error is not null && i.Error != "no export")) r.Notes.Add($"{i.S.Kind} {i.S.Name} was not translated: {i.Error}.");
         foreach (var a in items.SelectMany(i => i.EntityActions).Distinct().Where(a => EntityActionMap(r.EntityNames).ContainsKey(a) && !r.WrapperMap.ContainsKey(a)))

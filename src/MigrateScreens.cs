@@ -46,7 +46,10 @@ static class ScreenTranslator
         IReadOnlySet<string> LocalBlocks,                   // web blocks of the old module (they are translated too, same name)
         string? Layout,                                     // Reactive layout block to use, or null for none
         IReadOnlyList<string> LayoutPlaceholders,           // its placeholder names
-        IReadOnlySet<string>? NotifyingBlocks = null);      // blocks of the old module that call Notify (they get a Notify event)
+        IReadOnlySet<string>? NotifyingBlocks = null,       // blocks of the old module that call Notify (they get a Notify event)
+        // Server actions a translated screen may call, as it calls them (a copied action "Name", a wrapper "Old.Order_Create"): output name -> type.
+        // Consecutive calls of these in a screen action are merged into one server action (one request).
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? ServerOutputs = null);
 
     // The blocks among the exports whose actions call Notify (or Deprecated_Notify): in Reactive each gets a Notify event.
     internal static HashSet<string> NotifyingBlocks(IEnumerable<JsonObject> exports) =>
@@ -77,6 +80,9 @@ static class ScreenTranslator
     internal static bool IsPlaceholder(JsonObject widget) => Run.WType(widget) == "placeholder";
 
     // ---------- one translation ----------
+
+    // The user exception that merged server actions raise when the user lacks the screen's roles; the plan adds it to the new module.
+    internal const string AccessDenied = "AccessDenied";
 
     sealed class Run
     {
@@ -452,6 +458,7 @@ static class ScreenTranslator
             if (aggs.Count > 0) spec["aggregates"] = aggs;
             if (actions.Count > 0) spec["actions"] = actions;
             foreach (var (key, value) in content) spec[key] = value;
+            if (serverActions.Count > 0) spec["_serverActions"] = new JsonArray(serverActions.Select(x => (JsonNode?)x).ToArray());
             if (block && notifies)
                 spec["events"] = new JsonArray(new JsonObject { ["name"] = "Notify", ["mandatory"] = false,
                     ["inputs"] = new JsonArray(new JsonObject { ["name"] = "Message", ["type"] = "Text", ["mandatory"] = false }) });
@@ -822,7 +829,7 @@ static class ScreenTranslator
                 }
                 else Todo($"the action {an} was created as a stub because {why}{did}");
             }
-            else o["flow"] = flow;
+            else { o["flow"] = flow; Merge(o); }
             return o;
         }
 
@@ -990,6 +997,183 @@ static class ScreenTranslator
                 case "refreshdata": o["kind"] = "refreshData"; Copy("name", "dataSource", "next"); Args(); break;
             }
             return o;
+        }
+
+        // ---------- consecutive server calls become one server action ----------
+
+        readonly List<JsonObject> serverActions = [];   // the merged server actions, hoisted to the spec's serverActions by the plan (_serverActions)
+        static readonly string[] NameKeys = ["kind", "name", "next", "true", "false", "cycle", "otherwise", "action", "dataSource", "event", "screen", "exception", "type"];
+
+        // A Traditional screen action ran its server calls in one request and one transaction; a Reactive client action that calls server actions
+        // one after another pays a request for each and commits each on its own. Two or more calls in a row (each reached only from the one before)
+        // become one server action, as Service Studio's converter does. Its inputs are the screen and action variables the calls read (by name and
+        // type); its outputs are the call outputs that later nodes read (<Node>_<Output>). It starts with the screen's access check, because a server
+        // action that a screen calls is a public endpoint. A run that reads anything else (a widget, an aggregate, a client variable) stays as it is.
+        void Merge(JsonObject action)
+        {
+            if (cx.ServerOutputs is not { Count: > 0 } outs || action["flow"] is not JsonArray flow) return;
+            var an = S(action["name"]) ?? "Action";
+            var nodes = flow.OfType<JsonObject>().ToList();
+            var real = nodes.Where(n => S(n["kind"]) != "comment").ToList();
+            string NextOf(JsonObject n) => S(n["next"]) ?? (real.IndexOf(n) + 1 < real.Count ? S(real[real.IndexOf(n) + 1]["name"]) ?? "End" : "End");
+            IEnumerable<string> Targets(JsonObject n)
+            {
+                switch (S(n["kind"]))
+                {
+                    case "if": yield return S(n["true"]) ?? "End"; yield return S(n["false"]) ?? "End"; break;
+                    case "switch": foreach (var c in Objs(n["cases"])) yield return S(c["next"]) ?? "End"; yield return S(n["otherwise"]) ?? "End"; break;
+                    case "forEach": yield return S(n["cycle"]) ?? "End"; yield return NextOf(n); break;
+                    case "destination" or "raiseException" or "end": break;
+                    default: yield return NextOf(n); break;
+                }
+            }
+            bool IsServer(JsonObject n) => S(n["kind"]) == "execute" && S(n["name"]) is not null && S(n["action"]) is { } a && outs.ContainsKey(a);
+            var preds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var n in real) foreach (var t in Targets(n)) preds[t] = preds.GetValueOrDefault(t) + 1;
+            var byName = real.Where(n => S(n["name"]) is not null).GroupBy(n => S(n["name"])!, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            var inputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var v in Objs(action["inputs"]).Concat(Objs(action["locals"]))) if (S(v["name"]) is { } vn) inputs[vn] = S(v["type"]) ?? "Text";
+            var used = new HashSet<JsonObject>(ReferenceEqualityComparer.Instance);
+            var count = 0;
+            foreach (var start in real.ToList())
+            {
+                if (used.Contains(start) || !IsServer(start)) continue;
+                var run = new List<JsonObject> { start };
+                for (var cur = start; ;)
+                {
+                    var nx = NextOf(cur);
+                    if (nx == "End" || !byName.TryGetValue(nx, out var nn) || !IsServer(nn) || preds.GetValueOrDefault(nx) != 1 || used.Contains(nn)) break;
+                    run.Add(nn); cur = nn;
+                }
+                if (run.Count < 2) continue;
+                if (MergeRun(an, flow, real, run, inputs, outs, NextOf(run[^1]), ++count) is false) count--;
+                foreach (var n in run) used.Add(n);
+            }
+        }
+
+        // One run: returns false (and changes nothing) when the calls read something a server action cannot get as an input.
+        bool MergeRun(string an, JsonArray flow, List<JsonObject> real, List<JsonObject> run, Dictionary<string, string> actionVars,
+            IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> outs, string after, int index)
+        {
+            var runNames = run.Select(n => S(n["name"])!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var inputs = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var serverRoots = new[] { "Entities", "Site", "Roles", "Resources", "True", "False" };
+            foreach (var n in run)
+                foreach (var text in Strings(n))
+                    foreach (var chain in Chains(text))
+                    {
+                        var root = chain.Split('.')[0];
+                        if (Regex.IsMatch(text, @"(?<![\w.])" + Regex.Escape(chain) + @"\s*\(")) continue;   // a function call
+                        if (serverRoots.Contains(root, StringComparer.OrdinalIgnoreCase)) continue;
+                        if (runNames.Contains(root)) { if (run.FindIndex(x => S(x["name"])!.Equals(root, StringComparison.OrdinalIgnoreCase)) >= run.IndexOf(n)) return false; continue; }
+                        if (actionVars.TryGetValue(root, out var t) || varTypes.TryGetValue(root, out t)) { inputs[root] = t; continue; }
+                        return false;   // a widget, an aggregate, a client variable or something unknown
+                    }
+            // What later nodes read of the calls: Node.Output, each one an output of the server action.
+            var outputs = new SortedDictionary<string, (string node, string output, string type)>(StringComparer.OrdinalIgnoreCase);
+            foreach (var n in real.Where(x => !run.Contains(x)))
+                foreach (var text in Strings(n))
+                    foreach (var chain in Chains(text))
+                    {
+                        var parts = chain.Split('.');
+                        if (parts.Length < 2 || !runNames.Contains(parts[0])) continue;
+                        var node = run.First(x => S(x["name"])!.Equals(parts[0], StringComparison.OrdinalIgnoreCase));
+                        if (!outs.TryGetValue(S(node["action"])!, out var sig) || !sig.TryGetValue(parts[1], out var type)) return false;
+                        outputs[$"{S(node["name"])}_{parts[1]}"] = (S(node["name"])!, parts[1], type);
+                    }
+            var serverName = UniqueServer($"{name}_{an}" + (index > 1 ? index.ToString() : ""));
+            var callName = an + "OnServer" + (index > 1 ? index.ToString() : "");
+            // The server action: the access check, the calls (their names kept), the outputs.
+            var body = new JsonArray();
+            foreach (var check in AccessCheck(S(run[0]["name"])!)) body.Add(check);
+            for (var i = 0; i < run.Count; i++)
+            {
+                var c = (JsonObject)run[i].DeepClone();
+                c["next"] = i + 1 < run.Count ? S(run[i + 1]["name"]) : outputs.Count > 0 ? "SetOutputs" : "End";
+                body.Add(c);
+            }
+            if (outputs.Count > 0)
+                body.Add(new JsonObject { ["kind"] = "assign", ["name"] = "SetOutputs", ["assign"] = new JsonObject(outputs.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode?)JsonValue.Create($"{kv.Value.node}.{kv.Value.output}")))), ["next"] = "End" });
+            var sa = new JsonObject { ["name"] = serverName, ["description"] = $"The server calls of the screen action {an} of {name}, in one request (oml migrate)." };
+            if (inputs.Count > 0) sa["inputs"] = new JsonArray(inputs.Select(kv => (JsonNode?)new JsonObject { ["name"] = kv.Key, ["type"] = kv.Value, ["mandatory"] = false }).ToArray());
+            if (outputs.Count > 0) sa["outputs"] = new JsonArray(outputs.Select(kv => (JsonNode?)new JsonObject { ["name"] = kv.Key, ["type"] = kv.Value.type }).ToArray());
+            sa["flow"] = body;
+            serverActions.Add(sa);
+            // The client action: one call where the run was; connectors to the run's first node and reads of its outputs follow.
+            var call = new JsonObject { ["kind"] = "execute", ["name"] = callName, ["action"] = serverName };
+            if (inputs.Count > 0) call["args"] = new JsonObject(inputs.Keys.Select(k => KeyValuePair.Create(k, (JsonNode?)JsonValue.Create(k))));
+            call["next"] = after;
+            var at = flow.IndexOf(run[0]);
+            foreach (var n in run) flow.Remove(n);
+            flow.Insert(at, call);
+            var startName = S(run[0]["name"])!;
+            foreach (var n in flow.OfType<JsonObject>().Where(x => !ReferenceEquals(x, call)))
+            {
+                foreach (var key in Connectors) if (S(n[key]) is { } t && t.Equals(startName, StringComparison.OrdinalIgnoreCase)) n[key] = callName;
+                foreach (var cse in Objs(n["cases"])) if (S(cse["next"]) is { } t2 && t2.Equals(startName, StringComparison.OrdinalIgnoreCase)) cse["next"] = callName;
+                if (outputs.Count > 0) ReplaceReads(n, outputs.Values.Select(o => (o.node, o.output)).ToList(), callName);
+            }
+            return true;
+        }
+
+        // The access check at the start of a merged server action: no signed-in user raises NotRegisteredException; a user without one of the
+        // screen's roles raises the user exception AccessDenied, which the plan adds to the new module (a Raise Exception node cannot raise
+        // SecurityException, and a spec cannot name a role's Not<Role> exception). An anonymous screen has none; a block does not know its screens' roles, so it says so.
+        List<JsonObject> AccessCheck(string firstNode)
+        {
+            var checks = new List<JsonObject>();
+            if (block) { Todo($"a merged server action of this block has no access check: add the roles of the screens that use the block"); return checks; }
+            var access = el["access"] as JsonObject;
+            if (access is null || Flag(access["anonymous"]) == true) return checks;
+            var roles = (access["roles"] as JsonArray ?? []).Select(r => S(r)).Where(r => !Blank(r)).Select(r => Leaf(r!)).ToList();
+            checks.Add(new JsonObject { ["kind"] = "if", ["name"] = "SignedIn", ["condition"] = "GetUserId() <> NullIdentifier()", ["true"] = roles.Count > 0 ? "HasRole" : firstNode, ["false"] = "NotSignedIn" });
+            checks.Add(new JsonObject { ["kind"] = "raiseException", ["name"] = "NotSignedIn", ["exception"] = "NotRegisteredException", ["message"] = "\"Sign in first.\"" });
+            if (roles.Count > 0)
+            {
+                checks.Add(new JsonObject { ["kind"] = "if", ["name"] = "HasRole", ["condition"] = string.Join(" or ", roles.Select(r => $"Check{r}Role()")), ["true"] = firstNode, ["false"] = "NoRole" });
+                checks.Add(new JsonObject { ["kind"] = "raiseException", ["name"] = "NoRole", ["exception"] = AccessDenied, ["message"] = "\"You cannot do this.\"" });
+            }
+            return checks;
+        }
+
+        string UniqueServer(string wanted)
+        {
+            var nm = wanted; var i = 2;
+            while (cx.ServerOutputs?.ContainsKey(nm) == true || serverActions.Any(s => string.Equals(S(s["name"]), nm, StringComparison.OrdinalIgnoreCase))) nm = wanted + i++;
+            return nm;
+        }
+
+        // Every expression text of a spec node (names, connectors and kinds are not expressions).
+        static IEnumerable<string> Strings(JsonNode? n, string? key = null)
+        {
+            switch (n)
+            {
+                case JsonObject o: foreach (var (k, v) in o) { if (key is null && NameKeys.Contains(k)) continue; foreach (var s in Strings(v, k)) yield return s; } break;
+                case JsonArray a: foreach (var x in a) foreach (var s in Strings(x, key)) yield return s; break;
+                case JsonValue v when v.GetValueKind() == System.Text.Json.JsonValueKind.String: yield return v.ToString(); break;
+            }
+        }
+
+        // Node.Output -> Call.Node_Output in every expression of a node (keys of an assign map are expressions too).
+        static void ReplaceReads(JsonObject n, List<(string node, string output)> reads, string call)
+        {
+            string Fix(string text)
+            {
+                foreach (var (node, output) in reads)
+                    text = Regex.Replace(text, @"(?<![\w.])" + Regex.Escape(node) + @"\." + Regex.Escape(output) + @"(?!\w)", $"{call}.{node}_{output}");
+                return text;
+            }
+            foreach (var (k, v) in n.ToList())
+            {
+                if (NameKeys.Contains(k)) continue;
+                if (v is JsonValue jv && jv.GetValueKind() == System.Text.Json.JsonValueKind.String) n[k] = Fix(jv.ToString());
+                else if (v is JsonObject jo)
+                {
+                    var copy = new JsonObject();
+                    foreach (var (k2, v2) in jo) copy[Fix(k2)] = v2 is JsonValue sv && sv.GetValueKind() == System.Text.Json.JsonValueKind.String ? Fix(sv.ToString()) : v2?.DeepClone();
+                    n[k] = copy;
+                }
+            }
         }
 
         static readonly Regex EntityAction = new(@"^(CreateOrUpdate|Create|Update|Delete)([A-Za-z][A-Za-z0-9_]*)$", RegexOptions.CultureInvariant);
@@ -2350,6 +2534,38 @@ static class ScreenTranslator
             $"List: the search resets the page and refreshes once: {search.ToJsonString()}");
         Check(list.Todo.Count == 1 && list.Todo[0].Contains("On Sort to OnSort") && list.Todo[0].Contains("Contact.Name"),
             $"List: one Todo is left, for On Sort and the Sort Attribute: [{string.Join(" | ", list.Todo)}]");
+
+        // 19. Two server calls in a row become one server action (one request, one transaction) with the screen's access check; a run that
+        //     reads a widget stays as it is. A missing role raises the user exception AccessDenied.
+        var mergeIn = Parse("""
+        { "kind": "Screen", "name": "Orders", "flow": "MainFlow", "moduleKind": "Traditional", "access": { "registered": true, "roles": ["Manager"] },
+          "locals": [ { "name": "Draft", "type": "Order" } ],
+          "widgets": [ { "kind": "Input", "name": "NameInput", "props": { "variable": "Draft.Name" } } ],
+          "actions": [
+            { "name": "Save", "inputs": [ { "name": "Note", "type": "Text" } ], "flow": { "complete": true, "nodes": [
+              { "kind": "if", "name": "Ok", "condition": "Draft.Name <> \"\"", "true": "Create", "false": "End" },
+              { "kind": "execute", "name": "Create", "action": "CreateDraft", "args": { "Order": "Draft", "Note": "Note" }, "next": "Audit" },
+              { "kind": "execute", "name": "Audit", "action": "WriteAudit", "args": { "OrderId": "Create.Id" }, "next": "Show" },
+              { "kind": "message", "name": "Show", "message": "\"Saved \" + Create.Id", "type": "info", "next": "End" } ] } },
+            { "name": "Check", "flow": { "complete": true, "nodes": [
+              { "kind": "execute", "name": "First", "action": "CreateDraft", "args": { "Order": "Draft", "Note": "NameInput.Value" }, "next": "Second" },
+              { "kind": "execute", "name": "Second", "action": "WriteAudit", "args": { "OrderId": "First.Id" }, "next": "End" } ] } } ] }
+        """);
+        var mergeCx = new Context("Shop", new Dictionary<string, string>(), new HashSet<string>(), new HashSet<string>(), null, [],
+            ServerOutputs: new Dictionary<string, IReadOnlyDictionary<string, string>> { ["CreateDraft"] = new Dictionary<string, string> { ["Id"] = "Order Identifier" }, ["WriteAudit"] = new Dictionary<string, string>() });
+        var mg = Translate(mergeIn, mergeCx).Spec!;
+        var saveFlow = (At(mg, "actions") as JsonArray)!.OfType<JsonObject>().First(a => Text(a, "name") == "Save")["flow"] as JsonArray;
+        var srv = At(mg, "_serverActions", 0) as JsonObject;
+        Check(srv is not null && Text(srv, "name") == "Orders_Save" && Text(srv, "inputs", 0, "name") == "Draft" && Text(srv, "inputs", 0, "type") == "Order" && Text(srv, "inputs", 1, "name") == "Note"
+            && Text(srv, "outputs", 0, "name") == "Create_Id" && Text(srv, "outputs", 0, "type") == "Order Identifier"
+            && Text(srv, "flow", 0, "condition") == "GetUserId() <> NullIdentifier()" && Text(srv, "flow", 2, "condition") == "CheckManagerRole()" && Text(srv, "flow", 3, "exception") == "AccessDenied"
+            && (At(srv, "flow") as JsonArray)!.OfType<JsonObject>().Any(n => Text(n, "name") == "Audit" && Text(n, "next") == "SetOutputs"),
+            $"Merge: one server action with inputs, the output read later and the access check: {srv?.ToJsonString()}");
+        Check(saveFlow!.Count == 3 && Text(saveFlow, 0, "true") == "SaveOnServer" && Text(saveFlow, 1, "action") == "Orders_Save" && Text(saveFlow, 1, "args", "Draft") == "Draft"
+            && Text(saveFlow, 1, "next") == "Show" && Text(saveFlow, 2, "message") == "\"Saved \" + SaveOnServer.Create_Id",
+            $"Merge: the client action calls it once and reads its output: {saveFlow.ToJsonString()}");
+        var checkFlow = (At(mg, "actions") as JsonArray)!.OfType<JsonObject>().First(a => Text(a, "name") == "Check")["flow"] as JsonArray;
+        Check(checkFlow!.Count == 2 && At(mg, "_serverActions", 1) is null, $"Merge: calls that read a widget stay as they are: {checkFlow.ToJsonString()}");
         return failures;
     }
 

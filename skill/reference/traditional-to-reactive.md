@@ -49,7 +49,7 @@ OutSystemsUIWeb, RichWidgets and OutSystemsChartsWeb blocks are translated by a 
 |---|---|
 | Preparation | Aggregates stay screen aggregates (code). Logic reading no aggregate, before the first that does, becomes `onInitialize`; the rest, when it reads one aggregate, its `onAfterFetch` (code, only when provable; its server calls cost a request each). Else a Todo: one data action calling one server action (one round trip) |
 | Aggregate or SQL in a screen action | A server action returning what the later nodes read (SQL always on the server); the action is a stub |
-| Screen action (server) | Client action that calls one server action; group several server calls into one |
+| Screen action (server) | Client action; two or more server calls in a row become one server action `<Screen>_<Action>` that starts with the screen's access check (`AccessDenied`) (code) |
 | Session variable | Client variable only when it holds nothing sensitive (the user can read it); else data read again on the server |
 | Site property read in the screen | Read it in a server action or data action |
 | `CheckRole` | Stays on the server, in the server action; the client check only hides parts |
