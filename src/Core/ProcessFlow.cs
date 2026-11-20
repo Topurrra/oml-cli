@@ -60,10 +60,24 @@ partial class Builder
             else Reflect.Call(from, "CreateConnector", outcome, to);
             return;
         }
+        SetNexts(from, [to], where);
+    }
+
+    // Where a node (not a Decision) goes next: one node, or several that run at the same time (parallel branches, as Service Studio
+    // allows from Start or any activity).
+    void SetNexts(object from, List<object> tos, string where)
+    {
+        if (IsKind(from, "end")) throw new ModelError($"{where}: an End node goes nowhere");
+        if (IsKind(from, "decision")) throw new ModelError($"{where}: a Decision goes to one node per exit; connect each with connector true or false");
+        if (tos.Count == 0) throw new ModelError($"{where}: name at least one next node");
         var targetList = Reflect.Get(from, "Targets") ?? throw new ModelError($"{where}: this process node has no next node");
         Reflect.Call(targetList, "Clear");
-        Reflect.Call(targetList, "Add", to);
+        foreach (var to in tos.Distinct()) Reflect.Call(targetList, "Add", to);
     }
+
+    // A "next" or "to" value: one node name, or a list of them (parallel branches).
+    static List<string> Names(JsonElement value) => value.ValueKind == JsonValueKind.Array
+        ? value.EnumerateArray().Select(v => v.GetString()!).ToList() : [value.GetString()!];
 
     // The settings of one listed node: an Automatic Activity's flow or action, roles, a Human Activity's screen arguments, callbacks,
     // the entity event that closes or starts it, and its other properties.
@@ -85,7 +99,7 @@ partial class Builder
         }
         if (s.TryGetProperty("roles", out var roleNames))
             references.Add((where + ".roles", () => SetAccess(node, new(Roles: roleNames.EnumerateArray().Select(r => r.GetString()!).ToList()))));
-        if (kind == "humanactivity" && s.TryGetProperty("args", out var screenArgs))
+        if (kind is "humanactivity" or "executeprocess" && s.TryGetProperty("args", out var screenArgs))   // the screen's inputs, or the child process's
             Defer(node, (where + ".args", () => Arguments(node, screenArgs)));
         foreach (var key in NodeCallbacks)
             if (s.TryGetProperty(key, out var cb)) Callback(node, key, cb, $"{where}.{key}");
@@ -111,8 +125,9 @@ partial class Builder
             var name = NodeName(s);
             if (nodes.ContainsKey(name)) throw new ModelError($"duplicate process node name '{name}'");
             var found = kind.Equals("start", StringComparison.OrdinalIgnoreCase) ? ProcessNodes(process).FirstOrDefault(n => IsKind(n, "start"))
-                : kind.Equals("end", StringComparison.OrdinalIgnoreCase) ? null
-                : ProcessNodes(process).FirstOrDefault(n => string.Equals(Model.NameOf(n), name, StringComparison.OrdinalIgnoreCase));
+                : ProcessNodes(process).FirstOrDefault(n => string.Equals(Model.NameOf(n), name, StringComparison.OrdinalIgnoreCase))
+                  // An End keeps no name in the model and has no settings: listed again, it is an End of the process not used yet in this list.
+                  ?? (kind.Equals("end", StringComparison.OrdinalIgnoreCase) && allowExisting ? ProcessNodes(process).FirstOrDefault(n => IsKind(n, "end") && !nodes.Values.Contains(n)) : null);
             if (found is not null && !allowExisting && !kind.Equals("start", StringComparison.OrdinalIgnoreCase))
                 throw new ModelError($"{label}: the process already has a node named '{name}'; names must be free (change that node with set or replaceNode)");
             if (found is not null && !IsKind(found, kind)) throw new ModelError($"{label}: the process has a node '{name}' of another kind; change it with replaceNode");
@@ -137,9 +152,9 @@ partial class Builder
                         if (s.TryGetProperty(key, out var t)) SetNext(node, Resolve(t.GetString()!), key, where);
                     return;
                 }
-                var next = s.TryGetProperty("next", out var target) ? Resolve(target.GetString()!)
-                    : index + 1 < specs.Count ? nodes[NodeName(specs[index + 1])] : exit ?? ProcessNode(process, "End");
-                SetNext(node, next, null, where);
+                var nexts = s.TryGetProperty("next", out var target) ? Names(target).Select(Resolve).ToList()
+                    : [index + 1 < specs.Count ? nodes[NodeName(specs[index + 1])] : exit ?? ProcessNode(process, "End")];
+                SetNexts(node, nexts, where);
             }));
         }
         return specs.Count > 0 ? nodes[NodeName(specs[0])] : null;
@@ -200,7 +215,16 @@ partial class Builder
         else
         {
             var outs = Outgoing(after).Select(TargetOf).Where(t => t is not null).Distinct().ToList();
-            if (outs.Count > 1) throw new ModelError($"{afterName} goes to {outs.Count} nodes; insert after a node with one next node");
+            var branch = edit.TryGetProperty("branch", out var b) && b.ValueKind == JsonValueKind.String ? b.GetString() : null;
+            if (branch is not null)
+            {
+                old = outs.FirstOrDefault(t => string.Equals(Model.NameOf(t!), branch, StringComparison.OrdinalIgnoreCase) || (IsKind(t!, "end") && branch.Equals("End", StringComparison.OrdinalIgnoreCase)))
+                    ?? throw new ModelError($"{afterName} does not go to '{branch}' (it goes to {string.Join(", ", outs.Select(t => Model.NameOf(t!) ?? "End"))})");
+                var first0 = ProcessFlow(process, specs, label, exit: old, allowExisting: false)!;
+                targets.Add((label + ".after", () => SetNexts(after, outs.Select(t => ReferenceEquals(t, old) ? first0 : t!).ToList(), label)));   // the other branches stay
+                return;
+            }
+            if (outs.Count > 1) throw new ModelError($"{afterName} goes to {outs.Count} nodes at the same time ({string.Join(", ", outs.Select(t => Model.NameOf(t!) ?? "End"))}); say which branch with \"branch\": \"<next node>\"");
             old = outs.FirstOrDefault();
         }
         var first = ProcessFlow(process, specs, label, exit: old ?? ProcessNode(process, "End"), allowExisting: false)!;
@@ -243,12 +267,14 @@ partial class Builder
         if (IsKind(old, kind) && name.Equals(oldName, StringComparison.OrdinalIgnoreCase))
         {
             ConfigureProcessNode(old, kind, spec, path);
-            foreach (var (key, connector) in new[] { ("next", (string?)null), ("true", "true"), ("false", "false") })
+            if (spec.TryGetProperty("next", out var nextList)) targets.Add(($"{path}.next", () => SetNexts(old, Names(nextList).Select(t => ProcessNode(process, t)).ToList(), path)));
+            foreach (var (key, connector) in new[] { ("true", "true"), ("false", "false") })
                 if (Next(key) is { } to) targets.Add(($"{path}.{key}", () => SetNext(old, ProcessNode(process, to), connector, path)));
             return;
         }
         if (IsKind(old, "start") || IsKind(old, "end")) throw new ModelError($"'{path}' is the {(IsKind(old, "start") ? "Start" : "End")} of the process; it is not replaced");
-        var keep = IsKind(old, "decision") ? null : Outgoing(old).Select(TargetOf).FirstOrDefault(t => t is not null);
+        var keepAll = IsKind(old, "decision") ? [] : Outgoing(old).Select(TargetOf).Where(t => t is not null).Distinct().Select(t => t!).ToList();
+        var keep = keepAll.FirstOrDefault();
         var sameName = name.Equals(oldName, StringComparison.OrdinalIgnoreCase);
         var made = MakeNode(process, kind, sameName ? name + "_replacing" : name, label);
         foreach (var c in Elements(Reflect.Get(old, "IncomingConnectors")).ToList()) Reflect.Property(c, "Target", writable: true)!.SetValue(c, made);
@@ -261,7 +287,8 @@ partial class Builder
                 foreach (var (key, to, connector) in wiring.Where(w => w.connector is not null))
                     SetNext(made, to is null ? keep ?? ProcessNode(process, "End") : ProcessNode(process, to), connector, path);
             }
-            else if (!IsKind(made, "end")) SetNext(made, Next("next") is { } to ? ProcessNode(process, to) : keep ?? ProcessNode(process, "End"), null, path);
+            else if (!IsKind(made, "end"))
+                SetNexts(made, spec.TryGetProperty("next", out var nx) ? Names(nx).Select(t => ProcessNode(process, t)).ToList() : keepAll.Count > 0 ? keepAll : [ProcessNode(process, "End")], path);
         }));
         old.Delete();
         if (sameName && Reflect.Property(made, "Label", true) is { } lp) lp.SetValue(made, name);

@@ -9,7 +9,7 @@ record IndexSpec(List<string> Attributes, string? Name = null, bool Unique = fal
 record EntitySpec(string Name, List<AttrSpec>? Attributes = null, bool? Public = null, string? Description = null,
     string? Identifier = null, bool? AutoNumber = null, string? LabelAttribute = null, string? OrderByAttribute = null,
     string? IsActiveAttribute = null, bool? ExposeReadOnly = null, string? UpdateBehavior = null, List<IndexSpec>? Indexes = null,
-    bool? MultiTenant = null, bool? ExposeProcessEvents = null)
+    bool? MultiTenant = null, bool? ExposeProcessEvents = null, string? Label = null, string? LabelPlural = null)
     : RecordSpec(Name, Attributes, Public, Description);
 
 /// Entity options and indexes. A new entity takes every option. An existing entity only gets new indexes
@@ -39,6 +39,9 @@ static class EntityOptions
             _ => Fail<UpdateEntityBehaviorType>(problems, $"entity {s.Name}: updateBehavior '{s.UpdateBehavior}' is not changedAttributes or allAttributes"),
         };
         if (problems.Count > before) return;
+        // Label and Label (plural): the names Service Studio shows for the entity. Display text only, so an existing entity takes them too.
+        if (s.Label is { } shown) Reflect.Property(e, "Label", writable: true)?.SetValue(e, shown);
+        if (s.LabelPlural is { } shownPlural) Reflect.Property(e, "LabelPlural", writable: true)?.SetValue(e, shownPlural);
 
         if (isNew)
         {

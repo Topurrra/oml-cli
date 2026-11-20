@@ -301,6 +301,12 @@
         },
         "exposeProcessEvents": {
           "type": "boolean"
+        },
+        "label": {
+          "type": "string"
+        },
+        "labelPlural": {
+          "type": "string"
         }
       },
       "additionalProperties": false,
@@ -1347,6 +1353,9 @@
             },
             "ifMissing": {
               "type": "boolean"
+            },
+            "branch": {
+              "type": "string"
             }
           },
           "required": [
@@ -1603,6 +1612,26 @@
             "element",
             "from",
             "to"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "connect"
+            },
+            "element": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            },
+            "connector": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "element"
           ]
         }
       ]

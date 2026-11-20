@@ -174,11 +174,17 @@ partial class Builder
             case "connect":
             {
                 // Where a process node goes next: { "element": "Process:Approve/Review", "to": "Notify" }; a Decision names its exit with connector.
-                var from = Find("element");
+                // Start and End keep no name in the model: "Process:Approve/Start" is found through the process.
+                var elementPath = Required("element");
+                var slash = elementPath.LastIndexOf('/');
+                var from = slash > 0 && elementPath[(slash + 1)..] is "Start" or "End" && ElementPaths.Resolve(m, elementPath[..slash], write: true) is OutSystems.Model.Processes.IProcess owningProcess
+                    ? (IObjectSignature)ProcessNode(owningProcess, elementPath[(slash + 1)..]) : Find("element");
                 if (from is not OutSystems.Model.Processes.Nodes.IProcessNode) throw new ModelError("connect is for process nodes; an action flow node is moved with insertNodes, replaceNode or delete");
-                var to = ProcessNode(from.Parent!, Required("to"));
-                SetNext(from, to, edit.TryGetProperty("connector", out var cc) && cc.ValueKind == JsonValueKind.String ? cc.GetString() : null, label);
-                Change($"{Required("element")} now goes to {Required("to")}");
+                if (!edit.TryGetProperty("to", out var toValue) || toValue.ValueKind is not (JsonValueKind.String or JsonValueKind.Array)) throw new ModelError("'to' is required: a node name, or a list of names for branches that run at the same time");
+                var tos = Names(toValue).Select(t => ProcessNode(from.Parent!, t)).ToList();
+                var cn = edit.TryGetProperty("connector", out var cc) && cc.ValueKind == JsonValueKind.String ? cc.GetString() : null;
+                if (tos.Count == 1) SetNext(from, tos[0], cn, label); else SetNexts(from, tos, label);
+                Change($"{Required("element")} now goes to {string.Join(", ", Names(toValue))}");
                 break;
             }
             case "rewrite":
@@ -463,7 +469,7 @@ partial class Builder
             "delete" => $"{Text("element")} deleted",
             "repoint" => $"node {Text("element")} now calls {Text("action")}",
             "rewrite" => $"{Text("element")}: {Text("from")} -> {Text("to")}",
-            "connect" => $"{Text("element")} now goes to {Text("to")}",
+            "connect" => $"{Text("element")} now goes to {(edit.TryGetProperty("to", out var t) && t.ValueKind == JsonValueKind.Array ? string.Join(", ", t.EnumerateArray().Select(x => x.GetString())) : Text("to"))}",
             _ => null,
         };
     }

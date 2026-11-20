@@ -243,6 +243,13 @@ static class Refs
         foreach (var o in m.Resources) yield return o;
         foreach (var o in m.MobileThemes) yield return o;
         foreach (var o in m.WebThemes) yield return o;
+        // Processes (an Execute Process node names one) and timers.
+        foreach (var o in (Reflect.Get(m, "Processes") as System.Collections.IEnumerable)?.Cast<object>() ?? []) yield return o;
+        foreach (var o in (Reflect.Get(m, "Timers") as System.Collections.IEnumerable)?.Cast<object>() ?? [])
+        {
+            yield return o;
+            if (Reflect.Get(o, "WakeTimerAction") is { } wake) yield return wake;   // Wake<Timer>: runs the timer now
+        }
     }
 
     static IEnumerable<object> Referenced(IReference r)
@@ -258,6 +265,7 @@ static class Refs
         foreach (var f in r.WebFlows) foreach (var n in f.Nodes) yield return n;
         foreach (var o in r.Entities) yield return o;
         foreach (var o in r.Structures) yield return o;
+        foreach (var o in (Reflect.Get(r, "Processes") as System.Collections.IEnumerable)?.Cast<object>() ?? []) yield return o;
         foreach (var role in r.Roles)
         {
             yield return role;

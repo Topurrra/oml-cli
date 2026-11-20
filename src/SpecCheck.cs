@@ -72,7 +72,7 @@ static class SpecShapes
     {
         ["addExceptionHandler"] = new(new[] { "action", "flow" }, new string[0]),
         ["setAccess"] = new(new[] { "screen" }, new string[0], "AccessSpec"),
-        ["insertNodes"] = new(new[] { "action", "after", "flow" }, new[] { "connector", "ifMissing" }),
+        ["insertNodes"] = new(new[] { "action", "after", "flow" }, new[] { "connector", "ifMissing", "branch" }),
         ["replaceNode"] = new(new[] { "element", "node" }, new string[0]),
         ["addWidgets"] = new(new[] { "screen", "widgets" }, new[] { "parent", "area", "index" }),
         ["replaceWidgets"] = new(new[] { "at", "widgets" }, new[] { "area" }),
@@ -85,7 +85,7 @@ static class SpecShapes
         ["setArgs"] = new(new[] { "element", "args" }, new string[0]),
         ["repoint"] = new(new[] { "element", "action" }, new string[0]),
         ["rewrite"] = new(new[] { "element", "from", "to" }, new string[0]),
-        ["connect"] = new(new[] { "element", "to" }, new[] { "connector" }),
+        ["connect"] = new(new[] { "element" }, new[] { "to", "connector" }),
     };
 
     // Value type of the non-string keys of an edit.
@@ -470,7 +470,7 @@ sealed class SpecChecker
                     var ok = want == JsonValueKind.True ? v.ValueKind is JsonValueKind.True or JsonValueKind.False : v.ValueKind == want;
                     if (!ok) Expect(Key(at, key), want switch { JsonValueKind.Array => "an array", JsonValueKind.Object => "an object", JsonValueKind.Number => "a number", _ => "true or false" }, v);
                 }
-                else if (v.ValueKind != JsonValueKind.String) Expect(Key(at, key), "a string", v);
+                else if (v.ValueKind != JsonValueKind.String && !(key == "to" && v.ValueKind == JsonValueKind.Array)) Expect(Key(at, key), "a string", v);   // connect: "to" may list several next nodes
             }
             if (def.Required.Contains("flow") || def.Optional.Contains("flow"))
                 if (e.TryGetProperty("flow", out var flow) && flow.ValueKind == JsonValueKind.Array)
