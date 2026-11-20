@@ -106,5 +106,27 @@ static partial class SelfTest
         }));
         var serviceResult = Apply.Execute(blank, spec, Path.Combine(dir, "service-consumer.oml"));
         if (serviceResult.code != 0) failures.Add("service reference: " + JsonSerializer.Serialize(serviceResult.report));
+
+        // "module": the consumer's reference to Producer, copied into another module without producer.oml, keeps the producer's keys.
+        File.WriteAllText(spec, JsonSerializer.Serialize(new
+        {
+            references = new[] { new { producer = output, module = "Producer", elements = new[] { "Customer", "GetCustomerById", "OrderDto" } } },
+            serverActions = new[] { new { name = "UseCopied", locals = new[] { new { name = "Dto", type = "OrderDto" } }, flow = new[] { new { kind = "execute", action = "GetCustomerById" } } } }
+        }));
+        var copiedPath = Path.Combine(dir, "references-copied.oml");
+        var secondBlank = Path.Combine(dir, "second-consumer-blank.oml");
+        using (var module = Model.Services().CreateESpace(SegmentationKind.CrossDevice, "SecondConsumer", "", false, Model.Services().NewKey()))
+            Model.Save(module, secondBlank);
+        var copied = Apply.Execute(secondBlank, spec, copiedPath);
+        if (copied.code != 0) { failures.Add("reference copied with module: " + JsonSerializer.Serialize(copied.report)); return; }
+        using (var copy = Model.Load(copiedPath))
+        using (var producer = Model.Load(producerPath))
+        {
+            var real = ModuleReferences.Elements(producer).ToList();
+            var mine = copy.References.Where(r => r.Name == "Producer").SelectMany(ModuleReferences.Elements).ToList();
+            foreach (var name in new[] { "Customer", "GetCustomerById", "OrderDto" })
+                if (!mine.Any(e => Model.NameOf(e) == name && real.Any(r => r.GlobalKey?.ToString() == e.GlobalKey?.ToString())))
+                    failures.Add($"reference copied with module: {name} missing or with other keys than the producer's");
+        }
     }
 }

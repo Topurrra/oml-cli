@@ -221,7 +221,7 @@ partial class Builder
     {
         if (kind.Equals("destination", StringComparison.OrdinalIgnoreCase) && spec.TryGetProperty("screen", out var destination))
             references.Add(($"{where}.screen", () => Set(node, "Destination",
-                Refs.Find(m, destination.GetString()!, typeof(OutSystems.Model.UI.IScreenSignature)))));
+                Refs.Destination(m, destination.GetString()!))));
         if (kind.Equals("refreshData", StringComparison.OrdinalIgnoreCase))
             references.Add(($"{where}.dataSource", () =>
             {

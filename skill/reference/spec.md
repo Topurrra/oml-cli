@@ -52,6 +52,7 @@ One row per top-level key: what it creates or changes, and the section of this f
 | `flow` node `sql` | SQL statements with typed parameters and outputs. | SQL |
 | `restClients`, `restServices` | Consumed and exposed REST APIs. | REST |
 | `timers`, `roles`, `processes`, `siteProperties` | Platform elements, screen `access`. | Platform elements |
+| `externalSites` | A UI flow's External Site: `name`, `url`, `flow` (MainFlow), `inputs` (its query string), `description`, `isFrequentDestination` (Traditional Web). A screen goes there like to a screen (onClick, destination node). | Platform elements |
 | `screens`, `blocks` (Reactive, Mobile) | Screens, blocks, aggregates, actions, events, widgets. | Reactive UI and Mobile UI |
 | `events`, `triggerEvent`, `onParametersChanged` | Block events: declare on a block, fire with a node, handle on each block instance. | Block events |
 | `emails`, flow node `sendEmail` | Reactive emails and sending them from a server action. | Emails |
@@ -169,7 +170,7 @@ A new static entity takes the shape of an `Id` attribute in the spec: Integer (d
 | Scope | Keys | Meaning |
 |---|---|---|
 | Root | `references` | Import public elements before resolving types and building logic. |
-| Import | `producer`, `elements`, `extension` | Producer path; exact name array, or `"*"` for all supported public elements. A `.xif` producer imports extension actions; call them with `execute` or, for a function, in an expression. `extension`: the name of a non-platform extension referenced by the `.oml` producer, to copy that reference. A platform extension (BinaryData, HTTPRequestHandler, ...) has no `.xif` and a reserved key: add it once in Manage Dependencies. |
+| Import | `producer`, `elements`, `module`, `extension` | Producer path; exact name array, or `"*"` for all supported public elements. A `.xif` producer imports extension actions; call them with `execute` or, for a function, in an expression. `module`: copy the reference that the `.oml` in `producer` already has to that module or extension (platform extensions too), so the producer file is not needed: data and actions only, from a module of the same environment. `extension` does the same for an extension. |
 | Root | `referenceAliases` | Map qualified referenced names to new local names before creating data. |
 
 ```json
@@ -178,6 +179,12 @@ A new static entity takes the shape of an `Id` attribute in the spec: Integer (d
     "elements": ["Customer", "GetCustomerById", "CustomerCard", "OrderDto", "SupportRole"] }],
   "referenceAliases": { "OutSystemsMaps.Type": "MapsType" }
 }
+```
+
+Without the producer file, copy what another module of the same environment already references (here `Text` is a platform extension):
+
+```json
+{ "references": [{ "producer": "OrdersCore.oml", "module": "Text", "elements": ["Regex_Replace"] }] }
 ```
 
 To import every supported public element:

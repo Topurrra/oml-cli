@@ -5,7 +5,7 @@ using E = OutSystems.Model.Extensions;
 
 namespace OmlCli;
 
-record ReferenceSpec(string Producer, JsonElement Elements, string? Extension = null);
+record ReferenceSpec(string Producer, JsonElement Elements, string? Extension = null, string? Module = null);
 
 static class ModuleReferences
 {
@@ -77,6 +77,13 @@ static class ModuleReferences
             var label = $"reference {spec.Producer}";
             try
             {
+                // Another module's reference, copied without the producer: "module" names the module or extension it references.
+                if (spec.Module is not null)
+                {
+                    if (spec.Extension is not null) throw new ModelError("use \"module\" or \"extension\", not both");
+                    CopyReference(consumer, spec.Producer, spec.Module, spec.Elements, created, existing, problems, warnings);
+                    continue;
+                }
                 // Extensions: from their .xif, or (platform extensions have no local .xif) from another module that references them.
                 if (spec.Extension is not null || spec.Producer.EndsWith(".xif", StringComparison.OrdinalIgnoreCase))
                 {
@@ -152,13 +159,105 @@ static class ModuleReferences
         try { standIn = StandIn(source, reference, names); }
         catch (ModelError e) when (e.Message.Contains("reserved", StringComparison.OrdinalIgnoreCase))
         {
-            throw new ModelError($"'{spec.Extension}' is a platform extension: Service Studio reserves its key, so oml cannot make the reference from {Path.GetFileName(path)}, and platform extensions have no .xif to read. "
-                + $"Add it once by hand: Manage Dependencies in Service Studio, select {spec.Extension} and its actions, then apply the spec to that module.");
+            // A platform extension: Service Studio reserves its key, so no stand-in. Copy the reference as Service Studio's copy and paste does.
+            source.Dispose();
+            CopyReference(consumer, spec.Producer, spec.Extension!, spec.Elements, created, existing, problems, warnings);
+            return;
         }
         using var _ = standIn;
         AddActions(consumer, standIn, names, created, existing, problems);
         warnings?.Add($"reference {spec.Extension}: copied from the reference in {Path.GetFileName(path)}, with the extension's own keys. Run 'oml references <module>' (Refresh All) in Service Studio, or publish it there, to check it against the extension on the server.");
     }
+
+    // Copies the reference that another module (`donorPath`) has to `module`, as Service Studio does when you paste logic that uses it:
+    // a temporary carrier action that uses the wanted elements is copied from the donor, pasted into the consumer and deleted again. The
+    // reference keeps the producer's own keys, so no producer .oml (or .xif) is needed, platform extensions included. Only elements the
+    // donor already references can be copied: data and actions (entities, static entities, structures, server, service, client and
+    // extension actions). Service Studio's IP protection allows it only between modules of the same infrastructure.
+    static void CopyReference(IESpace consumer, string donorPath, string module, JsonElement elements,
+        List<string> created, List<string> existing, List<string> problems, List<string>? warnings)
+    {
+        var path = Path.GetFullPath(donorPath);
+        var file = Path.GetFileName(path);
+        if (path.EndsWith(".xif", StringComparison.OrdinalIgnoreCase)) throw new ModelError("\"module\" copies a reference from an .oml; a .xif is the extension itself (leave out \"module\")");
+        // The paste finds the copied elements through the donor, so it stays open until then. The donor is never saved.
+        using var donor = Model.Load(path);
+        if (Equals(donor.ObjectKey, consumer.ObjectKey)) throw new ModelError("the module to copy from is this module");
+        var reference = donor.References.FirstOrDefault(r => r.Name == module)
+            ?? throw new ModelError($"{file} has no reference to '{module}'. It references: {string.Join(", ", donor.References.Select(r => r.Name).Where(n => n != "(System)"))}");
+        var elementsOf = Descendants(reference).Where(d => d.Parent is IReference).ToList();
+        var wanted = new List<(string Name, IObjectSignature Element)>();
+        foreach (var name in Names(elements, () => elementsOf.Select(e => Model.NameOf(e)!)).Distinct())
+        {
+            var where = $"reference {module}.{name}";
+            var hits = elementsOf.Where(e => Model.NameOf(e) == name).ToList();
+            if (hits.Count == 0) { problems.Add($"{where}: {file} references '{module}' without '{name}'. Only what it references can be copied: {string.Join(", ", elementsOf.Select(e => Model.NameOf(e)).Distinct().Take(40))}"); continue; }
+            if (hits.Count > 1) { problems.Add($"{where}: '{name}' names {hits.Count} elements of '{module}'; copy from the producer .oml instead"); continue; }
+            var element = hits[0];
+            if (consumer.References.SelectMany(Descendants).Any(e => Same(e, element))) { existing.Add(where); continue; }
+            if (element is not (OutSystems.Model.Data.IEntitySignature or OutSystems.Model.Data.IStructureSignature or OutSystems.Model.Logic.IActionSignature))
+            { problems.Add($"{where}: a {element.GetInterface().Name.TrimStart('I').Replace("Signature", "")} cannot be copied from another module's reference (data and actions can); use the producer .oml"); continue; }
+            wanted.Add((name, element));
+        }
+        if (wanted.Count == 0) return;
+        var keys = wanted.Select(w => w.Element.GlobalKey.ToString()).ToList();
+        List<IObjectSignature> pasted;
+        try { pasted = consumer.DeserializeInto(donor.Serialize(Carriers(donor, wanted.Select(w => w.Element).ToList())), consumer).ToList(); }
+        catch (Exception e) when (Unwrap(e) is NotImplementedException ni && (ni.StackTrace ?? "").Contains("CheckLocalForeignCodes"))
+        {
+            throw new ModelError($"Service Studio's IP protection refuses to copy from {file}: it comes from another infrastructure than this module. Copy from a module of this module's environment, or use the producer .oml");
+        }
+        foreach (var item in pasted) item.Delete();
+        var now = consumer.References.SelectMany(Descendants).Select(e => e.GlobalKey?.ToString()).ToHashSet();
+        for (var i = 0; i < wanted.Count; i++)
+        {
+            var where = $"reference {module}.{wanted[i].Name}";
+            if (now.Contains(keys[i])) created.Add(where);
+            else problems.Add($"{where}: the copy from {file} did not add it");
+        }
+        warnings?.Add($"reference {module}: copied from the reference in {file}, with the producer's own keys. Run 'oml references <module>' (Refresh All) in Service Studio, or publish it there, to check it against the producer on the server.");
+    }
+
+    // The donor's temporary actions that use each element: a server action (a local per entity or structure, a call per server, service
+    // or extension action) and, for client actions, a client action. They live only in the donor in memory, which is never saved.
+    static IObjectSignature[] Carriers(IESpace donor, List<IObjectSignature> uses)
+    {
+        var services = Model.Services();
+        var carriers = new List<IObjectSignature>();
+        // CreateNode<T> is an extension method of IAction, so the node kinds are named here, not looked up.
+        static void Chain(OutSystems.Model.Logic.IAction action, List<object> calls)
+        {
+            object last = action.CreateNode<OutSystems.Model.Logic.Nodes.IStartNode>();
+            foreach (var call in calls) { Reflect.Property(last, "Target", true)!.SetValue(last, call); last = call; }
+            Reflect.Property(last, "Target", true)!.SetValue(last, action.CreateNode<OutSystems.Model.Logic.Nodes.IEndNode>());
+        }
+        static object Calling(object call, IObjectSignature callee) { Reflect.Property(call, "Action", true)!.SetValue(call, callee); return call; }
+        var server = uses.Where(u => u is not OutSystems.Model.Logic.IClientActionSignature).ToList();
+        if (server.Count > 0)
+        {
+            var action = donor.CreateServerAction("OmlReferenceCarrier", services.NewKey());
+            var i = 0;
+            foreach (var data in server.Where(u => u is not OutSystems.Model.Logic.IActionSignature))
+            {
+                var local = action.CreateLocalVariable("Uses" + i++, services.NewKey());
+                Reflect.Property(local, "DataType", true)!.SetValue(local, Reflect.Get(data, "RecordType") ?? data);
+            }
+            Chain(action, server.OfType<OutSystems.Model.Logic.IActionSignature>()
+                .Select(a => Calling(action.CreateNode<OutSystems.Model.Logic.Nodes.IExecuteServerActionNode>("Call" + i++), a)).ToList());
+            carriers.Add(action);
+        }
+        var client = uses.OfType<OutSystems.Model.Logic.IClientActionSignature>().ToList();
+        if (client.Count > 0)
+        {
+            var action = donor.CreateClientAction("OmlReferenceClientCarrier", services.NewKey());
+            var i = 0;
+            Chain(action, client.Select(a => Calling(action.CreateNode<OutSystems.Model.Logic.Nodes.IExecuteClientActionNode>("Call" + i++), a)).ToList());
+            carriers.Add(action);
+        }
+        return carriers.ToArray();
+    }
+
+    static Exception Unwrap(Exception e) { while (e is TargetInvocationException && e.InnerException is { } inner) e = inner; return e; }
 
     static List<string> Names(JsonElement elements, Func<IEnumerable<string>> all)
     {

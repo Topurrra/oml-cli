@@ -163,12 +163,24 @@ class ModelError(string message) : Exception(message);
 static class Refs
 {
     public const string ReferenceHint =
-        "If it lives in another module, add that module in Service Studio (Manage Dependencies) or pass its producer .oml in \"references\"; " +
+        "If it lives in another module, pass its producer .oml in \"references\", or a module that already references it with \"module\"; " +
         "'oml find <Name> --in <folder of .oml files>' lists the modules that have it.";
 
     /// Resolves a spec name to one model element. "Module.Element" picks that module (this module or a
     /// reference). A plain name prefers this module's own element, then a reference that alone has it, and
     /// refuses when several references have it, because picking one silently can call the wrong action.
+    // Where a navigation goes: a screen, else an External Site of that name.
+    public static object Destination(IESpace m, string name)
+    {
+        try { return Find(m, name, typeof(OutSystems.Model.UI.IScreenSignature)); }
+        catch (ModelError)
+        {
+            var sites = All(m).Where(c => c.element is OutSystems.Model.UI.Mobile.IExternalSite or OutSystems.Model.UI.Web.IExternalSite).ToList();
+            if (Pick(m, name, "External Site", sites, missingIsNull: true) is { } site) return site;
+            throw;
+        }
+    }
+
     public static object Find(IESpace m, string name, Type wanted)
     {
         // Built-in exceptions have no Name; specs use the IESpace property names.

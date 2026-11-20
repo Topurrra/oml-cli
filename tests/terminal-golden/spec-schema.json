@@ -242,6 +242,11 @@
       },
       "description": "Reactive emails and sending them from a server action. (oml spec emails)"
     },
+    "externalSites": {
+      "type": "array",
+      "items": {},
+      "description": "A UI flow's External Site: `name`, `url`, `flow` (MainFlow), `inputs` (its query string), `description`, `isFrequentDestination` (Traditional Web). A screen goes there like to a screen (onClick, destination node). (oml spec externalSites)"
+    },
     "$schema": {
       "type": "string"
     }
@@ -846,6 +851,9 @@
           ]
         },
         "extension": {
+          "type": "string"
+        },
+        "module": {
           "type": "string"
         }
       },

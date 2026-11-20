@@ -589,7 +589,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 Try($"{where}.{p.Name}", () =>
                 {
                     var handler = screenActions.GetValueOrDefault(p.Value.GetString()!)
-                        ?? Refs.Find(m, p.Value.GetString()!, typeof(OutSystems.Model.UI.IScreenSignature));
+                        ?? Refs.Destination(m, p.Value.GetString()!);
                     Event(widget, p.Name, handler);
                     // A built-in event that gives its handler a value: the handler's input of that name gets it (OnSort: ClickedColumn).
                     if (EventValues.TryGetValue(p.Name, out var given) && Reflect.Get(widget, p.Name) is { } builtin

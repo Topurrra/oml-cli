@@ -47,7 +47,13 @@ Traditional Web to Reactive, prepared by code, and an interactive menu for peopl
 
 - **Parallel process branches, child processes, timer wake, entity labels.** A process node's `next` (and `connect`'s `to`) may list several nodes: from Start or any activity, branches run at the same time and may join again or end on their own; `insertNodes` after such a node takes `branch`. `connect` addresses `Start` and `End` by path. Execute Process nodes name their child process (`process`) and pass `args`; the name lookup now finds processes and timers, and `Wake<Timer>` can be called. Entities take `label` and `labelPlural`. Re-applying a process with named End nodes reuses them.
 
+- **External Sites.** `externalSites` creates a UI flow's External Site in Reactive and Traditional Web modules (name, URL, inputs as its query string, description, Is Frequent Destination); listed again, it is updated. A Link, Button or destination node navigates to it by name, with its inputs as `args`, as to a screen.
+
+- **References without the producer file.** A reference entry with `module` copies the reference that another module already has to that module or extension, the way Service Studio's copy and paste does: no producer `.oml`, no `.xif`, and platform extensions (Text, BinaryData, HTTPRequestHandler, ...) work too, so they no longer need Manage Dependencies. The reference keeps the producer's own keys. Data and actions only; Service Studio's IP protection allows it between modules of the same environment.
+
 ### Fixed
+
+- Re-applying a process whose Decision goes to two named End nodes swapped the Ends and failed ("Cannot change the target node to End"); each End is now found from the node that goes to it.
 
 - **`oml migrate plan` wrote Traditional Style Classes and inline styles unquoted**, so every translated style was an invalid expression in Reactive; they are text in quotes now. `oml export` no longer notes "header and row could not be told apart" for every table cell, and an Ajax Refresh no longer counts its next node as a target.
 - **`oml export` noted unreadable properties that its typed readers had read** (Visible on Form content).

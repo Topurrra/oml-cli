@@ -853,7 +853,7 @@ V1 also has no global-key `AddDependency` overload.
 Other in-process API contracts can differ.
 A resolver is unnecessary for importing actual loaded elements; no global resolver is installed or changed.
 
-For missing producer exports, report the gap and obtain the deployed producer's `.oml` or use Service Studio's **Manage Dependencies**:
+For missing producer exports, copy the reference from a module that already has it (`references[].module`), or obtain the deployed producer's `.oml`, or use Service Studio's **Manage Dependencies**:
 
 ```csharp
 var missing = source.References

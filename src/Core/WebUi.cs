@@ -138,7 +138,7 @@ partial class Builder
                     var destination = p.Value.ValueKind == JsonValueKind.String ? p.Value.GetString()!
                         : p.Value.GetProperty("destination").GetString()!;
                     Event(widget, p.Name, actions.GetValueOrDefault(destination)
-                        ?? Refs.Find(m, destination, typeof(OutSystems.Model.UI.IScreenSignature)));
+                        ?? Refs.Destination(m, destination));
                     if (p.Value.ValueKind == JsonValueKind.Object && p.Value.TryGetProperty("args", out var eventArgs))
                         Defer(widget, ($"{where}.{p.Name}.args", () => Arguments(Reflect.Get(widget, p.Name)!, eventArgs)));
                 }

@@ -119,15 +119,31 @@ partial class Builder
     object? ProcessFlow(object process, List<JsonElement> specs, string label, object? exit = null, bool allowExisting = true)
     {
         var nodes = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in specs)
+        static bool IsEnd(JsonElement s) => s.GetProperty("kind").GetString()!.Equals("end", StringComparison.OrdinalIgnoreCase);
+        // An End keeps no name in the model: listed again, it is the End its listed predecessor goes to now (so a Decision's exits keep
+        // their Ends), else an End of the process not used yet in this list.
+        object? ExistingEnd(string name)
+        {
+            foreach (var s in specs.Where(x => !IsEnd(x)))
+            {
+                if (!nodes.TryGetValue(NodeName(s), out var from)) continue;
+                var goes = IsKind(from, "decision")
+                    ? new[] { "true", "false" }.Where(k => s.TryGetProperty(k, out var t) && string.Equals(t.GetString(), name, StringComparison.OrdinalIgnoreCase))
+                        .SelectMany(k => Outgoing(from).Where(c => Outcome(c).Equals(OutcomeOf(k, name), StringComparison.OrdinalIgnoreCase)).Select(TargetOf))
+                    : s.TryGetProperty("next", out var next) && Names(next).Contains(name, StringComparer.OrdinalIgnoreCase)
+                        ? Elements(Reflect.Get(from, "Targets")) : [];
+                if (goes.FirstOrDefault(n => n is not null && IsKind(n, "end") && !nodes.Values.Contains(n)) is { } end) return end;
+            }
+            return ProcessNodes(process).FirstOrDefault(n => IsKind(n, "end") && !nodes.Values.Contains(n));
+        }
+        foreach (var s in specs.OrderBy(IsEnd))   // Ends last: they are found from the nodes that go to them
         {
             var kind = s.GetProperty("kind").GetString()!;
             var name = NodeName(s);
             if (nodes.ContainsKey(name)) throw new ModelError($"duplicate process node name '{name}'");
             var found = kind.Equals("start", StringComparison.OrdinalIgnoreCase) ? ProcessNodes(process).FirstOrDefault(n => IsKind(n, "start"))
                 : ProcessNodes(process).FirstOrDefault(n => string.Equals(Model.NameOf(n), name, StringComparison.OrdinalIgnoreCase))
-                  // An End keeps no name in the model and has no settings: listed again, it is an End of the process not used yet in this list.
-                  ?? (kind.Equals("end", StringComparison.OrdinalIgnoreCase) && allowExisting ? ProcessNodes(process).FirstOrDefault(n => IsKind(n, "end") && !nodes.Values.Contains(n)) : null);
+                  ?? (IsEnd(s) && allowExisting ? ExistingEnd(name) : null);
             if (found is not null && !allowExisting && !kind.Equals("start", StringComparison.OrdinalIgnoreCase))
                 throw new ModelError($"{label}: the process already has a node named '{name}'; names must be free (change that node with set or replaceNode)");
             if (found is not null && !IsKind(found, kind)) throw new ModelError($"{label}: the process has a node '{name}' of another kind; change it with replaceNode");
