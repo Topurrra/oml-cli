@@ -106,5 +106,21 @@ static partial class SelfTest
         // The same edit again changes nothing.
         (code, report) = Apply.Execute(output, path, Path.Combine(dir, "logic-repoint-again.oml"));
         if (code != 0 || !Says(report, "already calls MakeB")) failures.Add("repoint again: " + JsonSerializer.Serialize(report));
+
+        // rewrite: an identifier path becomes another expression in every expression of an element; literals and longer names stay.
+        var sample = ExpressionText.ReplacePath("Session.A + \"Session.A\" + x.Session.A + Session.AB + Session.A.B", "Session.A", "A");
+        if (sample != "A + \"Session.A\" + x.Session.A + Session.AB + A.B") failures.Add("rewrite text: " + sample);
+        if (ExpressionText.ReplacePath("N * 2", "N", "M + 1") != "(M + 1) * 2") failures.Add("rewrite keeps precedence: " + ExpressionText.ReplacePath("N * 2", "N", "M + 1"));
+        File.WriteAllText(path, """{"edits":[{"op":"addVariables","action":"Caller","inputs":[{"name":"Bonus","type":"Integer","mandatory":false}]},{"op":"rewrite","element":"Caller","from":"Run.Id","to":"Bonus"}]}""");
+        var rewritten = Path.Combine(dir, "logic-rewrite.oml");
+        (code, report) = Apply.Execute(output, path, rewritten);
+        if (code != 0 || !Says(report, "Run.Id -> Bonus")) { failures.Add("rewrite: " + JsonSerializer.Serialize(report)); return; }
+        using (var rw = Model.Load(rewritten))
+        {
+            var keep = ElementPaths.Resolve(rw, "Caller/Keep");
+            var value = ((System.Collections.IEnumerable)Reflect.Get(keep, "Assignments")!).Cast<object>().Select(x => (Reflect.Get(x, "Value") as IExpression)?.Text).FirstOrDefault();
+            if (value != "Bonus") failures.Add("rewrite: the assign reads " + value);
+            if (Model.Errors(rw).Length > 0) failures.Add("rewrite: errors after reopen");
+        }
     }
 }

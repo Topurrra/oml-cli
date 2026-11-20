@@ -136,6 +136,7 @@ own: own, owned
 own: own, owned, owns
 parameter: parameter, parameters
 part: part, parts
+pass: pass, passed
 path: path, paths
 pattern: pattern, patterns
 placeholder: placeholder, placeholders

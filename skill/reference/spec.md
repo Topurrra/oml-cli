@@ -885,6 +885,7 @@ Existing entity, static entity, and structure attributes cannot change DataType,
 | `addToAggregate` | aggregate, sources, joins, filters, sorts, groupBy, aggregates, calculated, group keys | Adds parts to an existing aggregate with the query keys. |
 | `setArgs` | element, args | Sets arguments of a call, navigation or other node by parameter name. A number or true/false is used as the expression. |
 | `repoint` | element, action | Makes an existing Execute node call another action (`Name` or `Module.Name`). The node keeps its place, name and key, so `Node.Output` readers stay. Arguments are set again by parameter name; an argument with no input of that name, or a mandatory input without one, is refused. Already calling it: no change. |
+| `rewrite` | element, from, to | Replaces the identifier path `from` (`Session.UserName`) with the expression `to` in every expression under `element` (both sides of an assign); string literals and other paths stay. |
 
 For If or For Each insertion, connector is required: true, false, cycle, or next (alias sequence), as supported. Explicit targets can name existing or inserted nodes. End and Raise Exception terminate normally.
 Widget area can be children, trueBranch, falseBranch, row, or headerRow; indexed insertion keeps list order. Absent parent means the screen/block root; for plugin widgets, children uses the first placeholder.

@@ -49,7 +49,10 @@ static class ScreenTranslator
         IReadOnlySet<string>? NotifyingBlocks = null,       // blocks of the old module that call Notify (they get a Notify event)
         // Server actions a translated screen may call, as it calls them (a copied action "Name", a wrapper "Old.Order_Create"): output name -> type.
         // Consecutive calls of these in a screen action are merged into one server action (one request).
-        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? ServerOutputs = null);
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? ServerOutputs = null,
+        // Copied server actions that read a session variable through an input now (MigratePlan.ThreadSession): action -> (input, variable).
+        // A screen's call passes Client.<variable>.
+        IReadOnlyDictionary<string, List<(string input, string variable)>>? SessionInputs = null);
 
     // The blocks among the exports whose actions call Notify (or Deprecated_Notify): in Reactive each gets a Notify event.
     internal static HashSet<string> NotifyingBlocks(IEnumerable<JsonObject> exports) =>
@@ -1259,6 +1262,12 @@ static class ScreenTranslator
             }
             else o["action"] = action;
             if (n["args"] is JsonObject args2 && args2.Count > 0) o["args"] = RwTree(args2, at);
+            if (cx.SessionInputs?.GetValueOrDefault(action) is { Count: > 0 } carried)   // the client variable that used to be a session variable
+            {
+                var a3 = o["args"] as JsonObject ?? new JsonObject();
+                foreach (var (input, variable) in carried) if (!a3.ContainsKey(input)) a3[input] = "Client." + variable;
+                o["args"] = a3;
+            }
             if (S(n["next"]) is { } next) o["next"] = next;
         }
 

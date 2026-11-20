@@ -217,7 +217,8 @@ static partial class Migrate
     // What the screens and blocks add to the picture before the plan is final: entity actions their logic calls, the session variables
     // they use, and the session variables each copied server or service action uses (variable -> actions).
     // CopyExposed: the person chose to copy the exposed REST and SOAP services too (--copy-exposed).
-    internal sealed record Extra(IReadOnlyList<Call> ScreenWrites, IReadOnlyDictionary<string, string[]> ServerSession, IReadOnlySet<string> ScreenSession, bool CopyExposed = false)
+    internal sealed record Extra(IReadOnlyList<Call> ScreenWrites, IReadOnlyDictionary<string, string[]> ServerSession, IReadOnlySet<string> ScreenSession, bool CopyExposed = false,
+        IReadOnlyDictionary<string, string>? ServerTexts = null, IReadOnlyList<ActionCall>? ActionCalls = null)
     { public static readonly Extra None = new([], new Dictionary<string, string[]>(), new HashSet<string>()); }
 
     internal sealed class Result
@@ -242,6 +243,7 @@ static partial class Migrate
         public JsonArray ClientVariables = [];
         public JsonObject? ScreensSpec; // 4-screens.json, set when the screens are translated
         public Dictionary<string, string> WrapperMap = new(StringComparer.Ordinal); // entity action -> wrapper name
+        public Dictionary<string, List<(string input, string variable)>> SessionInputs = new(StringComparer.OrdinalIgnoreCase); // copied action -> inputs that carry a client variable
         public bool NoOtherContent; // the inspect of an older Core has no otherContent key
     }
 
@@ -251,6 +253,9 @@ static partial class Migrate
 
     // One call of an entity action in the copied logic: `element` is the copied element, `path` the path of the Execute node
     // as `oml tree` prints it (the same in the new module), `op` is Create, CreateOrUpdate, Update or Delete.
+    // A call between copied actions, from `oml tree`: the caller's name, the call node's exact path, the called action.
+    internal sealed record ActionCall(string Caller, string Path, string Callee);
+
     internal sealed record Call(string Element, string Path, string Node, string Entity, string Op)
     { public string Wrapper => Entity + "_" + Op; }
 
@@ -332,12 +337,28 @@ static partial class Migrate
         // Session variables: client when only screens and blocks use them (DecideSession), else a decision for a person.
         r.Sessions = Names(inspect, "sessionVariables");
         var clientVars = new JsonArray();
+        var sessionEdits = new List<JsonObject>();
         foreach (var x in Rows(inspect, "sessionVariables").Where(x => S(x, "name") is not null))
         {
             var n = S(x, "name")!; var type = S(x, "type") ?? "";
             extra.ServerSession.TryGetValue(n, out var serverUse);
             var def = S(x, "default");   // a newer inspect gives the default of a session variable; an older one gives name and type only, so this is null then
-            var (decision, why) = DecideSession(n, type, serverUse ?? [], extra.ScreenSession.Contains(n), !string.IsNullOrEmpty(def));
+            var (decision, why) = DecideSession(n, type, serverUse ?? [], extra.ScreenSession.Contains(n), !string.IsNullOrEmpty(def), threads: extra.ServerTexts is not null);
+            // Read by copied server logic: the client variable reaches it as an input (ThreadSession), or the reason it cannot.
+            if (decision == "client" && serverUse is { Length: > 0 })
+            {
+                var th = ThreadSession(n, type, def, serverUse, extra.ServerTexts ?? new Dictionary<string, string>(), extra.ActionCalls ?? [], r.Logic);
+                if (th.Why is not null) (decision, why) = ("manual", $"read by copied server logic ({string.Join(", ", serverUse)}), and it cannot be passed as an input: {th.Why}");
+                else
+                {
+                    sessionEdits.AddRange(th.Edits);
+                    foreach (var (action, input) in th.InputOf)
+                    {
+                        if (!r.SessionInputs.TryGetValue(action, out var list)) r.SessionInputs[action] = list = [];
+                        list.Add((input, n));
+                    }
+                }
+            }
             r.SessionDecisions.Add(new SessionDecision(n, type, def, decision, why));
             El("sessionVariable", n, decision, why);
             if (decision == "client")
@@ -414,8 +435,10 @@ static partial class Migrate
         // The action is the plain wrapper name: a name resolves to the module's own element first, so it cannot be ambiguous.
         // The path is the one `oml tree` prints for the old module; the prepared module changes no path of an existing element.
         r.MigrateSource = Path.Combine(outDir, r.OldName + ".migrate-source.oml");
-        if (r.Calls.Count > 0)
-            r.Source = new JsonObject { ["edits"] = new JsonArray(r.Calls.Select(c => (JsonNode?)new JsonObject { ["op"] = "repoint", ["element"] = c.Path, ["action"] = c.Wrapper }).ToArray()) };
+        // Then the session inputs (ThreadSession): new inputs, reads rewritten, the input passed on by each copied caller.
+        if (r.Calls.Count > 0 || sessionEdits.Count > 0)
+            r.Source = new JsonObject { ["edits"] = new JsonArray(r.Calls.Select(c => (JsonNode?)new JsonObject { ["op"] = "repoint", ["element"] = c.Path, ["action"] = c.Wrapper })
+                .Concat(sessionEdits.Select(e => (JsonNode?)e)).ToArray()) };
 
         // 3-new-module.json: references first (the prepared old module, then the producers), then the copy from the working copy.
         var refs = new JsonArray();
@@ -461,6 +484,29 @@ static partial class Migrate
     // Each result is {step, args, exitCode, output}; the output is the tree: nodes with kind, name, path, `ref` (the called action
     // of an Execute node, by name) and `children`. An entity action is called by its own name (CreateOrder), so a node whose ref is
     // Create/CreateOrUpdate/Update/Delete plus an entity name of this module is the call. A tree is cut at 250 parts (`truncated`).
+    // The calls of copied server and service actions inside the copied logic (the same tree batch as FindCalls).
+    internal static List<ActionCall> FindActionCalls(JsonNode? batch, List<(string query, string name)> logic)
+    {
+        var copied = logic.Where(l => l.query.StartsWith("ServerAction:") || l.query.StartsWith("ServiceAction:")).Select(l => l.name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var calls = new List<ActionCall>();
+        var results = (P(batch, "results") as JsonArray)?.ToArray() ?? [];
+        for (var i = 0; i < logic.Count && i < results.Length; i++)
+        {
+            if (P(results[i], "output") is not JsonObject tree || P(tree, "error") is not null) continue;
+            var caller = logic[i].name;
+            void Walk(JsonNode? n)
+            {
+                if (n is not JsonObject node) return;
+                if ((S(node, "kind") ?? S(node, "type"))?.StartsWith("Execute", StringComparison.Ordinal) == true && S(node, "ref") is { } called
+                    && copied.Contains(called) && S(node, "path") is { } path)
+                    calls.Add(new ActionCall(caller, path, copied.First(c => c.Equals(called, StringComparison.OrdinalIgnoreCase))));
+                foreach (var c in (P(node, "children") as JsonArray)?.ToArray() ?? []) Walk(c);
+            }
+            Walk(tree);
+        }
+        return calls;
+    }
+
     internal static List<Call> FindCalls(JsonNode batch, List<(string query, string name)> logic, string[] entities, List<string> notes)
     {
         var actions = new Dictionary<string, (string entity, string op)>(StringComparer.Ordinal);
@@ -510,7 +556,8 @@ static partial class Migrate
         head.Add("Site property values, timer schedules and integration settings (REST, e-mail) set in Service Center do not follow a copy: set them again for the new module.");
         var clients = r.SessionDecisions.Where(d => d.Decision == "client").Select(d => d.Name).ToArray();
         var noDefault = r.SessionDecisions.Where(d => d.Decision == "client" && string.IsNullOrEmpty(d.Default)).Select(d => d.Name).ToArray();
-        if (clients.Length > 0) head.Add($"Session variable(s) used only by screens and blocks become client variables of the same name in 4-screens.json ({string.Join(", ", clients)}); a client variable is readable by the user, so nothing sensitive goes there." + (noDefault.Length > 0 ? $" The default value of a session variable is not read by this oml inspect ({string.Join(", ", noDefault)}): set the default of each of these client variables by hand if the session variable had one." : " Each keeps the default value inspect gave."));
+        if (clients.Length > 0) head.Add($"Session variable(s) of a basic type with a harmless name become client variables of the same name in 4-screens.json ({string.Join(", ", clients)}); a client variable is readable by the user, so nothing sensitive goes there."
+            + (r.SessionInputs.Count > 0 ? $" The copied server actions that read one get it as an input instead ({string.Join(", ", r.SessionInputs.Keys.Order(StringComparer.Ordinal))}; 2-source.json), and the screens pass the client variable." : "") + (noDefault.Length > 0 ? $" The default value of a session variable is not read by this oml inspect ({string.Join(", ", noDefault)}): set the default of each of these client variables by hand if the session variable had one." : " Each keeps the default value inspect gave."));
         foreach (var d in r.SessionDecisions.Where(d => d.Decision == "manual")) head.Add($"Session variable {d.Name} is not migrated, it needs a decision by hand: {d.Why}.");
         if (r.Others.Count > 0)
             foreach (var g in r.Others.GroupBy(o => (o.Decision, o.Kind)).OrderBy(g => g.Key.Decision, StringComparer.Ordinal).ThenBy(g => g.Key.Kind, StringComparer.Ordinal))

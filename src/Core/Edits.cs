@@ -151,6 +151,31 @@ partial class Builder
                     replacements.Add((int.Parse(label[5..^1]), before, () => Elements(Reflect.Get(owner, "Nodes")).OfType<IObjectSignature>().Where(x => Model.NameOf(x) == name && !x.WasDeleted).ToList()));
                 break;
             }
+            case "rewrite":
+            {
+                // One identifier path ("Session.UserName") becomes another expression ("UserName") in every expression under the element:
+                // conditions, values, arguments, assignments (both sides). String literals, dates, comments and members of another path are
+                // not touched. With the other expressions, after every variable of the spec exists.
+                var target = Find("element");
+                var from = Required("from").Trim();
+                var to = Required("to");
+                if (!System.Text.RegularExpressions.Regex.IsMatch(from, @"^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$")) throw new ModelError("'from' must be an identifier path such as Session.UserName");
+                var expressions = new List<IExpression>();
+                void Collect(IObjectSignature o, HashSet<object> seen)
+                {
+                    foreach (var c in ElementPaths.Children(o))
+                    {
+                        if (!seen.Add(c) || c is IReference) continue;
+                        if (c is IExpression e) expressions.Add(e); else Collect(c, seen);
+                    }
+                }
+                Collect(target, new HashSet<object>(ReferenceEqualityComparer.Instance));
+                var hits = expressions.Where(e => ExpressionText.ReplacePath(e.Text ?? "", from, to) != (e.Text ?? "")).ToList();
+                if (hits.Count == 0) { existing.Add($"{Required("element")} (no {from} left)"); applied = false; break; }
+                Defer(target, ($"{label}.rewrite", () => { foreach (var e in hits) e.Text = ExpressionText.ReplacePath(e.Text ?? "", from, to); }));
+                Change($"{Required("element")}: {from} -> {to} in {hits.Count} expression(s)");
+                break;
+            }
             case "repoint":
             {
                 // The same Execute node calls another action: it keeps its place, name and key, so `Node.Output` keeps its
@@ -405,6 +430,7 @@ partial class Builder
             "rename" => $"{Text("element")} renamed to {Text("to")}",
             "delete" => $"{Text("element")} deleted",
             "repoint" => $"node {Text("element")} now calls {Text("action")}",
+            "rewrite" => $"{Text("element")}: {Text("from")} -> {Text("to")}",
             _ => null,
         };
     }

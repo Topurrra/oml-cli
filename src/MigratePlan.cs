@@ -28,14 +28,62 @@ static partial class Migrate
 
     // A session variable is "client" when only screens and blocks use it, it holds a basic type and its name is not sensitive; the reasons
     // otherwise are said in plain words. serverActions are the copied server and service actions whose describe text names Session.<Name>.
-    internal static (string decision, string why) DecideSession(string name, string type, string[] serverActions, bool usedByScreens, bool hasDefault = false)
+    // threads: the plan can pass the value to the copied server logic as an input (ThreadSession); without it, server use is a reason for a person.
+    internal static (string decision, string why) DecideSession(string name, string type, string[] serverActions, bool usedByScreens, bool hasDefault = false, bool threads = false)
     {
         var why = new List<string>();
-        if (serverActions.Length > 0) why.Add($"used by copied server logic ({string.Join(", ", serverActions)}): client variables do not exist on the server, so the value must come in as an input parameter or be read on the server");
+        if (serverActions.Length > 0 && !threads) why.Add($"used by copied server logic ({string.Join(", ", serverActions)}): client variables do not exist on the server, so the value must come in as an input parameter or be read on the server");
         if (!IsBasicType(type)) why.Add($"its type ({(type.Length > 0 ? type : "unknown")}) is not a basic type");
         if (SensitiveName(name)) why.Add("its name looks sensitive and a client variable can be read by the user: never put it in the browser");
         if (!usedByScreens && serverActions.Length == 0) why.Add("no screen or block was found using it, so check by hand whether it is still needed");
-        return why.Count == 0 ? ("client", "used only by screens and blocks and a basic type: becomes a client variable of the same name in 4-screens.json" + (hasDefault ? ", with its default value" : "; its default value is not read (this inspect does not give it), so set it by hand if it had one")) : ("manual", string.Join("; ", why));
+        if (why.Count > 0) return ("manual", string.Join("; ", why));
+        var head = serverActions.Length > 0
+            ? $"a basic type: becomes a client variable of the same name in 4-screens.json; the copied server actions that read it ({string.Join(", ", serverActions)}) get it as an input (2-source.json), and screens pass Client.{name}"
+            : "used only by screens and blocks and a basic type: becomes a client variable of the same name in 4-screens.json";
+        return ("client", head + (hasDefault ? ", with its default value" : "; its default value is not read (this inspect does not give it), so set it by hand if it had one"));
+    }
+
+    // Reactive has no session variables. A session variable that copied server logic reads (and does not write) stays in the browser as a
+    // client variable and reaches the server as an input: every copied action that reads Session.<Name> gets an input (the variable's
+    // name, or Session<Name> when the action has a name like it already) with the variable's default, its reads become that input
+    // (rewrite), and every copied action that calls one of them gets the input too and passes it on (setArgs), up to the screens, which
+    // pass Client.<Name> (SessionInputs). A caller with no session (a timer, a process) passes nothing, so the input's default is used, as
+    // the session variable's default was. Returns the edits for 2-source.json and the input of each action, or why it cannot be done.
+    internal sealed record SessionThread(List<JsonObject> Edits, Dictionary<string, string> InputOf, string? Why);
+
+    internal static SessionThread ThreadSession(string variable, string type, string? def, IReadOnlyList<string> readers,
+        IReadOnlyDictionary<string, string> texts, IReadOnlyList<ActionCall> calls, IReadOnlyList<(string query, string name)> logic)
+    {
+        var queryOf = logic.ToDictionary(l => l.name, l => l.query, StringComparer.OrdinalIgnoreCase);
+        var writes = new Regex(@"(?m)^\s*set Session\." + Regex.Escape(variable) + @"(?![\w])", RegexOptions.IgnoreCase);
+        if (readers.FirstOrDefault(a => texts.TryGetValue(a, out var t) && writes.IsMatch(t)) is { } writer)
+            return new([], [], $"copied server logic writes it ({writer}), and a value written on the server cannot reach the browser's copy");
+        var needs = new HashSet<string>(readers, StringComparer.OrdinalIgnoreCase);
+        for (var grew = true; grew;)
+        {
+            grew = false;
+            foreach (var c in calls) if (needs.Contains(c.Callee) && !needs.Contains(c.Caller) && queryOf.ContainsKey(c.Caller)) grew |= needs.Add(c.Caller);
+        }
+        if (needs.FirstOrDefault(a => !queryOf.ContainsKey(a)) is { } unknown) return new([], [], $"{unknown} is not one of the copied actions");
+        string Param(string action)
+        {
+            var text = texts.GetValueOrDefault(action) ?? "";
+            var own = new Regex(@"(?<![\w.])" + Regex.Escape(variable) + @"(?!\w)", RegexOptions.IgnoreCase);
+            return own.IsMatch(Regex.Replace(text, @"Session\." + Regex.Escape(variable), "", RegexOptions.IgnoreCase)) ? "Session" + variable : variable;
+        }
+        var inputOf = needs.ToDictionary(a => a, Param, StringComparer.OrdinalIgnoreCase);
+        var edits = new List<JsonObject>();
+        foreach (var a in needs.Order(StringComparer.Ordinal))
+        {
+            var input = new JsonObject { ["name"] = inputOf[a], ["type"] = type, ["mandatory"] = false };
+            if (!string.IsNullOrEmpty(def)) input["default"] = def;
+            edits.Add(new JsonObject { ["op"] = "addVariables", ["action"] = queryOf[a], ["inputs"] = new JsonArray(input) });
+        }
+        foreach (var a in readers.Order(StringComparer.Ordinal))
+            edits.Add(new JsonObject { ["op"] = "rewrite", ["element"] = queryOf[a], ["from"] = "Session." + variable, ["to"] = inputOf[a] });
+        foreach (var c in calls.Where(c => needs.Contains(c.Callee) && needs.Contains(c.Caller)))
+            edits.Add(new JsonObject { ["op"] = "setArgs", ["element"] = c.Path, ["args"] = new JsonObject { [inputOf[c.Callee]] = inputOf[c.Caller] } });
+        return new(edits, inputOf, null);
     }
 
     // Variable -> the actions whose describe text names Session.<Variable> as a whole identifier. texts: action query (Kind:Name) -> text.
@@ -311,16 +359,24 @@ static partial class Migrate
 
         // 1. entity actions in the copied logic
         var calls = new List<Call>();
+        var actionCalls = new List<ActionCall>();
         if (r.Logic.Count > 0)
         {
             var steps = new JsonObject { ["steps"] = new JsonArray(r.Logic.Select(l => (JsonNode?)Arr(["tree", old, l.query])).ToArray()) };
-            calls = FindCalls(run(["batch", "-", "--continue"], steps.ToJsonString()), r.Logic, r.EntityNames, notes);
+            var trees = run(["batch", "-", "--continue"], steps.ToJsonString());
+            calls = FindCalls(trees, r.Logic, r.EntityNames, notes);
+            actionCalls = FindActionCalls(trees, r.Logic);
         }
         // 2. which copied server and service actions use Session.<Name>
         var serverUse = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
         var serverLogic = r.Logic.Where(l => l.query.StartsWith("ServerAction:") || l.query.StartsWith("ServiceAction:")).ToList();
+        var serverTexts = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);   // copied action name -> its describe text
         if (r.Sessions.Length > 0 && serverLogic.Count > 0)
-            serverUse = SessionUse(Describe(run, old, serverLogic, notes, "--depth", "0"), r.Sessions);
+        {
+            var described = Describe(run, old, serverLogic, notes, "--depth", "0");
+            serverUse = SessionUse(described, r.Sessions);
+            foreach (var (query, text) in described) serverTexts[query[(query.IndexOf(':') + 1)..]] = text;
+        }
         // 3. export every screen, block and email
         var chunks = ExportChunks(r.Screens);
         JsonNode? exportBatch = null;
@@ -346,9 +402,9 @@ static partial class Migrate
         // 5. first pass (all entity actions have a wrapper name, so none is refused), then the final decisions, then the real pass
         var allWrappers = EntityActionMap(r.EntityNames).ToDictionary(kv => kv.Key, kv => kv.Value.entity + "_" + kv.Value.op);
         var first = TranslateAll(r.Screens, exports, new ScreenTranslator.Context(r.OldName, allWrappers, new HashSet<string>(), new HashSet<string>(r.Screens.Where(s => s.Kind == "Block").Select(s => s.Name)), layout, placeholders), translate);
-        r = Build(inspect, old, name, outDir, map, calls, ExtraFrom(first, r.EntityNames, serverUse) with { CopyExposed = copyExposed });
+        r = Build(inspect, old, name, outDir, map, calls, ExtraFrom(first, r.EntityNames, serverUse) with { CopyExposed = copyExposed, ServerTexts = serverTexts, ActionCalls = actionCalls });
         r.Notes.AddRange(producerNotes); r.Notes.AddRange(notes);
-        var context = MakeContext(r, layout, placeholders) with { ServerOutputs = ServerOutputs(inspect, r) };
+        var context = MakeContext(r, layout, placeholders) with { ServerOutputs = ServerOutputs(inspect, r), SessionInputs = r.SessionInputs };
         var items = TranslateAll(r.Screens, exports, context, translate);
         foreach (var i in items.Where(i => i.Error is not null && i.Error != "no export")) r.Notes.Add($"{i.S.Kind} {i.S.Name} was not translated: {i.Error}.");
         foreach (var a in items.SelectMany(i => i.EntityActions).Distinct().Where(a => EntityActionMap(r.EntityNames).ContainsKey(a) && !r.WrapperMap.ContainsKey(a)))

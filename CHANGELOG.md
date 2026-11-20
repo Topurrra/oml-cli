@@ -32,6 +32,9 @@ Traditional Web to Reactive, prepared by code, and an interactive menu for peopl
 
 - **Server calls in a row become one server action.** In a translated screen action, two or more consecutive calls of server actions (each reached only from the one before) become one server action `<Screen>_<Action>` in `4-screens.json`: one request and one transaction, as in Traditional. Its inputs are the screen and action variables the calls read, its outputs the call outputs that later nodes read (`<Node>_<Output>`). It starts with the screen's access check: `NotRegisteredException` without a signed-in user, the new user exception `AccessDenied` without one of the screen's roles. A run that reads a widget, an aggregate or a client variable stays as it is.
 
+- **Session variables that server logic reads are migrated.** Reactive has no session variables. A basic, harmless session variable that copied server actions read (and do not write) becomes a client variable; `2-source.json` gives each of those actions an input with the variable's default, rewrites `Session.<Name>` to it, and makes every copied caller pass it on; translated screens pass `Client.<Name>`. A timer or process passes nothing, so the default applies, as the session variable's default did. Written, sensitive and record variables stay manual.
+- **`rewrite` edit.** `{ "op": "rewrite", "element", "from", "to" }` replaces an identifier path in every expression under an element; string literals and other paths stay.
+
 ### Fixed
 
 - **`oml migrate plan` wrote Traditional Style Classes and inline styles unquoted**, so every translated style was an invalid expression in Reactive; they are text in quotes now. `oml export` no longer notes "header and row could not be told apart" for every table cell, and an Ajax Refresh no longer counts its next node as a target.
