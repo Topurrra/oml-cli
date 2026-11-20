@@ -65,7 +65,7 @@ static partial class Migrate
     { "results": [
       { "step": 1, "exitCode": 0, "output": { "kind": "ServerAction", "name": "CleanupOrders", "path": "CleanupOrders", "children": [
           { "kind": "ForEach", "name": "Old", "path": "CleanupOrders/Old", "children": [
-            { "kind": "ExecuteServerAction", "name": "Remove", "path": "CleanupOrders/Remove", "ref": "DeleteOrder", "children": [ { "kind": "Argument", "ref": "Id" } ] } ] } ] } },
+            { "kind": "ExecuteServerAction", "name": "Remove", "path": "CleanupOrders/Remove", "ref": "DeleteOrder", "children": [ { "kind": "Argument", "ref": "Id" }, { "kind": "Sequence", "path": "CleanupOrders/Remove/Sequence[0]", "ref": "DeleteOrder" } ] } ] } ] } },
       { "step": 2, "exitCode": 0, "output": { "kind": "ServerAction", "name": "ReadOnly", "path": "ReadOnly", "children": [
           { "kind": "ExecuteServerAction", "name": "Other", "path": "ReadOnly/Other", "ref": "SaveOrder" },
           { "kind": "ExecuteServerAction", "name": "Touch", "path": "ReadOnly/Touch", "ref": "UpdateCustomer" },
@@ -115,7 +115,7 @@ static partial class Migrate
         Check(D("serverAction", "SaveOrder") == "copy" && D("structure", "OrderDto") == "copy" && D("exception", "InvalidOrder") == "copy" && D("siteProperty", "MaxItems") == "copy" && D("timer", "NightlyCleanup") == "copy" && D("process", "ReviewOrder") == "copy", "logic and data copy");
         Check(D("serverAction", "Customer_Update") == "stay", "an existing wrapper that is needed is not copied");
         Check(D("screen", "Orders") == "(absent)" && D("sessionVariable", "CurrentCustomerId") == "manual" && D("sessionVariable", "ThemeName") == "manual", "screens are planned by status (plan.json screens), not as elements; without screen use a session variable is manual");
-        Check(r.Counts["client"] == 0 && r.Counts["manual"] == 8 && r.Counts["copy"] == 9, "counts: six session variables and two other elements manual, TaxService copied");
+        Check(r.Counts["client"] == 0 && r.Counts["manual"] == 7 && r.Counts["copy"] == 9 && r.Others.Single(o => o.Name == "LegacyApi").Decision == "stay", "counts: six session variables and the entry point manual, TaxService copied, the exposed LegacyApi stays");
         var w = Rows(r.Plan, "wrappers");
         Check(w.Length == 3 && r.WrapperCreate == 2 && r.WrapperExists == 1, "wrappers: Order_CreateOrUpdate and Order_Delete created, Customer_Update exists; Note has none");
         Check(w.Any(x => S(x, "name") == "Customer_Update" && S(x, "decision") == "exists") && w.Any(x => S(x, "name") == "Order_Delete" && S(x, "decision") == "create" && S(x, "entityAction") == "DeleteOrder") && w.All(x => S(x, "kind") == "wrapper"), "plan wrappers");
@@ -134,7 +134,7 @@ static partial class Migrate
         Check(B(cu, "public") == true && Rows(cu, "inputs")[0]["name"]!.ToString() == "Source" && Rows(cu, "inputs")[0]["type"]!.ToString() == "Order" && Rows(cu, "outputs")[0]["name"]!.ToString() == "Id" && Rows(cu, "outputs")[0]["type"]!.ToString() == "Order Identifier" && Rows(cu, "flow")[0]["action"]!.ToString() == "CreateOrUpdateOrder" && Rows(cu, "flow")[0]["args"]!["Source"]!.ToString() == "Source", "wrapper Order_CreateOrUpdate has the signature of the entity action");
         var del = acts.First(a => S(a, "name") == "Order_Delete");
         Check(Rows(del, "inputs")[0]["name"]!.ToString() == "Id" && Rows(del, "inputs")[0]["type"]!.ToString() == "Order Identifier" && Rows(del, "outputs").Length == 0 && Rows(del, "flow")[0]["action"]!.ToString() == "DeleteOrder", "wrapper Order_Delete");
-        Check(r.Prepared == "/out/OrdersWeb.prepared.oml", "prepared file");
+        Check(r.Prepared == Path.Combine("/out", "OrdersWeb.prepared.oml"), "prepared file");
 
         var refs = Rows(r.NewModule, "references");
         Check(refs.Length == 2 && S(refs[0], "producer") == r.Prepared && S(refs[1], "producer") == Path.GetFullPath("/p/Producer.oml"), "new module: the prepared old module first, then the producer");
@@ -145,13 +145,15 @@ static partial class Migrate
         var edits = Rows(r.Source, "edits");
         Check(edits.Length == 4 && edits.All(e => S(e, "op") == "repoint") && r.Source!.Select(kv => kv.Key).SequenceEqual(["edits"]), "2-source.json: only edits, one repoint per call (the wrapper's own call is left alone)");
         Check(edits.Any(e => S(e, "element") == "CleanupOrders/Remove" && S(e, "action") == "Order_Delete") && edits.Any(e => S(e, "element") == "SaveOrder/Save" && S(e, "action") == "Order_CreateOrUpdate") && edits.Any(e => S(e, "element") == "SaveOrder/SaveAgain") && edits.All(e => !S(e, "action")!.Contains('.')), "repoint edits: node path and the plain wrapper name");
-        Check(r.MigrateSource == "/out/OrdersWeb.migrate-source.oml" && S(Rows(r.NewModule, "copy")[0], "from") == r.MigrateSource && S(r.Plan, "migrateSource") == r.MigrateSource, "the copy is from the working copy, named in the plan");
+        Check(r.MigrateSource == Path.Combine("/out", "OrdersWeb.migrate-source.oml") && S(Rows(r.NewModule, "copy")[0], "from") == r.MigrateSource && S(r.Plan, "migrateSource") == r.MigrateSource, "the copy is from the working copy, named in the plan");
         Check(r.NewModule.Select(kv => kv.Key).SequenceEqual(["references", "copy"]), "3-new-module.json: references, then copy, no edits");
         var webMail = (JsonObject)inspect.DeepClone(); ((JsonObject)((JsonArray)webMail["otherContent"]!)[1]!)["kind"] = "WebEmail";
         Check(Build(webMail, "/p/OrdersWeb.oml", "OrdersNew", "/out", map, []).Screens.Any(x => x.Kind == "Email" && x.Query == "WebEmail:OrderMail"), "an email is queried by the kind word inspect printed for it");
         Check(r.Screens.Count == 4 && r.Screens.Any(s => s.Name == "OrderDetail" && s.Kind == "Screen" && s.Inputs.SequenceEqual(["OrderId"]) && s.File == "screens/OrderDetail.txt" && s.Export == "screens/OrderDetail.json") && r.Screens.Any(s => s.Name == "OrderCard" && s.Kind == "Block") && r.Screens.Any(s => s.Name == "OrderMail" && s.Kind == "Email" && s.Query == "Email:OrderMail"), "screens, blocks and the email of otherContent are elements to export");
         var next0 = Next(r, "/p/OrdersWeb.oml", "OrdersNew", "/out");
-        Check(next0.Count == 8 && next0[2].Contains("/out/OrdersWeb.prepared.oml") && next0[2].Contains("2-source.json") && next0[2].Contains("never install it") && next0[3].Contains("<a Reactive template module") && next0[4].Contains("3-new-module.json") && next0[6].Contains("4-screens.md") && next0[7].Contains("--plan"), "next without screens spec: eight steps, the working copy third, the template placeholder");
+        var exposedCopy = Build(inspect, "/p/OrdersWeb.oml", "OrdersNew", "/out", map, calls, Extra.None with { CopyExposed = true });
+        Check(exposedCopy.Others.Single(o => o.Name == "LegacyApi").Decision == "copy" && exposedCopy.ExposedKept.Count == 0 && !Next(exposedCopy, "/p/OrdersWeb.oml", "OrdersNew", "/out")[0].Contains("Ask the person"), "--copy-exposed: the exposed SOAP service is copied and nothing is asked");
+        Check(next0.Count == 10 && next0[0].Contains("Ask the person") && next0[0].Contains("LegacyApi") && next0[0].Contains("--copy-exposed") && next0[3].Contains(Path.Combine("/out", "OrdersWeb.prepared.oml")) && next0[3].Contains("2-source.json") && next0[3].Contains("never install it") && next0[4].Contains("<a Reactive template module") && next0[5].Contains("Manage Dependencies") && next0[5].Contains("Missing (") && next0[6].Contains("3-new-module.json") && next0[8].Contains("4-screens.md") && next0[9].Contains("--plan"), "next without screens spec: ten steps, the exposed-API question first, the missing reference before the copy, the working copy third, the template placeholder");
 
         // No write at all: no wrapper, no edits.
         var none = Build(inspect, "/p/OrdersWeb.oml", "OrdersNew", "/out", map, []);
@@ -267,7 +269,7 @@ static partial class Migrate
         Check(PickLayout(JsonNode.Parse(SampleTemplate)!) == "LayoutTopMenu" && PickLayout(JsonNode.Parse("""{ "blocks": [ { "name": "LayoutSideMenu" }, { "name": "LayoutBlank" } ] }""")!) == "LayoutSideMenu"
             && PickLayout(JsonNode.Parse("""{ "blocks": [ { "name": "Menu" }, { "name": "LayoutZ" }, { "name": "LayoutBlank" } ] }""")!) == "LayoutZ" && PickLayout(JsonNode.Parse("""{ "blocks": [ { "name": "Menu" } ] }""")!) is null, "layout: top menu, then side menu, then the first, else none");
         Check(Placeholders(JsonNode.Parse(SampleLayoutExport)).SequenceEqual(["Header", "Content"]) && Placeholders(null).Count == 0, "placeholders are read from the widget tree, in an If too");
-        Check(DecideOther("SOAPClient").decision == "copy" && DecideOther("ISOAPClient").decision == "copy" && DecideOther("WebReference").decision == "copy" && DecideOther("Integration").decision == "copy" && DecideOther("Email").decision == "translate" && DecideOther("IEmail").decision == "translate" && DecideOther("EntryPoint").decision == "manual" && DecideOther("WebService").decision == "manual", "other content by kind name, with or without the leading I");
+        Check(DecideOther("SOAPClient").decision == "copy" && DecideOther("ISOAPClient").decision == "copy" && DecideOther("WebReference").decision == "copy" && DecideOther("Integration").decision == "copy" && DecideOther("Email").decision == "translate" && DecideOther("IEmail").decision == "translate" && DecideOther("EntryPoint").decision == "manual" && DecideOther("WebService").decision == "stay", "other content by kind name, with or without the leading I");
         var texts = SessionUse(SampleDescribe, ["ThemeName", "CurrentCustomerId"]);
         Check(texts.Count == 1 && texts["CurrentCustomerId"].SequenceEqual(["SaveOrder"]), "Session.X is matched as a whole identifier: ThemeNameX and Session.Other.ThemeName are not ThemeName");
         var shapes = ExportChunks(Enumerable.Range(0, 60).Select(i => new Screen("S" + i, "Screen", "", [], [], $"screens/S{i}.txt")));
@@ -335,7 +337,7 @@ static partial class Migrate
         var old = JsonNode.Parse(SampleInspect)!.DeepClone(); ((JsonObject)old).Remove("otherContent");
         Check(Build(old, "/p/OrdersWeb.oml", "OrdersNew", "/out", map, []).Notes.Any(n => n.Contains("did not report otherContent")), "an older Core without otherContent: a note");
         var nx = o.Output["next"]!.AsArray().Select(x => x!.ToString()).ToList();
-        Check(nx.Count == 9 && nx[2].Contains("2-source.json") && nx[3].Contains(tpl) && nx[5].Contains("4-screens.json") && nx[5].Contains("OrdersNew.screens.oml") && nx[7].Contains("4-screens.md") && nx[8].Contains("--plan") && nx[8].Contains("OrdersNew.screens.oml"), "next: the template path, the screens apply after the new module, status with --plan");
+        Check(nx.Count == 11 && nx[0].Contains("--copy-exposed") && nx[3].Contains("2-source.json") && nx[4].Contains(tpl) && nx[5].Contains("Manage Dependencies") && nx[7].Contains("4-screens.json") && nx[7].Contains("OrdersNew.screens.oml") && nx[9].Contains("4-screens.md") && nx[10].Contains("--plan") && nx[10].Contains("OrdersNew.screens.oml"), "next: the template path, the screens apply after the new module, status with --plan");
 
         // status with the plan
         var newer = JsonNode.Parse("""{ "name": "OrdersNew", "screens": [ { "name": "Orders" }, { "name": "OrderDetail" } ], "blocks": [] }""")!;

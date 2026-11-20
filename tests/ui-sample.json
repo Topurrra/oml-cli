@@ -34,7 +34,7 @@
         {
           "name": "Title",
           "type": "Text",
-          "default": "\"Hello preview\""
+          "default": "\"Hello sample\""
         },
         {
           "name": "Count",
@@ -221,7 +221,7 @@
   "screens": [
     {
       "name": "PvScreen",
-      "title": "\"Preview screen\"",
+      "title": "\"Sample screen\"",
       "styleSheet": ".pv-screen { padding: 8px; }",
       "inputs": [
         {

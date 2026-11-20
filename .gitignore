@@ -8,3 +8,7 @@ dist/
 # Real applications for tests/corpus-check.ps1: paths to your own .oap/.oml files, never committed
 corpus.txt
 SERVICE-STUDIO-RESEARCH.md
+CLAUDE.md
+codemode.json
+.codemode/
+.codemode-work/

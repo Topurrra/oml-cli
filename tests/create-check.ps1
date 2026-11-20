@@ -1,4 +1,4 @@
-# oml create: a project folder with its layout, memory, the agent's skill and hooks, .gitignore and PROJECT.md; with --in,
+# oml create: a project folder with its layout, memory, the agent's skill, .gitignore and PROJECT.md; with --in,
 # the modules copied in and the application map built under the project's name. Refusals: a folder with files, a bad
 # name, a bad input. Throws on the first failure.
 param([string]$Oml, [string]$Tmp)
@@ -12,24 +12,26 @@ try {
   function Json { param([Parameter(ValueFromRemainingArguments)]$a) $out = & $Oml @a; ($out -join "`n") | ConvertFrom-Json }
   $env:OML_LOG = '0'; $env:OML_MAPS = Join-Path $Tmp 'maps'
 
-  # 1. Without modules: the layout, memory, skill, hooks.
+  # 1. Without modules: the layout, memory, skill; no hooks.
   $r = Json create alpha --dir $Tmp --no-library --no-doctor
   $root = Join-Path $Tmp 'alpha'
   Require ($LASTEXITCODE -eq 0 -and $r.folder -eq $root) "create: $($r | ConvertTo-Json -Compress)"
-  foreach ($p in 'modules', 'staged', 'specs', 'qa', 'mocks', 'scenarios', '.oml\memory\memory.log', '.oml\map.json', '.oml\config.json', 'skill\SKILL.md', 'AGENTS.md', 'CLAUDE.md', '.claude\settings.local.json', '.codex\hooks.json', '.gemini\settings.json', '.gitignore', 'PROJECT.md') {
+  foreach ($p in 'modules', 'staged', 'specs', 'qa', 'mocks', 'scenarios', '.oml\memory\memory.log', '.oml\map.json', '.oml\config.json', 'skill\SKILL.md', 'AGENTS.md', 'CLAUDE.md', '.gitignore', 'PROJECT.md') {
     Require (Test-Path (Join-Path $root $p)) "missing $p"
   }
   Require ((Get-Content (Join-Path $root 'CLAUDE.md') -Raw).Trim() -eq '@AGENTS.md') 'CLAUDE.md imports AGENTS.md'
-  Require ((Get-Content (Join-Path $root '.claude\settings.local.json') -Raw) -match 'hooks check') 'hooks installed'
+  # Hooks are opt-in: create writes none, and names oml hooks install as optional.
+  Require (-not (Test-Path (Join-Path $root '.claude')) -and -not (Test-Path (Join-Path $root '.codex')) -and -not (Test-Path (Join-Path $root '.gemini'))) 'no hooks by default'
+  Require (@($r.optional | Where-Object { $_ -like 'oml hooks install*' }).Count -eq 1) "optional names oml hooks install: $($r.optional -join '; ')"
   Require ((Get-Content (Join-Path $root '.gitignore') -Raw) -match '(?m)^staged/') '.gitignore'
-  Require (@($r.ready | Where-Object { $_.step -in 'folders', 'memory', 'config', 'skill', 'hooks' -and $_.status -eq 'done' }).Count -eq 5 -and @($r.ready | Where-Object { $_.step -in 'library', 'doctor' -and $_.status -eq 'skipped' }).Count -eq 2) "ready list: $($r.ready | ConvertTo-Json -Compress)"
+  Require (@($r.ready | Where-Object { $_.step -in 'folders', 'memory', 'config', 'skill' -and $_.status -eq 'done' }).Count -eq 4 -and @($r.ready | Where-Object { $_.step -in 'library', 'doctor' -and $_.status -eq 'skipped' }).Count -eq 2) "ready list: $($r.ready | ConvertTo-Json -Compress)"
   Require ((Get-Content (Join-Path $root '.oml\config.json') -Raw | ConvertFrom-Json).ui.targets.Count -eq 3) 'config.json has the defaults'
   Push-Location $root
   try {
     $m = Json memory add "alpha uses the Core layer for entities" --kind decision
     Require ($LASTEXITCODE -eq 0 -and $m.id -eq 0) "memory works in the new project: $($m | ConvertTo-Json -Compress)"
   } finally { Pop-Location }
-  Write-Host 'ok   create: layout, memory, skill, AGENTS.md, CLAUDE.md, hooks, .gitignore, PROJECT.md'
+  Write-Host 'ok   create: layout, memory, skill, AGENTS.md, CLAUDE.md, no hooks, .gitignore, PROJECT.md'
 
   # 1a. --author goes into the project's config; without it, setting one is the first optional step.
   Require (@($r.optional)[0] -like 'oml config set author*') "create without --author: $($r.optional -join ' | ')"

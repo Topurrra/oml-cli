@@ -56,6 +56,7 @@ static partial class Migrate
     internal static (string decision, string why) DecideOther(string kind)
     {
         bool Has(string w) => kind.Contains(w, StringComparison.OrdinalIgnoreCase);
+        if (Has("WebService") && !Has("Reference")) return ("stay", "exposed SOAP web service: stays in the old module, so its consumers keep working; copy it by hand if the new module must expose it");
         if (Has("SOAP") || Has("WebReference") || Has("Integration")) return ("copy", "consumed SOAP or other integration element: copied by name; its Service Center configuration does not follow, set it again for the new module");
         if (Has("Email")) return ("translate", "email: exported and translated like a screen (it lands in 4-screens.md)");
         if (Has("Entry")) return ("manual", "entry point: Reactive has no entry points; the URL of a screen or a redirect screen replaces it");
@@ -262,10 +263,10 @@ static partial class Migrate
     // (tree) -> which copied actions use Session.X (describe) -> export -> a first translation to learn the entity actions and session variables
     // the screens use -> the final decisions (wrappers, client variables) -> the translation with the full context.
     internal static Outcome Assemble(string old, string name, string outDir, JsonNode inspect, IReadOnlyDictionary<string, string> map, List<string> producerNotes,
-        string? template, Func<string[], string?, JsonNode> run, Func<JsonObject, ScreenTranslator.Context, ScreenTranslator.Result>? translate = null)
+        string? template, Func<string[], string?, JsonNode> run, Func<JsonObject, ScreenTranslator.Context, ScreenTranslator.Result>? translate = null, bool copyExposed = false)
     {
         translate ??= ScreenTranslator.Translate;
-        var r = Build(inspect, old, name, outDir, map, []);
+        var r = Build(inspect, old, name, outDir, map, [], Extra.None with { CopyExposed = copyExposed });
         var notes = new List<string>();
         JsonNode? Try(string[] args, string? stdin, string what)
         { try { return run(args, stdin); } catch (Refusal e) { notes.Add($"{what} could not be read ({e.Message}); {(what.Contains("describe") ? "check by hand" : "plan again once it works")}."); return null; } }
@@ -307,7 +308,7 @@ static partial class Migrate
         // 5. first pass (all entity actions have a wrapper name, so none is refused), then the final decisions, then the real pass
         var allWrappers = EntityActionMap(r.EntityNames).ToDictionary(kv => kv.Key, kv => kv.Value.entity + "_" + kv.Value.op);
         var first = TranslateAll(r.Screens, exports, new ScreenTranslator.Context(r.OldName, allWrappers, new HashSet<string>(), new HashSet<string>(r.Screens.Where(s => s.Kind == "Block").Select(s => s.Name)), layout, placeholders), translate);
-        r = Build(inspect, old, name, outDir, map, calls, ExtraFrom(first, r.EntityNames, serverUse));
+        r = Build(inspect, old, name, outDir, map, calls, ExtraFrom(first, r.EntityNames, serverUse) with { CopyExposed = copyExposed });
         r.Notes.AddRange(producerNotes); r.Notes.AddRange(notes);
         var context = MakeContext(r, layout, placeholders);
         var items = TranslateAll(r.Screens, exports, context, translate);

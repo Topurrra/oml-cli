@@ -11,7 +11,7 @@ oml version
 oml new <out.oml> [--name N] [--kind WebResponsive|Mobile|Service|ReactiveLibrary|...]
 oml new <out.oml> --template <name-or-exported.oml> [--name N]
 oml new <out.oml> --from-template <template.oml> [--name N] [--kind K]
-oml migrate plan <old.oml> --name <NewModule> [--in <folder|file.oml>]... [--out <folder>] [--template <reactive.oml>]   (a Traditional Web module's move to Reactive: plan, specs for old and new module, screens translated or listed; changes no module)
+oml migrate plan <old.oml> --name <NewModule> [--in <folder|file.oml>]... [--out <folder>] [--template <reactive.oml>] [--copy-exposed]   (a Traditional Web module's move to Reactive: plan, specs for old and new module, screens translated or listed; changes no module)
 oml migrate status <old.oml> <new.oml> [--plan <folder>]   (by name: done, still to do, only in new, duplicates, screens by status)
 oml app list <file.oap|file.osp>
 oml app extract <file.oap|file.osp> <outdir>
@@ -1164,18 +1164,18 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 
 ## Create a project
 
-`oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--no-skill] [--no-hooks] [--no-library] [--no-doctor]` is the starting point of a project, such as `oml create falcon --in C:\Downloads\falcon`. The name is 1-40 lower-case letters, digits and hyphens; the folder `<parent>\<project>` must be new or empty, and nothing is created when an input is wrong.
+`oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--no-skill] [--no-library] [--no-doctor]` is the starting point of a project, such as `oml create falcon --in C:\Downloads\falcon`. The name is 1-40 lower-case letters, digits and hyphens; the folder `<parent>\<project>` must be new or empty, and nothing is created when an input is wrong.
 
 - **Folders:** `modules/` (the project's `.oap` and `.oml` files), `staged/`, `specs/`, `qa/`, `mocks/`, `scenarios/`.
 - **Memory:** `.oml/memory/memory.log`, as `oml memory init` makes it.
 - **The agent's instructions:** a copy of the `skill/` that came with this oml, `AGENTS.md` (any agent) and `CLAUDE.md` with `@AGENTS.md` (Claude Code). `--no-skill` leaves them out.
-- **Hooks:** the agent hooks of `oml hooks install`: `.claude/settings.local.json` (Claude Code, Copilot, Cursor), `.codex/hooks.json` and `.gemini/settings.json`. `--no-hooks` leaves them out.
+- **No hooks.** Agent hooks are optional: run `oml hooks install` in the project when you want them (see [Agent hooks](#agent-hooks)). `--no-hooks` is still accepted and does nothing.
 - **Project profile:** `.oml/config.json` with every default, and `author` from `--author`; see [Project profile](#project-profile).
 - **OutSystems docs:** `oml outsystems-docs fetch`, once per machine: skipped when the library is there. `--no-library` leaves it out.
 - **Setup check:** `oml doctor`; what it finds is in `notes`. `--no-doctor` leaves it out.
 - **`.gitignore`** (staged copies, caches, local state) and **`PROJECT.md`** (the layout and the next steps).
 
-The output has `ready`: one row per step with `status` (`done`, `skipped`, `failed` or `attention`) and, when it did not finish, `fix`: the command that repeats it. `optional` lists what a person may still want: `oml config set`, `oml team-rules add`, `oml qa start --headed`, `oml explorer-menu`.
+The output has `ready`: one row per step with `status` (`done`, `skipped`, `failed` or `attention`) and, when it did not finish, `fix`: the command that repeats it. `optional` lists what a person may still want: `oml config set`, `oml team-rules add`, `oml hooks install`, `oml qa start --headed`, `oml explorer-menu`.
 - **With `--in`:** the modules are copied into `modules/`, and the application map is built under the project's name (`oml map build <project> --in modules`), so `oml map overview` works there at once.
 ## Map
 
@@ -1281,7 +1281,7 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 
 The file holds no secrets: a text value that looks like one is refused. An unknown key or a wrong value is ignored and named in `problems`. A file that cannot be read gives the defaults and never blocks an agent.
 
-`oml qa` follows `ui.targets` and `ui.themes`: a `--width` of a size the project does not support (phone under 600 px, tablet under 1024 px, desktop from there) or a `--theme` it does not support is refused with the reason. `--no-profile` skips the check once, for when the user asks for that size or theme in the task. A command whose check is off is refused first (exit 2): `oml qa page`, `run` and `record` need `checks.qa`, and `oml test scenarios` needs `checks.testScenarios`. The message names the setting and the file; `oml config set checks.qa on` turns it on, and `--no-profile` runs the command once when the user asked for it in the task. `oml qa start`, `stop`, `oml qa` alone and `--help` are never refused. A step inside `oml batch` is not checked. An older config file that still holds `checks.preview` or `checks.livePreview` is read without a complaint; both are ignored.
+`oml qa` follows `ui.targets` and `ui.themes`: a `--width` of a size the project does not support (phone under 600 px, tablet under 1024 px, desktop from there) or a `--theme` it does not support is refused with the reason. `--no-profile` skips the check once, for when the user asks for that size or theme in the task. A command whose check is off is refused first (exit 2): `oml qa page`, `run` and `record` need `checks.qa`, and `oml test scenarios` needs `checks.testScenarios`. The message names the setting and the file; `oml config set checks.qa on` turns it on, and `--no-profile` runs the command once when the user asked for it in the task. `oml qa start`, `stop`, `oml qa` alone and `--help` are never refused. A step inside `oml batch` is not checked.
 
 **Author.** Service Studio shows "Created by" and "Last modified by" on most top-level elements; without a name it shows Unknown. `oml apply` (with what a `copy` pastes) and `oml new` write the author as `CreatedBy` on what the run created and as `LastModifiedBy`, with `LastModifiedDate` set to the local time, on what it created or changed, found as `oml review` finds changes. Other elements are not touched. The apply report has `author` (the name, or null). A field this Service Studio build does not let oml write is skipped; when no element took the name, `warnings` says so once. Without an author (or with an `OML_AUTHOR` that is not a valid name, which `next` then names) the apply still saves, and `next` says to ask the user for a name, run `oml config set author "<name>"` and apply again to a new staged file. The profile always has one author line: the name, or "ask the user before the first change". `oml create --author "<name>"` sets it in a new project.
 

@@ -4,13 +4,13 @@ using System.Text.RegularExpressions;
 
 namespace OmlCli;
 
-// `oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--no-skill] [--no-hooks] [--no-library]
+// `oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--no-skill] [--no-library]
 // [--no-doctor]`: a project that is ready to work in, from one command. The output's `ready` list has one row per
 // step (done, skipped or failed, with the command that repeats it): folders, memory (as oml memory init), the project
-// profile (.oml/config.json, see ProjectConfig), the skill, the hooks, the OutSystems docs for oml doc --search
+// profile (.oml/config.json, see ProjectConfig), the skill, the OutSystems docs for oml doc --search
 // --library (downloaded once per machine; skipped when they are there), the modules and the map, and a setup check
 // (oml doctor). The starting point of a project. A new folder with a place for every kind of work (modules, staged copies, specs, QA files, mocks,
-// scenarios), the project memory, the agent's instructions (the skill, AGENTS.md, CLAUDE.md), the agent hooks (Claude Code, Copilot, Cursor, Codex, Gemini CLI), a
+// scenarios), the project memory, the agent's instructions (the skill, AGENTS.md, CLAUDE.md), a
 // .gitignore and a PROJECT.md with the next steps. With --in it copies the project's modules in and builds the
 // application map under the project's name, so `oml map ...` works there at once. Nothing outside the new folder changes,
 // except the map store (%LOCALAPPDATA%\oml-cli\maps\<project>).
@@ -32,7 +32,7 @@ static class CreateCommand
         if (!ProjectName.IsMatch(name)) return Fail($"Project name '{name}': use 1-40 lower-case letters, digits and hyphens, such as falcon.");
         string? parent = null, author = null;
         var inputs = new List<string>();
-        bool skill = true, hooks = true, library = true, doctor = true;
+        bool skill = true, library = true, doctor = true;
         for (var i = 1; i < args.Length; i++)
         {
             switch (args[i])
@@ -41,7 +41,7 @@ static class CreateCommand
                 case "--in" when i + 1 < args.Length: inputs.Add(Path.GetFullPath(args[++i])); break;
                 case "--author" when i + 1 < args.Length: author = args[++i]; break;
                 case "--no-skill": skill = false; break;
-                case "--no-hooks": hooks = false; break;
+                case "--no-hooks": break; // hooks are opt-in now: oml hooks install
                 case "--no-library": library = false; break;
                 case "--no-doctor": doctor = false; break;
                 default: return Fail($"Unknown or incomplete option {args[i]}.", "Usage: " + CliUsage.For("create").Trim());
@@ -98,14 +98,6 @@ static class CreateCommand
             }
         }
         else Step("skill", "skipped", "--no-skill");
-        if (hooks)
-        {
-            var (code, _) = Captured(() => AgentHooks.Run(["install", "--dir", root]));
-            if (code == 0) created.AddRange([".claude/settings.local.json (Claude Code, Copilot, Cursor)", ".codex/hooks.json", ".gemini/settings.json"]);
-            else notes.Add("Agent hooks were not installed; run: oml hooks install --dir " + root);
-            Step("hooks", code == 0 ? "done" : "failed", code == 0 ? "guards, memory reminder, session profile" : null, code == 0 ? null : "oml hooks install --dir " + root);
-        }
-        else Step("hooks", "skipped", "--no-hooks", "oml hooks install --dir " + root);
 
         // The OutSystems docs for oml doc --search --library: one copy per machine, so a second project downloads nothing.
         if (!library) Step("library", "skipped", "--no-library", "oml outsystems-docs fetch");
@@ -181,6 +173,7 @@ static class CreateCommand
                 author is { Length: > 0 } ? null : "oml config set author \"<name>\"   (the name Service Studio shows as creator and last modifier of what oml creates)",
                 "oml config set ui.targets desktop   (and the other settings: what agents do, skip and ask; oml config show)",
                 "oml team-rules add <file.md>   (your team's own rules)",
+                "oml hooks install   (optional agent hooks: guards, a memory reminder, the profile at session start)",
                 "oml qa start --headed   (log in to the app once; later qa runs keep the login)",
                 "oml explorer-menu   (right-click entries in Windows Explorer, once per machine)",
             }.OfType<string>().ToArray(),
@@ -295,9 +288,9 @@ static class CreateCommand
         ## Project profile
 
         `.oml/config.json` says what agents do, skip and ask in this project: screen sizes, themes, QA,
-        questions, the browser, the hooks. `oml config show` explains every setting, and `oml config set <key> <value>`
+        questions, the browser. `oml config show` explains every setting, and `oml config set <key> <value>`
         changes one, for example `oml config set ui.targets desktop` or `oml config set ask.testing off`.
-        Agents get the result at the start of a session.
+        Agents read it when they run oml. With the optional hooks (`oml hooks install`) they also get it at the start of a session.
 
         ## Next steps
 

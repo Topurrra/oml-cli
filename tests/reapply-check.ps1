@@ -45,7 +45,7 @@ $producer = (Ap 'references-producer' (New-Base ReferenceProducer CrossDevice) (
 Copy-Item $producer (Join-Path $work 'tmp/references-producer.oml')
 Push-Location $work
 try {
-  foreach ($f in 'block','check-bad','check-clean','data','datamodel','delete','logic','platform','preview','queries','references','rest','rules','scaffold','sql','static') {
+  foreach ($f in 'block','check-bad','check-clean','data','datamodel','delete','logic','platform','ui-sample','queries','references','rest','rules','scaffold','sql','static') {
     $null = Twice $f $r0 (Join-Path $t "$f.json")
   }
   $null = Twice 'service' $s0 (Join-Path $t 'service.json')

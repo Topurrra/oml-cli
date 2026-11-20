@@ -42,7 +42,7 @@ Add `--tags a,b` if they help.
 
 ## What NOT to write
 
-- Status chatter: "started", "apply passed", "preview done". The log is not a diary.
+- Status chatter: "started", "apply passed", "review done". The log is not a diary.
 - What `inspect` or `describe` shows. The module is the source of truth.
 - Guesses, long text, or the same fact twice.
 - Secrets: tokens, passwords, keys, card numbers. They are refused.

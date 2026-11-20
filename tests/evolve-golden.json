@@ -7,7 +7,7 @@
     "to": "2026-10-07",
     "commands": [
       {
-        "command": "oml preview",
+        "command": "oml qa",
         "count": 13,
         "failures": 8,
         "failureRate": 0.615,
@@ -44,7 +44,7 @@
     ],
     "repeatedFailures": [
       {
-        "command": "oml preview",
+        "command": "oml qa",
         "message": "Browser not found: install Microsoft Edge or Google Chrome",
         "count": 8,
         "sessions": 4,
@@ -52,31 +52,31 @@
           {
             "usage": 13,
             "ts": "2026-10-03T10:05:00Z",
-            "command": "oml preview",
+            "command": "oml qa",
             "error": "Browser not found: install Microsoft Edge or Google Chrome"
           },
           {
             "usage": 19,
             "ts": "2026-10-05T08:00:00Z",
-            "command": "oml preview",
+            "command": "oml qa",
             "error": "Browser not found: install Microsoft Edge or Google Chrome"
           },
           {
             "usage": 20,
             "ts": "2026-10-05T08:02:00Z",
-            "command": "oml preview",
+            "command": "oml qa",
             "error": "Browser not found: install Microsoft Edge or Google Chrome"
           },
           {
             "usage": 31,
             "ts": "2026-10-06T09:00:00Z",
-            "command": "oml preview",
+            "command": "oml qa",
             "error": "Browser not found: install Microsoft Edge or Google Chrome"
           },
           {
             "usage": 32,
             "ts": "2026-10-06T09:01:00Z",
-            "command": "oml preview",
+            "command": "oml qa",
             "error": "Browser not found: install Microsoft Edge or Google Chrome"
           }
         ]
@@ -224,7 +224,7 @@
         ]
       },
       {
-        "command": "oml preview",
+        "command": "oml qa",
         "failed": "Browser not found: install Microsoft Edge or Google Chrome",
         "fix": "--out added; --screenshot removed",
         "count": 2,
@@ -233,29 +233,29 @@
           {
             "usage": 13,
             "ts": "2026-10-03T10:05:00Z",
-            "command": "oml preview",
+            "command": "oml qa",
             "error": "Browser not found: install Microsoft Edge or Google Chrome"
           },
           {
             "usage": 14,
             "ts": "2026-10-03T10:06:00Z",
-            "command": "oml preview"
+            "command": "oml qa"
           },
           {
             "usage": 20,
             "ts": "2026-10-05T08:02:00Z",
-            "command": "oml preview",
+            "command": "oml qa",
             "error": "Browser not found: install Microsoft Edge or Google Chrome"
           },
           {
             "usage": 21,
             "ts": "2026-10-05T08:03:00Z",
-            "command": "oml preview"
+            "command": "oml qa"
           }
         ]
       },
       {
-        "command": "oml preview",
+        "command": "oml qa",
         "failed": "Browser not found: install Microsoft Edge or Google Chrome",
         "fix": "the input changed (same options)",
         "count": 2,
@@ -264,24 +264,24 @@
           {
             "usage": 32,
             "ts": "2026-10-06T09:01:00Z",
-            "command": "oml preview",
+            "command": "oml qa",
             "error": "Browser not found: install Microsoft Edge or Google Chrome"
           },
           {
             "usage": 33,
             "ts": "2026-10-06T09:02:00Z",
-            "command": "oml preview"
+            "command": "oml qa"
           },
           {
             "usage": 36,
             "ts": "2026-10-07T09:02:00Z",
-            "command": "oml preview",
+            "command": "oml qa",
             "error": "Browser not found: install Microsoft Edge or Google Chrome"
           },
           {
             "usage": 37,
             "ts": "2026-10-07T09:03:00Z",
-            "command": "oml preview"
+            "command": "oml qa"
           }
         ]
       }
@@ -362,9 +362,9 @@
   },
   "proposals": [
     {
-      "id": "e311933",
+      "id": "e8e9a56",
       "kind": "memory",
-      "title": "Trap record: oml preview fails with \"Browser not found: install Microsoft Edge or Google Chrome\"",
+      "title": "Trap record: oml qa fails with \"Browser not found: install Microsoft Edge or Google Chrome\"",
       "lines": 1
     },
     {
@@ -380,9 +380,9 @@
       "lines": 2
     },
     {
-      "id": "ece5a03",
+      "id": "edac292",
       "kind": "skill",
-      "title": "Company skill evolved-preview: 1 lesson(s) for oml preview",
+      "title": "Company skill evolved-qa: 1 lesson(s) for oml qa",
       "lines": 1
     },
     {

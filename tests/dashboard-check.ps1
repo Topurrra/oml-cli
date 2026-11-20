@@ -24,12 +24,12 @@ function Raw([int]$Port, [string]$Path, [hashtable]$Headers, [string]$Method = '
     } finally { $client.Close() }
 }
 
-# A module with blocks and a screen to read (tests/preview.json, a fixture shared with reapply-check).
+# A module with blocks and a screen to read (tests/ui-sample.json, a fixture shared with reapply-check).
 $id = [guid]::NewGuid().ToString('N').Substring(0, 8)
 $blank = Join-Path $Tmp "dash-$id-blank.oml"
 $module = Join-Path $Tmp "dash-$id.oml"
 & $Oml new $blank --name DashCheck --kind CrossDevice | Out-Null
-$applied = & $Oml apply $blank (Join-Path $PSScriptRoot 'preview.json') $module | ConvertFrom-Json
+$applied = & $Oml apply $blank (Join-Path $PSScriptRoot 'ui-sample.json') $module | ConvertFrom-Json
 Require ($LASTEXITCODE -eq 0 -and $applied.saved) 'Dashboard fixture did not apply'
 # Fixtures for test bdd: a stand-in BDDFramework and a module with public server actions (as test-scaffold-check).
 function Build-Fixture($name, $fixture) {

@@ -16,6 +16,20 @@ Traditional Web to Reactive, prepared by code, and an interactive menu for peopl
 - **Author on what oml creates or changes.** Service Studio showed "Created by Unknown" for everything oml made. The project profile has `author` (`oml config set author "Ana Silva"`; one line, at most 100 characters; empty clears it), and the `OML_AUTHOR` variable wins over it. `oml apply` (also the elements a `copy` pastes) and `oml new` write it as `CreatedBy` on what the run created and `LastModifiedBy` with `LastModifiedDate` (the local time) on what it created or changed, found as `oml review` finds changes; nothing else is touched. The apply report gains `author`; on a Service Studio build whose history fields are read-only, one line in `warnings` says the name could not be written. Without an author the apply still saves, and its `next` says to ask the user for a name; the profile tells agents to ask before the first change. `oml create --author "<name>"` writes it into the new project.
 
 
+### Changed
+
+- **`oml migrate plan`: exposed REST and SOAP services stay in the old module**, so their consumers keep working. The plan's `next` starts with a question for the person; `--copy-exposed` copies them on a yes, and the person then moves the consumers.
+- **`oml migrate plan` names the references to add by hand** (Manage Dependencies) before the copy step, which fails without them, and warns about copied server logic that calls page-only platform actions such as `RunJavaScript`.
+- **Hooks are opt-in.** `oml create` no longer writes agent hooks (`.claude/settings.local.json`, `.codex/hooks.json`, `.gemini/settings.json`). Run `oml hooks install` in a project to add them; `optional` in the output names it. `--no-hooks` is still accepted and does nothing.
+
+### Fixed
+
+- **`oml migrate plan` wrote a second, broken repoint edit** for every entity write (on the call's connector), so `2-source.json` always failed. The migrate self-test also passes on Windows now.
+
+### Removed
+
+- **The last traces of `oml preview`.** The project profile no longer skips `checks.preview` and `checks.livePreview` silently: an old config file that still has them gets the usual "unknown setting (ignored)" note. Search no longer maps "preview a screen" to the UI checklist. The test fixture `tests/preview.json` is now `tests/ui-sample.json`, and the evolve tests use `oml qa` as their sample command.
+
 ## 1.22.0
 
 Less waiting and fewer questions: a project profile, a project that is ready after one command, and hooks that work in GitHub Copilot.

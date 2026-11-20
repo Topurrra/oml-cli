@@ -61,7 +61,7 @@ On Windows 11, choose "Show more options" first. Results are written next to the
 An agent can explain a change in a Markdown walkthrough; `oml show-change specs/<name>.md` shows it in the dashboard with call stacks, links to the elements, the review of the staged module, and comments you copy back to the agent. The idea comes from [diffmap](https://github.com/tanishqkancharla/diffmap) (MIT), rebuilt for OutSystems. Details: [commands.md](skill/reference/commands.md#show-change-the-dif-page).
 
 
-Run `oml hooks install` in the project folder once (`oml create` does it for you). The hook works in Claude Code, GitHub Copilot (VS Code, app, CLI, also with a Claude model), Cursor, Codex and Gemini CLI. It stops agents from reading the large skill references whole, from editing `.oml` files and from calling the test-data API around oml; it costs no tokens. Details: [commands.md](skill/reference/commands.md#agent-hooks).
+Hooks are optional: run `oml hooks install` in the project folder once if you want them (`oml create` does not add them). The hook works in Claude Code, GitHub Copilot (VS Code, app, CLI, also with a Claude model), Cursor, Codex and Gemini CLI. It stops agents from reading the large skill references whole, from editing `.oml` files and from calling the test-data API around oml; it costs no tokens. Details: [commands.md](skill/reference/commands.md#agent-hooks).
 
 ## What it covers
 

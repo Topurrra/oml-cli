@@ -26,12 +26,13 @@ Order: apply 1 to a staged copy; the person installs and publishes it; apply 2 t
 What stays and what is copied:
 
 - Entities, static entities and roles stay in the old module (a copied role has no users); the new module references them, read only.
-- Server and service actions, structures, exceptions, site properties, timers, processes and REST are copied.
+- Server and service actions, structures, exceptions, site properties, timers, processes and consumed REST are copied.
+- Exposed REST and SOAP services stay in the old module, so their consumers keep working. `next` starts with a question for the person: copy them too? Only on a yes, plan again with `--copy-exposed`; the person then owns moving every consumer to the new URL.
 - Entity writes: the old module gets a public wrapper (`Order_Create`, `Order_CreateOrUpdate`, `Order_Update`, `Order_Delete`) for each entity action that copied logic or a screen calls, with the same inputs and outputs. `2-source.json` re-points each call in copied logic to its wrapper before the copy. A write the translation missed needs a wrapper added to the old module the same way, and a reference.
 - Producers found under `--in` are referenced by themselves; an `unresolved` one needs its producer file (`--in`) or Manage Dependencies. Traditional UI references are left out.
 - Session variables: used only by screens and blocks, a basic type and a harmless name: a client variable in 4-screens.json (with its default when inspect gives one). Else `manual` with the reason: used by copied server logic (client variables do not exist on the server: pass the value as an input or read it there), not a basic type, or a sensitive name (never in the browser).
 - Style: screens and blocks carry their own sheet. Theme sheets target Traditional markup and are not added: port them from `css/` selector by selector into the new module's theme.
-- Emails, SOAP, entry points: a SOAP or integration element is copied (Service Center settings do not follow); an email is translated like a screen; an entry point is manual (use a screen URL or a redirect screen); anything else is listed by kind and name in the notes.
+- Emails, SOAP, entry points: a consumed SOAP or integration element is copied (Service Center settings do not follow); an email is translated like a screen; an entry point is manual (use a screen URL or a redirect screen); anything else is listed by kind and name in the notes.
 - You decide: timers and processes now exist in both modules (deactivate or delete one); site property values, timer schedules and integration settings in Service Center do not follow a copy. Once its UI is gone, propose making the old module a service module (rule 3).
 
 ## Screens worklist

@@ -72,7 +72,6 @@ Write-Host 'ok   search cache: same hits from the saved index, a damaged file is
 # MRR tune 0.917 -> 0.916, held 0.924 -> 0.936, blind2 0.865 -> 0.865, blind3 0.812 -> 0.800; blind4 0.651 -> 0.662,
 # measured once, not tuned on. Plain BM25 routes these better (MRR 0.968): the full engine's synonyms
 # and glossary pull doc sections ahead of the command, so the baseline rule below skips this set.
-# Without the two oml preview requests (the command was removed), 38 requests: commands 0.763/0.947/0.857.
 $min = @{
   'tune' = @{ top1 = 0.83; top3 = 0.94; mrr = 0.89 }
   'held' = @{ top1 = 0.82; top3 = 0.96; mrr = 0.89 }

@@ -6,13 +6,13 @@ static class CliUsage
 {
     public const string Text = """
         oml version
-        oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--no-skill] [--no-hooks] [--no-library] [--no-doctor]   (a project ready to work in: folders, memory, config, skill, hooks, the OutSystems docs, a setup check; with --in, the modules and the map)
+        oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--no-skill] [--no-library] [--no-doctor]   (a project ready to work in: folders, memory, config, skill, hooks, the OutSystems docs, a setup check; with --in, the modules and the map)
         oml config [show | init | set <key> <value>] [--dir <project>]   (the project profile, .oml/config.json: what agents do, skip and ask; no argument prints the lines an agent follows)
         oml skill refresh [--dir <project>]   (update a project's skill/ and AGENTS.md to this oml)
         oml new <out.oml> [--name N] [--kind WebResponsive|Mobile|Service|ReactiveLibrary|...]
         oml new <out.oml> --template <name-or-exported.oml> [--name N]
         oml new <out.oml> --from-template <template.oml> [--name N] [--kind K]
-        oml migrate plan <old.oml> --name <NewModule> [--in <folder|file.oml>]... [--out <folder>] [--template <reactive.oml>]   (a Traditional Web module's move to Reactive: plan, specs for old and new module, screens translated or listed; changes no module)
+        oml migrate plan <old.oml> --name <NewModule> [--in <folder|file.oml>]... [--out <folder>] [--template <reactive.oml>] [--copy-exposed]   (a Traditional Web module's move to Reactive: plan, specs for old and new module, screens translated or listed; changes no module)
         oml migrate status <old.oml> <new.oml> [--plan <folder>]   (by name: done, still to do, only in new, duplicates, screens by status)
         oml app list <file.oap|file.osp>
         oml app extract <file.oap|file.osp> <outdir>

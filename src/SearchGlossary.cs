@@ -106,7 +106,7 @@ static class SearchGlossary
         ("Publish", "troubleshooting#publish-and-service-studio", "publish", "deploy; compile; release"),
         ("LifeTime", "troubleshooting#lifetime", "LifeTime deployment", "ci cd; pipeline; promote; production deploy; environments"),
         ("Testing", "testing", "BDDFramework test", "unit test; automated test; test case; tdd; integration test"),
-        ("UI check", "ui-checklist#the-loop", "qa page screenshot", "see the ui; visual check; screenshot; preview a screen"),
+        ("UI check", "ui-checklist#the-loop", "qa page screenshot", "see the ui; visual check; screenshot"),
         ("Mobile and offline", "best-practices#mobile", "Mobile offline sync", "offline mode; native app; pwa; sync data; no internet; without internet; no connection"),
         ("Traditional to Reactive", "traditional-to-reactive", "Traditional Web Reactive", "migrate; legacy; convert screen"),
         ("Caching", "troubleshooting#symptoms-in-the-running-app/ascreenisslow", "cache caching Cache In Minutes", "cache result; in memory; keep result; memoize; cached data"),

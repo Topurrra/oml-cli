@@ -88,7 +88,6 @@
     {"q": "status tag with a color", "type": "plain", "expect": ["osui-patterns#patterns/tag"]},
     {"q": "my site property changes are slow to apply", "type": "plain", "expect": ["best-practices#server-logic"]},
     {"q": "can I delete an entity", "type": "plain", "expect": ["spec#deletion", "rules/rule-2"]},
-    {"q": "how do I preview a screen", "type": "plain", "expect": ["ui-checklist#the-loop", "ui-checklist"]},
     {"q": "deploy to production with lifetime", "type": "plain", "expect": [], "note": "commands.md (oml lifetime) answers it; it is not a doc topic"},
     {"q": "onParametersChanged", "type": "exact", "expect": ["spec#block-events", "key:events", "ui-reactive#lifecycle/onparameterschangedblock"]},
     {"q": "replaceWidgets", "type": "exact", "expect": ["spec#edits/replacewidgets"]},

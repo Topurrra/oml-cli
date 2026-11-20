@@ -39,6 +39,7 @@ static partial class Migrate
     static int Plan(string[] a)
     {
         string? old = null, name = null, outDir = null, template = null;
+        var copyExposed = false; // exposed REST and SOAP stay unless the person asks for a copy
         var inputs = new List<string>();
         for (var i = 0; i < a.Length; i++)
             switch (a[i])
@@ -47,6 +48,7 @@ static partial class Migrate
                 case "--in" when i + 1 < a.Length: inputs.Add(Path.GetFullPath(a[++i])); break;
                 case "--out" when i + 1 < a.Length: outDir = Path.GetFullPath(a[++i]); break;
                 case "--template" when i + 1 < a.Length: template = Path.GetFullPath(a[++i]); break;
+                case "--copy-exposed": copyExposed = true; break;
                 case var o when o.StartsWith("--"): throw new Refusal($"Unknown or incomplete option {o}.", "Usage: " + CliUsage.For("migrate").Split('\n')[0].Trim());
                 default: if (old is not null) throw new Refusal($"Unexpected argument {a[i]}: migrate plan takes one old module."); old = a[i]; break;
             }
@@ -82,7 +84,7 @@ static partial class Migrate
         var (map, producerNotes) = ProducerMap(header, S(inspect, "name") ?? "");
 
         // The whole plan is decided by pure code over what the child processes print (Assemble); only the files are written here.
-        var plan = Assemble(old, name, outDir, inspect, map, producerNotes, template, (args, stdin) => Child(args, tolerateFailure: true, stdin: stdin));
+        var plan = Assemble(old, name, outDir, inspect, map, producerNotes, template, (args, stdin) => Child(args, tolerateFailure: true, stdin: stdin), copyExposed: copyExposed);
         Directory.CreateDirectory(outDir);
         foreach (var (file, text) in plan.Files)
         {
@@ -214,7 +216,8 @@ static partial class Migrate
     internal sealed record Other(string Kind, string Name, string Decision, string Why);
     // What the screens and blocks add to the picture before the plan is final: entity actions their logic calls, the session variables
     // they use, and the session variables each copied server or service action uses (variable -> actions).
-    internal sealed record Extra(IReadOnlyList<Call> ScreenWrites, IReadOnlyDictionary<string, string[]> ServerSession, IReadOnlySet<string> ScreenSession)
+    // CopyExposed: the person chose to copy the exposed REST and SOAP services too (--copy-exposed).
+    internal sealed record Extra(IReadOnlyList<Call> ScreenWrites, IReadOnlyDictionary<string, string[]> ServerSession, IReadOnlySet<string> ScreenSession, bool CopyExposed = false)
     { public static readonly Extra None = new([], new Dictionary<string, string[]>(), new HashSet<string>()); }
 
     internal sealed class Result
@@ -227,6 +230,8 @@ static partial class Migrate
         public SortedDictionary<string, int> RefCounts = new() { ["add"] = 0, ["skip-ui"] = 0, ["unresolved"] = 0, ["builtin"] = 0 };
         public int WrapperCreate, WrapperExists;
         public List<string> WrapperNames = [];
+        public List<string> ExposedKept = []; // exposed REST and SOAP services left in the old module: the person may choose to copy them
+        public List<string> Unresolved = []; // "Module (A, B)": references the new module needs before the copy, added by hand
         public List<Call> Calls = [];
         public List<Screen> Screens = [];
         public List<(string query, string name)> Logic = []; // copied server and service actions and processes: described to find entity writes
@@ -241,6 +246,8 @@ static partial class Migrate
     }
 
     static readonly string[] EntityOps = ["Create", "CreateOrUpdate", "Update", "Delete"];
+    // Platform actions that act on a Traditional Web page from the server. Copied as they are, they do nothing useful in Reactive.
+    static readonly HashSet<string> PageOnly = new(StringComparer.Ordinal) { "RunJavaScript", "AddJavaScriptTag", "AddStyleSheetTag", "AddMetaTag", "AddFavicon", "AddPostProcessingFilter", "IsAjaxRequest" };
 
     // One call of an entity action in the copied logic: `element` is the copied element, `path` the path of the Execute node
     // as `oml tree` prints it (the same in the new module), `op` is Create, CreateOrUpdate, Update or Delete.
@@ -317,7 +324,9 @@ static partial class Migrate
         foreach (var x in Rows(inspect, "serviceActions")) Copy("serviceActions", "serviceAction", "ServiceAction", S(x, "name")!, "service action: copied", true);
         foreach (var x in Rows(inspect, "clientActions")) El("clientAction", S(x, "name")!, "manual", "a Traditional Web module has no client actions in this version; check it by hand");
         foreach (var x in Rows(inspect, "restClients")) Copy("restClients", "restClient", "", S(x, "name")!, "consumed REST API: copied (its integration settings in Service Center do not follow)");
-        foreach (var x in Rows(inspect, "restServices")) Copy("restServices", "restService", "", S(x, "name")!, "exposed REST API: copied (the URL of the new module differs)");
+        foreach (var x in Rows(inspect, "restServices"))
+            if (extra.CopyExposed) Copy("restServices", "restService", "", S(x, "name")!, "exposed REST API: copied because the person chose --copy-exposed; they move its consumers to the new module's URL");
+            else { El("restService", S(x, "name")!, "stay", "exposed REST API: stays in the old module, so its consumers keep working; the person decides whether to copy it (--copy-exposed)"); r.ExposedKept.Add(S(x, "name")!); }
         foreach (var x in Rows(inspect, "timers")) Copy("timers", "timer", "Timer", S(x, "name")!, "timer: copied; it now exists in both modules");
         foreach (var x in Rows(inspect, "processes")) Copy("processes", "process", "Process", S(x, "name")!, "process (BPT): copied; it now exists in both modules", true);
         // Session variables: client when only screens and blocks use them (DecideSession), else a decision for a person.
@@ -352,9 +361,11 @@ static partial class Migrate
         {
             var (kind, n) = (S(x, "kind") ?? "?", S(x, "name")!);
             var (decision, why) = DecideOther(kind);
+            if (decision == "stay" && extra.CopyExposed) (decision, why) = ("copy", "exposed SOAP web service: copied because the person chose --copy-exposed; they move its consumers to the new module's URL");
+            else if (decision == "stay") r.ExposedKept.Add(n);
             r.Others.Add(new Other(kind, n, decision, why));
             if (decision == "copy") { El(kind, n, "copy", why); copyPaths.Add(n); }
-            else if (decision == "manual") El(kind, n, "manual", why);
+            else if (decision is "manual" or "stay") El(kind, n, decision, why);
         }
         if (dup.Count > 0) r.Notes.Add($"These names are used by more than one element of the old module: {string.Join(", ", dup.Order(StringComparer.Ordinal))}. Their copy paths carry the kind (Kind:Name); check them if apply says a path is ambiguous.");
 
@@ -378,6 +389,7 @@ static partial class Migrate
             var entry = new JsonObject { ["module"] = module, ["elements"] = Arr(keep), ["producerFile"] = file is null ? null : Path.GetFullPath(file), ["decision"] = decision, ["why"] = why };
             if (skipped.Length > 0) entry["skippedUi"] = Arr(skipped);
             references.Add(entry);
+            if (decision == "unresolved" && keep.Length > 0) r.Unresolved.Add($"{module} ({string.Join(", ", keep)})");
             if (decision == "unresolved") r.Notes.Add($"Reference {module} is unresolved ({(keep.Length > 0 ? string.Join(", ", keep.Take(8)) + (keep.Length > 8 ? ", ..." : "") : "no elements")}): give its producer file with --in and plan again, or add it in Manage Dependencies of the new module.");
         }
 
@@ -454,6 +466,7 @@ static partial class Migrate
         var actions = new Dictionary<string, (string entity, string op)>(StringComparer.Ordinal);
         foreach (var e in entities) foreach (var op in EntityOps) actions.TryAdd(op + e, (e, op));
         var calls = new List<Call>();
+        var pageOnly = new List<string>();
         var results = (P(batch, "results") as JsonArray)?.ToArray() ?? [];
         for (var i = 0; i < logic.Count; i++)
         {
@@ -465,12 +478,18 @@ static partial class Migrate
             void Walk(JsonNode? n)
             {
                 if (n is not JsonObject node) return;
-                if (S(node, "ref") is { } called && actions.TryGetValue(called, out var hit) && S(node, "path") is { } path)
+                // Only the call node itself: its Sequence child (the connector to the next node) carries the same ref.
+                if ((S(node, "kind") ?? S(node, "type"))?.StartsWith("Execute", StringComparison.Ordinal) == true
+                    && S(node, "ref") is { } called && actions.TryGetValue(called, out var hit) && S(node, "path") is { } path)
                     calls.Add(new Call(name, path, S(node, "name") ?? "", hit.entity, hit.op));
+                if ((S(node, "kind") ?? S(node, "type"))?.StartsWith("Execute", StringComparison.Ordinal) == true && S(node, "ref") is { } r2 && PageOnly.Contains(r2))
+                    pageOnly.Add($"{name} calls {r2}");
                 foreach (var c in (P(node, "children") as JsonArray)?.ToArray() ?? []) Walk(c);
             }
             Walk(tree);
         }
+        if (pageOnly.Count > 0) notes.Add($"Copied server logic calls platform actions that work only on a Traditional Web page: {string.Join("; ", pageOnly.Distinct())}. "
+            + "Rewrite those parts for Reactive (JavaScript runs in a client action; tags go in the theme or a script) after the copy.");
         return calls;
     }
 
@@ -507,6 +526,8 @@ static partial class Migrate
         string Q(string s) => s.Contains(' ') ? "\"" + s + "\"" : s;
         string F(string f) => Q(Path.Combine(outDir, f));
         var next = new List<string>();
+        if (r.ExposedKept.Count > 0)
+            next.Add($"Ask the person: the old module exposes {string.Join(", ", r.ExposedKept)}. They stay there, so their consumers keep working. Copy them into the new module too? If yes, plan again with --copy-exposed: the person then owns moving every consumer to the new URL.");
         if (r.Prepare is not null)
         {
             next.Add($"oml apply {Q(old)} {F("1-prepare-old.json")} {Q(r.Prepared)}   (a staged copy of the old module: public entities, static entities, roles{(r.WrapperCreate > 0 ? " and the wrapper actions" : "")})");
@@ -519,6 +540,8 @@ static partial class Migrate
         var staged = Q(Path.Combine(outDir, name + ".staged.oml"));
         var last = staged;
         next.Add($"oml new {created} --template {(template is null ? "<a Reactive template module: see oml templates>" : Q(template))} --name {name}");
+        if (r.Unresolved.Count > 0)
+            next.Add($"Before the next step, ask the person to open {name} in Service Studio and add in Manage Dependencies: {string.Join("; ", r.Unresolved)}. The copy refuses without them. Then: oml pull {name} --out {created}");
         next.Add($"oml apply {created} {F("3-new-module.json")} {staged}   (references, then the copy from {(r.Source is null ? "the prepared module" : "the working copy")})");
         if (r.ScreensSpec is not null)
         {

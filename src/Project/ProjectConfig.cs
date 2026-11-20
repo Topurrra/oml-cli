@@ -117,7 +117,6 @@ static class ProjectConfig
             var key = prefix + name;
             if (key == "version") continue;
             if (node is JsonObject child && Find(key) is null) { Read(child, key + ".", values); continue; }
-            if (key is "checks.preview" or "checks.livePreview") continue; // settings of oml preview, which is gone: old files keep them
             if (Find(key) is not { } setting) { values.Problems.Add($"{key}: unknown setting (ignored)."); continue; }
             var text = node switch
             {
