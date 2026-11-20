@@ -587,7 +587,7 @@ static class ScreenTranslator
 
         // ---------- screen and block actions ----------
 
-        static readonly HashSet<string> ActionKinds = ["assign", "if", "switch", "foreach", "execute", "destination", "raiseexception", "message", "comment", "javascript", "end", "ajaxrefresh"];
+        static readonly HashSet<string> ActionKinds = ["assign", "if", "switch", "foreach", "execute", "destination", "raiseexception", "message", "comment", "javascript", "end", "ajaxrefresh", "exceptionhandler"];
 
         JsonObject Action(JsonObject a)
         {
@@ -623,7 +623,9 @@ static class ScreenTranslator
 
         // The Ajax Refresh node is the one unsupported thing that is handled (DropRefreshes); its entry says so in `why` (Export.cs 445), so another
         // reason on a node of that kind (a repeated name) still makes a stub.
-        static bool AjaxEntry(JsonObject u) => NodeKind(u) == "ajaxrefresh" && (S(u["why"]) ?? "").Contains("Ajax Refresh node", StringComparison.Ordinal);
+        static bool AjaxEntry(JsonObject u) => NodeKind(u) == "ajaxrefresh" && (S(u["why"]) ?? "").Contains("Ajax Refresh node", StringComparison.Ordinal)
+            || NodeKind(u) == "destination" && (S(u["why"]) ?? "").Contains("ExternalURL", StringComparison.Ordinal);   // it becomes RedirectToURL
+        static bool External(JsonObject n) => NodeKind(n) == "destination" && S(n["_ref"]) == "ExternalURL";
 
         (JsonArray? flow, string? why) ActionFlow(string an, JsonObject a)
         {
@@ -640,7 +642,7 @@ static class ScreenTranslator
                 if (!ActionKinds.Contains(kind))
                     return (null, kind is "aggregate" or "sql" ? $"it contains the {S(n["kind"])} node {nn}, which needs a server action" : $"it contains a {S(n["kind"])} node ({nn}) that has no client equivalent here");
                 if (IsNotify(n)) return (null, $"it calls Notify at {nn}");
-                if (kind == "destination" && (S(n["screen"]) is not { Length: > 0 } scr || scr.Contains('.')))
+                if (kind == "destination" && !External(n) && (S(n["screen"]) is not { Length: > 0 } scr || scr.Contains('.')))
                     return (null, $"its Destination {nn} does not name a screen of this module");
             }
             if (nodes.Any(n => NodeKind(n) == "ajaxrefresh")) nodes = DropRefreshes(nodes, an);
@@ -758,7 +760,12 @@ static class ScreenTranslator
                     break;
                 case "foreach": o["kind"] = "forEach"; Copy("name"); Expr("recordList"); Copy("cycle", "next"); break;
                 case "execute": Execute(n, o, at); break;
+                case "destination" when External(n):   // Reactive opens an address with the RedirectToURL client action
+                    o["kind"] = "execute"; Copy("name"); o["action"] = "RedirectToURL";
+                    o["args"] = new JsonObject { ["URL"] = Rw(S((n["args"] as JsonObject)?["URL"]) ?? "\"\"", at) }; o["next"] = "End";
+                    break;
                 case "destination": o["kind"] = "destination"; Copy("name"); o["screen"] = Leaf(S(n["screen"])!); Args(); break;
+                case "exceptionhandler": o["kind"] = "exceptionHandler"; Copy("name", "exception", "next"); break;   // client actions have handlers too; abort transaction is server only
                 case "raiseexception": o["kind"] = "raiseException"; Copy("name", "exception"); Expr("message"); break;
                 case "message": o["kind"] = "message"; Copy("name"); Expr("message"); Copy("type", "next"); if (o["type"] is null) o["type"] = "info"; break;
                 case "comment": o["kind"] = "comment"; o["text"] = S(n["text"]) ?? ""; break;   // its name is made up (Comment1) and nothing connects to it
@@ -783,12 +790,13 @@ static class ScreenTranslator
             {
                 var args = n["args"] as JsonObject;
                 string? Arg(string key) => args?.FirstOrDefault(kv => kv.Key.Equals(key, StringComparison.OrdinalIgnoreCase)).Value is { } v ? S(v) : null;
-                var type = MessageType(Arg("Type"));
+                var typeArg = Arg("Type") ?? Arg("MessageType");   // the RichWidgets action names its inputs MessageText and MessageType
+                var type = MessageType(typeArg);
                 o["kind"] = "message";
                 if (nodeName is not null) o["name"] = nodeName;
-                o["message"] = Rw(Arg("Message") ?? "\"\"", at);
+                o["message"] = Rw(Arg("Message") ?? Arg("MessageText") ?? "\"\"", at);
                 o["type"] = type ?? "info";
-                if (type is null && Arg("Type") is { } raw) Todo($"{at} shows a message whose type {raw} is not Info, Success, Warning or Error, so it was built as info; set the type");
+                if (type is null && typeArg is { } raw) Todo($"{at} shows a message whose type {raw} is not Info, Success, Warning or Error, so it was built as info; set the type");
                 if (S(n["next"]) is { } nx) o["next"] = nx;
                 return;
             }
@@ -1097,7 +1105,7 @@ static class ScreenTranslator
                     break;
                 case "tablerecords": o = Records(w, used, true); break;
                 case "listrecords": o = Records(w, used, false); break;
-                case "blockinstance": o = Instance(w, used); break;
+                case "blockinstance": o = Instance(w, used); if (o is null) return; break;   // a library block Reactive does not need
                 case "form": case "editrecord": case "showrecord": o = Form(w, used); break;
                 case "popup": o = Popup(w, used, w["children"]); break;
                 case "editabletable": o = TodoBox(w, "is an Editable Table, which Reactive does not have; rebuild it as a Table with inputs"); break;
@@ -1299,7 +1307,7 @@ static class ScreenTranslator
         }
 
         // Rule 5 and 8: web block instances. Same name for a block of this module; a Traditional block of another module cannot be used.
-        JsonObject Instance(JsonObject w, HashSet<string> used)
+        JsonObject? Instance(JsonObject w, HashSet<string> used)
         {
             var at = Label(w);
             var viaProp = Prop(w, used, "sourceBlock");   // the fact repeats the widget's own sourceBlock key (Export.cs 632)
@@ -1313,6 +1321,7 @@ static class ScreenTranslator
                 return Popup(w, used, inner);
             }
             var isLocal = !local.Contains('.') && cx.LocalBlocks.Any(b => b.Equals(local, StringComparison.OrdinalIgnoreCase));
+            if (!isLocal && UiLibraryMap.IsLibrary(source) && UiLibraryMap.Block(source) is { } mapped) return Library(w, used, source, mapped);
             if (!isLocal)
                 return TodoBox(w, $"is an instance of {(Blank(source) ? "an unknown block" : source)}, which is not a web block of this module, and a Traditional block cannot be used in a Reactive screen; replace it with a Reactive block or widget");
             var o = new JsonObject { ["type"] = "BlockInstance" };
@@ -1331,6 +1340,73 @@ static class ScreenTranslator
             foreach (var (evt, handler) in handlers)
                 Todo($"{at} handles {(evt.StartsWith("On", StringComparison.OrdinalIgnoreCase) ? evt : "On" + evt)} with {handler}, which cannot be translated by rule; create an event on the block {local} (the spec's events key), fire it with triggerEvent where the block called Notify, and set events on this instance to call {handler}");
             return Wrapped(w, used, o);
+        }
+
+        // A block of a Traditional UI library (OutSystemsUIWeb, RichWidgets, OutSystemsChartsWeb), by the map in UiLibraryMap. A block that
+        // Reactive does not need is dropped (its content, if any, stays in a Container). A block with a checked Reactive counterpart becomes
+        // that block, with its inputs and placeholders renamed; what has no counterpart is a Todo that says what to do. Others are a Todo box
+        // with the map's note. The Reactive library must be referenced by the new module (the plan lists it).
+        JsonObject? Library(JsonObject w, HashSet<string> used, string source, UiLibraryMap.Row map)
+        {
+            var at = Label(w);
+            var phs = w["placeholders"] as JsonObject ?? [];
+            if (map.Dropped)
+            {
+                var kept = new JsonArray();
+                foreach (var (_, list) in phs) foreach (var c in Ws(list).OfType<JsonObject>()) kept.Add(c.DeepClone());
+                return kept.Count == 0 ? null : new JsonObject { ["type"] = "Container", ["children"] = kept };
+            }
+            if (map.Reactive == "Icon" && map.ReactiveKind == "widget")
+            {
+                var name = (w["args"] as JsonObject)?.FirstOrDefault(kv => kv.Key.Equals("Name", StringComparison.OrdinalIgnoreCase)).Value is { } nv ? S(nv) : null;
+                if (name is not null && Regex.Match(name.Trim(), @"^Entities\.IconName\.(\w+)$") is { Success: true } icon)
+                {
+                    var iw = new JsonObject { ["type"] = "Icon" };
+                    if (!Blank(S(w["name"]))) iw["name"] = S(w["name"]);
+                    Carry(iw, "icon", icon.Groups[1].Value.Replace('_', '-'), $"{at} shows the icon {icon.Groups[1].Value}, which the spec cannot set; choose it in Service Studio");
+                    if ((w["args"] as JsonObject)?.Any(kv => kv.Key.Equals("Size", StringComparison.OrdinalIgnoreCase)) == true)
+                        Todo($"{at} sets the icon size; set Size on the Icon widget in Service Studio (Reactive's default is 2x, Traditional's 1x)");
+                    return Wrapped(w, used, iw);
+                }
+            }
+            if (!map.ByCode)
+                return TodoBox(w, $"is an instance of {source}; in Reactive use {map.Reactive ?? "nothing like it"} ({map.ReactiveKind}). {map.Notes}".TrimEnd());
+            var o = new JsonObject { ["type"] = "BlockInstance" };
+            if (!Blank(S(w["name"]))) o["name"] = S(w["name"]);
+            o["sourceBlock"] = map.Reactive;
+            var args = new JsonObject();
+            var ruleSaid = false;
+            foreach (var (k, v) in w["args"] as JsonObject ?? [])
+            {
+                var value = S(v);
+                if (Blank(value)) continue;
+                var target = map.Inputs.FirstOrDefault(kv => kv.Key.Equals(k, StringComparison.OrdinalIgnoreCase));
+                if (target.Key is null) { Todo($"{at} ({source}) passes {k} = {value}, an input the map does not know; check it against {map.Reactive}"); continue; }
+                if (S(target.Value) is not { Length: > 0 } to) { Todo($"{at} ({source}) passes {k} = {value}, which {map.Reactive} has no input for. {map.Notes}".TrimEnd()); continue; }
+                args[to] = Rw(value!, at);
+                if (!ruleSaid && map.Rules.Length > 0 && value!.Contains("Entities.", StringComparison.Ordinal))
+                {
+                    Todo($"{at} ({source} -> {map.Reactive}) passes static entity values; check them: {map.Rules}");
+                    ruleSaid = true;
+                }
+            }
+            if (args.Count > 0) o["args"] = args;
+            var outPh = new JsonObject();
+            var orphans = new JsonArray();
+            foreach (var (k, list) in phs)
+            {
+                var content = Ws(list);
+                if (content.Count == 0) continue;
+                var target = map.Placeholders.FirstOrDefault(kv => kv.Key.Equals(k, StringComparison.OrdinalIgnoreCase));
+                if (S(target.Value) is { Length: > 0 } to) { outPh[to] = content; continue; }
+                Todo($"{at} ({source}) has content in its placeholder {k}, which {map.Reactive} has no place for; it was kept next to the block. {map.Notes}".TrimEnd());
+                foreach (var c in content) orphans.Add(c?.DeepClone());
+            }
+            if (outPh.Count > 0) o["placeholders"] = outPh;
+            foreach (var (evt, _) in w["events"] as JsonObject ?? [])
+                Todo($"{at} ({source}) handles {evt}; set the matching event of {map.Reactive} by hand");
+            var built = Wrapped(w, used, o);
+            return orphans.Count == 0 ? built : new JsonObject { ["type"] = "Container", ["children"] = new JsonArray(new JsonNode?[] { built }.Concat(orphans).ToArray()) };
         }
 
         // Rule 6: Edit Record, Show Record and Form become a Form with a local variable for the record.
@@ -1864,6 +1940,20 @@ static class ScreenTranslator
         Check(Text(lw, "widgets", 3, "onClick") == "ShowMore" && Text(lw, "widgets", 3, "attributes", "title") == "\"Show more\"", "Ajax link: On Click runs the action; the title is an attribute");
         Check(!lay.Todo.Any(t => t.Contains("example") || t.Contains("isAjaxRefreshed") || t.Contains("cellSpacing") || t.Contains("no Reactive translation") || t.Contains("align")),
             $"Layout: nothing left about design-time or layout properties: [{string.Join(" | ", lay.Todo)}]");
+
+        // 17. Traditional UI library blocks, by the map: a Card becomes OutSystemsUI.Card, a wait box is dropped, an icon becomes the Icon widget.
+        var lib = Translate(Parse("""
+        { "kind": "Block", "name": "Tiles", "flow": "Common", "path": "Common/Tiles", "access": {}, "widgets": [
+          { "kind": "WebBlockInstance", "sourceBlock": "OutSystemsUIWeb.Card", "args": { "ExtendedClass": "\"tile\"" },
+            "placeholders": { "Content": [ { "kind": "Text", "props": { "text": "Inside" } } ] } },
+          { "kind": "WebBlockInstance", "sourceBlock": "RichWidgets.Feedback_AjaxWait" },
+          { "kind": "WebBlockInstance", "sourceBlock": "RichWidgets.Icon", "args": { "Name": "Entities.IconName.exclamation_circle" } } ] }
+        """), new Context("Shop", new Dictionary<string, string>(), new HashSet<string>(), new HashSet<string>(), null, []));
+        var lt = lib.Spec;
+        Check(Text(lt, "widgets", 0, "sourceBlock") == "OutSystemsUI.Card" && Text(lt, "widgets", 0, "args", "ExtendedClass") == "\"tile\"" && Text(lt, "widgets", 0, "placeholders", "Content", 0, "text") == "Inside",
+            "Library: a Traditional Card is an OutSystemsUI Card with its input and placeholder");
+        Check(Text(lt, "widgets", 1, "type") == "Icon" && At(lt, "widgets", 2) is null && !lib.Todo.Any(t => t.Contains("Feedback_AjaxWait")),
+            $"Library: the wait box is dropped and the RichWidgets icon is an Icon widget: [{string.Join(" | ", lib.Todo)}]");
         return failures;
     }
 

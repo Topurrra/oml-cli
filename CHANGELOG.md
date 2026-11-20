@@ -24,8 +24,11 @@ Traditional Web to Reactive, prepared by code, and an interactive menu for peopl
 
 - **The screen translator does more by itself.** Layout properties become CSS and classes (width, align, vertical align, left margin, title), a Password Input becomes an Input of type Password, a Form's content area moves its widgets up, Display becomes Visible, plain HTML tables become `table`/`tr`/`td` HTML elements, an If on `InWebBlockPreview` keeps only the branch that runs, a Link with the Ajax method gets its On Click, and design-time or Traditional-only properties (example, Ajax refresh flag, validation parent, Edit Record layout) are dropped instead of listed. On Service Studio's NoLockIn sample the Todo list went from 205 to 58 items and fully translated screens and blocks from 1 to 8 of 25.
 
+- **`oml migrate plan` maps the Traditional UI libraries.** OutSystemsUIWeb, RichWidgets and OutSystemsChartsWeb blocks become their Reactive counterparts (OutSystems UI and OutSystems Charts) with inputs and placeholders renamed, when the counterpart was checked against real signatures or documented; loaders and the Ajax wait box are dropped and RichWidgets.Icon becomes the Icon widget. `ui-libraries.md` in the plan folder lists the library elements the module uses and what each becomes; the Reactive libraries to reference are named before the copy step. Screen actions keep their exception handlers, a destination to an external URL becomes `RedirectToURL`, and `RichWidgets.Feedback_Message` reads its real inputs (MessageText, MessageType). On Service Studio's Traditional Web Sample the Todo lists went from 59 to 19 and from 86 to 40 items.
+
 ### Fixed
 
+- **`oml export` noted unreadable properties that its typed readers had read** (Visible on Form content).
 - **`oml export` named an Image only `Web`** and noted "header and row could not be told apart" on plain HTML tables; it now names the Image and keeps that note for Table Records.
 - **`oml migrate plan` wrote a second, broken repoint edit** for every entity write (on the call's connector), so `2-source.json` always failed. The migrate self-test also passes on Windows now.
 

@@ -35,7 +35,9 @@ static class Export
             using var unreadable = new Unreadable();
             var reader = new Reader(m);
             var element = reader.Element(root, kind);
-            foreach (var item in unreadable.Items() ?? Array.Empty<Unreadable.Item>()) reader.Notes.Add($"could not read {item.part}: {item.reason}");
+            foreach (var item in unreadable.Items() ?? Array.Empty<Unreadable.Item>())
+                if (!FactSources.Any(p => item.part.EndsWith(" property " + p, StringComparison.Ordinal)))   // the typed readers read it already
+                    reader.Notes.Add($"could not read {item.part}: {item.reason}");
             element["notes"] = Strings(reader.Notes.Distinct(StringComparer.Ordinal));
             return element;
         }
@@ -109,7 +111,9 @@ static class Export
             var failures = new List<Unreadable.Item>();
             var props = Unreadable.Try(() => "properties of " + Unreadable.Where(o), () => ReviewModel.Properties(m, element, failures),
                 new SortedDictionary<string, string>(StringComparer.Ordinal));
-            foreach (var f in failures) Notes.Add($"could not read {f.part}: {f.reason}");
+            foreach (var f in failures)
+                if (!FactSources.Any(p => f.part.EndsWith(" property " + p, StringComparison.Ordinal)))   // the typed readers read it already
+                    Notes.Add($"could not read {f.part}: {f.reason}");
             return props;
         }
 

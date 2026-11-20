@@ -1,0 +1,3189 @@
+[
+{
+"traditional":"OutSystemsChartsWeb.Accessibility",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop; internal block of the chart implementation, not for use on screens.",
+"notes":"If a screen uses it directly, a person must rebuild the chart with OutSystemsCharts blocks; extra Highcharts scripts load through OutSystemsCharts.HighchartsModules.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.AreaChart",
+"elementKind":"block",
+"reactive":"OutSystemsCharts.AreaChart",
+"reactiveKind":"block",
+"inputs":{
+"SourceDataPointList":"DataPointList",
+"Height":"Height",
+"StackingType":"StackingType",
+"LegendPosition":"(ChartLegend add-on: Position)",
+"XAxisFormat":"(ChartXAxis add-on)",
+"YAxisFormat":"(ChartYAxis add-on)",
+"ChartFormat":"(ChartSeriesStyling add-on ShowDataPointValues; OptionalConfigs.DisableLoadingAnimation)",
+"Clickable":null,
+"AdvancedFormat":"(SetHighcharts*Configs client actions)",
+"(no Traditional input)":"Spline (Boolean, default False), ValuesType (default Text)"
+},
+"inputValueRules":"SourceDataPointList: List of OutSystemsChartsWeb.DataPoint -> DataPointList: List of OutSystemsCharts.DataPoint; the attribute DataSeriesName becomes SeriesName (Label, Value, Tooltip, Color keep their names). Height: Integer pixels -> Text with unit: 300 -> \"300px\" (expression Height + \"px\"). StackingType: Entities.StackingType.NoStacking / Stacked / Stacked100Percent exist in both with the same names. Clickable: drop; handle OnDataPointClick(ChartWidgetId, DataPoint) of the instance instead (the old On Click action called DataPoint_GetClicked). ChartFormat.ShowDataPointValues -> ChartSeriesStyling add-on ShowDataPointValues (no SeriesName = all series). ChartFormat.UseAnimation -> OptionalConfigs.DisableLoadingAnimation = not UseAnimation. LegendPosition -> ChartLegend add-on Position (Bottom, Top, Left, Right keep names; Hidden -> delete the ChartLegend add-on or Visible = False; Inside -> no equal, TopRight with OptionalConfigs.Floating = True). XAxisFormat -> ChartXAxis add-on: Title, MinValue/MaxValue (Text -> Decimal: convert or drop when they hold dates), LabelsRotation -> Label.LabelRotation, ValuesType Text -> chart input ValuesType = Entities.ValuesType.Text, Auto -> default (Text) or Datetime when the labels are dates. YAxisFormat -> ChartYAxis add-on: Title, MinValue, MaxValue (sentinel -2147483647 = unset: leave empty), ValuesPrefix/ValuesSuffix -> Label.ValuesPrefix/ValuesSuffix, GridLineStep -> GridLines.GridLineStep (Integer). AdvancedFormat (Highcharts JSON) -> SetHighchartsChartConfigs, SetHighchartsSeriesConfigs, SetHighchartsXAxisConfigs, SetHighchartsYAxisConfigs (WidgetId plus a list of PropertyValue; no functions or callbacks) and HighchartsModules: a person ports each setting. DEFAULT DIFFERS: the Traditional AreaChart StackingType default is Stacked, the Reactive default is NoStacking: pass Entities.StackingType.Stacked when the instance did not set it.",
+"placeholders":{
+"(none)":"AddOns_Placeholder (add-ons ChartXAxis, ChartYAxis, ChartLegend, ChartSeriesStyling, ChartExport)"
+},
+"logicRewrite":"An On Click screen action that calls DataPoint_GetClicked() becomes the handler of OnDataPointClick: a client action with the input DataPoint (type OutSystemsCharts.DataPoint).",
+"notes":"Add-ons are optional blocks in the chart's add-on placeholder; a chart made in Service Studio includes the axis and legend add-ons, a spec creates only what it lists. The placeholder is called AddOns_Placeholder in skill/reference/osui-patterns.md and 'AddOns' in the docs: confirm in the producer. Highcharts version and look differ between the two modules.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsChartsWeb.BarChart",
+"elementKind":"block",
+"reactive":"OutSystemsCharts.BarChart",
+"reactiveKind":"block",
+"inputs":{
+"SourceDataPointList":"DataPointList",
+"Height":"Height",
+"StackingType":"StackingType",
+"LegendPosition":"(ChartLegend add-on: Position)",
+"XAxisFormat":"(ChartXAxis add-on)",
+"YAxisFormat":"(ChartYAxis add-on)",
+"ChartFormat":"(ChartSeriesStyling add-on ShowDataPointValues; OptionalConfigs.DisableLoadingAnimation)",
+"Clickable":null,
+"AdvancedFormat":"(SetHighcharts*Configs client actions)",
+"(no Traditional input)":"ValuesType (default Text)"
+},
+"inputValueRules":"SourceDataPointList: List of OutSystemsChartsWeb.DataPoint -> DataPointList: List of OutSystemsCharts.DataPoint; the attribute DataSeriesName becomes SeriesName (Label, Value, Tooltip, Color keep their names). Height: Integer pixels -> Text with unit: 300 -> \"300px\" (expression Height + \"px\"). StackingType: Entities.StackingType.NoStacking / Stacked / Stacked100Percent exist in both with the same names. Clickable: drop; handle OnDataPointClick(ChartWidgetId, DataPoint) of the instance instead (the old On Click action called DataPoint_GetClicked). ChartFormat.ShowDataPointValues -> ChartSeriesStyling add-on ShowDataPointValues (no SeriesName = all series). ChartFormat.UseAnimation -> OptionalConfigs.DisableLoadingAnimation = not UseAnimation. LegendPosition -> ChartLegend add-on Position (Bottom, Top, Left, Right keep names; Hidden -> delete the ChartLegend add-on or Visible = False; Inside -> no equal, TopRight with OptionalConfigs.Floating = True). XAxisFormat -> ChartXAxis add-on: Title, MinValue/MaxValue (Text -> Decimal: convert or drop when they hold dates), LabelsRotation -> Label.LabelRotation, ValuesType Text -> chart input ValuesType = Entities.ValuesType.Text, Auto -> default (Text) or Datetime when the labels are dates. YAxisFormat -> ChartYAxis add-on: Title, MinValue, MaxValue (sentinel -2147483647 = unset: leave empty), ValuesPrefix/ValuesSuffix -> Label.ValuesPrefix/ValuesSuffix, GridLineStep -> GridLines.GridLineStep (Integer). AdvancedFormat (Highcharts JSON) -> SetHighchartsChartConfigs, SetHighchartsSeriesConfigs, SetHighchartsXAxisConfigs, SetHighchartsYAxisConfigs (WidgetId plus a list of PropertyValue; no functions or callbacks) and HighchartsModules: a person ports each setting. Defaults agree (NoStacking). The Reactive BarChart has no Spline.",
+"placeholders":{
+"(none)":"AddOns_Placeholder (add-ons ChartXAxis, ChartYAxis, ChartLegend, ChartSeriesStyling, ChartExport)"
+},
+"logicRewrite":"An On Click screen action that calls DataPoint_GetClicked() becomes the handler of OnDataPointClick: a client action with the input DataPoint (type OutSystemsCharts.DataPoint).",
+"notes":"Add-ons are optional blocks in the chart's add-on placeholder; a chart made in Service Studio includes the axis and legend add-ons, a spec creates only what it lists. The placeholder is called AddOns_Placeholder in skill/reference/osui-patterns.md and 'AddOns' in the docs: confirm in the producer. Highcharts version and look differ between the two modules.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsChartsWeb.BarColumnChart_HighCharts",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop; internal block of the chart implementation, not for use on screens.",
+"notes":"If a screen uses it directly, a person must rebuild the chart with OutSystemsCharts blocks; extra Highcharts scripts load through OutSystemsCharts.HighchartsModules.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.ColumnChart",
+"elementKind":"block",
+"reactive":"OutSystemsCharts.ColumnChart",
+"reactiveKind":"block",
+"inputs":{
+"SourceDataPointList":"DataPointList",
+"Height":"Height",
+"StackingType":"StackingType",
+"LegendPosition":"(ChartLegend add-on: Position)",
+"XAxisFormat":"(ChartXAxis add-on)",
+"YAxisFormat":"(ChartYAxis add-on)",
+"ChartFormat":"(ChartSeriesStyling add-on ShowDataPointValues; OptionalConfigs.DisableLoadingAnimation)",
+"Clickable":null,
+"AdvancedFormat":"(SetHighcharts*Configs client actions)",
+"(no Traditional input)":"ValuesType (default Text)"
+},
+"inputValueRules":"SourceDataPointList: List of OutSystemsChartsWeb.DataPoint -> DataPointList: List of OutSystemsCharts.DataPoint; the attribute DataSeriesName becomes SeriesName (Label, Value, Tooltip, Color keep their names). Height: Integer pixels -> Text with unit: 300 -> \"300px\" (expression Height + \"px\"). StackingType: Entities.StackingType.NoStacking / Stacked / Stacked100Percent exist in both with the same names. Clickable: drop; handle OnDataPointClick(ChartWidgetId, DataPoint) of the instance instead (the old On Click action called DataPoint_GetClicked). ChartFormat.ShowDataPointValues -> ChartSeriesStyling add-on ShowDataPointValues (no SeriesName = all series). ChartFormat.UseAnimation -> OptionalConfigs.DisableLoadingAnimation = not UseAnimation. LegendPosition -> ChartLegend add-on Position (Bottom, Top, Left, Right keep names; Hidden -> delete the ChartLegend add-on or Visible = False; Inside -> no equal, TopRight with OptionalConfigs.Floating = True). XAxisFormat -> ChartXAxis add-on: Title, MinValue/MaxValue (Text -> Decimal: convert or drop when they hold dates), LabelsRotation -> Label.LabelRotation, ValuesType Text -> chart input ValuesType = Entities.ValuesType.Text, Auto -> default (Text) or Datetime when the labels are dates. YAxisFormat -> ChartYAxis add-on: Title, MinValue, MaxValue (sentinel -2147483647 = unset: leave empty), ValuesPrefix/ValuesSuffix -> Label.ValuesPrefix/ValuesSuffix, GridLineStep -> GridLines.GridLineStep (Integer). AdvancedFormat (Highcharts JSON) -> SetHighchartsChartConfigs, SetHighchartsSeriesConfigs, SetHighchartsXAxisConfigs, SetHighchartsYAxisConfigs (WidgetId plus a list of PropertyValue; no functions or callbacks) and HighchartsModules: a person ports each setting. DEFAULT DIFFERS: the Traditional ColumnChart default is NoStacking, the Reactive ColumnChart StackingType has no default: always pass Entities.StackingType.NoStacking when the instance did not set it.",
+"placeholders":{
+"(none)":"AddOns_Placeholder (add-ons ChartXAxis, ChartYAxis, ChartLegend, ChartSeriesStyling, ChartExport)"
+},
+"logicRewrite":"An On Click screen action that calls DataPoint_GetClicked() becomes the handler of OnDataPointClick: a client action with the input DataPoint (type OutSystemsCharts.DataPoint).",
+"notes":"Add-ons are optional blocks in the chart's add-on placeholder; a chart made in Service Studio includes the axis and legend add-ons, a spec creates only what it lists. The placeholder is called AddOns_Placeholder in skill/reference/osui-patterns.md and 'AddOns' in the docs: confirm in the producer. Highcharts version and look differ between the two modules.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsChartsWeb.HighCharts",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop; internal block of the chart implementation, not for use on screens.",
+"notes":"If a screen uses it directly, a person must rebuild the chart with OutSystemsCharts blocks; extra Highcharts scripts load through OutSystemsCharts.HighchartsModules.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.JavaScript_Content",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop; internal block of the chart implementation, not for use on screens.",
+"notes":"If a screen uses it directly, a person must rebuild the chart with OutSystemsCharts blocks; extra Highcharts scripts load through OutSystemsCharts.HighchartsModules.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.LineAreaChart_HighCharts",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop; internal block of the chart implementation, not for use on screens.",
+"notes":"If a screen uses it directly, a person must rebuild the chart with OutSystemsCharts blocks; extra Highcharts scripts load through OutSystemsCharts.HighchartsModules.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.LineChart",
+"elementKind":"block",
+"reactive":"OutSystemsCharts.LineChart",
+"reactiveKind":"block",
+"inputs":{
+"SourceDataPointList":"DataPointList",
+"Height":"Height",
+"StackingType":"StackingType",
+"LegendPosition":"(ChartLegend add-on: Position)",
+"XAxisFormat":"(ChartXAxis add-on)",
+"YAxisFormat":"(ChartYAxis add-on)",
+"ChartFormat":"(ChartSeriesStyling add-on ShowDataPointValues; OptionalConfigs.DisableLoadingAnimation)",
+"Clickable":null,
+"AdvancedFormat":"(SetHighcharts*Configs client actions)",
+"(no Traditional input)":"Spline (Boolean, default False), ValuesType (default Text)"
+},
+"inputValueRules":"SourceDataPointList: List of OutSystemsChartsWeb.DataPoint -> DataPointList: List of OutSystemsCharts.DataPoint; the attribute DataSeriesName becomes SeriesName (Label, Value, Tooltip, Color keep their names). Height: Integer pixels -> Text with unit: 300 -> \"300px\" (expression Height + \"px\"). StackingType: Entities.StackingType.NoStacking / Stacked / Stacked100Percent exist in both with the same names. Clickable: drop; handle OnDataPointClick(ChartWidgetId, DataPoint) of the instance instead (the old On Click action called DataPoint_GetClicked). ChartFormat.ShowDataPointValues -> ChartSeriesStyling add-on ShowDataPointValues (no SeriesName = all series). ChartFormat.UseAnimation -> OptionalConfigs.DisableLoadingAnimation = not UseAnimation. LegendPosition -> ChartLegend add-on Position (Bottom, Top, Left, Right keep names; Hidden -> delete the ChartLegend add-on or Visible = False; Inside -> no equal, TopRight with OptionalConfigs.Floating = True). XAxisFormat -> ChartXAxis add-on: Title, MinValue/MaxValue (Text -> Decimal: convert or drop when they hold dates), LabelsRotation -> Label.LabelRotation, ValuesType Text -> chart input ValuesType = Entities.ValuesType.Text, Auto -> default (Text) or Datetime when the labels are dates. YAxisFormat -> ChartYAxis add-on: Title, MinValue, MaxValue (sentinel -2147483647 = unset: leave empty), ValuesPrefix/ValuesSuffix -> Label.ValuesPrefix/ValuesSuffix, GridLineStep -> GridLines.GridLineStep (Integer). AdvancedFormat (Highcharts JSON) -> SetHighchartsChartConfigs, SetHighchartsSeriesConfigs, SetHighchartsXAxisConfigs, SetHighchartsYAxisConfigs (WidgetId plus a list of PropertyValue; no functions or callbacks) and HighchartsModules: a person ports each setting. No StackingType input in either module.",
+"placeholders":{
+"(none)":"AddOns_Placeholder (add-ons ChartXAxis, ChartYAxis, ChartLegend, ChartSeriesStyling, ChartExport)"
+},
+"logicRewrite":"An On Click screen action that calls DataPoint_GetClicked() becomes the handler of OnDataPointClick: a client action with the input DataPoint (type OutSystemsCharts.DataPoint).",
+"notes":"Add-ons are optional blocks in the chart's add-on placeholder; a chart made in Service Studio includes the axis and legend add-ons, a spec creates only what it lists. The placeholder is called AddOns_Placeholder in skill/reference/osui-patterns.md and 'AddOns' in the docs: confirm in the producer. Highcharts version and look differ between the two modules.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsChartsWeb.OSHighCharts",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop; internal block of the chart implementation, not for use on screens.",
+"notes":"If a screen uses it directly, a person must rebuild the chart with OutSystemsCharts blocks; extra Highcharts scripts load through OutSystemsCharts.HighchartsModules.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.PieChart",
+"elementKind":"block",
+"reactive":"OutSystemsCharts.PieChart",
+"reactiveKind":"block",
+"inputs":{
+"SourceDataPointList":"DataPointList",
+"Height":"Height",
+"LegendPosition":"(ChartLegend add-on: Position)",
+"ChartFormat":"(ChartSeriesStyling add-on ShowDataPointValues; OptionalConfigs.DisableLoadingAnimation)",
+"Clickable":null,
+"AdvancedFormat":"(SetHighcharts*Configs client actions)"
+},
+"inputValueRules":"SourceDataPointList: List of OutSystemsChartsWeb.DataPoint -> DataPointList: List of OutSystemsCharts.DataPoint; the attribute DataSeriesName becomes SeriesName (Label, Value, Tooltip, Color keep their names). Height: Integer pixels -> Text with unit: 300 -> \"300px\" (expression Height + \"px\"). StackingType: Entities.StackingType.NoStacking / Stacked / Stacked100Percent exist in both with the same names. Clickable: drop; handle OnDataPointClick(ChartWidgetId, DataPoint) of the instance instead (the old On Click action called DataPoint_GetClicked). ChartFormat.ShowDataPointValues -> ChartSeriesStyling add-on ShowDataPointValues (no SeriesName = all series). ChartFormat.UseAnimation -> OptionalConfigs.DisableLoadingAnimation = not UseAnimation. LegendPosition -> ChartLegend add-on Position (Bottom, Top, Left, Right keep names; Hidden -> delete the ChartLegend add-on or Visible = False; Inside -> no equal, TopRight with OptionalConfigs.Floating = True). XAxisFormat -> ChartXAxis add-on: Title, MinValue/MaxValue (Text -> Decimal: convert or drop when they hold dates), LabelsRotation -> Label.LabelRotation, ValuesType Text -> chart input ValuesType = Entities.ValuesType.Text, Auto -> default (Text) or Datetime when the labels are dates. YAxisFormat -> ChartYAxis add-on: Title, MinValue, MaxValue (sentinel -2147483647 = unset: leave empty), ValuesPrefix/ValuesSuffix -> Label.ValuesPrefix/ValuesSuffix, GridLineStep -> GridLines.GridLineStep (Integer). AdvancedFormat (Highcharts JSON) -> SetHighchartsChartConfigs, SetHighchartsSeriesConfigs, SetHighchartsXAxisConfigs, SetHighchartsYAxisConfigs (WidgetId plus a list of PropertyValue; no functions or callbacks) and HighchartsModules: a person ports each setting. Pie has no axes and no stacking. Use OutSystemsCharts.DonutChart (InnerSize, default \"50%\") for a ring; Traditional had no donut.",
+"placeholders":{
+"(none)":"AddOns_Placeholder (add-ons ChartXAxis, ChartYAxis, ChartLegend, ChartSeriesStyling, ChartExport)"
+},
+"logicRewrite":"An On Click screen action that calls DataPoint_GetClicked() becomes the handler of OnDataPointClick: a client action with the input DataPoint (type OutSystemsCharts.DataPoint).",
+"notes":"Add-ons are optional blocks in the chart's add-on placeholder; a chart made in Service Studio includes the axis and legend add-ons, a spec creates only what it lists. The placeholder is called AddOns_Placeholder in skill/reference/osui-patterns.md and 'AddOns' in the docs: confirm in the producer. Highcharts version and look differ between the two modules.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsChartsWeb.PieChart_HighCharts",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop; internal block of the chart implementation, not for use on screens.",
+"notes":"If a screen uses it directly, a person must rebuild the chart with OutSystemsCharts blocks; extra Highcharts scripts load through OutSystemsCharts.HighchartsModules.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.AreaChart",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Design-time preview image of the chart block.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.BarChart",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Design-time preview image of the chart block.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.ColumnChart",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Design-time preview image of the chart block.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.LineChart",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Design-time preview image of the chart block.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.PieChartPreview",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Design-time preview image of the chart block.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.AdvancedFormat_Init",
+"elementKind":"serverAction",
+"reactiveKind":"none",
+"inputs":{
+"DataPointFormats":null,
+"DataSeriesFormats":null,
+"XAxisJSON":null,
+"YAxisJSON":null,
+"HighchartsJSON":null
+},
+"inputValueRules":"Drop the call and make a Todo with the JSON text (see OutSystemsChartsWeb.AdvancedFormat).",
+"notes":"Highcharts JSON with functions is not accepted by the Reactive client actions.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.ChartFormat_Init",
+"elementKind":"serverAction",
+"reactiveKind":"expression",
+"inputs":{
+"ShowDataPointValues":"ChartSeriesStyling.ShowDataPointValues",
+"UseAnimation":"OptionalConfigs.DisableLoadingAnimation (inverted)"
+},
+"inputValueRules":"Drop the call and the ChartFormat local; set the add-on inputs directly (see OutSystemsChartsWeb.ChartFormat).",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.DataPoint_GetClicked",
+"elementKind":"serverAction",
+"reactiveKind":"expression",
+"inputValueRules":"Replace by the event input DataPoint of OnDataPointClick(ChartWidgetId, DataPoint): the handler client action gets an input DataPoint of type OutSystemsCharts.DataPoint.",
+"logicRewrite":"Clickable = True plus an On Click screen action that calls DataPoint_GetClicked() -> handler of OnDataPointClick; read DataPoint.Label, Value, SeriesName from its input.",
+"notes":"The Traditional call must sit in the chart's On Click action; the translator can find it that way.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.DataPoint_Init",
+"elementKind":"serverAction",
+"reactiveKind":"expression",
+"inputs":{
+"Label":"Label",
+"Value":"Value",
+"DataSeriesName":"SeriesName",
+"Tooltip":"Tooltip",
+"Color":"Color"
+},
+"inputValueRules":"No action in OutSystemsCharts. Build the record with an Assign on a local of type OutSystemsCharts.DataPoint (Label, Value, SeriesName, Tooltip, Color) and ListAppend it into the DataPointList local; or map an aggregate to the list in a data action or server action.",
+"logicRewrite":"Traditional: DataPoint_Init(...) in a ForEach. Reactive: Assign Local.Label = ..., Local.Value = ..., then ListAppend(DataPointList, Local). It can stay on the server if the list is built in a server action, using the OutSystemsCharts DataPoint structure.",
+"notes":"ListAppend of a record needs the same structure type as the list.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.DataPoint_InitMissing",
+"elementKind":"serverAction",
+"reactiveKind":"expression",
+"inputs":{
+"Label":"Label",
+"DataSeriesName":"SeriesName"
+},
+"inputValueRules":"Documented in the Charts API but not listed in the sample's references. It makes a gap point; the Reactive DataPoint has a mandatory Value, so leave the point out of the list.",
+"notes":"Only in the docs; check before relying on it.",
+"confidence":"low",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.XAxisFormat_Init",
+"elementKind":"serverAction",
+"reactiveKind":"expression",
+"inputs":{
+"Title":"ChartXAxis.Title",
+"LabelsRotation":"ChartXAxis.Label.LabelRotation",
+"MinValue":"ChartXAxis.MinValue",
+"MaxValue":"ChartXAxis.MaxValue",
+"ValuesType":"ValuesType"
+},
+"inputValueRules":"Drop the call; set the ChartXAxis add-on inputs directly (see OutSystemsChartsWeb.XAxisFormat). The action's default ValuesType is Entities.XAxisValuesType.Auto.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.YAxisFormat_Init",
+"elementKind":"serverAction",
+"reactiveKind":"expression",
+"inputs":{
+"Title":"ChartYAxis.Title",
+"MinValue":"ChartYAxis.MinValue",
+"MaxValue":"ChartYAxis.MaxValue",
+"ValuesPrefix":"ChartYAxis.Label.ValuesPrefix",
+"ValuesSuffix":"ChartYAxis.Label.ValuesSuffix",
+"GridLineStep":"ChartYAxis.GridLines.GridLineStep"
+},
+"inputValueRules":"Drop the call; set the ChartYAxis add-on inputs directly. Defaults of -2147483647 mean unset.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.InternalChartType",
+"elementKind":"staticEntity",
+"reactiveKind":"none",
+"inputValueRules":"Internal to the Traditional chart blocks. Drop.",
+"notes":"Only the attribute Id is listed; the records are not visible.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.LegendPosition",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsCharts.LegendPosition",
+"reactiveKind":"none",
+"inputValueRules":"Bottom, Left, Right, Top keep their names (ChartLegend add-on Position). Hidden -> remove the ChartLegend add-on (or Visible = False). Inside -> TopRight with OptionalConfigs.Floating = True (closest; check the look). Reactive also has BottomLeft, BottomRight, Center, TopLeft, TopRight.",
+"notes":"LegendPosition is an input of the chart in Traditional and an input of the ChartLegend add-on in Reactive.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsChartsWeb.StackingType",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsCharts.StackingType",
+"reactiveKind":"none",
+"inputValueRules":"Entities.StackingType.NoStacking / Stacked / Stacked100Percent -> the same record names of OutSystemsCharts.StackingType (attribute Type, text).",
+"notes":"A different static entity (module changes), same names. The Traditional Ids 1, 2, 3 are not carried.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsChartsWeb.XAxisValuesType",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsCharts.ValuesType",
+"reactiveKind":"none",
+"inputValueRules":"Text -> Entities.ValuesType.Text. Auto -> omit (default Text) or Datetime when the labels are dates. Reactive ValuesType also has Integer and Decimal; XAxisOptionalConfigs.ValuesType uses AxisValuesType (Category, Datetime, Linear, Logarithmic).",
+"notes":"Two Reactive entities are involved: ValuesType (chart input) and AxisValuesType (ChartXAxis OptionalConfigs).",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsChartsWeb.AdvancedDataPointFormat",
+"elementKind":"structure",
+"reactiveKind":"none",
+"inputs":{
+"DataPoint":null,
+"DataPointJSON":null
+},
+"inputValueRules":"No equivalent. Per-point Highcharts JSON: set the point's Color in the DataPoint, or use SetHighchartsSeriesConfigs.",
+"notes":"Todo for a person.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.AdvancedDataSeriesFormat",
+"elementKind":"structure",
+"reactiveKind":"none",
+"inputs":{
+"DataSeriesName":"ChartSeriesStyling.SeriesName",
+"DataSeriesJSON":"ChartSeriesStyling.Styling, or SetHighchartsSeriesConfigs"
+},
+"inputValueRules":"Per-series styling: ChartSeriesStyling add-on (SeriesName, SeriesType, Marker, Styling: FillColor, LineColor, LineWidth, Opacity) for common cases (line width, colour); other JSON via SetHighchartsSeriesConfigs.",
+"notes":"The JSON text cannot be parsed by the translator: Todo with the original text.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.AdvancedFormat",
+"elementKind":"structure",
+"reactiveKind":"none",
+"inputs":{
+"DataPointFormats":null,
+"DataSeriesFormats":null,
+"XAxisJSON":null,
+"YAxisJSON":null,
+"HighchartsJSON":null
+},
+"inputValueRules":"No equivalent structure. Port each Highcharts JSON setting into SetHighchartsChartConfigs / SetHighchartsSeriesConfigs / SetHighchartsXAxisConfigs / SetHighchartsYAxisConfigs (OutSystemsCharts): a WidgetId and a List of PropertyValue (PropertyPathList, Value as text).",
+"notes":"Callback functions and arrays are not parsed in Reactive ('for security reasons'), so formatters like Highcharts.dateFormat in XAxisJSON cannot be carried: a person rebuilds them with the add-ons (ValuesType, Label) or Highcharts modules. Todo, never automatic.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.ChartFormat",
+"elementKind":"structure",
+"reactiveKind":"none",
+"inputs":{
+"ShowDataPointValues":"ChartSeriesStyling.ShowDataPointValues",
+"UseAnimation":"OptionalConfigs.DisableLoadingAnimation (inverted)"
+},
+"inputValueRules":"No structure: the two attributes become the ChartSeriesStyling add-on input and the chart's OptionalConfigs (DisableLoadingAnimation = not UseAnimation).",
+"notes":"Drop the local variable of this structure.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.DataPoint",
+"elementKind":"structure",
+"reactive":"OutSystemsCharts.DataPoint",
+"reactiveKind":"none",
+"inputs":{
+"Label":"Label",
+"Value":"Value",
+"DataSeriesName":"SeriesName",
+"Tooltip":"Tooltip",
+"Color":"Color"
+},
+"inputValueRules":"Same attributes except DataSeriesName -> SeriesName. Label and Value are mandatory in both; Value is Decimal in both.",
+"notes":"Records built in logic (DataPoint_Init or an assign of attributes) must be rewritten to the new structure; a list of OutSystemsChartsWeb.DataPoint cannot be passed to a Reactive chart. reactiveKind is 'none' because the target is a structure of the OutSystemsCharts module.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsChartsWeb.XAxisFormat",
+"elementKind":"structure",
+"reactiveKind":"none",
+"inputs":{
+"Title":"ChartXAxis.Title",
+"LabelsRotation":"ChartXAxis.Label.LabelRotation",
+"MinValue":"ChartXAxis.MinValue",
+"MaxValue":"ChartXAxis.MaxValue",
+"ValuesType":"chart ValuesType and ChartXAxis.OptionalConfigs.ValuesType"
+},
+"inputValueRules":"Becomes the ChartXAxis add-on. MinValue and MaxValue change from Text to Decimal. XAxisValuesType.Text -> Entities.ValuesType.Text (chart input); Auto -> default. For a date axis use ValuesType Datetime and XAxisOptionalConfigs.ValuesType = Entities.AxisValuesType.Datetime.",
+"notes":"Reactive ChartXAxis also has Visible, Styling (LineColor, LineWidth), GridLines, OptionalConfigs (ValuesType, Crosshair, Opposite). In a Bar chart the X axis is the vertical one in both versions.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsChartsWeb.YAxisFormat",
+"elementKind":"structure",
+"reactiveKind":"none",
+"inputs":{
+"Title":"ChartYAxis.Title",
+"MinValue":"ChartYAxis.MinValue",
+"MaxValue":"ChartYAxis.MaxValue",
+"ValuesPrefix":"ChartYAxis.Label.ValuesPrefix",
+"ValuesSuffix":"ChartYAxis.Label.ValuesSuffix",
+"GridLineStep":"ChartYAxis.GridLines.GridLineStep (Integer)"
+},
+"inputValueRules":"Becomes the ChartYAxis add-on. The Traditional sentinel -2147483647 (default of MinValue, MaxValue and GridLineStep in YAxisFormat_Init) means unset: leave the Reactive input empty. GridLineStep changes from Decimal to Integer.",
+"notes":"Reactive ChartYAxis also has Visible, Styling, OptionalConfigs.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.Accordion",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Accordion",
+"reactiveKind":"block",
+"inputs":{
+"MultipleItems":"MultipleItems",
+"ExtendedClass":"ExtendedClass"
+},
+"placeholders":{
+"Content":"Content"
+},
+"notes":"Same pattern. Reactive adds events and the client actions AccordionExpandAll and AccordionCollapseAll.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.AccordionItem",
+"elementKind":"block",
+"reactive":"OutSystemsUI.AccordionItem",
+"reactiveKind":"block",
+"inputs":{
+"IsOpen":"StartsExpanded",
+"IsDisable":"IsDisabled",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Boolean to Boolean, same meaning.",
+"placeholders":{
+"Content":"Content",
+"Title":"Title"
+},
+"notes":"Reactive adds Icon (Caret, PlusMinus, Custom), IconPosition and a CustomIcon placeholder. Opening and closing an item from logic: AccordionItemExpand and AccordionItemCollapse (client actions, item WidgetId).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Alert",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Alert",
+"reactiveKind":"block",
+"inputs":{
+"AlertType":"AlertType",
+"ShowCloseButton":null,
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"AlertType: Entities.Alert.Error, Info, Success, Warning keep their record names (OutSystemsUI.Alert has the same four records). Reactive default is Entities.Alert.Info.",
+"placeholders":{
+"Text":"MessageText"
+},
+"notes":"ShowCloseButton has no Reactive input: add a Link or Button with a client action that sets a Boolean local variable and wrap the Alert in an If on that variable.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.AlignCenter",
+"elementKind":"block",
+"reactive":"OutSystemsUI.AlignCenter",
+"reactiveKind":"block",
+"inputs":{
+"Orientation":"IsHorizontal",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Orientation Entities.Orientation.Horizontal -> IsHorizontal True; Entities.Orientation.Vertical -> IsHorizontal False.",
+"placeholders":{
+"Content":"Content"
+},
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Animate",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Animate",
+"reactiveKind":"block",
+"inputs":{
+"EnterAnimation":"AnimationType",
+"LeaveAnimation":null,
+"Speed":"Speed",
+"Delay":"Delay",
+"ExtendedClass":null
+},
+"inputValueRules":"EnterAnimation -> AnimationType by record: EnterFade->FadeIn, EnterScale->Scale, EnterLeft->LeftToRight, EnterRight->RightToLeft, EnterTop->TopToBottom, EnterBottom->BottomToTop (pairing inferred from the names). Speed keeps its record names (Fast, Normal, Slow). Delay is the same milliseconds.",
+"placeholders":{
+"Content":"Content"
+},
+"notes":"Reactive Animate only animates the entrance, so LeaveAnimation is dropped. The Traditional server actions EnterAnimation and ToggleAnimate have no Reactive action.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.AnimatedLabel",
+"elementKind":"block",
+"reactive":"OutSystemsUI.AnimatedLabel",
+"reactiveKind":"block",
+"inputs":{
+"IsInline":null,
+"ExtendedClass":"ExtendedClass"
+},
+"placeholders":{
+"Label":"Label",
+"Input":"Input"
+},
+"notes":"IsInline has no Reactive input (the input style is fixed): restyle with ExtendedClass or theme CSS. The Input placeholder holds an Input bound to a Text variable; the Label placeholder holds a Label whose Input Widget is that input.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Badge",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Badge",
+"reactiveKind":"block",
+"inputs":{
+"Number":"Number",
+"Color":"Color",
+"Shape":"Shape",
+"Size":"Size",
+"IsLight":"IsLight",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Number: Integer in Traditional, Long Integer in Reactive (no cast). Color, Shape and Size keep their record names.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Balloon",
+"elementKind":"block",
+"reactive":"Popover",
+"reactiveKind":"widget",
+"inputs":{
+"WidgetId":null,
+"Position":null,
+"Trigger":null,
+"ExtendedClass":null,
+"AdvancedFormat":null
+},
+"placeholders":{
+"Title":null,
+"Content":null,
+"Footer":null
+},
+"notes":"Overlay of rich content (Title, Content, Footer) attached to a widget by WidgetId. For plain text use OutSystemsUI.Tooltip (Position, Trigger, StartsOpen). For rich content use the platform widget Popover, or OutSystemsUI.OverflowMenu (TriggerContent, Menu). Position PositionBase -> Entities.Position; Trigger Click/Hover -> Entities.Trigger.OnClick/OnHover.",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.BlankSlate",
+"elementKind":"block",
+"reactive":"OutSystemsUI.BlankSlate",
+"reactiveKind":"block",
+"inputs":{
+"Position":null,
+"ExtendedClass":"ExtendedClass"
+},
+"placeholders":{
+"Content":"Content"
+},
+"notes":"Traditional Position (PositionExtended) has no input: Reactive centres the slate (FullHeight True). Reactive splits the placeholder into Icon, Content and Actions: move the icon to Icon and the buttons to Actions.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Breadcrumbs",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Breadcrumbs",
+"reactiveKind":"block",
+"inputs":{
+"ExtendedClass":"ExtendedClass"
+},
+"placeholders":{
+"Content":"Content"
+},
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.BreadcrumbsItem",
+"elementKind":"block",
+"reactive":"OutSystemsUI.BreadcrumbsItem",
+"reactiveKind":"block",
+"inputs":{
+"ExtendedClass":"ExtendedClass"
+},
+"placeholders":{
+"Title":"Title",
+"Icon":"Icon"
+},
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.BulletItem",
+"elementKind":"block",
+"reactive":"List",
+"reactiveKind":"widget",
+"placeholders":{
+"Content":null
+},
+"notes":"No bullets pattern in Reactive. Use a List widget (or an HTML element ul/li) with the OutSystems UI list classes.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.Bullets",
+"elementKind":"block",
+"reactive":"List",
+"reactiveKind":"widget",
+"inputs":{
+"ExtendedClass":null
+},
+"placeholders":{
+"BulletsItems":null
+},
+"notes":"No bullets pattern in Reactive. Use a List widget (or an HTML element ul/li). BulletsItems placeholder -> the list items.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.ButtonGroup",
+"elementKind":"block",
+"reactive":"ButtonGroup",
+"reactiveKind":"widget",
+"inputs":{
+"IsJustified":null
+},
+"placeholders":{
+"Content":null
+},
+"notes":"Platform widget ButtonGroup (and ButtonGroupItem) of Reactive Web, bound to a variable: each item has a Value that is assigned when selected. IsJustified has no property: use ExtendedClass. The Traditional pattern wrapped a RadioButton per item.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.ButtonGroupItem",
+"elementKind":"block",
+"reactive":"ButtonGroupItem",
+"reactiveKind":"widget",
+"inputs":{
+"RadioButtonId":null
+},
+"placeholders":{
+"Label":null
+},
+"notes":"Platform widget ButtonGroupItem inside ButtonGroup: set its Value; the Label placeholder becomes its content. RadioButtonId is dropped (no radio button inside).",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.ButtonLoading",
+"elementKind":"block",
+"reactive":"OutSystemsUI.ButtonLoading",
+"reactiveKind":"block",
+"inputs":{
+"IsLoading":"IsLoading",
+"ShowLoadingAndLabel":"ShowLabelOnLoading",
+"ExtendedClass":"ExtendedClass"
+},
+"placeholders":{
+"Button":"Button"
+},
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.CSSVarsPonyfill",
+"elementKind":"block",
+"reactiveKind":"none",
+"notes":"CSS variables ponyfill for old browsers. Reactive Web targets modern browsers; delete.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.Card",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Card",
+"reactiveKind":"block",
+"inputs":{
+"ExtendedClass":"ExtendedClass"
+},
+"placeholders":{
+"Content":"Content"
+},
+"notes":"Reactive adds UsePadding (default True).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.CardBackground",
+"elementKind":"block",
+"reactive":"OutSystemsUI.CardBackground",
+"reactiveKind":"block",
+"inputs":{
+"Color":"Color",
+"Position":null,
+"Height":"MinHeight",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Height (Integer, pixels) -> MinHeight (Integer, pixels).",
+"placeholders":{
+"Content":"Content",
+"BackgroundImage":"BackgroundImage"
+},
+"notes":"Position (PositionExtended) has no input: place the content with CSS.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.CardSectioned",
+"elementKind":"block",
+"reactive":"OutSystemsUI.CardSectioned",
+"reactiveKind":"block",
+"inputs":{
+"Orientation":"IsVertical",
+"ImagePadding":"ImagePadding",
+"IsRight":null,
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Orientation Entities.Orientation.Vertical -> IsVertical True; Entities.Orientation.Horizontal -> IsVertical False.",
+"placeholders":{
+"Image":"Image",
+"Title":"Title",
+"Content":"Content",
+"Footer":"Footer"
+},
+"notes":"IsRight (image on the right) has no Reactive input: use ExtendedClass and CSS. Reactive adds UsePadding.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Carousel",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Carousel",
+"reactiveKind":"block",
+"inputs":{
+"Margin":"OptionalConfigs.ItemsGap",
+"Padding":"OptionalConfigs.Padding",
+"Pagination":"Navigation",
+"Navigation":"Navigation",
+"Autoplay":"OptionalConfigs.AutoPlay",
+"Rewind":null,
+"Loop":"OptionalConfigs.Loop",
+"InitialPosition":"OptionalConfigs.StartingPosition",
+"ItemsDesktop":"ItemsPerSlide",
+"ItemsTablet":"ItemsPerSlide",
+"ItemsPhone":"ItemsPerSlide",
+"ExtendedClass":"ExtendedClass",
+"AdvancedFormat":null
+},
+"inputValueRules":"Pagination and Navigation together -> Navigation (Entities.CarouselNavigation): both True -> Both, only Navigation (arrows) -> Arrows, only Pagination (dots) -> Dots, neither -> None. ItemsDesktop, ItemsTablet, ItemsPhone -> ItemsPerSlide (structure CarouselItems: Desktop, Tablet, Phone). Margin and Padding are Integer pixels in Traditional and Text in Reactive (write \"16px\"). Autoplay Boolean -> OptionalConfigs.AutoPlay.",
+"placeholders":{
+"Items":"CarouselItems"
+},
+"notes":"Rewind and AdvancedFormat (Tiny Slider options) have no Reactive input; Reactive uses Splide, so use the client action SetSplideConfigs. The server actions GoTo, Next and Previous become CarouselGoTo, CarouselNext, CarouselPrevious. Put a List (or the items) inside CarouselItems.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.CharacterCount",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputs":{
+"InputWidgetId":null,
+"Limit":null,
+"IsDescending":null
+},
+"placeholders":{
+"Content":null
+},
+"notes":"No Reactive block. Set MaxLength on the Input and show an Expression such as MaxLength - Length(Variable) next to it; IsDescending decides remaining or used count. InputWidgetId and Limit are replaced by the variable and MaxLength.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.ChatMessage",
+"elementKind":"block",
+"reactive":"OutSystemsUI.ChatMessage",
+"reactiveKind":"block",
+"inputs":{
+"IsRight":"DisplayOnRight",
+"IsInline":null,
+"Color":null,
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"IsRight -> DisplayOnRight (Boolean).",
+"placeholders":{
+"Image":"Image",
+"Actions":null,
+"Name":null,
+"Content":"Content"
+},
+"notes":"Name has no placeholder: put the name at the start of Content. Actions (ToggleChatActions) has no counterpart: build action buttons in Content. Color and IsInline are not inputs: use CSS. Reactive adds Time and MessageStatus (Entities.MessageStatus: Sent, Received, Read, Hidden).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Choices_v3_0_3",
+"elementKind":"block",
+"reactiveKind":"none",
+"notes":"Loader of the Choices.js library behind DropdownSelect. Reactive dropdowns use Virtual Select (bundled in OutSystemsUI); delete. Use the client action LoadOutSystemsUIScript only if you load OutSystems UI scripts by hand.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.ClosestPolyfill",
+"elementKind":"block",
+"reactiveKind":"none",
+"notes":"Element.closest polyfill. Delete: not needed in Reactive.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.Columns2",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Columns2",
+"reactiveKind":"block",
+"inputs":{
+"GutterSize":"GutterSize",
+"TabletBehavior":"TabletBehavior",
+"PhoneBehavior":"PhoneBehavior",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"GutterSize: Trad record -> Reactive record: Gutter_None->None, Gutter_XS->ExtraSmall, Gutter_S->Small, Gutter_Base->Base, Gutter_M->Medium, Gutter_L->Large, Gutter_XL->ExtraLarge, Gutter_XXL->XXLarge. TabletBehavior and PhoneBehavior: Entities.BreakColumns.All, First, Middle, Last, None keep their names.",
+"placeholders":{
+"Column1":"Column1",
+"Column2":"Column2"
+},
+"notes":"Defaults differ: a blank Traditional GutterSize is Gutter_L (write Entities.GutterSize.Large to keep the look; Reactive default is Base) and a blank PhoneBehavior is All (write Entities.BreakColumns.All; Reactive default is None).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Columns3",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Columns3",
+"reactiveKind":"block",
+"inputs":{
+"GutterSize":"GutterSize",
+"TabletBehavior":"TabletBehavior",
+"PhoneBehavior":"PhoneBehavior",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"GutterSize: Trad record -> Reactive record: Gutter_None->None, Gutter_XS->ExtraSmall, Gutter_S->Small, Gutter_Base->Base, Gutter_M->Medium, Gutter_L->Large, Gutter_XL->ExtraLarge, Gutter_XXL->XXLarge. TabletBehavior and PhoneBehavior: Entities.BreakColumns.All, First, Middle, Last, None keep their names.",
+"placeholders":{
+"Column1":"Column1",
+"Column2":"Column2",
+"Column3":"Column3"
+},
+"notes":"Defaults differ: a blank Traditional GutterSize is Gutter_L (write Entities.GutterSize.Large to keep the look; Reactive default is Base) and a blank PhoneBehavior is All (write Entities.BreakColumns.All; Reactive default is None).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Columns4",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Columns4",
+"reactiveKind":"block",
+"inputs":{
+"GutterSize":"GutterSize",
+"TabletBehavior":"TabletBehavior",
+"PhoneBehavior":"PhoneBehavior",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"GutterSize: Trad record -> Reactive record: Gutter_None->None, Gutter_XS->ExtraSmall, Gutter_S->Small, Gutter_Base->Base, Gutter_M->Medium, Gutter_L->Large, Gutter_XL->ExtraLarge, Gutter_XXL->XXLarge. TabletBehavior and PhoneBehavior: Entities.BreakColumns.All, First, Middle, Last, None keep their names.",
+"placeholders":{
+"Column1":"Column1",
+"Column2":"Column2",
+"Column3":"Column3",
+"Column4":"Column4"
+},
+"notes":"Defaults differ: a blank Traditional GutterSize is Gutter_L (write Entities.GutterSize.Large to keep the look; Reactive default is Base) and a blank PhoneBehavior is All (write Entities.BreakColumns.All; Reactive default is None).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Columns5",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Columns5",
+"reactiveKind":"block",
+"inputs":{
+"GutterSize":"GutterSize",
+"TabletBehavior":"TabletBehavior",
+"PhoneBehavior":"PhoneBehavior",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"GutterSize: Trad record -> Reactive record: Gutter_None->None, Gutter_XS->ExtraSmall, Gutter_S->Small, Gutter_Base->Base, Gutter_M->Medium, Gutter_L->Large, Gutter_XL->ExtraLarge, Gutter_XXL->XXLarge. TabletBehavior and PhoneBehavior: Entities.BreakColumns.All, First, Middle, Last, None keep their names.",
+"placeholders":{
+"Column1":"Column1",
+"Column2":"Column2",
+"Column3":"Column3",
+"Column4":"Column4",
+"Column5":"Column5"
+},
+"notes":"Defaults differ: a blank Traditional GutterSize is Gutter_L (write Entities.GutterSize.Large to keep the look; Reactive default is Base) and a blank PhoneBehavior is All (write Entities.BreakColumns.All; Reactive default is None).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Columns6",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Columns6",
+"reactiveKind":"block",
+"inputs":{
+"GutterSize":"GutterSize",
+"TabletBehavior":"TabletBehavior",
+"PhoneBehavior":"PhoneBehavior",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"GutterSize: Trad record -> Reactive record: Gutter_None->None, Gutter_XS->ExtraSmall, Gutter_S->Small, Gutter_Base->Base, Gutter_M->Medium, Gutter_L->Large, Gutter_XL->ExtraLarge, Gutter_XXL->XXLarge. TabletBehavior and PhoneBehavior: Entities.BreakColumns.All, First, Middle, Last, None keep their names.",
+"placeholders":{
+"Column1":"Column1",
+"Column2":"Column2",
+"Column3":"Column3",
+"Column4":"Column4",
+"Column5":"Column5",
+"Column6":"Column6"
+},
+"notes":"Defaults differ: a blank Traditional GutterSize is Gutter_L (write Entities.GutterSize.Large to keep the look; Reactive default is Base) and a blank PhoneBehavior is All (write Entities.BreakColumns.All; Reactive default is None).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.ColumnsMediumLeft",
+"elementKind":"block",
+"reactive":"OutSystemsUI.ColumnsMediumLeft",
+"reactiveKind":"block",
+"inputs":{
+"GutterSize":"GutterSize",
+"TabletBehavior":"TabletBehavior",
+"PhoneBehavior":"PhoneBehavior",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"GutterSize: Trad record -> Reactive record: Gutter_None->None, Gutter_XS->ExtraSmall, Gutter_S->Small, Gutter_Base->Base, Gutter_M->Medium, Gutter_L->Large, Gutter_XL->ExtraLarge, Gutter_XXL->XXLarge. TabletBehavior and PhoneBehavior: Entities.BreakColumns.All, First, Middle, Last, None keep their names.",
+"placeholders":{
+"Column1":"Column1",
+"Column2":"Column2"
+},
+"notes":"Defaults differ: a blank Traditional GutterSize is Gutter_L (write Entities.GutterSize.Large to keep the look; Reactive default is Base) and a blank PhoneBehavior is All (write Entities.BreakColumns.All; Reactive default is None).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.ColumnsMediumRight",
+"elementKind":"block",
+"reactive":"OutSystemsUI.ColumnsMediumRight",
+"reactiveKind":"block",
+"inputs":{
+"GutterSize":"GutterSize",
+"TabletBehavior":"TabletBehavior",
+"PhoneBehavior":"PhoneBehavior",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"GutterSize: Trad record -> Reactive record: Gutter_None->None, Gutter_XS->ExtraSmall, Gutter_S->Small, Gutter_Base->Base, Gutter_M->Medium, Gutter_L->Large, Gutter_XL->ExtraLarge, Gutter_XXL->XXLarge. TabletBehavior and PhoneBehavior: Entities.BreakColumns.All, First, Middle, Last, None keep their names.",
+"placeholders":{
+"Column1":"Column1",
+"Column2":"Column2"
+},
+"notes":"Defaults differ: a blank Traditional GutterSize is Gutter_L (write Entities.GutterSize.Large to keep the look; Reactive default is Base) and a blank PhoneBehavior is All (write Entities.BreakColumns.All; Reactive default is None).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.ColumnsSmallLeft",
+"elementKind":"block",
+"reactive":"OutSystemsUI.ColumnsSmallLeft",
+"reactiveKind":"block",
+"inputs":{
+"GutterSize":"GutterSize",
+"TabletBehavior":"TabletBehavior",
+"PhoneBehavior":"PhoneBehavior",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"GutterSize: Trad record -> Reactive record: Gutter_None->None, Gutter_XS->ExtraSmall, Gutter_S->Small, Gutter_Base->Base, Gutter_M->Medium, Gutter_L->Large, Gutter_XL->ExtraLarge, Gutter_XXL->XXLarge. TabletBehavior and PhoneBehavior: Entities.BreakColumns.All, First, Middle, Last, None keep their names.",
+"placeholders":{
+"Column1":"Column1",
+"Column2":"Column2"
+},
+"notes":"Defaults differ: a blank Traditional GutterSize is Gutter_L (write Entities.GutterSize.Large to keep the look; Reactive default is Base) and a blank PhoneBehavior is All (write Entities.BreakColumns.All; Reactive default is None).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.ColumnsSmallRight",
+"elementKind":"block",
+"reactive":"OutSystemsUI.ColumnsSmallRight",
+"reactiveKind":"block",
+"inputs":{
+"GutterSize":"GutterSize",
+"TabletBehavior":"TabletBehavior",
+"PhoneBehavior":"PhoneBehavior",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"GutterSize: Trad record -> Reactive record: Gutter_None->None, Gutter_XS->ExtraSmall, Gutter_S->Small, Gutter_Base->Base, Gutter_M->Medium, Gutter_L->Large, Gutter_XL->ExtraLarge, Gutter_XXL->XXLarge. TabletBehavior and PhoneBehavior: Entities.BreakColumns.All, First, Middle, Last, None keep their names.",
+"placeholders":{
+"Column1":"Column1",
+"Column2":"Column2"
+},
+"notes":"Defaults differ: a blank Traditional GutterSize is Gutter_L (write Entities.GutterSize.Large to keep the look; Reactive default is Base) and a blank PhoneBehavior is All (write Entities.BreakColumns.All; Reactive default is None).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Counter",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Counter",
+"reactiveKind":"block",
+"inputs":{
+"Orientation":"IsVertical",
+"Height":"Height",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Orientation Entities.Orientation.Horizontal -> IsVertical False; Vertical -> IsVertical True. Height stays Text in pixels (\"100\").",
+"placeholders":{
+"Content":"Content"
+},
+"notes":"Reactive adds BackgroundColor (Entities.Color, default Neutral0).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.DatePicker",
+"elementKind":"block",
+"reactive":"OutSystemsUI.DatePicker",
+"reactiveKind":"block",
+"inputs":{
+"InputWidgetId":null,
+"ButtonWidgetId":null,
+"DisabledDates":null,
+"MinDate":"OptionalConfigs.MinDate",
+"MaxDate":"OptionalConfigs.MaxDate",
+"InitialDate":"OptionalConfigs.InitialDate",
+"DateFormat":"DateFormat",
+"StartEmpty":null,
+"SelectInterval":null,
+"AdvancedFormat":null
+},
+"inputValueRules":"SelectInterval True -> use OutSystemsUI.DatePickerRange instead (OptionalConfigs InitialStartDate, InitialEndDate, MinDate, MaxDate). MinDate and MaxDate: Date -> Date Time.",
+"notes":"Structure change: Traditional finds the Input by InputWidgetId; Reactive wraps it, so drag the Input into the placeholder Datepicker. DisabledDates -> client action DatePickerDisableDays; ButtonWidgetId and AdvancedFormat (DatePickerAdvancedFormat: EventsList, AdvancedFormatJSON) -> client actions SetFlatpickrConfigs and SetFlatpickrEvent; StartEmpty -> leave the bound variable and InitialDate empty. The Traditional On Select event becomes the mandatory event OnSelected. Placeholder_SSPreview is design-time only. A toolbox image DatePicker also exists (see its own row).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.DeviceDetection",
+"elementKind":"block",
+"reactive":"OutSystemsUI.GetDeviceType",
+"reactiveKind":"clientAction",
+"notes":"Script that sets device classes. Reactive does it in the layout (OutSystemsUI lays out by itself); in logic use the client actions IsPhone, IsTablet, IsDesktop, GetDeviceType.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.DisplayOnDevice",
+"elementKind":"block",
+"reactive":"OutSystemsUI.DisplayOnDevice",
+"reactiveKind":"block",
+"inputs":{
+"Behavior":null
+},
+"inputValueRules":"Behavior (Entities.DeviceResponsive) chooses the placeholders to fill: DesktopOnly -> OnDesktop; TabletOnly -> OnTablet; PhoneOnly -> OnPhone; DesktopAndTablet -> OnDesktop and OnTablet; TabletAndPhone -> OnTablet and OnPhone; AllDevices -> no block needed.",
+"placeholders":{
+"Content":"OnDesktop|OnTablet|OnPhone"
+},
+"notes":"The Traditional block has one Content placeholder and a Behavior input; Reactive has three placeholders and no input, so content for two devices is placed twice. Traditional also avoided loading data for hidden devices; Reactive only hides the markup.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Dropdown",
+"elementKind":"block",
+"reactive":"OutSystemsUI.DropdownServerSide",
+"reactiveKind":"block",
+"inputs":{
+"ExtendedClass":null
+},
+"placeholders":{
+"DropdownList":"BalloonContent",
+"Prompt":"SelectedValues"
+},
+"notes":"Dropdown of rich items (DropdownList of links or items, Prompt shows the choice). Nearest Reactive pattern is DropdownServerSide with one DropdownServerSideItem per option (ItemId, IsSelected). DropdownList -> BalloonContent; Prompt -> SelectedValues. Selection handling is client side: a client action sets the variable. For plain text options use the platform Dropdown widget (Combo Box converts to it).",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.DropdownSelect",
+"elementKind":"block",
+"reactive":"OutSystemsUI.DropdownSearch",
+"reactiveKind":"block",
+"inputs":{
+"WidgetId":null,
+"NoResultsText":null,
+"SearchEnabled":null,
+"SearchResultsLimit":null,
+"AdvancedFormat":null,
+"ExtendedClass":null
+},
+"notes":"Enhancement (Choices.js) of a Combo Box or List Box by WidgetId. Reactive: the platform Dropdown widget needs no wrapper; for search use OutSystemsUI.DropdownSearch (OptionsList of DropdownOption: Value, Label; Prompt; OptionalConfigs.NoResultsText) or DropdownTags for multiple selection. WidgetId is dropped; NoResultsText -> OptionalConfigs.NoResultsText; SearchEnabled, SearchResultsLimit and AdvancedFormat have no input (client action SetVirtualSelectConfigs).",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.Email3Rows",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputs":{
+"Align":null,
+"Color":null
+},
+"placeholders":{
+"Row3":null,
+"Row2":null,
+"Row1":null
+},
+"notes":"Email helper table with three rows. No Reactive equivalent: emails use plain Containers/tables; rebuild inside the email element.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.EmailSection",
+"elementKind":"block",
+"reactiveKind":"none",
+"placeholders":{
+"Content":null
+},
+"notes":"Email section helper. No Reactive equivalent: use a Container with inline styles in the email.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.EventThroughExtensibility",
+"elementKind":"block",
+"reactiveKind":"none",
+"notes":"Helper block of the Traditional extensibility mechanism. No Reactive equivalent: use a JavaScript node in a client action, or OutSystemsUI client actions such as SetFlatpickrEvent, SetNoUISliderEvent, SetSplideEvent.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.Fieldset",
+"elementKind":"block",
+"reactive":"AdvancedHtml",
+"reactiveKind":"widget",
+"inputs":{
+"Title":null,
+"ExtendedClass":null
+},
+"placeholders":{
+"Content":null
+},
+"notes":"No Fieldset pattern. Use the HTML element widget with tag fieldset and a legend element carrying the Title, or a Container with a Label.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.FileUpload",
+"elementKind":"block",
+"reactive":"Upload",
+"reactiveKind":"widget",
+"inputs":{
+"ExtendedClass":null
+},
+"placeholders":{
+"EmptyMessage":null,
+"UploadWidget":null
+},
+"notes":"Platform widget Upload (Reactive); the pattern only restyled a Traditional Upload. EmptyMessage and UploadWidget placeholders have no counterpart: the Upload widget has its own label content and On Upload event (check the widget events and the Binary Data it returns).",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.FlipContent",
+"elementKind":"block",
+"reactive":"OutSystemsUI.FlipContent",
+"reactiveKind":"block",
+"inputs":{
+"Trigger":"FlipOnClick",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Trigger Entities.Trigger.Click -> FlipOnClick True; Hover (Traditional default) -> FlipOnClick False and trigger FlipContentToggle from your own hover logic; Manual -> FlipOnClick False. ",
+"placeholders":{
+"CardFront":"CardFront",
+"CardBack":"CardBack"
+},
+"notes":"Server action ToggleFlipContent -> client action FlipContentToggle (also FlipContentFront, FlipContentBack). Reactive adds StartsFlipped. Hover flip is not built in, so it needs CSS or a MouseEvents block.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.FloatingActions",
+"elementKind":"block",
+"reactive":"OutSystemsUI.FloatingActions",
+"reactiveKind":"block",
+"inputs":{
+"Trigger":"IsHover",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Trigger Entities.Trigger.Hover -> IsHover True; Click (Traditional default) -> IsHover False; Manual -> IsHover False and IsExpanded bound to a Boolean variable.",
+"placeholders":{
+"Items":"Items",
+"Button":"Button"
+},
+"notes":"Reactive adds IsExpanded.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.FloatingActionsItem",
+"elementKind":"block",
+"reactive":"OutSystemsUI.FloatingActionsItem",
+"reactiveKind":"block",
+"inputs":{
+"ExtendedClass":"ExtendedClass"
+},
+"placeholders":{
+"Label":"Label",
+"Item":"Item"
+},
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Gallery",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Gallery",
+"reactiveKind":"block",
+"inputs":{
+"ItemsDesktop":"RowItemsDesktop",
+"ItemsTablet":"RowItemsTablet",
+"ItemsPhone":"RowItemsPhone",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Same integers. Defaults differ: Traditional 5 desktop, 3 tablet, 1 phone; Reactive 4, 3, 1: write the Traditional number to keep the look.",
+"placeholders":{
+"ListRecords":"Content"
+},
+"notes":"Put the List widget in Content. Reactive adds ItemsGap (Entities.Space).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.IconBadge",
+"elementKind":"block",
+"reactive":"OutSystemsUI.IconBadge",
+"reactiveKind":"block",
+"inputs":{
+"Number":"Number",
+"Color":"Color",
+"IsLight":"IsLight",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Number: Integer -> Long Integer (no cast).",
+"placeholders":{
+"Icon":"Icon"
+},
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Iframe",
+"elementKind":"block",
+"reactive":"AdvancedHtml",
+"reactiveKind":"widget",
+"inputs":{
+"SourceURL":null,
+"Title":null,
+"Height":null,
+"Width":null
+},
+"notes":"Reactive has no iframe pattern. Use the HTML element widget (AdvancedHtml) with tag iframe and attributes src (SourceURL), title (Title) and a style for width and height.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.InputWithIcon",
+"elementKind":"block",
+"reactive":"OutSystemsUI.InputWithIcon",
+"reactiveKind":"block",
+"inputs":{
+"AlignIconRight":"AlignIconRight",
+"ExtendedClass":"ExtendedClass"
+},
+"placeholders":{
+"Icon":"Icon",
+"Input":"Input"
+},
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.JSON5_2_1_0",
+"elementKind":"block",
+"reactiveKind":"none",
+"notes":"Loader of JSON5 used for the AdvancedFormat inputs. No Reactive need; delete.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.JavaScriptNode",
+"elementKind":"block",
+"reactiveKind":"none",
+"placeholders":{
+"Description":null
+},
+"notes":"Traditional helper block that holds JavaScript; its Description placeholder is design-time. Reactive uses a JavaScript node in a client action (or an OutSystems Script element).",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.LayoutEmail",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputs":{
+"PreviewLine":null
+},
+"placeholders":{
+"Address":null,
+"Unsubscribe":null,
+"Notes":null,
+"Action":null,
+"MainContent":null,
+"Heading":null,
+"Source":null,
+"Logo":null
+},
+"notes":"Traditional email layout (header logo, main content, footer, unsubscribe). OutSystemsUI has no email layout; a Reactive module builds emails as email elements with their own HTML and inline style. Rebuild the layout once as a block local to the Reactive module.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.LayoutLogin",
+"elementKind":"block",
+"reactive":"LayoutBlank",
+"reactiveKind":"block",
+"inputs":{
+"DeviceConfiguration":null,
+"AccessibilityConfiguration":null
+},
+"placeholders":{
+"Login":"Content",
+"BackgroundImage":null
+},
+"notes":"The Reactive layout is a block in the module itself (copied from the Reactive template: Layouts folder), not an OutSystemsUI block; its placeholder names depend on the template, so read them from the template. Login screens of the Reactive template use LayoutBlank with a centred Card or Container; the login form is built from inputs and a button, see LoginForm. BackgroundImage: a CSS background on a Container.",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.LayoutLoginSplit",
+"elementKind":"block",
+"reactive":"LayoutBlank",
+"reactiveKind":"block",
+"inputs":{
+"DeviceConfiguration":null,
+"AccessibilityConfiguration":null
+},
+"placeholders":{
+"Login":"Content"
+},
+"notes":"The Reactive layout is a block in the module itself (copied from the Reactive template: Layouts folder), not an OutSystemsUI block; its placeholder names depend on the template, so read them from the template. Two-column login: LayoutBlank with OutSystemsUI Columns2 (image column and form column).",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.LayoutMenuSide",
+"elementKind":"block",
+"reactive":"LayoutSideMenu",
+"reactiveKind":"block",
+"inputs":{
+"ExtendedClass":null,
+"DeviceConfiguration":null,
+"AccessibilityConfiguration":null
+},
+"placeholders":{
+"Navigation":"Navigation",
+"Header":"Header",
+"Content":"MainContent"
+},
+"notes":"The Reactive layout is a block in the module itself (copied from the Reactive template: Layouts folder), not an OutSystemsUI block; its placeholder names depend on the template, so read them from the template. Typical LayoutSideMenu placeholders: Navigation, Header, Breadcrumbs, Title, MainContent, Footer. The menu links of Traditional (NavigationBar) become links in Navigation; see NavigationBar.",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.LayoutMenuTop",
+"elementKind":"block",
+"reactive":"LayoutTopMenu",
+"reactiveKind":"block",
+"inputs":{
+"ExtendedClass":null,
+"DeviceConfiguration":null,
+"AccessibilityConfiguration":null
+},
+"placeholders":{
+"Header":"Header",
+"Content":"MainContent"
+},
+"notes":"The Reactive layout is a block in the module itself (copied from the Reactive template: Layouts folder), not an OutSystemsUI block; its placeholder names depend on the template, so read them from the template. Typical LayoutTopMenu placeholders: Header, Breadcrumbs, Title, Actions, MainContent, Footer. DeviceConfiguration (breakpoints) -> client action SetDeviceBreakpoints (OutSystemsUI) in the layout. AccessibilityConfiguration -> the layout input EnableAccessibilityFeatures where the template has one. In Traditional, buttons usually sat in the content: Reactive has Title and Actions placeholders for the page title and the screen buttons.",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.LayoutPopup",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputs":{
+"DeviceConfiguration":null,
+"AccessibilityConfiguration":null
+},
+"placeholders":{
+"MainContent":null
+},
+"notes":"A Traditional popup is a screen with this layout opened by RichWidgets Popup_Editor. Reactive has the platform widget Popup (Show Popup bound to a Boolean variable) placed inside the screen; no layout is needed. Rebuild the popup content inside Popup and open it with an Assign on the variable.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.LayoutSimple",
+"elementKind":"block",
+"reactive":"LayoutBlank",
+"reactiveKind":"block",
+"inputs":{
+"ExtendedClass":null,
+"DeviceConfiguration":null,
+"AccessibilityConfiguration":null
+},
+"placeholders":{
+"Content":"Content"
+},
+"notes":"The Reactive layout is a block in the module itself (copied from the Reactive template: Layouts folder), not an OutSystemsUI block; its placeholder names depend on the template, so read them from the template. No menu: the Reactive template has LayoutBlank for this (placeholder name inferred, usually Content). Use LayoutTopMenu if the screen needs the header.",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.LayoutWidgets",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputs":{
+"DeviceConfiguration":null,
+"AccessibilityConfiguration":null
+},
+"notes":"Design-time layout that only shows the Traditional patterns in Service Studio previews. Delete it; no Reactive equivalent.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.LightBox",
+"elementKind":"block",
+"reactive":"OutSystemsUI.LightBox",
+"reactiveKind":"block",
+"notes":"Wrapper of the lightbox script; used with LightboxImage.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.LightBoxImage",
+"elementKind":"block",
+"reactive":"OutSystemsUI.LightboxImage",
+"reactiveKind":"block",
+"inputs":{
+"Title":"Title",
+"Group":"Group",
+"ImageURL":"ImageURL",
+"ImageZoom":"ImageZoom"
+},
+"inputValueRules":"Block name changes case: LightBoxImage -> LightboxImage.",
+"placeholders":{
+"Thumbnail":"Thumbnail"
+},
+"notes":"Reactive adds OptionalConfigs (DialogAccessibleName).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.LoadOnVisible",
+"elementKind":"block",
+"reactiveKind":"none",
+"placeholders":{
+"Content":null
+},
+"notes":"Late-loads content when scrolled into view. No Reactive block: Reactive screens fetch data through data actions; for lazy rendering show the content in an If that a client action turns on from a scroll or visibility event (custom JavaScript IntersectionObserver).",
+"confidence":"low",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.LoginForm",
+"elementKind":"block",
+"reactiveKind":"none",
+"placeholders":{
+"Login":null
+},
+"notes":"The block holds a placeholder Login with a form skeleton. OutSystemsUI has no login form: build it with a Form, two Inputs (user, password), a Button and a client action that calls the Users login server action; the Reactive template Login screen shows the shape. Placeholder Login -> the form content.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.Modal",
+"elementKind":"block",
+"reactive":"Popup",
+"reactiveKind":"widget",
+"inputs":{
+"Position":null,
+"HasOverlay":null,
+"EnterAnimation":null,
+"LeaveAnimation":null,
+"ExtendedClass":null
+},
+"placeholders":{
+"Content":null,
+"Footer":null,
+"Title":null,
+"Icon":null
+},
+"notes":"Platform widget Popup (Show Popup bound to a Boolean local variable) holds the content; Title, Icon, Content and Footer placeholders have no namesakes: build them inside the Popup with Containers and OutSystems UI classes. Position, HasOverlay, EnterAnimation and LeaveAnimation have no property: use CSS. ToggleModal becomes an Assign of the Boolean.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.Moment_2_29_4",
+"elementKind":"block",
+"reactiveKind":"none",
+"notes":"Loader of Moment.js used by DatePicker. Reactive DatePicker uses Flatpickr (bundled in OutSystemsUI); delete. If your own JavaScript uses moment, add it as a script element.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.MoveOnDevice",
+"elementKind":"block",
+"reactive":"OutSystemsUI.MoveElement",
+"reactiveKind":"clientAction",
+"inputs":{
+"PhoneWidgetId":null,
+"TabletWidgetId":null
+},
+"placeholders":{
+"Content":null
+},
+"notes":"Moves a block into another container per device. Reactive: client action MoveElement (WidgetId, Target) called from OnReady; or use DisplayOnDevice with the content in both places. PhoneWidgetId and TabletWidgetId -> Target.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.NavigationBar",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Submenu",
+"reactiveKind":"block",
+"inputs":{
+"IsFixed":null,
+"TopPosition":null,
+"MultipleItems":null,
+"ExtendedClass":null
+},
+"placeholders":{
+"Content":null
+},
+"notes":"Traditional side navigation with stacked links. In Reactive the layout holds the menu: LayoutSideMenu Navigation placeholder, links grouped with OutSystemsUI.Submenu (Menu, Items). IsFixed, TopPosition and MultipleItems are layout behaviour.",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.NavigationBarItem",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Submenu",
+"reactiveKind":"block",
+"inputs":{
+"IsActive":null,
+"IsOpen":null,
+"ExtendedClass":null
+},
+"placeholders":{
+"Title":"Menu",
+"Content":"Items"
+},
+"notes":"Group with a title and sub items: OutSystemsUI.Submenu (Title -> Menu, Content -> Items). IsActive: mark with the client action SetActiveMenuItems or the active CSS class; IsOpen: SubmenuOpen.",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.NavigationBarSubItem",
+"elementKind":"block",
+"reactive":"Link",
+"reactiveKind":"widget",
+"inputs":{
+"IsActive":null
+},
+"placeholders":{
+"Content":"(Link inside OutSystemsUI.Submenu Items)"
+},
+"notes":"A Link inside the Submenu Items placeholder; no block.",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.NoUiSlider_14_1_1",
+"elementKind":"block",
+"reactiveKind":"none",
+"notes":"Loader of noUiSlider behind RangeSlider. Reactive RangeSlider bundles noUiSlider; delete. Options: client action SetNoUISliderConfigs.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.ObjectAssignPolyfill",
+"elementKind":"block",
+"reactiveKind":"none",
+"notes":"Object.assign polyfill. Delete: not needed in Reactive.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.Panel",
+"elementKind":"block",
+"reactive":"OutSystemsUI.CardSectioned",
+"reactiveKind":"block",
+"inputs":{
+"ExtendedClass":null
+},
+"placeholders":{
+"Content":"Content",
+"Footer":"Footer",
+"Title":"Title",
+"Actions":null
+},
+"notes":"No Panel pattern. Nearest is OutSystemsUI.CardSectioned (Title, Content, Footer) or OutSystemsUI.Section (Title, Content). Actions: put in the Title area. IsVertical stays True.",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.ProgressBar",
+"elementKind":"block",
+"reactive":"OutSystemsUI.ProgressBar",
+"reactiveKind":"block",
+"inputs":{
+"Percentage":"Progress",
+"Color":"ProgressColor",
+"Shape":"OptionalConfigs.Shape",
+"Size":"Thickness",
+"IsInline":null,
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Percentage -> Progress (Integer 0..100). Color -> ProgressColor (Entities.Color). Shape -> OptionalConfigs.Shape (Entities.Shape, same records). Size (Entities.ProgressBarSize) -> Thickness in pixels: Base -> 12 (Reactive default), Small -> 8 and ExtraSmall -> 4 (small values guessed: the docs give no pixel size). Reactive adds TrailColor.",
+"placeholders":{
+"Title":"Content",
+"Value":"Content"
+},
+"notes":"Reactive has one Content placeholder where Traditional had Title and Value: put both into Content. IsInline (value at the line end) is dropped.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.ProgressBarJS_1_0_0",
+"elementKind":"block",
+"reactiveKind":"none",
+"notes":"Loader of ProgressBar.js behind ProgressCircle. Reactive ProgressCircle bundles its script; delete.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.ProgressCircle",
+"elementKind":"block",
+"reactive":"OutSystemsUI.ProgressCircle",
+"reactiveKind":"block",
+"inputs":{
+"Progress":"Progress",
+"ProgressColor":"ProgressColor",
+"TrailColor":"TrailColor",
+"CircleThickness":"Thickness",
+"AnimateInitialProgress":"OptionalConfigs.AnimateInitialProgress",
+"IsSemiCircle":null,
+"AdvancedFormat":null
+},
+"inputValueRules":"Progress, ProgressColor and TrailColor keep their meaning. CircleThickness (default 4) -> Thickness (Reactive default 8).",
+"placeholders":{
+"Content":"Content"
+},
+"notes":"IsSemiCircle and AdvancedFormat (ProgressBar.js options) have no Reactive input. Reactive adds Size and OptionalConfigs.Shape.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.RTL",
+"elementKind":"block",
+"reactive":"OutSystemsUI.IsRTL",
+"reactiveKind":"clientAction",
+"notes":"Adds right-to-left support. Reactive reads the language direction through the theme and the client action IsRTL; nothing to place. Check the layout in RTL languages.",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.RangeSlider",
+"elementKind":"block",
+"reactive":"OutSystemsUI.RangeSlider",
+"reactiveKind":"block",
+"inputs":{
+"MinValue":"MinValue",
+"MaxValue":"MaxValue",
+"InitialValue":"StartingValue",
+"Step":"OptionalConfigs.Step",
+"ShowPips":"OptionalConfigs.ShowTickMarks",
+"PipsStepsNumber":"OptionalConfigs.TickMarksInterval",
+"IsVertical":"Orientation",
+"VerticalHeight":"Size",
+"IsDisabled":"OptionalConfigs.IsDisabled",
+"ExtendedClass":"ExtendedClass",
+"AdvancedFormat":null
+},
+"inputValueRules":"InitialValue Text -> StartingValue Decimal (convert). IsVertical True -> Orientation Entities.Orientation.Vertical, False -> Horizontal. VerticalHeight (Integer px) -> Size (Text, \"200px\"). PipsStepsNumber is a count of steps and TickMarksInterval is an interval: not the same number.",
+"placeholders":{
+"Label":null
+},
+"notes":"AdvancedFormat (noUiSlider options) -> client action SetNoUISliderConfigs. Label placeholder is gone: show the value with an Expression bound to the variable changed in the mandatory event OnValueChange. Server-side disable/enable: RangeSliderDisable and RangeSliderEnable.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.RangeSliderInterval",
+"elementKind":"block",
+"reactive":"OutSystemsUI.RangeSliderInterval",
+"reactiveKind":"block",
+"inputs":{
+"MinValue":"MinValue",
+"MaxValue":"MaxValue",
+"InitialIntervalStart":"StartingValueFrom",
+"InitialIntervalEnd":"StartingValueTo",
+"Step":"OptionalConfigs.Step",
+"ShowPips":"OptionalConfigs.ShowTickMarks",
+"PipsStepsNumber":"OptionalConfigs.TickMarksInterval",
+"IsVertical":"Orientation",
+"VerticalHeight":"Size",
+"IsDisabled":"OptionalConfigs.IsDisabled",
+"ExtendedClass":"ExtendedClass",
+"AdvancedFormat":null
+},
+"inputValueRules":"IsVertical True -> Orientation Entities.Orientation.Vertical. VerticalHeight (Integer px) -> Size (Text, \"200px\").",
+"placeholders":{
+"Label":null
+},
+"notes":"AdvancedFormat -> client action SetNoUISliderConfigs. Mandatory event OnValueChange. Label placeholder is gone.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.ResponsiveTableRecords",
+"elementKind":"block",
+"reactive":"OutSystemsUI.ScrollableArea",
+"reactiveKind":"block",
+"inputs":{
+"ResponsiveBehavior":null
+},
+"placeholders":{
+"Content":"Content"
+},
+"notes":"Makes table rows expandable or scrollable on small screens. No Reactive pattern with expandable rows; for ScrollabeRows wrap the Table Records in OutSystemsUI.ScrollableArea (Orientation Horizontal). ResponsiveBehavior (Entities.ResponsiveTableRecords): ScrollabeRows -> ScrollableArea; ExpandableRows -> manual.",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.Search",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Search",
+"reactiveKind":"block",
+"inputs":{
+"ExtendedClass":"ExtendedClass"
+},
+"placeholders":{
+"Icon":null,
+"Input":"Input",
+"Actions":null
+},
+"notes":"Reactive Search has only the Input placeholder and draws the icon itself. Move buttons from Actions next to the block.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.SearchBalloon",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Search",
+"reactiveKind":"block",
+"inputs":{
+"ExtendedClass":null,
+"AdvancedFormat":null
+},
+"placeholders":{
+"Answers":null,
+"Icon":null,
+"Input":null,
+"Actions":null
+},
+"notes":"Search field that shows an Answers balloon. No Reactive block: build with OutSystemsUI.Search (Input) and a Popover or DropdownServerSide for the answers. Placeholders Icon, Input, Actions, Answers have no direct counterparts.",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.Section",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Section",
+"reactiveKind":"block",
+"inputs":{
+"ExtendedClass":"ExtendedClass"
+},
+"placeholders":{
+"Content":"Content",
+"Title":"Title",
+"Actions":null
+},
+"notes":"Actions placeholder is gone: put the action buttons inside Title (for example in a Container with display-flex and space-between). Reactive adds UsePadding.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.SectionIndex",
+"elementKind":"block",
+"reactive":"OutSystemsUI.SectionIndex",
+"reactiveKind":"block",
+"inputs":{
+"IsSmooth":"SmoothScrolling",
+"IsFixed":"IsFixed",
+"TopPosition":null,
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"IsSmooth -> SmoothScrolling (Boolean); IsFixed -> IsFixed.",
+"notes":"Auto-lists the Section widgets on the page as anchor links. Reactive SectionIndex (SmoothScrolling, IsFixed) needs one OutSystemsUI.SectionIndexItem per section, each with ScrollToWidgetId (the Id of the Section) and the link text in its Content. IsSmooth -> SmoothScrolling; TopPosition has no input (use CSS or the ScrollToElement OffSet).",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.Separator",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Separator",
+"reactiveKind":"block",
+"inputs":{
+"Color":"Color",
+"Space":"Space",
+"IsVertical":"IsVertical",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Color and Space keep their record names (Entities.Color, Entities.Space).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.ServiceStudioPreview",
+"elementKind":"block",
+"reactiveKind":"none",
+"notes":"Design-time preview block. Delete it; no Reactive equivalent.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.Sidebar",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Sidebar",
+"reactiveKind":"block",
+"inputs":{
+"HasOverlay":"HasOverlay",
+"ExtendedClass":"ExtendedClass"
+},
+"placeholders":{
+"Header":"Header",
+"Content":"Content"
+},
+"notes":"Reactive adds StartsOpen, Direction (Entities.Direction), Width. ToggleSidebar becomes SidebarOpen and SidebarClose (no toggle). The Trigger button no longer needs its Id passed.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.StackedIcon",
+"elementKind":"block",
+"reactive":"Icon",
+"reactiveKind":"widget",
+"inputs":{
+"IconFront":null,
+"IconBack":null,
+"IconFrontColor":null,
+"IconBackColor":null,
+"IconSize":null,
+"InvertSize":null,
+"ExtendedClass":null
+},
+"notes":"Two Icon widgets stacked. No Reactive block: a Container with position relative holding two Icon widgets (the back one larger), colors from Entities.Color classes. IconFront, IconBack, IconFrontColor, IconBackColor, IconSize, InvertSize are the Icon names, colors and sizes of the two widgets.",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.Tabs",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Tabs",
+"reactiveKind":"block",
+"inputs":{
+"ActiveTab":"StartingTab",
+"Orientation":"TabsOrientation",
+"IsJustified":"OptionalConfigs.JustifyHeaders",
+"IsRight":"TabsVerticalPosition",
+"ActiveTabAsIndex":null,
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"ActiveTab: Text matching a DataTab (or an index when ActiveTabAsIndex) -> StartingTab Integer, zero based: replace a DataTab name by the position of that tab. Orientation Entities.Orientation.Horizontal|Vertical keeps the record name. IsRight True -> TabsVerticalPosition Entities.Direction.Right; False -> Entities.Direction.Left. IsJustified -> OptionalConfigs.JustifyHeaders.",
+"placeholders":{
+"Tabs_Header":"Header",
+"Tabs_Content":"Content"
+},
+"notes":"Reactive pairs header and content items by order, not by DataTab. Event OnTabChange; client action SetActiveTab, EnableTabItem, DisableTabItem.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.TabsContentItem",
+"elementKind":"block",
+"reactive":"OutSystemsUI.TabsContentItem",
+"reactiveKind":"block",
+"inputs":{
+"DataTab":null,
+"ExtendedClass":"ExtendedClass"
+},
+"placeholders":{
+"Content":"Content"
+},
+"notes":"DataTab is gone: the item pairs by position with the TabsHeaderItem.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.TabsHeaderItem",
+"elementKind":"block",
+"reactive":"OutSystemsUI.TabsHeaderItem",
+"reactiveKind":"block",
+"inputs":{
+"DataTab":null,
+"ExtendedClass":"ExtendedClass"
+},
+"placeholders":{
+"Title":"Title"
+},
+"notes":"DataTab is gone: the item pairs by position with the TabsContentItem.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Tag",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Tag",
+"reactiveKind":"block",
+"inputs":{
+"Color":"Color",
+"Shape":"Shape",
+"Size":"Size",
+"IsLight":"IsLight",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Color, Shape and Size keep their record names.",
+"placeholders":{
+"Content":"Tag"
+},
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.TimePicker",
+"elementKind":"block",
+"reactive":"OutSystemsUI.TimePicker",
+"reactiveKind":"block",
+"inputs":{
+"StartTime":null,
+"Interval":null,
+"Is24hFormat":"Is24Hours",
+"AdvancedFormat":null
+},
+"inputValueRules":"AdvancedFormat (TimePickerAdvancedFormat: DisabledTimes, MinTime, MaxTime, StartEmpty) -> OptionalConfigs.MinTime and OptionalConfigs.MaxTime; DisabledTimes has no Reactive input. StartTime (scroll position) and Interval (minutes) have no Reactive input; InitialTime sets the value instead.",
+"placeholders":{
+"Input":"Timepicker"
+},
+"notes":"Drag the Input into the Timepicker placeholder (the Traditional block already had an Input placeholder). Event OnSelected is mandatory. SetHourFor12hFormat is not needed. Reactive adds TimeFormat (Text), InitialTime.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.Timeline",
+"elementKind":"block",
+"reactive":"OutSystemsUI.TimelineItem",
+"reactiveKind":"block",
+"inputs":{
+"ExtendedClass":null
+},
+"placeholders":{
+"Content":"(Container holding OutSystemsUI.TimelineItem instances)"
+},
+"notes":"No wrapper in Reactive: put the TimelineItem blocks one after another inside a Container or List (the list repeats the item). Placeholder Content -> that container.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.TimelineItem",
+"elementKind":"block",
+"reactive":"OutSystemsUI.TimelineItem",
+"reactiveKind":"block",
+"inputs":{
+"Color":"Color",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Color keeps its record names.",
+"placeholders":{
+"Date":"Left",
+"Content":"Content",
+"Icon":"Icon"
+},
+"notes":"Reactive adds IsActive and Title, Right placeholders. The Date placeholder has no namesake: Left is the nearest (content on the left of the line). Check the layout.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.Tippy_3_0_6",
+"elementKind":"block",
+"reactiveKind":"none",
+"notes":"Loader of Tippy.js behind Tooltip and Balloon. Reactive Tooltip is built in; delete.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.ToggleButton",
+"elementKind":"block",
+"reactive":"Switch",
+"reactiveKind":"widget",
+"inputs":{
+"ExtendedClass":null
+},
+"placeholders":{
+"CheckBox":null
+},
+"notes":"Platform widget Switch (Reactive Web), bound to a Boolean variable. The Traditional block wrapped a Check Box in its CheckBox placeholder.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.Tooltip",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Tooltip",
+"reactiveKind":"block",
+"inputs":{
+"Trigger":"Trigger",
+"IsVisible":"StartsOpen",
+"Position":"Position",
+"ExtendedClass":"ExtendedClass",
+"AdvancedFormat":null
+},
+"inputValueRules":"Trigger Entities.Trigger.Click -> Entities.Trigger.OnClick; Hover -> Entities.Trigger.OnHover; Manual has no record (use StartsOpen and the client actions TooltipOpen / TooltipClose). Position Entities.PositionBase.Top, Bottom, Left, Right -> Entities.Position.Top, Bottom, Left, Right (same names). Reactive default Position is Right, Traditional Top: write Entities.Position.Top when blank.",
+"placeholders":{
+"Widget":"Content",
+"Content":"Tooltip"
+},
+"notes":"Placeholders swap role: Widget (the element) -> Content; Content (the tip text) -> Tooltip. AdvancedFormat (Tippy.js options) has no Reactive input.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.UserInitials",
+"elementKind":"block",
+"reactive":"OutSystemsUI.UserAvatar",
+"reactiveKind":"block",
+"inputs":{
+"Name":"Name",
+"Color":"Color",
+"Shape":"Shape",
+"Size":"Size",
+"IsLight":"IsLight",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Name, Color, Shape and Size keep their meaning and record names. Reactive default Name is \"Jonh Doe\".",
+"notes":"Block is renamed. Reactive adds Image (Binary Data): an image replaces the initials.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Video",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Video",
+"reactiveKind":"block",
+"inputs":{
+"SourceFile":"URL",
+"Width":"Width",
+"Height":"Height",
+"Autoplay":"OptionalConfigs.Autoplay",
+"Loop":"OptionalConfigs.Loop",
+"Muted":"OptionalConfigs.Muted",
+"Controls":"Controls",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"SourceFile (a resource file name) -> URL (Text, the full URL of the file). Autoplay, Loop, Muted -> OptionalConfigs (Boolean). Controls, Width, Height keep their meaning.",
+"notes":"Server actions PlayVideo and PauseVideo -> client actions VideoPlay and VideoPause (same WidgetId input). Reactive adds Captions and OptionalConfigs.PosterURL.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Website_Section",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Section",
+"reactiveKind":"block",
+"inputs":{
+"Color":null,
+"Padding":null,
+"ExtendedClass":"ExtendedClass"
+},
+"placeholders":{
+"Content":"Content"
+},
+"notes":"Website template helper (a section with a background color and padding). Use OutSystemsUI.Section or a Container with a background class (Color) and padding from Entities.Space.",
+"confidence":"low"
+},
+{
+"traditional":"OutSystemsUIWeb.WidgetLateLoad",
+"elementKind":"block",
+"reactiveKind":"none",
+"notes":"Runs OnNotify at first load to populate widgets. Not needed: Reactive loads data in data actions at screen start (OnInitialize, OnReady, OnAfterFetch).",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.Wizard",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Wizard",
+"reactiveKind":"block",
+"inputs":{
+"Orientation":"IsVertical",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Orientation Entities.Orientation.Vertical -> IsVertical True; Horizontal -> False.",
+"placeholders":{
+"Content":"Content"
+},
+"notes":"Reactive adds StepsBehaviour (Interactive or ProgressOnly).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.WizardItem",
+"elementKind":"block",
+"reactive":"OutSystemsUI.WizardItem",
+"reactiveKind":"block",
+"inputs":{
+"Step":"Status",
+"UseTopLabel":"ReverseLabelPosition",
+"ExtendedClass":"ExtendedClass"
+},
+"inputValueRules":"Step Entities.Step.Active, Next, Past -> Status Entities.Steps.Active, Next, Past (same record names, different entity). UseTopLabel -> ReverseLabelPosition (meaning inferred from the descriptions).",
+"placeholders":{
+"Label":"Label",
+"Icon":"Icon"
+},
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.wNumb_1_2_0",
+"elementKind":"block",
+"reactiveKind":"none",
+"notes":"Loader of wNumb (number formatting) used by RangeSlider. Bundled in Reactive; delete.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.DatePicker",
+"elementKind":"image",
+"reactiveKind":"none",
+"notes":"Toolbox/preview picture of the DatePicker block. Not used at run time; delete (OutSystemsUI has DatePickersPreview for its own).",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.Logo_OutSystemsUIWeb",
+"elementKind":"image",
+"reactiveKind":"none",
+"notes":"OutSystems UI logo used in the Traditional sample layouts. Use your own application logo as an image of the module.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.TimePicker",
+"elementKind":"image",
+"reactiveKind":"none",
+"notes":"Toolbox/preview picture of the TimePicker block. Not used at run time; delete.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.dropdownselect",
+"elementKind":"image",
+"reactiveKind":"none",
+"notes":"Toolbox/preview picture of DropdownSelect. Not used at run time; delete.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.sample_image1",
+"elementKind":"image",
+"reactiveKind":"none",
+"notes":"Sample photo of the OutSystems UI Traditional patterns. Replace by a real image of the module.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.sample_image2",
+"elementKind":"image",
+"reactiveKind":"none",
+"notes":"Sample photo of the OutSystems UI Traditional patterns. Replace by a real image of the module.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.sample_image3",
+"elementKind":"image",
+"reactiveKind":"none",
+"notes":"Sample photo of the OutSystems UI Traditional patterns. Replace by a real image of the module.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.sample_image4",
+"elementKind":"image",
+"reactiveKind":"none",
+"notes":"Sample photo of the OutSystems UI Traditional patterns. Replace by a real image of the module.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.video_preview",
+"elementKind":"image",
+"reactiveKind":"none",
+"notes":"Poster picture for the Video pattern preview. Use the Reactive Video OptionalConfigs.PosterURL with your own image.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.AddDeviceMetatag",
+"elementKind":"serverAction",
+"reactiveKind":"none",
+"notes":"Adds the viewport meta tag for the device. Reactive Web sets the viewport itself; breakpoints are configured with the client action SetDeviceBreakpoints (structure DeviceConfiguration: PhoneWidth, TabletWidth).",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.EncapsulateJS",
+"elementKind":"serverAction",
+"reactiveKind":"none",
+"inputs":{
+"Content":null
+},
+"notes":"Wraps JavaScript text in a safe function for the Traditional runtime. Not needed: put the code in a JavaScript node of a client action.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.EnterAnimation",
+"elementKind":"serverAction",
+"reactiveKind":"none",
+"inputs":{
+"WidgetId":null,
+"EnterAnimation":null
+},
+"notes":"Plays an enter animation on a widget by Id. Reactive: wrap the content in OutSystemsUI.Animate (AnimationType) and toggle an If, or add the CSS class from the theme.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.GetBrowser",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.GetBrowser",
+"reactiveKind":"clientAction",
+"notes":"Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. Same output Browser (Text).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.GetDevice",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.GetDeviceType",
+"reactiveKind":"clientAction",
+"notes":"Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. Renamed: GetDevice -> GetDeviceType, output Device (Text).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.GetDeviceOrientation",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.GetDeviceOrientation",
+"reactiveKind":"clientAction",
+"notes":"Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. Same output Orientation (Text).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.GetOS",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.GetOS",
+"reactiveKind":"clientAction",
+"notes":"Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. Reactive GetOS needs the UserAgent Text input (navigator.userAgent through a JavaScript node); Traditional took none.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.GoTo",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.CarouselGoTo",
+"reactiveKind":"clientAction",
+"inputs":{
+"WidgetId":"WidgetId",
+"Index":"ItemIndex"
+},
+"notes":"The Traditional GoTo acts on a Carousel by WidgetId. Index is the zero based slide: same base in ItemIndex (check). Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. ",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.HideElement",
+"elementKind":"serverAction",
+"reactiveKind":"none",
+"inputs":{
+"WidgetId":null
+},
+"notes":"Hides a widget by Id. Reactive: bind the widget Visible (or an If) to a Boolean local variable and Assign it False.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.IsDesktop",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.IsDesktop",
+"reactiveKind":"clientAction",
+"notes":"Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. ",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.IsPhone",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.IsPhone",
+"reactiveKind":"clientAction",
+"notes":"Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. ",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.IsTablet",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.IsTablet",
+"reactiveKind":"clientAction",
+"notes":"Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. ",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Next",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.CarouselNext",
+"reactiveKind":"clientAction",
+"inputs":{
+"WidgetId":"WidgetId"
+},
+"notes":"Carousel next slide. Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. ",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.PauseVideo",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.VideoPause",
+"reactiveKind":"clientAction",
+"inputs":{
+"WidgetId":"WidgetId"
+},
+"notes":"Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. Renamed.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.PlayVideo",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.VideoPlay",
+"reactiveKind":"clientAction",
+"inputs":{
+"WidgetId":"WidgetId"
+},
+"notes":"Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. Renamed.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Previous",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.CarouselPrevious",
+"reactiveKind":"clientAction",
+"inputs":{
+"WidgetId":"WidgetId"
+},
+"notes":"Carousel previous slide. Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. ",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.ScrollToElement",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.ScrollToElement",
+"reactiveKind":"clientAction",
+"inputs":{
+"WidgetId":"WidgetId",
+"IsSmooth":"IsSmooth",
+"OffSet":"OffSet"
+},
+"notes":"Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. Reactive adds ElementParentClass and ScrollDelay (both optional).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.SetAriaHidden",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.SetAriaHidden",
+"reactiveKind":"clientAction",
+"inputs":{
+"WidgetId":"WidgetId",
+"IsHidden":"IsHidden"
+},
+"notes":"Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. ",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.SetFocus",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.SetFocus",
+"reactiveKind":"clientAction",
+"inputs":{
+"WidgetId":"WidgetId"
+},
+"notes":"Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. Reactive also has the Input property of the same name that is simpler for inputs.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.SetHourFor12hFormat",
+"elementKind":"serverAction",
+"reactiveKind":"none",
+"inputs":{
+"Time12Format":null
+},
+"notes":"Converts a 12h time text to 24h for the Traditional TimePicker. Not needed: Reactive TimePicker works with Time values (Is24Hours).",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.ShowElement",
+"elementKind":"serverAction",
+"reactiveKind":"none",
+"inputs":{
+"WidgetId":null
+},
+"notes":"Shows a widget by Id. Reactive: bind the widget Visible (or an If) to a Boolean local variable and Assign it True.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.TextEllipsis",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.TextEllipsis",
+"reactiveKind":"clientAction",
+"inputs":{
+"Text":"Text",
+"NumberOfChars":"NumberOfChars"
+},
+"notes":"Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. Same inputs Text and NumberOfChars, output Out.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.ToggleAnimate",
+"elementKind":"serverAction",
+"reactiveKind":"none",
+"inputs":{
+"WidgetId":null
+},
+"notes":"Toggles the Animate block by Id. Reactive Animate animates when it appears: wrap it in an If on a Boolean variable.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.ToggleChatActions",
+"elementKind":"serverAction",
+"reactiveKind":"none",
+"inputs":{
+"WidgetId":null
+},
+"notes":"Shows or hides the ChatMessage actions. The Reactive ChatMessage has no actions placeholder: use a Boolean local variable and an If around the buttons you put in Content.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.ToggleElement",
+"elementKind":"serverAction",
+"reactiveKind":"none",
+"inputs":{
+"WidgetId":null,
+"TriggerButtonId":null
+},
+"notes":"Toggles a widget by Id (TriggerButtonId marks the clicking button). Reactive: Assign the Boolean local variable to its Not.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.ToggleFlipContent",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.FlipContentToggle",
+"reactiveKind":"clientAction",
+"inputs":{
+"WidgetId":"WidgetId"
+},
+"notes":"Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. ",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.ToggleModal",
+"elementKind":"serverAction",
+"reactiveKind":"none",
+"inputs":{
+"WidgetId":null,
+"TriggerButtonId":null
+},
+"notes":"Opens or closes a Modal by Id. Reactive: the Popup widget is bound to a Boolean local variable (Show Popup): Assign it True or False (Not).",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.TogglePassword",
+"elementKind":"serverAction",
+"reactiveKind":"none",
+"inputs":{
+"WidgetId":null
+},
+"notes":"Toggles an input between text and password. Reactive has no action: bind a Boolean local variable and render two Inputs (Type Password and Type Text) in Ifs, or set the Input Type through the variable where the platform allows it.",
+"confidence":"low",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.ToggleSidebar",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.SidebarOpen",
+"reactiveKind":"clientAction",
+"inputs":{
+"WidgetId":"WidgetId",
+"TriggerButtonId":null
+},
+"notes":"No toggle in Reactive: call SidebarOpen to open and SidebarClose to close, or set StartsOpen. TriggerButtonId is not needed. Traditional server actions ran in the browser through a screen action; the Reactive counterpart is a client action called from a client action flow. ",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Alert",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsUI.Alert",
+"reactiveKind":"staticEntity",
+"inputValueRules":"Entities.Alert.Error, Info, Success, Warning -> same names in OutSystemsUI.Alert (the Identifier text changes from \"background-*\" to \"alert-*\", which is internal).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.BreakColumns",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsUI.BreakColumns",
+"reactiveKind":"staticEntity",
+"inputValueRules":"Entities.BreakColumns.All, First, Middle, Last, None -> same names in OutSystemsUI.BreakColumns (Reactive also has the ColumnBreak entity with other names BreakAll...; use BreakColumns).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Color",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsUI.Color",
+"reactiveKind":"staticEntity",
+"inputValueRules":"Entities.Color.X -> Entities.Color.X, same record names (checked: every Traditional record exists in OutSystemsUI).",
+"notes":"Only the entity reference changes: it must point to the OutSystemsUI entity. Reactive adds no extra records.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.DeviceResponsive",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsUI.DeviceResponsive",
+"reactiveKind":"staticEntity",
+"inputValueRules":"Same six records exist in OutSystemsUI.DeviceResponsive, but the Reactive DisplayOnDevice block has no input of that type: the value only decides which placeholders to fill (see DisplayOnDevice).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.EnterAnimation",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsUI.AnimationType",
+"reactiveKind":"staticEntity",
+"inputValueRules":"Entities.EnterAnimation.X -> Entities.AnimationType.Y (see recordMap). Pairing inferred from names and directions; check the look. Used by Animate and Modal (Modal has no animation input in Reactive).",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.GutterSize",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsUI.GutterSize",
+"reactiveKind":"staticEntity",
+"inputValueRules":"Records are renamed (Gutter_L -> Large, Gutter_XL -> ExtraLarge ...); Gutter_ prefix dropped and sizes spelled out. Texts like \"gutter-l\" stay the same internally.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.LeaveAnimation",
+"elementKind":"staticEntity",
+"reactiveKind":"none",
+"inputValueRules":"No Reactive entity: Reactive Animate has only an entrance animation and Popup none.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.Orientation",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsUI.Orientation",
+"reactiveKind":"staticEntity",
+"inputValueRules":"Same two records. The Identifier text changes (\"flex-direction-row\" -> \"horizontal\"), but blocks that take a Boolean (AlignCenter IsHorizontal, CardSectioned IsVertical, Counter IsVertical, Wizard IsVertical) need True or False instead of the record.",
+"notes":"Tabs, RangeSlider and RangeSliderInterval still take the record (TabsOrientation, Orientation).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.PositionBase",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsUI.Position",
+"reactiveKind":"staticEntity",
+"inputValueRules":"Entities.PositionBase.X -> Entities.Position.X for Top, Bottom, Left, Right (OutSystemsUI.Position has these and more). Used by Tooltip and Balloon.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.PositionExtended",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsUI.Position",
+"reactiveKind":"staticEntity",
+"inputValueRules":"Entities.PositionExtended.X -> Entities.Position.X: the *Center and Center* records lose a word (TopCenter -> Top, BottomCenter -> Bottom, CenterLeft -> Left, CenterRight -> Right). Mapping inferred from names. Used by Modal, CardBackground, BlankSlate; none of those Reactive blocks has an input of this type, so the value is only a hint for CSS.",
+"confidence":"medium"
+},
+{
+"traditional":"OutSystemsUIWeb.ProgressBarSize",
+"elementKind":"staticEntity",
+"reactiveKind":"none",
+"inputValueRules":"No entity: ProgressBar takes Thickness (Integer pixels). recordMap values are pixel numbers; Base 12 is the Reactive default, the other two are guessed from the names.",
+"confidence":"low",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.ResponsiveTableRecords",
+"elementKind":"staticEntity",
+"reactiveKind":"none",
+"inputValueRules":"No Reactive entity: the block it feeds has no Reactive counterpart (see the ResponsiveTableRecords block).",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.Shape",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsUI.Shape",
+"reactiveKind":"staticEntity",
+"inputValueRules":"Entities.Shape.X -> Entities.Shape.X, same record names (checked: every Traditional record exists in OutSystemsUI).",
+"notes":"Only the entity reference changes: it must point to the OutSystemsUI entity. Reactive adds no extra records.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Size",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsUI.Size",
+"reactiveKind":"staticEntity",
+"inputValueRules":"Entities.Size.X -> Entities.Size.X, same record names (checked: every Traditional record exists in OutSystemsUI).",
+"notes":"Only the entity reference changes: it must point to the OutSystemsUI entity. Reactive adds no extra records.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Space",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsUI.Space",
+"reactiveKind":"staticEntity",
+"inputValueRules":"Entities.Space.X -> Entities.Space.X, same record names (checked: every Traditional record exists in OutSystemsUI).",
+"notes":"Only the entity reference changes: it must point to the OutSystemsUI entity. Reactive adds no extra records.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Speed",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsUI.Speed",
+"reactiveKind":"staticEntity",
+"inputValueRules":"Entities.Speed.Fast, Normal, Slow -> same names in OutSystemsUI.Speed.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Step",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsUI.Steps",
+"reactiveKind":"staticEntity",
+"inputValueRules":"Entity is renamed Step -> Steps; records Active, Next, Past keep their names. Used by WizardItem Status.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Trigger",
+"elementKind":"staticEntity",
+"reactive":"OutSystemsUI.Trigger",
+"reactiveKind":"staticEntity",
+"inputValueRules":"Records renamed Click -> OnClick, Hover -> OnHover. Manual has no record: use StartsOpen and TooltipOpen / TooltipClose. For FlipContent and FloatingActions the input is a Boolean instead (see those blocks).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.AccessibilityConfiguration",
+"elementKind":"structure",
+"reactiveKind":"none",
+"inputs":{
+"ResetTabIndex":null,
+"ShowFocus":null,
+"ShowSkipToContent":null,
+"Lang":null
+},
+"notes":"Input of the Traditional layouts. Reactive layouts have no such structure: use the layout input EnableAccessibilityFeatures (when the template has it), the client actions SetLang, SkipToContent, ToggleTextSpacing and theme CSS for the focus outline.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.DatePickerAdvancedFormat",
+"elementKind":"structure",
+"reactiveKind":"none",
+"inputs":{
+"EventsList":null,
+"AdvancedFormatJSON":null
+},
+"notes":"No structure: use the client actions SetFlatpickrConfigs (structure FlatpickrConfigs) and SetFlatpickrEvent, and OptionalConfigs of DatePicker (DatePickerOptionalConfigs).",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"OutSystemsUIWeb.DeviceConfiguration",
+"elementKind":"structure",
+"reactive":"OutSystemsUI.DeviceConfiguration",
+"reactiveKind":"structure",
+"inputs":{
+"PhoneWidth":"PhoneWidth",
+"TabletWidth":"TabletWidth",
+"DesktopSmallWidth":null,
+"DesktopWidth":null,
+"DesktopBigWidth":null
+},
+"notes":"Reactive keeps only the phone and tablet breakpoints; the three desktop widths are dropped. Used with the client action SetDeviceBreakpoints.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.TimePickerAdvancedFormat",
+"elementKind":"structure",
+"reactive":"OutSystemsUI.TimePickerOptionalConfigs",
+"reactiveKind":"structure",
+"inputs":{
+"DisabledTimes":null,
+"MinTime":"MinTime",
+"MaxTime":"MaxTime",
+"StartEmpty":null
+},
+"notes":"Only MinTime and MaxTime exist in OptionalConfigs; DisabledTimes and StartEmpty are dropped. It goes into the OptionalConfigs input of TimePicker, not an AdvancedFormat.",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.BaseTheme",
+"elementKind":"theme",
+"reactive":"OutSystemsUI",
+"reactiveKind":"theme",
+"notes":"The Reactive base theme is the theme OutSystemsUI of the OutSystemsUI module (a Reactive theme extends it). Traditional theme style sheets target Traditional markup and do not carry over: port the colors and tokens to the Reactive theme (--color-primary, --space-*; oml doc ui-reactive).",
+"confidence":"high"
+},
+{
+"traditional":"OutSystemsUIWeb.Email",
+"elementKind":"theme",
+"reactiveKind":"none",
+"notes":"Traditional email theme (inline-friendly styles). OutSystemsUI has no email theme: style the Reactive email with inline CSS in the email element.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.DropDownMenu",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Submenu",
+"reactiveKind":"block",
+"inputs":{
+"IsActive":null
+},
+"inputValueRules":"IsActive (Boolean: this entry is the active page) has no input. Put it in the item's Style Classes expression (If(IsActive, \"active\", \"\")) or call OutSystemsUI.SetActiveMenuItems(WidgetId, ActiveItem, ActiveSubItem); a person confirms the class. With an empty MenuSubItems placeholder map the block to a plain Link in the layout's Menu area (no Submenu).",
+"placeholders":{
+"MenuItem":"Menu",
+"MenuSubItems":"Items"
+},
+"notes":"DropdownServerSide, suggested in the task, is WRONG for this block: it is a select (AllowMultipleSelection, IsDisabled, item blocks), not a menu. RichWidgets.DropDownMenu is a navigation menu entry: MenuItem holds the top-level Link (real use in Menu.json), MenuSubItems the drop-down links (empty in the sample). OutSystemsUI.OverflowMenu (placeholders TriggerContent and Menu) is for a row-actions menu. The sample has one instance with MenuItem only, so the plain Link case is the one to automate.",
+"confidence":"medium"
+},
+{
+"traditional":"RichWidgets.Feedback_AjaxWait",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop the instance.",
+"notes":"The Traditional block shows a 'Loading...' box during Ajax requests. Reactive needs none. For a spinner on one button use OutSystemsUI.ButtonLoading (input IsLoading); for an area use the aggregate's IsDataFetched with an If.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Feedback_Message",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop the instance. Every Reactive layout already shows feedback messages.",
+"notes":"The block is the display area for the message that the Feedback_Message server action stores in a session variable. Reactive shows the message itself (Message action), so the block has no use. Layout blocks of the old module that hold it are rebuilt from the template layout, not copied.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Icon",
+"elementKind":"block",
+"reactive":"Icon",
+"reactiveKind":"widget",
+"inputs":{
+"Name":"icon",
+"Size":"Size (Icon widget property; no spec key today)"
+},
+"inputValueRules":"Name: Entities.IconName.<record> -> the icon name as plain text. All 593 records follow one rule: Class = 'fa-' + record name with '_' turned into '-' (verified by script), so exclamation_circle -> \"exclamation-circle\". Size: IconSize.Percent_33 -> fa-lg, Size_2x..Size_5x -> 2x..5x. If Size is not passed, Traditional shows a 1x icon but the Reactive Icon default is '2x font size': set the size explicitly.",
+"notes":"Reactive Icon widget has Icon (default flag), Size (default 2x font size), Visible, Style Classes. oml spec has only the `icon` key (plain text); Size has no key, so a person sets it in Service Studio. Check that each icon name exists in the Reactive picker (about 600 icons).",
+"confidence":"high"
+},
+{
+"traditional":"RichWidgets.Input_Calendar",
+"elementKind":"block",
+"reactive":"OutSystemsUI.DatePicker",
+"reactiveKind":"block",
+"inputs":{
+"InputWidgetId":null
+},
+"inputValueRules":"InputWidgetId (the Id of an existing Input bound to a Date) is dropped. The Input goes INSIDE the DatePicker (the pattern contains an Input). Keep the Input's variable. DateFormat: both use the server format when empty; set DateFormat only for another format. The value comes back in the OnSelected event as SelectedDateTime (Date Time): assign the variable = SelectedDateTime (DateTimeToDate if the variable is a Date).",
+"notes":"OnSelected is mandatory: every instance needs a handler. Where the Input sits (a placeholder or the pattern's own content) is not visible in reference signatures: describe the block in the OutSystemsUI producer to confirm. Mandatory and validation stay on the Input. The signature of RichWidgets.Input_Calendar itself could not be described (oml cannot resolve a name shared by an image and a block); InputWidgetId comes from the real export.",
+"confidence":"medium"
+},
+{
+"traditional":"RichWidgets.List_Counter",
+"elementKind":"block",
+"reactiveKind":"expression",
+"inputs":{
+"StartIndex":"StartIndex (screen local Integer, 0-based)",
+"TotalRowCount":"<Aggregate>.Count",
+"LineCount":"MaxRecords (screen local Integer)"
+},
+"inputValueRules":"Replace the instance by an Expression in a Container: If(TotalRowCount = 0, \"0 records\", (StartIndex + 1) + \" to \" + Min(StartIndex + MaxRecords, TotalRowCount) + \" of \" + TotalRowCount + \" records\"). The Traditional block shows nothing when TotalRowCount = -1. StartIndex arrives as List_Navigation_GetStartIndex(Table.Id, True): rewrite it as the local StartIndex. LineCount arrives as <Table>.LineCount: use the local MaxRecords. Count is a Long Integer in Reactive: wrap with LongIntegerToInteger where the model complains.",
+"notes":"Do NOT map this block to OutSystemsUI.Counter: Counter is a KPI tile (BackgroundColor, IsVertical, Height, Content placeholder), not a 'x to y of z' text. The Traditional text is English and fixed ('records', 'to', 'of').",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.List_Navigation",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Pagination",
+"reactiveKind":"block",
+"inputs":{
+"ListWidgetId":null,
+"LineCount":"MaxRecords",
+"TotalRowCount":"TotalCount",
+"MaxPageNumbers":null
+},
+"inputValueRules":"Add Integer locals StartIndex (default 0) and MaxRecords (the table's LineCount value); bind the aggregate's Start Index and Max. Records to them. Pagination args: StartIndex = StartIndex, MaxRecords = <LineCount expression>, TotalCount = <Aggregate>.Count (the kit signature says Long Integer, the docs say Integer: wrap with LongIntegerToInteger only if the model complains). ListWidgetId is dropped (it only named the table for the session store). MaxPageNumbers has no input (the pattern decides the page links). ShowGoToPage stays False.",
+"logicRewrite":"After a filter change: assign StartIndex = 0 and refreshData (see List_Navigation_ResetStartIndex).",
+"notes":"OnNavigate is mandatory: every instance needs a handler or apply refuses it. The default Previous and Next placeholder content is kept. The session-stored page of the Traditional block is not carried: the position is lost on reload (use a screen input or client variable if it must survive).",
+"confidence":"high"
+},
+{
+"traditional":"RichWidgets.List_SortColumn",
+"elementKind":"block",
+"reactive":"Table header cell Sort Attribute and Table On Sort",
+"reactiveKind":"widget",
+"inputs":{
+"Column":"Sort Attribute (property of the Header Cell)"
+},
+"inputValueRules":"Column is an entity attribute in SQL spelling: \"{Article}.[Subject]\" or \"{Article}.[Date] DESC\". Reactive Sort Attribute and the aggregate's dynamic sort use 'Entity.Attribute' and 'Entity.Attribute DESC': drop the braces and brackets ('{Article}.[Subject]' -> 'Article.Subject'). Remove the List_SortColumn instance from the header cell; the header text stays.",
+"logicRewrite":"Add a Text local TableSort. The Table's On Sort handler (Service Studio creates it with 'New On Sort Client Action') gets ClickedColumn: If TableSort = ClickedColumn then TableSort = ClickedColumn + \" DESC\" else TableSort = ClickedColumn; then refreshData of the aggregate. The aggregate gets a dynamic sort of TableSort (spec: sorts with \"dynamic\": true). For a SQL source the sort text must come from a fixed list and be encoded as {Entity}.[Attr] (SQL injection).",
+"notes":"Sort Attribute on a header cell and the table's On Sort have NO key in oml spec (Service Studio only): a person adds them. The dynamic sort and the TableSort local can be written by spec. The Traditional block draws its own arrow image; Reactive shows aria-sort and the theme arrow.",
+"confidence":"high"
+},
+{
+"traditional":"RichWidgets.NotifyWidget",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop the instance.",
+"notes":"Internal helper: a hidden element that carries the id of the Notify/OnNotify channel (input javascriptVariableName in the NoLockIn copy; the reference signature lists no input). Reactive uses block events instead: a Trigger Event node and a handler on the instance (oml spec triggerEvent).",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Popup_Editor",
+"elementKind":"block",
+"reactive":"Popup",
+"reactiveKind":"widget",
+"inputs":{
+"LinkOrButtonWidgetId":"(the opener: its On Click sets the Show Popup local to True)",
+"Title":"(a heading in the Popup's content)",
+"WidthPx":"(CSS width on the Popup)",
+"HeightPx":"(CSS height on the Popup)",
+"AutoResize":null,
+"RecenterOnResize":null,
+"HideCloseButton":"(leave out the close button)"
+},
+"inputValueRules":"Popup has Show Popup (Boolean expression) and Style Classes (default \"popup-dialog\"). Add a Boolean local (for example ShowArticlePopup, default False) and bind it to Show Popup. The link or button named by LinkOrButtonWidgetId gets an On Click client action that assigns the local = True. Title -> a heading as the first child. WidthPx/HeightPx (-1 = automatic) -> CSS style on the Popup (omit for -1). AutoResize and RecenterOnResize are dropped.",
+"logicRewrite":"Popup_Editor_Close (server action) -> client action assigning the local = False.",
+"notes":"Model change, not a block swap: the Traditional popup shows ANOTHER SCREEN (a LayoutPopup screen the Link navigates to, in an iframe). In Reactive the popup content is inside the Popup widget of the opening screen. Convert the popup screen into a Block (with an event such as OnClose, because a public block must not navigate), place it in the Popup and bind its inputs; its Save and Cancel call a client action that closes the Popup. oml spec has `showPopup` and `children`, no title or size key. With the WCAG 2.2 setting on, also close on Escape (onEscape event: Service Studio only). The Link's destination to the popup screen is removed.",
+"confidence":"medium"
+},
+{
+"traditional":"RichWidgets.Popup_Editor_Legacy",
+"elementKind":"block",
+"reactive":"Popup",
+"reactiveKind":"widget",
+"inputValueRules":"Same as RichWidgets.Popup_Editor. The reference signature lists no inputs, so no input mapping is possible.",
+"logicRewrite":"Close with a client action assigning the Show Popup local = False.",
+"notes":"Older popup editor. Its inputs are not visible in reference signatures (describe lists none), so read a real instance from the export. Same model change as Popup_Editor: the popup screen becomes a block inside a Popup widget.",
+"confidence":"low"
+},
+{
+"traditional":"RichWidgets.Popup_Editor_WithToken",
+"elementKind":"block",
+"reactive":"Popup",
+"reactiveKind":"widget",
+"inputValueRules":"Same as RichWidgets.Popup_Editor. The reference signature lists no inputs, so no input mapping is possible.",
+"logicRewrite":"Close with a client action assigning the Show Popup local = False.",
+"notes":"Popup editor variant that passes a token to the popup screen. Its inputs are not visible in reference signatures (describe lists none), so read a real instance from the export. Same model change as Popup_Editor: the popup screen becomes a block inside a Popup widget.",
+"confidence":"low"
+},
+{
+"traditional":"RichWidgets.Popup_InfoBalloon",
+"elementKind":"block",
+"reactive":"OutSystemsUI.Tooltip",
+"reactiveKind":"block",
+"inputs":{
+"LinkId":null,
+"WidthPx":"(CSS width on the Tooltip placeholder content)",
+"HeightPx":"(CSS height)"
+},
+"inputValueRules":"Wrap the link that LinkId named in the Tooltip's Content placeholder (the trigger), put the balloon content in the Tooltip placeholder, and set Trigger = Entities.Trigger.OnClick (the Traditional balloon opens on click of the link). Position default is Entities.Position.Right. LinkId is dropped (it only found the link). OnToggle(TooltipId, IsOpened) is mandatory: add an empty handler client action.",
+"placeholders":{
+"Content":"Tooltip"
+},
+"notes":"The Traditional balloon's content placeholder name is not visible in reference signatures (assumed Content): read it from the export. OutSystemsUI has no Balloon in Reactive: the Balloon pattern of OutSystemsUIWeb is Traditional only. For a menu of actions use OutSystemsUI.OverflowMenu.",
+"confidence":"medium"
+},
+{
+"traditional":"RichWidgets.RemovePopups",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop the instance.",
+"notes":"Used in popup layouts to remove stale popup DIVs of the parent window. A Reactive Popup widget goes away with its screen.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.RichWidgetsjQueryUI",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop the instance.",
+"notes":"jQuery loader. Reactive screens do not use jQuery or jQuery UI; OutSystems UI patterns bring their own libraries. Screen JavaScript that needs jQuery must be rewritten by a person.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.jQueryComponents",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop the instance.",
+"notes":"jQuery loader. Reactive screens do not use jQuery or jQuery UI; OutSystems UI patterns bring their own libraries. Screen JavaScript that needs jQuery must be rewritten by a person.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.jQueryUICompatibility",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop the instance.",
+"notes":"jQuery loader. Reactive screens do not use jQuery or jQuery UI; OutSystems UI patterns bring their own libraries. Screen JavaScript that needs jQuery must be rewritten by a person.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.jQueryUIInternal",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop the instance.",
+"notes":"jQuery loader. Reactive screens do not use jQuery or jQuery UI; OutSystems UI patterns bring their own libraries. Screen JavaScript that needs jQuery must be rewritten by a person.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.jQueryUILoader",
+"elementKind":"block",
+"reactiveKind":"none",
+"inputValueRules":"Drop the instance.",
+"notes":"jQuery loader. Reactive screens do not use jQuery or jQuery UI; OutSystems UI patterns bring their own libraries. Screen JavaScript that needs jQuery must be rewritten by a person.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Bar_Gradient",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Image of the producer used by its blocks and CSS.",
+"notes":"If a screen uses it as an Image widget, replace it with an image of the new module or CSS.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Feedback_AjaxWait",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Image of the producer used by its blocks and CSS.",
+"notes":"If a screen uses it as an Image widget, replace it with an image of the new module or CSS.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Input_Calendar",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Image of the producer used by its blocks and CSS.",
+"notes":"If a screen uses it as an Image widget, replace it with an image of the new module or CSS.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.List_SortColumn",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Image of the producer used by its blocks and CSS.",
+"notes":"If a screen uses it as an Image widget, replace it with an image of the new module or CSS.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Popup_Editor",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Image of the producer used by its blocks and CSS.",
+"notes":"If a screen uses it as an Image widget, replace it with an image of the new module or CSS.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Popup_Editor_Deprecated",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Image of the producer used by its blocks and CSS.",
+"notes":"If a screen uses it as an Image widget, replace it with an image of the new module or CSS.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Popup_Editor_No_Title_Close",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Image of the producer used by its blocks and CSS.",
+"notes":"If a screen uses it as an Image widget, replace it with an image of the new module or CSS.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Popup_Editor_No_Title_Close_Hover",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Image of the producer used by its blocks and CSS.",
+"notes":"If a screen uses it as an Image widget, replace it with an image of the new module or CSS.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Popup_InfoBalloon",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Image of the producer used by its blocks and CSS.",
+"notes":"If a screen uses it as an Image widget, replace it with an image of the new module or CSS.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Popup_titlebar_close",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Image of the producer used by its blocks and CSS.",
+"notes":"If a screen uses it as an Image widget, replace it with an image of the new module or CSS.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Script",
+"elementKind":"image",
+"reactiveKind":"none",
+"inputValueRules":"Drop. Image of the producer used by its blocks and CSS.",
+"notes":"If a screen uses it as an Image widget, replace it with an image of the new module or CSS.",
+"confidence":"medium",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.DateTime_PrettyFormat",
+"elementKind":"serverAction",
+"reactiveKind":"none",
+"inputs":{
+"DateTime":null
+},
+"inputValueRules":"No built-in or OutSystemsUI equivalent was found.",
+"logicRewrite":"Options: (1) an action of the team's own that returns a friendly text; (2) an approximation with FormatDateTime. What the action prints exactly (for example 'today' or 'x days ago') is not described in the downloaded docs and the producer logic is not available (signature only).",
+"notes":"Returns FormattedText: Text from a Date Time. Do not guess the format in the translator: emit a Todo and keep the input expression.",
+"confidence":"low",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Date_PrettyFormat",
+"elementKind":"serverAction",
+"reactiveKind":"none",
+"inputs":{
+"Date":null
+},
+"inputValueRules":"No built-in or OutSystemsUI equivalent was found.",
+"logicRewrite":"Options: (1) an action of the team's own that returns a friendly text; (2) an approximation with FormatDateTime. What the action prints exactly (for example 'today' or 'x days ago') is not described in the downloaded docs and the producer logic is not available (signature only).",
+"notes":"Returns FormattedText: Text from a Date. Do not guess the format in the translator: emit a Todo and keep the input expression.",
+"confidence":"low",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Feedback_Message",
+"elementKind":"serverAction",
+"reactive":"Message",
+"reactiveKind":"builtinAction",
+"inputs":{
+"MessageText":"Message",
+"MessageType":"Type"
+},
+"inputValueRules":"MessageType (static entity identifier) -> the Message node's type: Entities.MessageType.Info -> info, .Success -> success, .Warning -> warning, .Error -> error. In oml spec: {\"kind\":\"message\",\"message\":<MessageText expression>,\"type\":\"info|success|warning|error\"}. A variable of type MessageType has no direct form: build a client If with four Message nodes. Never carry the numeric Ids: RichWidgets Info=1, Success=2, Error=3, Warning=4; Reactive FeedbackMessage uses Info=0, Success=1, Warning=2, Error=3.",
+"logicRewrite":"Call in a screen action (translated to a client action): replace the call node with a Message node, also in an exception handler (AllExceptions.ExceptionMessage). In a SERVER action (copied logic) there is no equivalent: Message is client-only; return text and type as outputs and show them in the calling client action, or raise an exception.",
+"notes":"The translator already does this (src/MigrateScreens.cs lines 762-766). OutSystemsUI.FeedbackMessageShow(Message, MessageType: Integer, EncodedHTML, ExtendedClass, CloseOnClick) also exists and takes the numeric type.",
+"confidence":"high"
+},
+{
+"traditional":"RichWidgets.GetApplicationName",
+"elementKind":"serverAction",
+"reactiveKind":"none",
+"inputs":{
+"ESpaceId":null
+},
+"inputValueRules":"No replacement action. The usual call is GetApplicationName(GetOwnerEspaceIdentifier()) in a title or h1.",
+"logicRewrite":"Write a literal text (or a text resource, or a site property read in a data action) with the application name. On O11 only, a server action with an aggregate on the (System) Application entity (Entry_eSpace_Id = ESpaceId or BackOffice_eSpace_Id = ESpaceId) does what the NoLockIn copy does.",
+"notes":"The Service Studio converter mocks this action too ('Mock of server function GetApplicationName from dependency RichWidgets'). GetOwnerEspaceIdentifier and the System Application entity do not exist in ODC, so a literal is the safe form. 6 uses in the sample (Login, ApplicationTitle).",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Input_FocusFirstInvalid",
+"elementKind":"serverAction",
+"reactive":"OutSystemsUI.FocusFirstInvalidInput",
+"reactiveKind":"clientAction",
+"inputValueRules":"Call FocusFirstInvalidInput(WidgetId = <Form>.Id) with IsSmooth = False; ElementParentClass stays empty. WidgetId is the Id of the container to search in. The Traditional action has no inputs, so the translator adds the form's widget id (name the Form widget).",
+"logicRewrite":"Traditional: a server action that runs JavaScript (osjs('.Not_Valid:first').focus()) after a failed validation. Reactive: in the button's client action, when <Form>.Valid is False (or after assigning <Input>.Valid = False), call FocusFirstInvalidInput. It returns Success and ErrorMessage: ignore them.",
+"notes":"Which container to pass is a guess for forms that are not named: confirm.",
+"confidence":"medium"
+},
+{
+"traditional":"RichWidgets.List_Navigation_GetStartIndex",
+"elementKind":"serverAction",
+"reactiveKind":"expression",
+"inputs":{
+"ListWidgetId":null,
+"RememberStartIndex":null,
+"StartIndexOverride":null
+},
+"inputValueRules":"Replace the call by the screen local StartIndex (Integer, default 0): List_Navigation_GetStartIndex(Table.Id, True) -> StartIndex. StartIndexOverride <> -1 -> an assign StartIndex = <override> before the aggregate.",
+"logicRewrite":"The local is the aggregate's Start Index; the Pagination event OnNavigate writes it. RememberStartIndex = True (keep the page when returning from a detail screen) has no built-in equivalent: pass StartIndex as a screen input of the list or keep it in a client variable.",
+"notes":"The real RichWidgets input is ListWidgetId; the NoLockIn copy names it ListWidget (and List_SortColumn_GetOrderBy: real TableRecordsId, copy TableRecordId). Use the reference signature names for real modules.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.List_Navigation_ResetStartIndex",
+"elementKind":"serverAction",
+"reactiveKind":"expression",
+"inputs":{
+"ListWidgetId":null
+},
+"inputValueRules":"Replace the call node by an assign StartIndex = 0 followed by refreshData of the list's aggregate.",
+"logicRewrite":"Used in a search or filter action (ResetPagination branch) so the list restarts at page 1. The old Ajax Refresh of the table goes away: refreshData of the aggregate does it.",
+"notes":"The screen needs the StartIndex local created for the Pagination block.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.List_SortColumn_GetOrderBy",
+"elementKind":"serverAction",
+"reactiveKind":"expression",
+"inputs":{
+"TableRecordsId":null,
+"DefaultOrder":"(default value of the TableSort local)"
+},
+"inputValueRules":"In an aggregate 'order by List_SortColumn_GetOrderBy(T.Id, \"{Article}.[Subject]\") [dynamic]' replace the dynamic sort expression by the Text local TableSort. Default value of TableSort = DefaultOrder as 'Entity.Attribute' (strip braces and brackets: \"{Article}.[Date] DESC\" -> \"Article.Date DESC\"). For a SQL query keep the {Entity}.[Attr] form and encode it in a server action.",
+"logicRewrite":"TableSort is set by the Table's On Sort client action (see RichWidgets.List_SortColumn).",
+"notes":"The real RichWidgets input is TableRecordsId; the NoLockIn copy names it TableRecordId.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.Popup_Editor_Close",
+"elementKind":"serverAction",
+"reactiveKind":"expression",
+"inputValueRules":"Replace the call node by an assign of the popup's Boolean local = False (in the screen that owns the Popup), or by a Trigger Event node (for example OnClose) when the call sits in the block shown inside the popup.",
+"logicRewrite":"Traditional: runs parent.RichWidgets_Popup_Editor_Close() to close the iframe popup from inside it. Reactive: no iframe and no parent window.",
+"notes":"Often follows a Feedback_Message call in the popup screen; a Message node before closing is fine.",
+"confidence":"high",
+"reactive":null
+},
+{
+"traditional":"RichWidgets.IconName",
+"elementKind":"staticEntity",
+"reactive":"Icon widget's Icon property (plain text)",
+"reactiveKind":"none",
+"inputValueRules":"Entities.IconName.<record> -> \"<record name with - for _>\", equal to the record's Class minus 'fa-'. 593 records; the rule was checked on every one.",
+"notes":"See RichWidgets.Icon.",
+"confidence":"high"
+},
+{
+"traditional":"RichWidgets.IconSize",
+"elementKind":"staticEntity",
+"reactive":"Icon widget's Size property",
+"reactiveKind":"none",
+"inputValueRules":"Percent_33 -> fa-lg (about 1.33x), Size_2x -> 2x, Size_3x -> 3x, Size_4x -> 4x, Size_5x -> 5x.",
+"notes":"Reactive Icon Size default is 2x; Traditional default is 1x. The names of the Reactive Size choices are not in the library: check in Service Studio.",
+"confidence":"medium"
+},
+{
+"traditional":"RichWidgets.MessageType",
+"elementKind":"staticEntity",
+"reactive":"(none: the Message node's type is a fixed choice)",
+"reactiveKind":"none",
+"inputValueRules":"Entities.MessageType.Info/Success/Warning/Error -> Message type info/success/warning/error. See RichWidgets.Feedback_Message.",
+"notes":"Records: Error (Id 3), Info (1), Success (2), Warning (4); attributes Id and Label. In the sample it is only the type argument of Feedback_Message.",
+"confidence":"high"
+}
+]

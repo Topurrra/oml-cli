@@ -316,6 +316,23 @@ static partial class Migrate
         foreach (var a in items.SelectMany(i => i.EntityActions).Distinct().Where(a => EntityActionMap(r.EntityNames).ContainsKey(a) && !r.WrapperMap.ContainsKey(a)))
             r.Notes.Add($"A translation reported the entity action {a} without a wrapper for it: add the wrapper by hand.");
         r.ScreensSpec = ScreensSpec(r, items);
+        // Reactive library blocks the translation uses (from the Traditional UI library map): the new module must reference them.
+        if (r.ScreensSpec is not null)
+        {
+            var libs = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+            void Find(JsonNode? n)
+            {
+                if (n is JsonObject o)
+                {
+                    if (o["sourceBlock"] is JsonValue v && v.ToString() is var sb && sb.IndexOf('.') is > 0 and var dot && sb[..dot] is "OutSystemsUI" or "OutSystemsCharts")
+                        (libs.TryGetValue(sb[..dot], out var set) ? set : libs[sb[..dot]] = new SortedSet<string>(StringComparer.Ordinal)).Add(sb[(dot + 1)..]);
+                    foreach (var (_, c) in o) Find(c);
+                }
+                else if (n is JsonArray a) foreach (var c in a) Find(c);
+            }
+            Find(r.ScreensSpec);
+            foreach (var (lib, blocks) in libs) r.Unresolved.Add($"{lib} ({string.Join(", ", blocks)})");
+        }
 
         // 6. descriptions and style sheets
         var texts = Describe(run, old, r.Screens.Select(s => (s.Query, s.Name)).ToList(), r.Notes);
@@ -335,6 +352,29 @@ static partial class Migrate
         if (r.ScreensSpec is not null) files.Add(("4-screens.json", Json(r.ScreensSpec)));
         files.Add(("4-screens.md", ScreensMd(r, items, r.ScreensSpec is not null)));
         files.AddRange(css);
+        // The Traditional UI library elements the old module uses, and what each becomes (UiLibraryMap).
+        static string KindOf(string k) => k.Replace("Signature", "").TrimStart('I') switch
+        { "WebBlock" => "block", "ServerAction" => "serverAction", "StaticEntity" => "staticEntity", "Structure" => "structure", "Image" => "image", "WebTheme" => "theme", var x => x };
+        var referenced = Rows(inspect, "references").Where(rf => S(rf, "module") is { } m && UiLibraryMap.Libraries.Contains(m, StringComparer.OrdinalIgnoreCase))
+            .SelectMany(rf => Rows(rf, "elements").Select(e => (module: S(rf, "module")!, kind: KindOf(S(e, "kind") ?? ""), name: S(e, "name") ?? ""))).ToList();
+        var named = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void Uses(JsonNode? n)
+        {
+            if (n is JsonObject o)
+            {
+                foreach (var key in new[] { "sourceBlock", "action", "_ref" })
+                    if (o[key] is JsonValue v && v.ToString() is { } t && UiLibraryMap.IsLibrary(t)) named.Add(t);
+                foreach (var (_, c) in o) Uses(c);
+            }
+            else if (n is JsonArray a) foreach (var c in a) Uses(c);
+        }
+        foreach (var ex in exports.Values) Uses(ex);
+        var libUse = referenced.Where(e => e.kind is "block" or "serverAction" ? named.Contains(e.module + "." + e.name) : false).Select(e => (e.module, e.kind, e.name));
+        if (UiLibraryMap.Markdown(libUse) is { Length: > 0 } libMd)
+        {
+            files.Add(("ui-libraries.md", libMd));
+            r.Notes.Add("ui-libraries.md lists the Traditional UI library elements this module uses (OutSystemsUIWeb, RichWidgets, OutSystemsChartsWeb) and what each becomes in Reactive.");
+        }
         foreach (var s in r.Screens)
         {
             files.Add((s.File, texts.TryGetValue(s.Query, out var t) ? t : "(no description)\n"));

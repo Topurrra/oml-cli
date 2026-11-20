@@ -43,6 +43,8 @@
     <EmbeddedResource Include="..\skill\recipes\*.jsonc" LogicalName="OmlCli.recipes.%(Filename)%(Extension)" />
     <!-- Verification message-id catalog (see VerifyCatalog.cs). -->
     <EmbeddedResource Include="Core\Data\verify-message-ids.txt" LogicalName="OmlCli.verifymessageids.txt" />
+    <!-- oml migrate: what each Traditional UI library element (OutSystemsUIWeb, RichWidgets, OutSystemsChartsWeb) becomes in Reactive. -->
+    <EmbeddedResource Include="Data\ui-library-map.json" LogicalName="OmlCli.ui-library-map.json" />
     <!-- Double-click shortcut that starts `oml dashboard`. -->
     <None Include="oml-dashboard.cmd" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

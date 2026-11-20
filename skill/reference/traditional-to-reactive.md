@@ -39,6 +39,10 @@ What stays and what is copied:
 
 `partial` and `worklist` elements are yours: read `screens/<Name>.txt` and the raw export, finish the TODO stubs, tick the box. Rebuild producers before consumers, not as a one-to-one copy. Code fills a Form's record (aggregate `onAfterFetch`, input, local) and carries confirm text, icon, prompt, max length, input types, default button, image size. Todos: Link URL, Radio Group, validation message, image URL, table sort and paging.
 
+## UI libraries
+
+OutSystemsUIWeb, RichWidgets and OutSystemsChartsWeb blocks are translated by a map built from their real signatures and the OutSystems docs: a block with a checked Reactive counterpart becomes it (OutSystemsUI.Card, Pagination, Columns2, ...), with inputs and placeholders renamed; loaders, the Ajax wait box and the message area are dropped; RichWidgets.Icon becomes the Icon widget; `Feedback_Message` becomes a message node. Everything else is a Todo with the map's note. `ui-libraries.md` in the plan folder lists only the library elements the module uses, what each becomes and what to check (renamed static entity values, default values that differ). The new module must reference the Reactive libraries it lists before step 3.
+
 ## Logic
 
 | Traditional | Reactive |
