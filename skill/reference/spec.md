@@ -863,8 +863,7 @@ The scaffold fixture verifies a local layout on bare CrossDevice. The self-test 
 
 ### Edits
 
-Edits run after creation in list order. Expression writes run after edits; expressions must use final names.
-Each problem prevents the final staged save.
+Edits run after creation in list order. Expression writes run after edits; expressions must use final names. Each problem prevents the final staged save. The examples assume the elements they name exist.
 
 Existing means present in the source module before this spec started. Elements created in this spec remain editable and deletable, including after the internal data-model reload.
 Existing entities (regular or static), their attributes and static records, structures and attributes, server/service/client actions and input/output parameters, screens, blocks, roles, exceptions, site properties, timers, REST clients/services and methods, and processes cannot be renamed or deleted. Setting Name or a static record Identifier cannot bypass this rule.
@@ -905,8 +904,6 @@ Widget area can be children, trueBranch, falseBranch, row, or headerRow; indexed
   { "op": "delete", "element": "CreateOrderFor/RememberTotal" }
 ] }
 ```
-
-The example assumes the named action, nodes, screen, Header container, aggregate, and role already exist.
 
 `replaceWidgets` keeps the element at `at` (its name, style and events) and replaces every widget inside it. Use it to restyle or rebuild part of an existing screen without a rebuild; a deeper `at` replaces less. A layout placeholder's path has its name, for example `ContactForm/MainContent` (copy it from `oml tree`). The report's `changed` lists `widgets of <at>`. When the new widgets equal the ones there, apply keeps them (`existing`: `widgets of <at> (already as in the spec)`), so a library synced every cycle shows only real changes in `review`.
 It is refused, before anything changes, when a removed widget is used outside the replaced part, for example `NameInput.Valid` in a screen action; the problem names each widget and where it is used. An expression finds a widget by name, so a new widget with the same name keeps that usage working: keep the name in `widgets`, or change the usage first. The new widget must be the same kind (an Input stays an Input): `NameInput.Valid` would mean something else, so a used name given to another kind is refused ("NameInput was an Input, now a Container"). Other references to a removed widget point at the widget itself and are always refused, for example a Label's target widget: first point the Label at another widget.

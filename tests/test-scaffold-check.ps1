@@ -74,7 +74,7 @@ if ((& $Oml describe $staged CancelOrder_Tests | ConvertFrom-Json).text -match '
 $d = & $Oml describe $staged PlaceOrder_Tests | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) { Fail "describe PlaceOrder_Tests exit $LASTEXITCODE" }
 $count = { param($block) [regex]::Matches($d.text, "sourceBlock=(\w+\.)?$block\b").Count }
-$shape = '{0}:{1}:{2}:{3}' -f (& $count 'BDDScenario'), (& $count 'BDDStep'), (& $count 'FinalResult'), $d.text.Contains('text=PlaceOrder tests')
+$shape = '{0}:{1}:{2}:{3}' -f (& $count 'BDDScenario'), (& $count 'BDDStep'), (& $count 'FinalResult'), $d.text.Contains('value=PlaceOrder tests')
 if ($shape -ne '3:9:1:True') { Fail "test screen shape $shape, expected 3:9:1:True`n$($d.text)" }
 
 # 5. Refusals, each with exit code and message. None writes a spec.

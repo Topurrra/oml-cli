@@ -121,7 +121,9 @@ static class Describe
         if (Expr(o, "Mandatory") is { Length: > 0 } mandatory && !mandatory.Equals("False", StringComparison.OrdinalIgnoreCase)) Add("mandatory", mandatory, "mandatory=" + mandatory);
         if (Expr(o, "Enabled") is { Length: > 0 } enabled && !enabled.Equals("True", StringComparison.OrdinalIgnoreCase)) Add("enabled", enabled, "enabled=" + enabled);
         if (Reflect.Get(o, "IsDefault") is true) Add("isDefault", "True", "[default button]");
-        if (Expr(o, "ConfirmationMessage") is { Length: > 0 } confirm) Add("confirm", confirm, "confirm=" + confirm);
+        // Reactive keeps the confirmation on the widget, Traditional Web on its On Click event.
+        if ((Expr(o, "ConfirmationMessage") is { Length: > 0 } c1 ? c1 : Reflect.Get(o, "OnClick") is { } onClick ? Expr(onClick, "ConfirmationMessage") : null) is { Length: > 0 } confirm)
+            Add("confirm", confirm, "confirm=" + confirm);
         if (ElementPaths.Kind(o) == "Image")
         {
             if (Reflect.Get(o, "Image") is IObjectSignature image) { var imageName = Name(image); Add("image", imageName, "image=" + imageName); }

@@ -66,10 +66,7 @@ Every server action a screen calls is a public endpoint: start it with identity 
 |---|---|
 | Button, Link, Container, If, Label, Text, Placeholder, Upload, web block | Same widget |
 | Container Display | Visible, or an If (an If removes the content). The translator sets Visible |
-| Plain HTML Table (layout), its rows and cells | HTML elements `table`, `tr`, `td` that keep style, size and span (the translator builds them) |
-| An If on `InWebBlockPreview` | Only the branch that runs; the preview content is dropped |
-| Width, Align, Vertical Align, Title | CSS (`40char` is `40ch`, `(fill parent)` is the default), an OutSystems UI `text-align-*` class, the `title` attribute |
-| Example, Ajax Refresh flag, Validation Parent, Edit Record layout | Dropped: no meaning in Reactive |
+| Layout HTML Table, Width, Align, `InWebBlockPreview`, Example | Handled by the translator: HTML elements, CSS and classes; preview and design-time parts dropped |
 | Combo Box | Dropdown with a list, Options Value and Options Text |
 | Radio Button | Radio Group with one Radio Button per choice |
 | Edit Record, Show Record | Form with inputs bound to a local record variable |

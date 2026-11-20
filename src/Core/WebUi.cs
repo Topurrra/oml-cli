@@ -158,7 +158,9 @@ partial class Builder
                         "source" => Reflect.Has(widget, "SetSourceRecordList") ? "sourceRecordList" : "sourceRecord",
                         _ => p.Name,
                     };
-                    Queue(where, m, widget, key, p.Value, referencesDone: true);
+                    // A Traditional Button or Link keeps its confirmation text on its On Click event, not on the widget.
+                    var target = key.Equals("confirmationMessage", StringComparison.OrdinalIgnoreCase) && Reflect.Get(widget, "OnClick") is { } onClick ? onClick : widget;
+                    Queue(where, m, target, key, p.Value, referencesDone: true);
                 }
             }
         });

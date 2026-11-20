@@ -31,6 +31,9 @@ Traditional Web to Reactive, prepared by code, and an interactive menu for peopl
 - **`oml export` noted unreadable properties that its typed readers had read** (Visible on Form content).
 - **`oml export` named an Image only `Web`** and noted "header and row could not be told apart" on plain HTML tables; it now names the Image and keeps that note for Table Records.
 - **`oml migrate plan` wrote a second, broken repoint edit** for every entity write (on the call's connector), so `2-source.json` always failed. The migrate self-test also passes on Windows now.
+- **`confirmationMessage` on a Traditional Web Button or Link was refused** ("no settable 'confirmationMessage'"): Traditional keeps it on the On Click event. `apply` writes it there and `describe` reads it from there.
+- **`oml inspect` left a UI flow's exception action out of `otherContent`**: it is a property of the flow, not one of its nodes.
+- **`oml --help` did not name `oml skill`.**
 
 ### Removed
 

@@ -22,6 +22,7 @@ branch: branch, branches
 build: build, building
 button: button, buttons
 call: call, called, calling, calls
+call: call, calling, calls
 cas: case, cases
 cell: cell, cells
 chang: change, changed, changes, changing
@@ -104,6 +105,7 @@ layout: layout, layouts
 library: libraries, library
 limit: limit, limits
 lin: line, lines
+link: link, links
 list: list, listed, lists
 literal: literal, literals
 load: load, loaded, loading, loads
@@ -126,10 +128,12 @@ object: object, objects
 one: one, ones
 onselect: onselect, onselected
 open: open, opens
+option: option, options
 order: order, orders
 other: other, others
 output: output, outputs
 own: own, owned
+own: own, owned, owns
 parameter: parameter, parameters
 part: part, parts
 path: path, paths
@@ -137,6 +141,7 @@ pattern: pattern, patterns
 placeholder: placeholder, placeholders
 point: point, points
 position: position, positions
+prepar: prepare, prepared
 problem: problem, problems
 process: process, processes
 property: properties, property
@@ -152,6 +157,7 @@ refus: refuse, refused, refuses
 refus: refused, refuses
 remov: remove, removed, removes
 renam: rename, renames, renaming
+renam: rename, renamed, renames, renaming
 reopen: reopen, reopening
 replac: replace, replaced, replaces
 replac: replace, replaces
@@ -204,6 +210,7 @@ text: text, texts
 them: theme, themes
 timer: timer, timers
 total: total, totals
+translat: translate, translated
 translation: translation, translations
 trap: trap, traps
 typ: type, typed, types

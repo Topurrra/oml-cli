@@ -30,6 +30,7 @@ $skip = [ordered]@{
   'selftest'       = 'takes no path and runs for minutes'
   'doctor'         = 'takes no path'
   'explain-warning' = 'takes no path'
+  'menu'           = 'interactive: reads the keyboard; tests/menu-check.ps1 covers it'
   # map build is tested below; the map queries (overview, uses, impact, data, api, list) take names, not paths.
 }
 # A template that starts with ! writes to {p}: there a missing file or a wrong extension may simply succeed (exit 0), and
@@ -78,6 +79,9 @@ $shapes = [ordered]@{
   'learn'                  = @('~learn report --file {p}', 'learn report --check {p}', '~learn propose --file {p}')
   'map'                    = @('map build badinput --in {p}')
   'mock'                   = @('mock --all --personas {p}')
+  'export'                 = @('export {p} Foo')
+  'migrate'                = @('migrate plan {p} --name X', 'migrate status {p} {p}')
+  'config'                 = @('config show --dir {p}')
 }
 # The extension a path argument should have, by the first word of the shape (default .oml).
 $ext = @{ 'app' = '.oap'; 'extension' = '.xif'; 'spec' = '.json'; 'batch' = '.json'; 'apply' = '.json'; 'log' = '.jsonl'; 'learn' = '.jsonl'; 'mock' = '.json';

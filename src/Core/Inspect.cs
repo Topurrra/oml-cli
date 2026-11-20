@@ -113,6 +113,9 @@ static class Inspect
         Gather("integrations", () => m.Integrations.OfType<IObjectSignature>());
         Gather("mobile flow nodes", () => m.MobileFlows.SelectMany(f => f.Nodes).OfType<IObjectSignature>());
         Gather("web flow nodes", () => m.WebFlows.SelectMany(f => f.Nodes).OfType<IObjectSignature>());
+        // A UI flow's exception action is a property of the flow, not one of its nodes.
+        Gather("flow exception actions", () => m.MobileFlows.Cast<object>().Concat(m.WebFlows)
+            .Select(f => Reflect.Get(f, "OnExceptionHandler")).OfType<IObjectSignature>());
         var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
         return candidates
             .Where(o => o is not IReference && o is not IExpression && !listed.Contains(o) && seen.Add(o))

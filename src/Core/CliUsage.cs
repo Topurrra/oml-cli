@@ -120,7 +120,7 @@ static class CliUsage
     public const string Overview = """
         Commands by area (OutSystems 11 modules; compact JSON out, a readable view in a console):
         Read a module: inspect, describe, export, find, tree, flow, stats, header, expression, openapi (what a module holds, one element, search, counts, the header, an expression, OpenAPI)
-        Start a project: create, config (a folder ready to work in; the project profile: what agents do, skip and ask)
+        Start a project: create, config, skill (a folder ready to work in; the project profile: what agents do, skip and ask; refresh skill/ to this oml)
         Change a module: new, migrate, apply, install, validate, spec, translations (new module; Traditional to Reactive plan; edit by spec into a staged copy; install after checks; spec keys; translation files)
         Application map: map, mock (every app of a project: who calls what, which APIs feed which; mocks chained across APIs)
         Check and review: check, review, architecture (rules and findings; a change before and after; module map and publish order)

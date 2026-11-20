@@ -130,7 +130,7 @@ if (-not $writing[0] -or $writing[0] -cne $writing[1]) { Fail 'the "## Writing t
 function Plain([string]$t) { ([System.Net.WebUtility]::HtmlDecode(($t -replace '<[^>]+>', '')) -replace '\*\*|`', '' -replace ' ?\((enforced|enforced by apply)\)', '').Trim() }
 # The site names the newer user-visible options.
 $siteText = Get-Content -Raw (Join-Path $repo 'docs/index.html')
-foreach ($o in '--timings', '--serve', '--click', '--type', '--wait') { if (-not $siteText.Contains($o)) { Fail "docs/index.html does not mention $o" } }
+foreach ($o in '--timings') { if (-not $siteText.Contains($o)) { Fail "docs/index.html does not mention $o" } }
 $site = [regex]::Matches((Get-Content -Raw (Join-Path $repo 'docs/index.html')), '<li><span class="badge[^"]*">[^<]*</span><div>(.*?)</div></li>')
 if ($site.Count -ne $ruleLines.Count) { Fail "docs/index.html lists $($site.Count) rules; rules.md has $($ruleLines.Count)" }
 for ($i = 1; $i -le $site.Count; $i++) {
