@@ -723,6 +723,12 @@
         },
         "onAfterResponse": {
           "$ref": "#/$defs/RestCallbackSpec"
+        },
+        "onRequest": {
+          "$ref": "#/$defs/RestCallbackSpec"
+        },
+        "onResponse": {
+          "$ref": "#/$defs/RestCallbackSpec"
         }
       },
       "additionalProperties": false,
@@ -1215,6 +1221,9 @@
                   "decision",
                   "end",
                   "start",
+                  "wait",
+                  "conditionalStart",
+                  "executeProcess",
                   "assign",
                   "if",
                   "forEach",
