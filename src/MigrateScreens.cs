@@ -921,6 +921,7 @@ static class ScreenTranslator
             if (Prop(w, used, "width") is { } wd && Css("width", wd) is { } cw) css.Add(cw);
             if (Prop(w, used, "height") is { } ht && Css("height", ht) is { } ch) css.Add(ch);
             if (Prop(w, used, "verticalAlignment") is { } va && Norm(va) is "top" or "middle" or "bottom") css.Add("vertical-align: " + Norm(va));
+            if (Prop(w, used, "marginLeft") is { } ml && Regex.IsMatch(ml.Trim(), @"^[1-9]\d*(px|%)?$")) css.Add("margin-left: " + (Regex.IsMatch(ml.Trim(), @"^\d+$") ? ml.Trim() + "px" : ml.Trim()));
             if (css.Count > 0)
             {
                 var add = string.Join("; ", css);
@@ -952,7 +953,8 @@ static class ScreenTranslator
         }
 
         // Properties with no Reactive meaning: design-time text, Ajax and validation-parent settings, Edit Record and table layout, values that are the default.
-        static readonly string[] Dropped = ["example", "isAjaxRefreshed", "validationParent", "cellSpacing", "displayColumns", "lineSeparator", "effectiveCaptionWidth", "effectiveValueWidth", "masterEntity"];
+        static readonly string[] Dropped = ["example", "isAjaxRefreshed", "validationParent", "cellSpacing", "displayColumns", "lineSeparator", "effectiveCaptionWidth", "effectiveValueWidth", "masterEntity",
+            "description", "marginLeft", "isEditable", "labelsPosition"];   // a widget description is a design note; Adaptive and 0 margins are the default
         void Quiet(JsonObject w, HashSet<string> used)
         {
             if (w["props"] is not JsonObject p) return;
@@ -1044,6 +1046,11 @@ static class ScreenTranslator
                     }
                     break;
                 case "input": case "textarea": o = Input(w, used, kind == "textarea"); break;
+                case "inputpassword":   // a Password Input of Traditional Web is an Input of type Password
+                    o = Input(w, used, false); o["inputType"] = "Password"; used.Add("passwordtype"); break;
+                case "customplaceholder": case "placeholdercontent":   // the content area of a Form or a block instance: its widgets move up
+                    foreach (var c in Objs(w["children"])) One(c, into);
+                    return;
                 case "button": case "link": o = Click(w, used, kind == "button"); break;
                 case "if": o = If(w, used); break;
                 case "image":
