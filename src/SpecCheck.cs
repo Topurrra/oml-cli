@@ -85,6 +85,7 @@ static class SpecShapes
         ["setArgs"] = new(new[] { "element", "args" }, new string[0]),
         ["repoint"] = new(new[] { "element", "action" }, new string[0]),
         ["rewrite"] = new(new[] { "element", "from", "to" }, new string[0]),
+        ["connect"] = new(new[] { "element", "to" }, new[] { "connector" }),
     };
 
     // Value type of the non-string keys of an edit.

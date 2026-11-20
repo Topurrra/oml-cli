@@ -216,6 +216,7 @@ translat: translate, translated
 translation: translation, translations
 trap: trap, traps
 typ: type, typed, types
+updat: update, updates
 use: use, uses
 user: user, users
 validation: validation, validations

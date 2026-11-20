@@ -587,7 +587,7 @@ Verified on Service Studio `11.55.92.65269` in a fresh CrossDevice module. See `
 | `roles` | name, description, persistent; other installed properties | Persistent maps to IsPersistent. |
 | `siteProperties` | name, type, default, description, multiTenant; other installed properties | Basic type; defaults to Text. Default is an expression. |
 | `timers` | name, action, schedule, timeout, priority, description; other installed properties | Action must be a module-owned server action. Timeout maps to TimeoutInMinutes. |
-| `processes` | name, launchOn, inputs, flow, detail, onProcessStart, onActivityOpen, onActivityStart, onActivityReady, onActivityClose, onActivitySkip; other installed properties | Launch On names a module entity (Create) or `{ "entity", "event": "Create" | "Update" }`. A callback is a flow array or `{ "locals", "flow" }`. |
+| `processes` | name, launchOn, inputs, flow, detail, onProcessStart, onActivityOpen, onActivityStart, onActivityReady, onActivityClose, onActivitySkip; other installed properties | Launch On names a module entity (Create) or `{ "entity", "event": "Create" | "Update" }`. A callback is a flow array or `{ "locals", "flow" }`. Listed again, an existing process gets the nodes it lacks, updates the listed ones and connects them as listed (other nodes stay; delete removes them). |
 | Screen `access` | anonymous, registered, roles | Replaces memberships. Flags default false; roles defaults empty. |
 | Process node | kind, name, next, onOpen, onReady, onStart, onClose, onSkip, closeOn, startOn; installed properties | Resolves `OutSystems.Model.Processes.Nodes.I<Kind>Node`. Kinds: humanActivity, automaticActivity, decision, wait, conditionalStart, executeProcess, start, end. Callbacks as for the process; `closeOn` (wait, humanActivity) and `startOn` (conditionalStart) like `launchOn`. |
 | Human activity | destination, args, roles, instructions, detail, dueDate | Supplied roles replace Registered. |
@@ -886,9 +886,9 @@ Existing entity, static entity, and structure attributes cannot change DataType,
 | `setArgs` | element, args | Sets arguments of a call, navigation or other node by parameter name. A number or true/false is used as the expression. |
 | `repoint` | element, action | Makes an existing Execute node call another action (`Name` or `Module.Name`). The node keeps its place, name and key, so `Node.Output` readers stay. Arguments are set again by parameter name; an argument with no input of that name, or a mandatory input without one, is refused. Already calling it: no change. |
 | `rewrite` | element, from, to | Replaces the identifier path `from` (`Session.UserName`) with the expression `to` in every expression under `element` (both sides of an assign); string literals and other paths stay. |
+| `connect` | element, to, connector | Process nodes: where `element` goes next (`End` too); a Decision names its exit with connector true or false. insertNodes ("action": the process), replaceNode and delete work on process nodes too and keep the flow connected. |
 
-For If or For Each insertion, connector is required: true, false, cycle, or next (alias sequence), as supported. Explicit targets can name existing or inserted nodes. End and Raise Exception terminate normally.
-Widget area can be children, trueBranch, falseBranch, row, or headerRow; indexed insertion keeps list order. Absent parent means the screen/block root; for plugin widgets, children uses the first placeholder.
+For If or For Each insertion, connector is required: true, false, cycle, or next (alias sequence), as supported. Explicit targets can name existing or inserted nodes. End and Raise Exception terminate normally. Widget area can be children, trueBranch, falseBranch, row, or headerRow; indexed insertion keeps list order. Absent parent means the screen/block root; for plugin widgets, children uses the first placeholder.
 
 ```json
 { "edits": [

@@ -171,7 +171,9 @@ sealed class ProductionRules
         && (o is not IParameterSignature || o.Parent is not OutSystems.Model.Logic.Nodes.IActionNode)
         // A widget's event handler parameter (a table's OnSort ClickedColumn, added by Service Studio on save) is part
         // of the widget: replaceWidgets may remove it with the widget.
-        && (o is not IParameterSignature || o.Parent?.Parent is not OutSystems.Model.UI.IWidgetSignature);
+        && (o is not IParameterSignature || o.Parent?.Parent is not OutSystems.Model.UI.IWidgetSignature)
+        // What a process node owns (the Close or Start activity action Service Studio makes for it, its parameters) goes with the node.
+        && o.Parent is not OutSystems.Model.Processes.Nodes.IProcessNode && o.Parent?.Parent is not OutSystems.Model.Processes.Nodes.IProcessNode;
     // Any change to an element of a referenced module (a proxy) is refused with this one message.
     internal static ModelError Consumed(IObjectSignature o)
     {

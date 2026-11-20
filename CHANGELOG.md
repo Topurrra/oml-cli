@@ -43,6 +43,8 @@ Traditional Web to Reactive, prepared by code, and an interactive menu for peopl
 
 - **Long Advanced SQL can be read in full.** `oml describe` cuts a statement at 200 characters in its one-line view and now says so: `[cut: N characters; all of it: oml describe <module.oml> <path> --sql]`. `describe --sql` prints the whole statement of a SQL node, or of every SQL node in an action, screen or block, as plain text; `--sql --out <file.sql>` writes it to a UTF-8 file to read in parts, for statements too long for an agent's tool output.
 
+- **Process flows can be changed, not only created.** `insertNodes` with a process as `action` puts new nodes between `after` and where it went (a Decision branch with `connector` true or false); `replaceNode` rebuilds a process node in place (same kind and name: updated, for example another action; another kind: a new node takes its connectors); `delete` of a process node joins the node before it to the node after it (a Decision with two exits is refused); the new `connect` edit sets where a node goes next; and listing an existing process again in `processes` adds the nodes it lacks, updates the listed ones and connects them as listed. What Service Studio generates inside a process node (its Close or Start activity action) goes with the node.
+
 ### Fixed
 
 - **`oml migrate plan` wrote Traditional Style Classes and inline styles unquoted**, so every translated style was an invalid expression in Reactive; they are text in quotes now. `oml export` no longer notes "header and row could not be told apart" for every table cell, and an Ajax Refresh no longer counts its next node as a target.

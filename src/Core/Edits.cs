@@ -63,6 +63,18 @@ partial class Builder
             case "insertNodes":
             {
                 var action = Find("action");
+                if (action is OutSystems.Model.Processes.IProcess process)   // a process flow (ProcessFlow.cs)
+                {
+                    if (edit.TryGetProperty("ifMissing", out var onceP) && onceP.ValueKind == JsonValueKind.True && edit.TryGetProperty("flow", out var wantedP)
+                        && wantedP.ValueKind == JsonValueKind.Array && wantedP.EnumerateArray().All(s => ProcessNodes(process).Any(n => string.Equals(Model.NameOf(n), NodeName(s), StringComparison.OrdinalIgnoreCase))))
+                    {
+                        existing.Add($"nodes after {Required("after")} in {Required("action")} (already there)");
+                        applied = false;
+                        break;
+                    }
+                    ProcessInsert(process, edit, label, Required("after"));
+                    break;
+                }
                 if (!Reflect.Has(action, "CreateNode")) throw new ModelError("action must be an editable action or data action");
                 // ifMissing: a patch that may run again (a library synced every cycle) inserts only once. The flow is
                 // there when each named node exists in the action, and each unnamed refresh has a refresh of its data source.
@@ -105,8 +117,16 @@ partial class Builder
                 // a node of an existing flow (an Assign's values, a call's arguments) where set cannot reach. When the
                 // new node equals the old one, apply keeps the old one (see Unchanged), so running it again changes nothing.
                 var target = Find("element");
+                if (target is OutSystems.Model.Processes.Nodes.IProcessNode)
+                {
+                    if (!edit.TryGetProperty("node", out var processNode) || processNode.ValueKind != JsonValueKind.Object)
+                        throw new ModelError("'node' must be one process node, as in a process flow list");
+                    ProcessReplace(target, processNode, label, Required("element"));
+                    Change($"node {Required("element")}");
+                    break;
+                }
                 if (target is not IActionNode || target.Parent is not IObjectSignature owner || !Reflect.Has(owner, "CreateNode"))
-                    throw new ModelError("element must be a node of an editable action flow (paths in 'oml tree')");
+                    throw new ModelError("element must be a node of an editable action flow or a process (paths in 'oml tree')");
                 if (!edit.TryGetProperty("node", out var node) || node.ValueKind != JsonValueKind.Object)
                     throw new ModelError("'node' must be one flow node, as in a flow list");
                 // The same kind and name: the node is updated where it is. It keeps its key, so what reads its outputs stays valid.
@@ -149,6 +169,16 @@ partial class Builder
                 Change($"node {Required("element")}");
                 if (name is not null)
                     replacements.Add((int.Parse(label[5..^1]), before, () => Elements(Reflect.Get(owner, "Nodes")).OfType<IObjectSignature>().Where(x => Model.NameOf(x) == name && !x.WasDeleted).ToList()));
+                break;
+            }
+            case "connect":
+            {
+                // Where a process node goes next: { "element": "Process:Approve/Review", "to": "Notify" }; a Decision names its exit with connector.
+                var from = Find("element");
+                if (from is not OutSystems.Model.Processes.Nodes.IProcessNode) throw new ModelError("connect is for process nodes; an action flow node is moved with insertNodes, replaceNode or delete");
+                var to = ProcessNode(from.Parent!, Required("to"));
+                SetNext(from, to, edit.TryGetProperty("connector", out var cc) && cc.ValueKind == JsonValueKind.String ? cc.GetString() : null, label);
+                Change($"{Required("element")} now goes to {Required("to")}");
                 break;
             }
             case "rewrite":
@@ -361,6 +391,7 @@ partial class Builder
 
                 if (FieldMappings.Is(target))
                     throw new ModelError($"'{Required("element")}' is a field mapping; it cannot be deleted. Change it with set and \"value\".");
+                if (target is OutSystems.Model.Processes.Nodes.IProcessNode) ProcessDeleteReconnect(target, Required("element"));   // the nodes before it go where it went
                 if (target is IActionNode)
                 {
                     var edges = Edges(target.Parent!).ToList();
@@ -432,6 +463,7 @@ partial class Builder
             "delete" => $"{Text("element")} deleted",
             "repoint" => $"node {Text("element")} now calls {Text("action")}",
             "rewrite" => $"{Text("element")}: {Text("from")} -> {Text("to")}",
+            "connect" => $"{Text("element")} now goes to {Text("to")}",
             _ => null,
         };
     }
