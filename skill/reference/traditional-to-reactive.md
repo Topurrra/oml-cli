@@ -61,14 +61,18 @@ Every server action a screen calls is a public endpoint: start it with identity 
 | Traditional | Reactive |
 |---|---|
 | Button, Link, Container, If, Label, Text, Placeholder, Upload, web block | Same widget |
-| Container Display | Visible, or an If (an If removes the content) |
+| Container Display | Visible, or an If (an If removes the content). The translator sets Visible |
+| Plain HTML Table (layout), its rows and cells | HTML elements `table`, `tr`, `td` that keep style, size and span (the translator builds them) |
+| An If on `InWebBlockPreview` | Only the branch that runs; the preview content is dropped |
+| Width, Align, Vertical Align, Title | CSS (`40char` is `40ch`, `(fill parent)` is the default), an OutSystems UI `text-align-*` class, the `title` attribute |
+| Example, Ajax Refresh flag, Validation Parent, Edit Record layout | Dropped: no meaning in Reactive |
 | Combo Box | Dropdown with a list, Options Value and Options Text |
 | Radio Button | Radio Group with one Radio Button per choice |
 | Edit Record, Show Record | Form with inputs bound to a local record variable |
 | Table Records, List Records | Table or List with an aggregate source and a dynamic sort (`"dynamic": true`); the table's On Sort is Service Studio only, so tell the user |
 | Expression with escaping off | Avoid; if needed, an unescaped expression block (XSS risk) |
 | Editable Table, List Box | Build a Table with inputs, or a list of Checkboxes |
-| Link with Method Submit or Ajax Submit | Button or Link with On Click and a client action |
+| Link with Method Submit, Ajax Submit or Ajax | Button or Link with On Click and a client action |
 | Validation (Client & Server) | Built-in Validations on the button, `<Input>.Valid` in the client action, checks again on the server |
 | Screen entry and Preparation redirects | OnInitialize redirect with a `destination` |
 

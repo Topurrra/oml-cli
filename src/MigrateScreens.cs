@@ -117,7 +117,9 @@ static class ScreenTranslator
         // prefix and the Widget suffix (the CLR or interface name), compared without case, spaces and punctuation.
         internal static string WType(JsonObject w)
         {
-            var t = Norm(S(w["type"]) is { Length: > 0 } ty ? ty : S(w["kind"]));
+            var raw = S(w["type"]);
+            if (Norm(raw) is "web" or "mobile") raw = null;   // an older export named some widgets only by their prefix: the kind is the widget
+            var t = Norm(raw is { Length: > 0 } ? raw : S(w["kind"]));
             foreach (var prefix in new[] { "web", "mobile" }) if (t.StartsWith(prefix, StringComparison.Ordinal) && t.Length > prefix.Length) { t = t[prefix.Length..]; break; }
             return t.EndsWith("widget", StringComparison.Ordinal) && t.Length > 6 ? t[..^6] : t;
         }
@@ -915,20 +917,70 @@ static class ScreenTranslator
                 if (S(v) is { } s) attrs[k] = Rw(s, at);
             }
             if (Prop(w, used, "inlineStyle") is { } inline) attrs["style"] = Rw(inline, at);
+            var css = new List<string>();
+            if (Prop(w, used, "width") is { } wd && Css("width", wd) is { } cw) css.Add(cw);
+            if (Prop(w, used, "height") is { } ht && Css("height", ht) is { } ch) css.Add(ch);
+            if (Prop(w, used, "verticalAlignment") is { } va && Norm(va) is "top" or "middle" or "bottom") css.Add("vertical-align: " + Norm(va));
+            if (css.Count > 0)
+            {
+                var add = string.Join("; ", css);
+                attrs["style"] = S(attrs["style"]) is not { } had ? Quote(add)
+                    : Literal(had) is { } lit ? Quote(lit.TrimEnd().TrimEnd(';') + "; " + add) : had + " + " + Quote("; " + add);
+            }
+            if (Prop(w, used, "align") is { } al && Norm(al) is "left" or "center" or "right" or "justify") AddClass(o, "text-align-" + Norm(al));
+            if (Prop(w, used, "title") is { } ti) attrs["title"] = Rw(ti, at);
+            Quiet(w, used);
             if (attrs.Count > 0) o["attributes"] = attrs;
             return o;
         }
 
+        // A Traditional width or height as CSS: 40char is 40ch, a number is pixels, px and % stay. (fill parent) and empty are the Reactive default.
+        static string? Css(string prop, string value)
+        {
+            var v = value.Trim();
+            if (Regex.Match(v, @"^(\d+)\s*char$", RegexOptions.IgnoreCase) is { Success: true } m) return prop == "width" ? $"{prop}: {m.Groups[1].Value}ch" : null;
+            if (Regex.IsMatch(v, @"^\d+(\.\d+)?(px|%)$", RegexOptions.IgnoreCase)) return prop == "height" && v.EndsWith('%') ? null : $"{prop}: {v}";
+            if (prop == "width" && Regex.IsMatch(v, @"^\d+$")) return $"{prop}: {v}px";
+            return null;   // (fill parent), Null, an Input height in lines: nothing to carry
+        }
+
+        // A class added to the widget's Style Classes, whether that is a literal or an expression.
+        static void AddClass(JsonObject o, string cls)
+        {
+            var had = S(o["style"]);
+            o["style"] = had is null ? Quote(cls) : Literal(had) is { } lit ? Quote((lit + " " + cls).Trim()) : had + " + " + Quote(" " + cls);
+        }
+
+        // Properties with no Reactive meaning: design-time text, Ajax and validation-parent settings, Edit Record and table layout, values that are the default.
+        static readonly string[] Dropped = ["example", "isAjaxRefreshed", "validationParent", "cellSpacing", "displayColumns", "lineSeparator", "effectiveCaptionWidth", "effectiveValueWidth", "masterEntity"];
+        void Quiet(JsonObject w, HashSet<string> used)
+        {
+            if (w["props"] is not JsonObject p) return;
+            foreach (var (k, v) in p)
+            {
+                var val = S(v)?.Trim() ?? "";
+                if (Dropped.Contains(k, StringComparer.OrdinalIgnoreCase)
+                    || k.Equals("align", StringComparison.OrdinalIgnoreCase) || k.Equals("verticalAlignment", StringComparison.OrdinalIgnoreCase)
+                    || k.Equals("width", StringComparison.OrdinalIgnoreCase) || k.Equals("height", StringComparison.OrdinalIgnoreCase)
+                    || k.Equals("display", StringComparison.OrdinalIgnoreCase) && IsTrue(val)
+                    || k.Equals("textLines", StringComparison.OrdinalIgnoreCase) && val == "1"
+                    || k.Equals("startIndex", StringComparison.OrdinalIgnoreCase) && val == "0"
+                    || k.Equals("lineCount", StringComparison.OrdinalIgnoreCase) && WType(w) == "listrecords"
+                    || k.Equals("type", StringComparison.OrdinalIgnoreCase) && WType(w) == "image")
+                    used.Add(k.ToLowerInvariant());
+            }
+        }
+
         void Visible(JsonObject w, HashSet<string> used, JsonObject o)
         {
-            if (Prop(w, used, "visible") is { } v && !IsTrue(v)) o["visible"] = Rw(v, Label(w));
+            if (Prop(w, used, "visible", "display") is { } v && !IsTrue(v)) o["visible"] = Rw(v, Label(w));
             if (Prop(w, used, "enabled") is { } e && !IsTrue(e)) o["enabled"] = Rw(e, Label(w));
         }
 
         // Expression, Text and BlockInstance have no Visible in Reactive: a Container carries it.
         JsonObject Wrapped(JsonObject w, HashSet<string> used, JsonObject o)
         {
-            if (Prop(w, used, "visible") is { } v && !IsTrue(v))
+            if (Prop(w, used, "visible", "display") is { } v && !IsTrue(v))
                 return new JsonObject { ["type"] = "Container", ["visible"] = Rw(v, Label(w)), ["children"] = new JsonArray(o) };
             return o;
         }
@@ -1044,7 +1096,8 @@ static class ScreenTranslator
                 case "editabletable": o = TodoBox(w, "is an Editable Table, which Reactive does not have; rebuild it as a Table with inputs"); break;
                 case "listbox": o = TodoBox(w, "is a List Box, which Reactive does not have; rebuild it as a list of Checkboxes"); break;
                 case "comment": return;
-                case "row": case "tablerow": case "cell": case "headercell": case "rowcell":
+                case "table": o = HtmlTable(w, used); break;   // a plain HTML table (layout): the same table as HTML elements
+                case "row": case "tablerow": case "cell": case "headercell": case "rowcell": case "tablecell":
                     foreach (var c in Objs(w["children"])) One(c, into);   // a Reactive Form has no rows and cells: the content moves up
                     return;
                 default:
@@ -1062,7 +1115,7 @@ static class ScreenTranslator
             var at = Label(w);
             var o = New(area ? "TextArea" : "Input", w, used); Visible(w, used, o);
             if (Prop(w, used, "variable") is { } v) o["variable"] = Rw(v, at);
-            if (Prop(w, used, "mandatory") is { } m && !IsFalse(m)) o["mandatory"] = Rw(m, at);
+            if (Prop(w, used, "mandatory", "isMandatory") is { } m && !IsFalse(m)) o["mandatory"] = Rw(m, at);
             if (Prop(w, used, "prompt") is { } pr) Carry(o, "prompt", Rw(pr, at), $"{at} has the prompt {pr}, which the spec cannot set; set it in Service Studio");
             if (Prop(w, used, "maxLength") is { } ml && int.TryParse(ml, out var len)) Carry(o, "maxLength", len, $"{at} has the maximum length {len}, which the spec cannot set; set it in Service Studio");
             if (ActionRef(w, used, "its On Change", "onChange") is { } oc) o["onChange"] = oc;
@@ -1109,7 +1162,7 @@ static class ScreenTranslator
                     o["onClick"] = d;
                 }
             }
-            else if (method is "submit" or "ajaxsubmit")
+            else if (method is "submit" or "ajaxsubmit" or "ajax")   // Ajax and Submit are the same in Reactive: On Click runs a client action
             {
                 if (ActionRef(w, used, "its On Click", "onClick") is { } action)
                 {
@@ -1130,10 +1183,50 @@ static class ScreenTranslator
             return o;
         }
 
+        // A Traditional HTML Table with its rows and cells: Reactive has no Table widget for layout, so each part is an HTML element
+        // (table, tr, td) that keeps its style, size and span. Rows and cells of an Edit Record still move up into the Form.
+        JsonObject HtmlTable(JsonObject w, HashSet<string> used)
+        {
+            JsonObject Element(JsonObject x, HashSet<string> u, string tag)
+            {
+                var e = New("AdvancedHtml", x, u);
+                e["tag"] = tag;
+                foreach (var span in new[] { "colSpan", "rowSpan" })
+                    if (Prop(x, u, span) is { } sv && int.TryParse(sv, out var n) && n > 1)
+                        (e["attributes"] as JsonObject ?? (JsonObject)(e["attributes"] = new JsonObject()))[span.ToLowerInvariant()] = Quote(n.ToString());
+                return e;
+            }
+            var table = Element(w, used, "table");
+            var rows = new JsonArray();
+            foreach (var r in Objs(w["children"]))
+            {
+                if (WType(r) is not ("row" or "tablerow")) { One(r, rows); continue; }
+                var ru = new HashSet<string>();
+                var tr = Element(r, ru, "tr");
+                var cells = new JsonArray();
+                foreach (var c in Objs(r["children"]))
+                {
+                    if (WType(c) is not ("cell" or "headercell" or "rowcell" or "tablecell")) { One(c, cells); continue; }
+                    var cu = new HashSet<string>();
+                    var td = Element(c, cu, WType(c) == "headercell" ? "th" : "td");
+                    if (Ws(c["children"]) is { Count: > 0 } kids) td["children"] = kids;
+                    Unhandled(c, cu);
+                    cells.Add(td);
+                }
+                if (cells.Count > 0) tr["children"] = cells;
+                Unhandled(r, ru);
+                rows.Add(tr);
+            }
+            if (rows.Count > 0) table["children"] = rows;
+            return table;
+        }
+
         JsonObject If(JsonObject w, HashSet<string> used)
         {
             var cond = Prop(w, used, "condition");
             if (cond is null) return TodoBox(w, "is an If without a readable condition");
+            if (cond.Contains("InWebBlockPreview", StringComparison.Ordinal))
+                return new JsonObject { ["type"] = "Container", ["children"] = Ws(w["false"]) };   // the true branch shows only in the block preview
             var o = new JsonObject { ["type"] = "If", ["condition"] = Rw(cond, Label(w)) };
             if (!Blank(S(w["name"]))) o["name"] = S(w["name"]);
             o["trueBranch"] = Ws(w["true"]);
@@ -1147,7 +1240,7 @@ static class ScreenTranslator
             var at = Label(w);
             var o = New("Dropdown", w, used); Visible(w, used, o);
             if (Prop(w, used, "variable") is { } v) o["variable"] = Rw(v, at);
-            if (Prop(w, used, "mandatory") is { } m && !IsFalse(m)) o["mandatory"] = Rw(m, at);
+            if (Prop(w, used, "mandatory", "isMandatory") is { } m && !IsFalse(m)) o["mandatory"] = Rw(m, at);
             var source = Prop(w, used, "source", "sourceList");
             if (source is not null) o["list"] = Rw(source, at);
             string Option(string expr) => Regex.Replace(Rw(expr, at), @"^\w+\.List\.Current\.", "");
@@ -1741,6 +1834,29 @@ static class ScreenTranslator
         Check(Text(ss, "widgets", 2, "type") == "If" && Text(ss, "widgets", 2, "condition") == "not FetchItems.List.Empty" && Text(ss, "widgets", 2, "trueBranch", 0, "source") == "FetchItems.List" && Text(ss, "widgets", 2, "falseBranch", 0, "text") == "No items"
             && Text(ss, "widgets", 2, "trueBranch", 0, "row", 0, "children", 0, "onClick", "destination") == "WebDetail" && Text(ss, "widgets", 2, "trueBranch", 0, "row", 0, "children", 0, "onClick", "args", "ItemId") == "FetchItems.List.Current.WebItem.Id", "Sample: the If with a table in its true branch and the navigating link");
         Check(Text(ss, "widgets", 3, "type") == "List" && Text(ss, "widgets", 3, "source") == "FetchItems.List" && Text(ss, "widgets", 4, "type") == "Form" && Text(ss, "widgets", 4, "children", 0, "text") == "Edit item", "Sample: the list and the form (rows and cells are flattened)");
+
+        // 16. Layout and Traditional-only properties, the block preview, a plain HTML table, the Ajax link method and an image named only "Web".
+        var lay = Translate(Parse("""
+        { "kind": "Block", "name": "Panel", "flow": "Common", "path": "Common/Panel", "access": {}, "widgets": [
+          { "kind": "Container", "name": "Box", "props": { "align": "Center", "width": "40char", "display": "ShowBox", "example": "x", "isAjaxRefreshed": "False" }, "children": [] },
+          { "kind": "If", "props": { "condition": "\"InWebBlockPreview\"=\"True\"" }, "true": [ { "kind": "Image", "type": "Web", "props": { "type": "Static" } } ],
+            "false": [ { "kind": "Expression", "props": { "value": "Total", "example": "1 2 3" } } ] },
+          { "kind": "Table", "props": { "width": "100%", "cellSpacing": "0" }, "children": [
+            { "kind": "TableRow", "children": [ { "kind": "TableCell", "props": { "columnSpan": "1", "verticalAlignment": "Top" }, "children": [ { "kind": "Text", "props": { "text": "Name" } } ] } ] } ] },
+          { "kind": "Link", "name": "More", "props": { "method": "Ajax", "onClick": "ShowMore", "title": "\"Show more\"" }, "children": [] } ],
+          "actions": [ { "name": "ShowMore", "flow": [] } ] }
+        """), new Context("Shop", new Dictionary<string, string>(), new HashSet<string>(), new HashSet<string>(), null, []));
+        var lw = lay.Spec;
+        Check(Text(lw, "widgets", 0, "style") == "\"text-align-center\"" && Text(lw, "widgets", 0, "attributes", "style") == "\"width: 40ch\"" && Text(lw, "widgets", 0, "visible") == "ShowBox",
+            "Layout: align is a class, a width in characters is CSS, Display is Visible");
+        Check(Text(lw, "widgets", 1, "type") == "Container" && Text(lw, "widgets", 1, "children", 0, "type") == "Expression" && At(lw, "widgets", 1, "children", 1) is null,
+            "Block preview: only the branch that runs is kept, the preview image is gone");
+        Check(Text(lw, "widgets", 2, "type") == "AdvancedHtml" && Text(lw, "widgets", 2, "tag") == "table" && Text(lw, "widgets", 2, "children", 0, "tag") == "tr"
+            && Text(lw, "widgets", 2, "children", 0, "children", 0, "tag") == "td" && Text(lw, "widgets", 2, "children", 0, "children", 0, "attributes", "style") == "\"vertical-align: top\""
+            && Text(lw, "widgets", 2, "children", 0, "children", 0, "children", 0, "text") == "Name", "HTML table: table, tr and td elements that keep their style and content");
+        Check(Text(lw, "widgets", 3, "onClick") == "ShowMore" && Text(lw, "widgets", 3, "attributes", "title") == "\"Show more\"", "Ajax link: On Click runs the action; the title is an attribute");
+        Check(!lay.Todo.Any(t => t.Contains("example") || t.Contains("isAjaxRefreshed") || t.Contains("cellSpacing") || t.Contains("no Reactive translation") || t.Contains("align")),
+            $"Layout: nothing left about design-time or layout properties: [{string.Join(" | ", lay.Todo)}]");
         return failures;
     }
 

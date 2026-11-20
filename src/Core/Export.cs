@@ -669,7 +669,7 @@ static class Export
             if (placeholders.Count > 0) o["placeholders"] = placeholders;
             if (kind.Contains("If", StringComparison.Ordinal) && !areas.Any(a => a.key is "true" or "false") && children.Count > 0)
                 Note("its True and False branches could not be told apart: the widgets of both are under children");
-            if (kind.Contains("Table", StringComparison.Ordinal) && !areas.Any(a => a.key is "header" or "row") && children.Count > 0)
+            if (kind.Contains("TableRecords", StringComparison.Ordinal) && !areas.Any(a => a.key is "header" or "row") && children.Count > 0)
                 Note("its header and row could not be told apart: the widgets of both are under children");
             return o;
         }
@@ -684,7 +684,7 @@ static class Export
             if (type.EndsWith("Widget", StringComparison.Ordinal) && type.Length > 6) type = type[..^6];
             foreach (var prefix in new[] { "Web", "Mobile" })
                 if (type.StartsWith(prefix, StringComparison.Ordinal) && type.Length > prefix.Length) return type[prefix.Length..];
-            return type;
+            return type is "Web" or "Mobile" ? kind : type;   // an interface named only by its prefix: the kind names the widget (Image)
         }
     }
 }
