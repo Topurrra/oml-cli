@@ -22,7 +22,7 @@ oml extension new <out.xif> --name <Name> [--spec <spec.json>]
 oml templates           (local template/sample modules and bundles)
 oml inspect <module.oml> [--own] [--only entities,structures,actions,screens,blocks,references,timers,roles,processes,rest,static,siteProperties] [--history] [--changed-since <yyyy-mm-dd>]
 oml inspect --in <folder> [--recursive] [--own] [--only ...]   (every .oml in the folder in one process: {modules:[{file,...}]}, a broken file gives an error entry)
-oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [--history] [--css]
+oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [--history] [--css] [--sql [--out <file.sql>]]
 oml export <module.oml> <Element>...   (a screen, web block or email as JSON for tools; read with describe)
 oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
 oml find <module.oml> --text "<words>" [--top N]  (this module's elements ranked by name, description, expressions, SQL, labels)
@@ -120,6 +120,8 @@ Use `describe` to understand an element before you change it. Use `tree` when yo
 - data action bodies on a screen, `message <Type>: <expression>` nodes, `on exception <Name>` with `[keep transaction]` or `[no log]` when those differ from the default, and flow comments (`comment: ...`).
 - for widgets: `style=` (Style Classes), `inlineStyle=`, `tag=` (HTML element), `attr <name>=<value>` (attributes), `type=`, `prompt=`, `mandatory=`, `enabled=` when not True, `[default button]`, `confirm=`, `image=`/`url=` and `onChange=`. Empty block slots are left out. A screen prints up to 500 widget lines; an argument longer than 500 characters is cut (`oml tree` shows it whole).
 `describe --css` prints only `element`, `kind` and the whole `styleSheet` of each named screen, block, email or theme (an array for several names; no `--depth`, `--in` or `--history`). Read it before a restyle: a `styleSheet` in a spec replaces the whole sheet.
+
+`describe --sql` prints the whole statement of each named SQL node, or of every SQL node inside the named actions, screens or blocks, as plain text (`-- <path>` before each when there are several). The normal describe line cuts a statement at 200 characters and says so (`[cut: N characters; all of it: ... --sql]`). A long statement: `--sql --out <file.sql>` writes it to a UTF-8 file and prints `{ file, statements, characters, lines, paths }`; read the file in parts.
 `tree` prints at most 250 parts. A part whose children are not printed has `more` (their count), and a cut tree has `truncated` with a hint. `--depth N` prints N levels under the element (default 13). On a big screen, start with `oml tree <module.oml> <Screen> --depth 2`, then `oml tree <module.oml> <Screen>/<path> --depth 2` for the part you need (for example the `at` path of `replaceWidgets`).
 `describe` follows saved connectors and marks repeated nodes with `-> continue at Name`.
 It shows signatures, locals, calls, exceptions, data sources, and a widget outline.

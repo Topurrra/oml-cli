@@ -130,5 +130,23 @@ $keys = Read-Oml @('describe',$webKeysOut,'Keys')
 foreach ($line in @('[default button]', 'confirm="Go now?"')) {
     Require ($keys.text.Contains($line)) "Traditional widget keys: describe missing $line in: $($keys.text)"
 }
-Write-Host 'ok   describe, public flags, filters, compact and pretty JSON'
+# A long Advanced SQL: the describe line is cut and says how to read it; --sql prints it whole; --out writes it to a file.
+$sqlBlank = Join-Path $Tmp 'describe-sql-blank.oml'
+$sqlOut = Join-Path $Tmp 'describe-sql.oml'
+$sqlSpec = Join-Path $Tmp 'describe-sql.json'
+$sqlFile = Join-Path $Tmp 'describe-sql.sql'
+Read-Oml @('new',$sqlBlank,'--kind','Service','--name','DescribeSql') | Out-Null
+$columns = (0..40 | ForEach-Object { "{Item}.[Note] AS Col$_" }) -join ",`n  "
+$statement = "SELECT {Item}.*,`n  $columns`nFROM {Item}`nWHERE {Item}.[Note] <> 'THE_LAST_WORD'"
+@{ entities=@(@{ name='Item'; attributes=@(@{ name='Note' }) }); serverActions=@(@{ name='Report'; flow=@(@{ kind='sql'; name='GetAll'; sql=$statement; outputs=@('Item') }) }) } | ConvertTo-Json -Depth 30 | Set-Content $sqlSpec
+$r = Read-Oml @('apply',$sqlBlank,$sqlSpec,$sqlOut)
+Require ($r.saved) "long SQL fixture did not save: $($r | ConvertTo-Json -Depth 6 -Compress)"
+$d = Read-Oml @('describe',$sqlOut,'Report')
+Require ($d.text.Contains('[cut: ') -and $d.text.Contains('--sql]') -and -not $d.text.Contains('THE_LAST_WORD')) "describe of a long SQL does not say it is cut: $($d.text)"
+$plain = (& $Oml describe $sqlOut Report --sql) -join "`n"
+Require ($LASTEXITCODE -eq 0 -and $plain.Contains('THE_LAST_WORD') -and $plain.StartsWith('SELECT')) "describe --sql does not print the whole statement: $plain"
+$o = Read-Oml @('describe',$sqlOut,'Report','--sql','--out',$sqlFile)
+Require ($o.statements -eq 1 -and (Get-Content -Raw $sqlFile).Contains('THE_LAST_WORD') -and (Get-Content -Raw $sqlFile).StartsWith('-- ')) "describe --sql --out: $($o | ConvertTo-Json -Compress)"
+Write-Host 'ok   describe, public flags, filters, compact and pretty JSON, long SQL (--sql, --out)'
+
 } finally { Remove-TestWorkFolder $Tmp }

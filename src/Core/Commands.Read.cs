@@ -129,6 +129,8 @@ public static partial class Cli
         var history = false;
         var css = false;
         var all = false;
+        var sql = false;
+        string? outFile = null;
         var searchIn = new List<string>();
         var names = new List<string>();
         for (var i = 2; i < args.Count; i++)
@@ -138,7 +140,9 @@ public static partial class Cli
             if (args[i] == "--history") { history = true; continue; }
             if (args[i] == "--css") { css = true; continue; }
             if (args[i] == "--all") { all = true; continue; }
-            if (args[i].StartsWith("--")) throw new CliError("describe requires --depth N (non-negative), --in <folder|file.oml>, --history or --css.", 2);
+            if (args[i] == "--sql") { sql = true; continue; }
+            if (args[i] == "--out" && i + 1 < args.Count) { outFile = args[++i]; continue; }
+            if (args[i].StartsWith("--")) throw new CliError("describe requires --depth N (non-negative), --in <folder|file.oml>, --history, --css or --sql [--out <file.sql>].", 2);
             names.Add(args[i]);
         }
         // `describe <module> --css --all`: every style sheet (themes, screens, blocks).
@@ -149,6 +153,13 @@ public static partial class Cli
             return Emit(Describe.AllStyleSheets(whole.Module));
         }
         if (names.Count == 0) throw new CliError("describe needs at least one element name.", 2);
+        if (outFile is not null && !sql) throw new CliError("--out goes with --sql: describe <module.oml> <Action or Action/SqlNode> --sql --out <file.sql>.", 2);
+        if (sql)
+        {
+            if (css || depthGiven || history || searchIn.Count > 0) throw new CliError("describe --sql prints only SQL statements: it takes no --depth, --in, --history or --css.", 2);
+            using var sqlOpen = Open(args[1]);
+            return DescribeSql(sqlOpen.Module, names, outFile);
+        }
         if (css && (depthGiven || searchIn.Count > 0 || history)) throw new CliError("describe --css prints only style sheets: it takes no --depth, --in or --history.", 2);
         using var open = Open(args[1]); var module = open.Module;
         if (css)
@@ -161,6 +172,26 @@ public static partial class Cli
         var results = Timings.Measure("describe", () => Describe.Many(module, names, depth, searchIn, collectErrors: true, history: history));
         Emit(results);
         return results.Any(r => r is Describe.DescribeError) ? 1 : 0;
+    }
+
+    // describe --sql: the whole SQL statements of the named SQL nodes, or of every SQL node inside the named actions, screens or blocks, as
+    // plain text (a statement of any length, which a JSON line would hide behind escapes). With --out the text goes to a UTF-8 file, read
+    // in parts by the agent's file tool, and the output says where. Several statements are each headed by "-- <path>".
+    static int DescribeSql(OutSystems.Model.IESpace module, List<string> names, string? outFile)
+    {
+        var parts = new List<(string path, string text)>();
+        foreach (var n in names)
+        {
+            var element = ElementPaths.Resolve(module, n);
+            List<OutSystems.Model.IObjectSignature> nodes = element is OutSystems.Model.Logic.Nodes.ISQLNode ? [element] : ModuleReferences.Descendants(element).OfType<OutSystems.Model.Logic.Nodes.ISQLNode>().Cast<OutSystems.Model.IObjectSignature>().ToList();
+            foreach (var node in nodes)
+                parts.Add((ElementPaths.PathTo((OutSystems.Model.IObjectSignature)module, node) ?? Model.NameOf(node) ?? n, Describe.Expr(node, "Statement").Replace("\r\n", "\n")));
+        }
+        if (parts.Count == 0) throw new CliError($"no SQL node in {string.Join(", ", names)}: name an action, screen or block that has one, or the SQL node itself (oml tree lists them).", 1);
+        var text = string.Join("\n\n", parts.Select(p => (parts.Count > 1 || outFile is not null ? $"-- {p.path}\n" : "") + p.text.TrimEnd())) + "\n";
+        if (outFile is null) { Console.Out.Write(text); return 0; }
+        File.WriteAllText(outFile, text, new System.Text.UTF8Encoding(false));
+        return Emit(new { file = Path.GetFullPath(outFile), statements = parts.Count, characters = text.Length, lines = text.Count(c => c == '\n'), paths = parts.Select(p => p.path).ToArray() });
     }
 
     // export <module.oml> <Element>...: screens, blocks and emails as structured JSON. One name prints one object, several

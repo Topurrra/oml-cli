@@ -388,7 +388,14 @@ static class Describe
             }
             else if (Reflect.Property(node, "AsDatabaseAggregate") is not null) Line(indent, Query(node));
             else if (kind == "SQLNode")
-            { var sql = System.Text.RegularExpressions.Regex.Replace(Expr(node, "Statement"), @"\s+", " ").Trim(); Line(indent, "sql " + Name(node) + "(" + Args(node) + ") -> " + string.Join(", ", List(node, "Outputs").Select(Name)) + ": " + (sql.Length > 200 ? sql[..200] + "..." : sql)); }
+            {
+                // A long statement is cut here; the line says how long it is and how to read all of it (describe --sql).
+                var statement = Expr(node, "Statement");
+                var sql = System.Text.RegularExpressions.Regex.Replace(statement, @"\s+", " ").Trim();
+                var path = node is IObjectSignature sn ? ElementPaths.PathTo((IObjectSignature)m, sn) ?? Name(node) : Name(node);
+                Line(indent, "sql " + Name(node) + "(" + Args(node) + ") -> " + string.Join(", ", List(node, "Outputs").Select(Name)) + ": "
+                    + (sql.Length > 200 ? sql[..200] + $"... [cut: {statement.Length} characters; all of it: oml describe <module.oml> {path} --sql]" : sql));
+            }
             else if (kind == "RaiseExceptionNode")
             { var ex = Reflect.Get(node, "Exception"); Raises.Add(Qualified(m, ex ?? node)); Line(indent, "raise " + Name(ex) + "(" + Expr(node, "ExceptionMessage") + ")"); }
             else if (kind.Contains("Destination")) Line(indent, "navigate to " + Name(Reflect.Get(node, "Destination")) + "(" + Args(node) + ")");
