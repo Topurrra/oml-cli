@@ -170,9 +170,10 @@ partial class Builder
                     }
                 }
                 Collect(target, new HashSet<object>(ReferenceEqualityComparer.Instance));
-                var hits = expressions.Where(e => ExpressionText.ReplacePath(e.Text ?? "", from, to) != (e.Text ?? "")).ToList();
+                static string TextOf(IExpression e) { try { return e.Text ?? ""; } catch (Exception) { return ""; } }   // an expression the model cannot print is left alone
+                var hits = expressions.Where(e => TextOf(e) is var t && t.Length > 0 && ExpressionText.ReplacePath(t, from, to) != t).ToList();
                 if (hits.Count == 0) { existing.Add($"{Required("element")} (no {from} left)"); applied = false; break; }
-                Defer(target, ($"{label}.rewrite", () => { foreach (var e in hits) e.Text = ExpressionText.ReplacePath(e.Text ?? "", from, to); }));
+                Defer(target, ($"{label}.rewrite", () => { foreach (var e in hits) e.Text = ExpressionText.ReplacePath(TextOf(e), from, to); }));
                 Change($"{Required("element")}: {from} -> {to} in {hits.Count} expression(s)");
                 break;
             }

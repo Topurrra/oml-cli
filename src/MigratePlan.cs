@@ -86,6 +86,109 @@ static partial class Migrate
         return new(edits, inputOf, null);
     }
 
+    // The server store for the session variables that cannot live in the browser (written by server logic, a sensitive name, a record or
+    // list) but that copied server logic uses. 2-source.json creates, in the working copy (so the copy brings them along):
+    //   - the entity SessionValue (SessionKey, UserId, Name, Value as JSON, ChangedOn), one row per variable, session key and user;
+    //   - per variable a structure SessionBox_<X> { Value } (any type serializes the same way) and the server actions
+    //     GetSession_<X>(SessionKey) (a function: the stored value, else the variable's default) and SetSession_<X>(SessionKey, Value).
+    // Edits: every copied action that uses one of them, and every copied caller of those, gets the input SessionKey and passes it on; a
+    // reader's Session.<X> becomes GetSession_<X>(SessionKey); a writer gets a local Session<X>, loaded after Start and saved by
+    // SetSession_<X> after each Assign that writes it. Screens pass Client.SessionKey, a key the browser makes once (4-screens.json).
+    // A row is read only for the signed-in user (UserId = GetUserId()), so a key alone does not reach another user's values.
+    internal sealed record StoreVariable(string Name, string Type, string? Default, string[] Users);
+    internal sealed record SessionStorePlan(JsonObject Creation, List<JsonObject> Edits, List<string> Actions, List<string> CopyPaths);
+
+    internal const string SessionKey = "SessionKey";
+
+    internal static SessionStorePlan StoreSessions(IReadOnlyList<StoreVariable> vars, IReadOnlyList<ActionCall> calls, IReadOnlyList<SessionWrite> writes,
+        IReadOnlyList<(string query, string name)> logic)
+    {
+        var queryOf = logic.ToDictionary(l => l.name, l => l.query, StringComparer.OrdinalIgnoreCase);
+        var structures = new JsonArray();
+        var actions = new JsonArray();
+        var copy = new List<string> { "SessionValue" };
+        foreach (var v in vars)
+        {
+            var box = $"SessionBox_{v.Name}";
+            structures.Add(new JsonObject { ["name"] = box, ["description"] = $"The value of the former session variable {v.Name}, as stored in SessionValue (oml migrate).",
+                ["attributes"] = new JsonArray(new JsonObject { ["name"] = "Value", ["type"] = v.Type }) });
+            var filters = new JsonArray($"SessionValue.SessionKey = {SessionKey}", $"SessionValue.Name = \"{v.Name}\"", "SessionValue.UserId = GetUserId()");
+            var get = new JsonArray(
+                new JsonObject { ["kind"] = "aggregate", ["name"] = "Stored", ["sources"] = new JsonArray("SessionValue"), ["filters"] = filters.DeepClone(), ["maxRecords"] = "1", ["next"] = "Found" },
+                new JsonObject { ["kind"] = "if", ["name"] = "Found", ["condition"] = "Stored.List.Empty", ["true"] = string.IsNullOrEmpty(v.Default) ? "End" : "UseDefault", ["false"] = "Parse" },
+                new JsonObject { ["kind"] = "jsonDeserialize", ["name"] = "Parse", ["jsonString"] = "Stored.List.Current.SessionValue.Value", ["dataType"] = box, ["next"] = "Take" },
+                new JsonObject { ["kind"] = "assign", ["name"] = "Take", ["assign"] = new JsonObject { ["Value"] = "Parse.Data.Value" }, ["next"] = "End" });
+            if (!string.IsNullOrEmpty(v.Default)) get.Add(new JsonObject { ["kind"] = "assign", ["name"] = "UseDefault", ["assign"] = new JsonObject { ["Value"] = v.Default }, ["next"] = "End" });
+            actions.Add(new JsonObject { ["name"] = $"GetSession_{v.Name}", ["function"] = true,
+                ["description"] = $"The value of the former session variable {v.Name} for this session key and user, else its default (oml migrate).",
+                ["inputs"] = new JsonArray(new JsonObject { ["name"] = SessionKey, ["type"] = "Text", ["mandatory"] = false }),
+                ["outputs"] = new JsonArray(new JsonObject { ["name"] = "Value", ["type"] = v.Type }), ["flow"] = get });
+            actions.Add(new JsonObject { ["name"] = $"SetSession_{v.Name}",
+                ["description"] = $"Stores the former session variable {v.Name} for this session key and user (oml migrate).",
+                ["inputs"] = new JsonArray(new JsonObject { ["name"] = SessionKey, ["type"] = "Text", ["mandatory"] = false }, new JsonObject { ["name"] = "Value", ["type"] = v.Type, ["mandatory"] = false }),
+                ["locals"] = new JsonArray(new JsonObject { ["name"] = "Box", ["type"] = box }, new JsonObject { ["name"] = "Row", ["type"] = "SessionValue" }),
+                ["flow"] = new JsonArray(
+                    new JsonObject { ["kind"] = "assign", ["name"] = "Fill", ["assign"] = new JsonObject { ["Box.Value"] = "Value" }, ["next"] = "ToJson" },
+                    new JsonObject { ["kind"] = "jsonSerialize", ["name"] = "ToJson", ["data"] = "Box", ["next"] = "Stored" },
+                    new JsonObject { ["kind"] = "aggregate", ["name"] = "Stored", ["sources"] = new JsonArray("SessionValue"), ["filters"] = filters.DeepClone(), ["maxRecords"] = "1", ["next"] = "Prepare" },
+                    new JsonObject { ["kind"] = "assign", ["name"] = "Prepare", ["assign"] = new JsonObject { ["Row"] = "Stored.List.Current.SessionValue", ["Row.SessionKey"] = SessionKey,
+                        ["Row.Name"] = $"\"{v.Name}\"", ["Row.UserId"] = "GetUserId()", ["Row.Value"] = "ToJson.JSON", ["Row.ChangedOn"] = "CurrDateTime()" }, ["next"] = "Save" },
+                    new JsonObject { ["kind"] = "execute", ["name"] = "Save", ["action"] = "CreateOrUpdateSessionValue", ["args"] = new JsonObject { ["Source"] = "Row" }, ["next"] = "End" }) });
+            copy.AddRange([box, $"GetSession_{v.Name}", $"SetSession_{v.Name}"]);
+        }
+        var creation = new JsonObject
+        {
+            ["entities"] = new JsonArray(new JsonObject
+            {
+                ["name"] = "SessionValue", ["description"] = "The values of the former session variables, by session key and user (oml migrate). Delete old rows with a timer.",
+                ["attributes"] = new JsonArray(
+                    new JsonObject { ["name"] = "SessionKey", ["length"] = 50, ["mandatory"] = true },
+                    new JsonObject { ["name"] = "UserId", ["type"] = "User Identifier" },
+                    new JsonObject { ["name"] = "Name", ["length"] = 100, ["mandatory"] = true },
+                    new JsonObject { ["name"] = "Value", ["length"] = 5000 },
+                    new JsonObject { ["name"] = "ChangedOn", ["type"] = "Date Time" }),
+                ["indexes"] = new JsonArray(new JsonObject { ["attributes"] = new JsonArray("SessionKey", "Name") }),
+            }),
+            ["structures"] = structures,
+            ["serverActions"] = actions,
+        };
+        // Who needs the key: every copied action that uses a stored variable, and its copied callers, up to the screens.
+        var needs = new HashSet<string>(vars.SelectMany(v => v.Users).Where(queryOf.ContainsKey), StringComparer.OrdinalIgnoreCase);
+        for (var grew = true; grew;)
+        {
+            grew = false;
+            foreach (var c in calls) if (needs.Contains(c.Callee) && !needs.Contains(c.Caller) && queryOf.ContainsKey(c.Caller)) grew |= needs.Add(c.Caller);
+        }
+        var edits = new List<JsonObject>();
+        var writers = writes.Where(w => vars.Any(v => v.Name.Equals(w.Variable, StringComparison.OrdinalIgnoreCase))).ToList();
+        foreach (var a in needs.Order(StringComparer.Ordinal))
+        {
+            var edit = new JsonObject { ["op"] = "addVariables", ["action"] = queryOf[a], ["inputs"] = new JsonArray(new JsonObject { ["name"] = SessionKey, ["type"] = "Text", ["mandatory"] = false }) };
+            var locals = vars.Where(v => v.Users.Contains(a, StringComparer.OrdinalIgnoreCase))
+                .Select(v => (JsonNode?)new JsonObject { ["name"] = "Session" + v.Name, ["type"] = v.Type }).ToArray();
+            if (locals.Length > 0) edit["locals"] = new JsonArray(locals);
+            edits.Add(edit);
+        }
+        foreach (var v in vars)
+            foreach (var a in v.Users.Where(queryOf.ContainsKey).Order(StringComparer.Ordinal))
+            {
+                // A local holds the value in the action (an expression cannot read a member of a function's result): loaded after Start, saved
+                // after each Assign that writes it.
+                var writes1 = writers.Where(w => w.Action.Equals(a, StringComparison.OrdinalIgnoreCase) && w.Variable.Equals(v.Name, StringComparison.OrdinalIgnoreCase)).ToList();
+                var local = "Session" + v.Name;
+                edits.Add(new JsonObject { ["op"] = "rewrite", ["element"] = queryOf[a], ["from"] = "Session." + v.Name, ["to"] = local });
+                edits.Add(new JsonObject { ["op"] = "insertNodes", ["action"] = queryOf[a], ["after"] = "Start", ["connector"] = "next",
+                    ["flow"] = new JsonArray(new JsonObject { ["kind"] = "assign", ["name"] = "Load" + local, ["assign"] = new JsonObject { [local] = $"GetSession_{v.Name}({SessionKey})" } }) });
+                for (var i = 0; i < writes1.Count; i++)
+                    edits.Add(new JsonObject { ["op"] = "insertNodes", ["action"] = queryOf[a], ["after"] = writes1[i].Path[(writes1[i].Path.LastIndexOf('/') + 1)..], ["connector"] = "next",
+                        ["flow"] = new JsonArray(new JsonObject { ["kind"] = "execute", ["name"] = "Save" + local + (i > 0 ? (i + 1).ToString() : ""), ["action"] = $"SetSession_{v.Name}",
+                            ["args"] = new JsonObject { [SessionKey] = SessionKey, ["Value"] = local } }) });
+            }
+        foreach (var c in calls.Where(c => needs.Contains(c.Callee) && needs.Contains(c.Caller)))
+            edits.Add(new JsonObject { ["op"] = "setArgs", ["element"] = c.Path, ["args"] = new JsonObject { [SessionKey] = SessionKey } });
+        return new(creation, edits, needs.Order(StringComparer.Ordinal).ToList(), copy);
+    }
+
     // Variable -> the actions whose describe text names Session.<Variable> as a whole identifier. texts: action query (Kind:Name) -> text.
     internal static Dictionary<string, string[]> SessionUse(IReadOnlyDictionary<string, string> texts, IEnumerable<string> variables)
     {
@@ -229,6 +332,21 @@ static partial class Migrate
         }
         if (scripts.Count > 0) spec["scripts"] = scripts;
         if (merged.Count > 0) spec["serverActions"] = merged;
+        // The session key of the server store: made once per browser when the app starts (a random UUID), kept in the client variable SessionKey.
+        if (r.Store is not null)
+        {
+            spec["clientActions"] = new JsonArray(new JsonObject
+            {
+                ["name"] = "InitSessionKey", ["description"] = "Makes the key of the server-side session store once per browser (oml migrate).",
+                ["flow"] = new JsonArray(
+                    new JsonObject { ["kind"] = "if", ["name"] = "HasKey", ["condition"] = $"Client.{SessionKey} <> \"\"", ["true"] = "End", ["false"] = "NewKey" },
+                    new JsonObject { ["kind"] = "javaScript", ["name"] = "NewKey", ["outputs"] = new JsonArray(new JsonObject { ["name"] = "Key", ["type"] = "Text" }),
+                        ["javaScript"] = "$parameters.Key = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);",
+                        ["next"] = "Keep" },
+                    new JsonObject { ["kind"] = "assign", ["name"] = "Keep", ["assign"] = new JsonObject { [$"Client.{SessionKey}"] = "NewKey.Key" }, ["next"] = "End" }),
+            });
+            spec["systemEvents"] = new JsonObject { ["onApplicationReady"] = "InitSessionKey" };
+        }
         if (merged.ToJsonString().Contains($"\"{ScreenTranslator.AccessDenied}\"", StringComparison.Ordinal))   // raised by the role checks of merged server actions
             spec["exceptions"] = new JsonArray(ScreenTranslator.AccessDenied);
         return spec.Count == 0 ? null : spec;
@@ -360,12 +478,14 @@ static partial class Migrate
         // 1. entity actions in the copied logic
         var calls = new List<Call>();
         var actionCalls = new List<ActionCall>();
+        var sessionWrites = new List<SessionWrite>();
         if (r.Logic.Count > 0)
         {
             var steps = new JsonObject { ["steps"] = new JsonArray(r.Logic.Select(l => (JsonNode?)Arr(["tree", old, l.query])).ToArray()) };
             var trees = run(["batch", "-", "--continue"], steps.ToJsonString());
             calls = FindCalls(trees, r.Logic, r.EntityNames, notes);
             actionCalls = FindActionCalls(trees, r.Logic);
+            sessionWrites = FindSessionWrites(trees, r.Logic);
         }
         // 2. which copied server and service actions use Session.<Name>
         var serverUse = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
@@ -402,9 +522,10 @@ static partial class Migrate
         // 5. first pass (all entity actions have a wrapper name, so none is refused), then the final decisions, then the real pass
         var allWrappers = EntityActionMap(r.EntityNames).ToDictionary(kv => kv.Key, kv => kv.Value.entity + "_" + kv.Value.op);
         var first = TranslateAll(r.Screens, exports, new ScreenTranslator.Context(r.OldName, allWrappers, new HashSet<string>(), new HashSet<string>(r.Screens.Where(s => s.Kind == "Block").Select(s => s.Name)), layout, placeholders), translate);
-        r = Build(inspect, old, name, outDir, map, calls, ExtraFrom(first, r.EntityNames, serverUse) with { CopyExposed = copyExposed, ServerTexts = serverTexts, ActionCalls = actionCalls });
+        r = Build(inspect, old, name, outDir, map, calls, ExtraFrom(first, r.EntityNames, serverUse) with { CopyExposed = copyExposed, ServerTexts = serverTexts, ActionCalls = actionCalls, SessionWrites = sessionWrites });
         r.Notes.AddRange(producerNotes); r.Notes.AddRange(notes);
-        var context = MakeContext(r, layout, placeholders) with { ServerOutputs = ServerOutputs(inspect, r), SessionInputs = r.SessionInputs };
+        var context = MakeContext(r, layout, placeholders) with { ServerOutputs = ServerOutputs(inspect, r), SessionInputs = r.SessionInputs,
+            ClientTypes = r.ClientVariables.OfType<JsonObject>().Where(c => S(c, "name") is not null).ToDictionary(c => S(c, "name")!, c => S(c, "type") ?? "Text", StringComparer.OrdinalIgnoreCase) };
         var items = TranslateAll(r.Screens, exports, context, translate);
         foreach (var i in items.Where(i => i.Error is not null && i.Error != "no export")) r.Notes.Add($"{i.S.Kind} {i.S.Name} was not translated: {i.Error}.");
         foreach (var a in items.SelectMany(i => i.EntityActions).Distinct().Where(a => EntityActionMap(r.EntityNames).ContainsKey(a) && !r.WrapperMap.ContainsKey(a)))

@@ -52,7 +52,8 @@ static class ScreenTranslator
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? ServerOutputs = null,
         // Copied server actions that read a session variable through an input now (MigratePlan.ThreadSession): action -> (input, variable).
         // A screen's call passes Client.<variable>.
-        IReadOnlyDictionary<string, List<(string input, string variable)>>? SessionInputs = null);
+        IReadOnlyDictionary<string, List<(string input, string variable)>>? SessionInputs = null,
+        IReadOnlyDictionary<string, string>? ClientTypes = null);         // client variable -> its type, for merged server calls that read one
 
     // The blocks among the exports whose actions call Notify (or Deprecated_Notify): in Reactive each gets a Notify event.
     internal static HashSet<string> NotifyingBlocks(IEnumerable<JsonObject> exports) =>
@@ -1060,6 +1061,7 @@ static class ScreenTranslator
         {
             var runNames = run.Select(n => S(n["name"])!).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var inputs = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var clientInputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var serverRoots = new[] { "Entities", "Site", "Roles", "Resources", "True", "False" };
             foreach (var n in run)
                 foreach (var text in Strings(n))
@@ -1070,7 +1072,11 @@ static class ScreenTranslator
                         if (serverRoots.Contains(root, StringComparer.OrdinalIgnoreCase)) continue;
                         if (runNames.Contains(root)) { if (run.FindIndex(x => S(x["name"])!.Equals(root, StringComparison.OrdinalIgnoreCase)) >= run.IndexOf(n)) return false; continue; }
                         if (actionVars.TryGetValue(root, out var t) || varTypes.TryGetValue(root, out t)) { inputs[root] = t; continue; }
-                        return false;   // a widget, an aggregate, a client variable or something unknown
+                        // A client variable reaches the server action as an input of its name (Client.X -> X).
+                        if (root.Equals("Client", StringComparison.OrdinalIgnoreCase) && chain.Split('.') is [_, var cv, ..] && cx.ClientTypes?.TryGetValue(cv, out var ct) == true
+                            && !actionVars.ContainsKey(cv) && !varTypes.ContainsKey(cv))
+                        { inputs[cv] = ct!; clientInputs.Add(cv); continue; }
+                        return false;   // a widget, an aggregate, a client variable whose type is unknown, or something unknown
                     }
             // What later nodes read of the calls: Node.Output, each one an output of the server action.
             var outputs = new SortedDictionary<string, (string node, string output, string type)>(StringComparer.OrdinalIgnoreCase);
@@ -1092,6 +1098,7 @@ static class ScreenTranslator
             for (var i = 0; i < run.Count; i++)
             {
                 var c = (JsonObject)run[i].DeepClone();
+                foreach (var cv in clientInputs) ReplaceClient(c, cv);
                 c["next"] = i + 1 < run.Count ? S(run[i + 1]["name"]) : outputs.Count > 0 ? "SetOutputs" : "End";
                 body.Add(c);
             }
@@ -1104,7 +1111,7 @@ static class ScreenTranslator
             serverActions.Add(sa);
             // The client action: one call where the run was; connectors to the run's first node and reads of its outputs follow.
             var call = new JsonObject { ["kind"] = "execute", ["name"] = callName, ["action"] = serverName };
-            if (inputs.Count > 0) call["args"] = new JsonObject(inputs.Keys.Select(k => KeyValuePair.Create(k, (JsonNode?)JsonValue.Create(k))));
+            if (inputs.Count > 0) call["args"] = new JsonObject(inputs.Keys.Select(k => KeyValuePair.Create(k, (JsonNode?)JsonValue.Create(clientInputs.Contains(k) ? "Client." + k : k))));
             call["next"] = after;
             var at = flow.IndexOf(run[0]);
             foreach (var n in run) flow.Remove(n);
@@ -1154,6 +1161,23 @@ static class ScreenTranslator
                 case JsonObject o: foreach (var (k, v) in o) { if (key is null && NameKeys.Contains(k)) continue; foreach (var s in Strings(v, k)) yield return s; } break;
                 case JsonArray a: foreach (var x in a) foreach (var s in Strings(x, key)) yield return s; break;
                 case JsonValue v when v.GetValueKind() == System.Text.Json.JsonValueKind.String: yield return v.ToString(); break;
+            }
+        }
+
+        // Client.X -> X in every expression of a node (a merged server action gets the client variable as the input X).
+        static void ReplaceClient(JsonObject n, string variable)
+        {
+            string Fix(string text) => Regex.Replace(text, @"(?<![\w.])Client\." + Regex.Escape(variable) + @"(?!\w)", variable);
+            foreach (var (k, v) in n.ToList())
+            {
+                if (NameKeys.Contains(k)) continue;
+                if (v is JsonValue jv && jv.GetValueKind() == System.Text.Json.JsonValueKind.String) n[k] = Fix(jv.ToString());
+                else if (v is JsonObject jo)
+                {
+                    var copy = new JsonObject();
+                    foreach (var (k2, v2) in jo) copy[Fix(k2)] = v2 is JsonValue sv && sv.GetValueKind() == System.Text.Json.JsonValueKind.String ? Fix(sv.ToString()) : v2?.DeepClone();
+                    n[k] = copy;
+                }
             }
         }
 

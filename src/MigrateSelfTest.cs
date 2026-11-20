@@ -330,6 +330,20 @@ static partial class Migrate
             $"session variable read by copied server logic: a client variable passed as an input through the callers: {o.R.Source?.ToJsonString()}");
         var written = ThreadSession("Total", "Decimal", null, ["Sum"], new Dictionary<string, string> { ["Sum"] = "ServerAction Sum\n  set Session.Total = 1\n" }, [], [("ServerAction:Sum", "Sum")]);
         Check(written.Why is not null && written.Why.Contains("writes"), "a session variable that server logic writes is not passed as an input");
+        // The server store: the entity, a box structure and the accessors per variable; the user gets the key and a local loaded after Start
+        // and saved after each write; the caller passes the key.
+        var store = StoreSessions([new StoreVariable("Cart", "CartState", null, ["AddToCart", "CartTotal"])],
+            [new ActionCall("AddToCart", "AddToCart/Check", "CartTotal")], [new SessionWrite("AddToCart", "AddToCart/Add", "Cart")],
+            [("ServerAction:AddToCart", "AddToCart"), ("ServerAction:CartTotal", "CartTotal")]);
+        var se = store.Edits;
+        Check(Names(store.Creation, "entities").SequenceEqual(["SessionValue"]) && Names(store.Creation, "structures").SequenceEqual(["SessionBox_Cart"])
+            && Names(store.Creation, "serverActions").SequenceEqual(["GetSession_Cart", "SetSession_Cart"]) && P(Rows(store.Creation, "serverActions")[0], "function")?.GetValue<bool>() == true
+            && se.Any(e => S(e, "op") == "addVariables" && S(e, "action") == "ServerAction:AddToCart" && S(Rows(e, "inputs")[0], "name") == "SessionKey" && S(Rows(e, "locals")[0], "name") == "SessionCart")
+            && se.Any(e => S(e, "op") == "rewrite" && S(e, "element") == "ServerAction:CartTotal" && S(e, "to") == "SessionCart")
+            && se.Count(e => S(e, "op") == "insertNodes" && S(e, "action") == "ServerAction:AddToCart") == 2 && se.Any(e => S(e, "op") == "insertNodes" && S(e, "after") == "Add")
+            && se.Any(e => S(e, "op") == "setArgs" && S(e, "element") == "AddToCart/Check" && S(P(e, "args"), "SessionKey") == "SessionKey")
+            && store.CopyPaths.Contains("SessionValue") && store.CopyPaths.Contains("SetSession_Cart") && store.Actions.SequenceEqual(["AddToCart", "CartTotal"]),
+            $"server store: entity, box, accessors, the key, the local loaded and saved, the caller passes the key: {string.Join(" ", se.Select(e => e.ToJsonString()))}");
         Check(dec["ApiToken"].Decision == "manual" && dec["ApiToken"].Why.Contains("sensitive") && dec["Cart"].Decision == "manual" && dec["Cart"].Why.Contains("basic type") && dec["Unused"].Decision == "manual" && dec["Unused"].Why.Contains("no screen or block"), "manual: sensitive name, not a basic type, unused");
         Check(o.Context.ClientVariables.SetEquals(["ThemeName", "LastSearch", "CurrentCustomerId"]) && o.R.Counts["client"] == 3, "context: the client variables");
         Check(StatusCounts(o.Items).Select(kv => kv.Key + kv.Value).SequenceEqual(["partial1", "translated1", "worklist2"]) && o.Output["coverage"]!.ToString() == "screens: 1 translated, 1 partial, 2 worklist of 4", "coverage line");

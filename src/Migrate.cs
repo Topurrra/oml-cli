@@ -218,7 +218,7 @@ static partial class Migrate
     // they use, and the session variables each copied server or service action uses (variable -> actions).
     // CopyExposed: the person chose to copy the exposed REST and SOAP services too (--copy-exposed).
     internal sealed record Extra(IReadOnlyList<Call> ScreenWrites, IReadOnlyDictionary<string, string[]> ServerSession, IReadOnlySet<string> ScreenSession, bool CopyExposed = false,
-        IReadOnlyDictionary<string, string>? ServerTexts = null, IReadOnlyList<ActionCall>? ActionCalls = null)
+        IReadOnlyDictionary<string, string>? ServerTexts = null, IReadOnlyList<ActionCall>? ActionCalls = null, IReadOnlyList<SessionWrite>? SessionWrites = null)
     { public static readonly Extra None = new([], new Dictionary<string, string[]>(), new HashSet<string>()); }
 
     internal sealed class Result
@@ -243,6 +243,7 @@ static partial class Migrate
         public JsonArray ClientVariables = [];
         public JsonObject? ScreensSpec; // 4-screens.json, set when the screens are translated
         public Dictionary<string, string> WrapperMap = new(StringComparer.Ordinal); // entity action -> wrapper name
+        public SessionStorePlan? Store; // the server store for session variables that cannot live in the browser (StoreSessions)
         public Dictionary<string, List<(string input, string variable)>> SessionInputs = new(StringComparer.OrdinalIgnoreCase); // copied action -> inputs that carry a client variable
         public bool NoOtherContent; // the inspect of an older Core has no otherContent key
     }
@@ -338,6 +339,7 @@ static partial class Migrate
         r.Sessions = Names(inspect, "sessionVariables");
         var clientVars = new JsonArray();
         var sessionEdits = new List<JsonObject>();
+        var storeVars = new List<StoreVariable>();
         foreach (var x in Rows(inspect, "sessionVariables").Where(x => S(x, "name") is not null))
         {
             var n = S(x, "name")!; var type = S(x, "type") ?? "";
@@ -359,6 +361,16 @@ static partial class Migrate
                     }
                 }
             }
+            // Used by copied server logic but not fit for the browser (written there, a sensitive name, a record or list): the server store.
+            if (decision == "manual" && serverUse is { Length: > 0 } && extra.ServerTexts is not null && type.Length > 0
+                && ((extra.SessionWrites ?? []).Any(w => w.Variable.Equals(n, StringComparison.OrdinalIgnoreCase)) || SensitiveName(n) || !IsBasicType(type)))
+            {
+                var users = serverUse.Concat((extra.SessionWrites ?? []).Where(w => w.Variable.Equals(n, StringComparison.OrdinalIgnoreCase)).Select(w => w.Action))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                storeVars.Add(new StoreVariable(n, type, def, users));
+                (decision, why) = ("store", $"kept on the server: copied server logic ({string.Join(", ", users)}) reads and writes it through GetSession_{n} and SetSession_{n}, stored in the entity SessionValue by session key and user (2-source.json)"
+                    + (extra.ScreenSession.Contains(n) ? $"; the screens that use it must read it on the server too (a data action calling GetSession_{n} with the session key)" : ""));
+            }
             r.SessionDecisions.Add(new SessionDecision(n, type, def, decision, why));
             El("sessionVariable", n, decision, why);
             if (decision == "client")
@@ -367,6 +379,19 @@ static partial class Migrate
                 if (!string.IsNullOrEmpty(def)) cv["default"] = def;
                 clientVars.Add(cv);
             }
+        }
+        if (storeVars.Count > 0)
+        {
+            var store = StoreSessions(storeVars, extra.ActionCalls ?? [], extra.SessionWrites ?? [], r.Logic);
+            r.Store = store;
+            sessionEdits.AddRange(store.Edits);
+            foreach (var action in store.Actions)
+            {
+                if (!r.SessionInputs.TryGetValue(action, out var list)) r.SessionInputs[action] = list = [];
+                list.Add((SessionKey, SessionKey));
+            }
+            copyPaths.AddRange(store.CopyPaths);
+            clientVars.Add(new JsonObject { ["name"] = SessionKey, ["type"] = "Text" });
         }
         r.ClientVariables = clientVars;
         var emails = Rows(inspect, "otherContent").Where(o => (S(o, "kind") ?? "").Contains("Email", StringComparison.OrdinalIgnoreCase)).ToArray();
@@ -437,8 +462,12 @@ static partial class Migrate
         r.MigrateSource = Path.Combine(outDir, r.OldName + ".migrate-source.oml");
         // Then the session inputs (ThreadSession): new inputs, reads rewritten, the input passed on by each copied caller.
         if (r.Calls.Count > 0 || sessionEdits.Count > 0)
-            r.Source = new JsonObject { ["edits"] = new JsonArray(r.Calls.Select(c => (JsonNode?)new JsonObject { ["op"] = "repoint", ["element"] = c.Path, ["action"] = c.Wrapper })
-                .Concat(sessionEdits.Select(e => (JsonNode?)e)).ToArray()) };
+        {
+            r.Source = new JsonObject();
+            if (r.Store is not null) foreach (var (key, value) in r.Store.Creation) r.Source[key] = value?.DeepClone();   // the session store, created in the working copy
+            r.Source["edits"] = new JsonArray(r.Calls.Select(c => (JsonNode?)new JsonObject { ["op"] = "repoint", ["element"] = c.Path, ["action"] = c.Wrapper })
+                .Concat(sessionEdits.Select(e => (JsonNode?)e)).ToArray());
+        }
 
         // 3-new-module.json: references first (the prepared old module, then the producers), then the copy from the working copy.
         var refs = new JsonArray();
@@ -507,6 +536,33 @@ static partial class Migrate
         return calls;
     }
 
+    // The Assign nodes of the copied logic that write a session variable (the target of one of their assignments is Session.<Name>...),
+    // from the same tree batch: action, node path, variable.
+    internal sealed record SessionWrite(string Action, string Path, string Variable);
+
+    internal static List<SessionWrite> FindSessionWrites(JsonNode? batch, List<(string query, string name)> logic)
+    {
+        var writes = new List<SessionWrite>();
+        var results = (P(batch, "results") as JsonArray)?.ToArray() ?? [];
+        for (var i = 0; i < logic.Count && i < results.Length; i++)
+        {
+            if (P(results[i], "output") is not JsonObject tree || P(tree, "error") is not null) continue;
+            var action = logic[i].name;
+            void Walk(JsonNode? n)
+            {
+                if (n is not JsonObject node) return;
+                if (S(node, "kind") == "Assign" && S(node, "path") is { } path)
+                    foreach (var assignment in (P(node, "children") as JsonArray ?? []).OfType<JsonObject>().Where(c => S(c, "kind") == "Assignment"))
+                        if ((P(assignment, "children") as JsonArray)?.OfType<JsonObject>().FirstOrDefault() is { } target
+                            && Regex.Match(S(target, "text") ?? "", @"^\s*Session\.(\w+)") is { Success: true } m)
+                            writes.Add(new SessionWrite(action, path, m.Groups[1].Value));
+                foreach (var c in (P(node, "children") as JsonArray)?.ToArray() ?? []) Walk(c);
+            }
+            Walk(tree);
+        }
+        return writes.Distinct().ToList();
+    }
+
     internal static List<Call> FindCalls(JsonNode batch, List<(string query, string name)> logic, string[] entities, List<string> notes)
     {
         var actions = new Dictionary<string, (string entity, string op)>(StringComparer.Ordinal);
@@ -559,6 +615,10 @@ static partial class Migrate
         if (clients.Length > 0) head.Add($"Session variable(s) of a basic type with a harmless name become client variables of the same name in 4-screens.json ({string.Join(", ", clients)}); a client variable is readable by the user, so nothing sensitive goes there."
             + (r.SessionInputs.Count > 0 ? $" The copied server actions that read one get it as an input instead ({string.Join(", ", r.SessionInputs.Keys.Order(StringComparer.Ordinal))}; 2-source.json), and the screens pass the client variable." : "") + (noDefault.Length > 0 ? $" The default value of a session variable is not read by this oml inspect ({string.Join(", ", noDefault)}): set the default of each of these client variables by hand if the session variable had one." : " Each keeps the default value inspect gave."));
         foreach (var d in r.SessionDecisions.Where(d => d.Decision == "manual")) head.Add($"Session variable {d.Name} is not migrated, it needs a decision by hand: {d.Why}.");
+        foreach (var d in r.SessionDecisions.Where(d => d.Decision == "store")) head.Add($"Session variable {d.Name} is {d.Why}.");
+        if (r.Store is not null) head.Add("The server store: 2-source.json creates the entity SessionValue and the GetSession_/SetSession_ actions in the working copy, and the copy brings them to the new module. "
+            + $"The copied actions that need it get the input {SessionKey} ({string.Join(", ", r.Store.Actions)}); screens pass Client.{SessionKey}, which 4-screens.json makes once per browser at application start (InitSessionKey). "
+            + "A row belongs to a session key and a user. Rows are never deleted: add a timer that deletes old ones (ChangedOn). Traditional ended a session at logout or timeout; this key lasts as long as the browser keeps it.");
         if (r.Others.Count > 0)
             foreach (var g in r.Others.GroupBy(o => (o.Decision, o.Kind)).OrderBy(g => g.Key.Decision, StringComparer.Ordinal).ThenBy(g => g.Key.Kind, StringComparer.Ordinal))
                 head.Add($"{g.Key.Kind} ({string.Join(", ", g.Select(o => o.Name))}): {g.First().Why}");
