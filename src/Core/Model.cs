@@ -222,9 +222,14 @@ static class Model
     public static string? NameOf(object o)
     {
         if (FieldMappings.Is(o)) return FieldMappings.Field(o); // the target field names a per-field mapping
-        foreach (var p in NameProperties.GetOrAdd(o.GetType(), _ => new[] { "Name", "Label" }
-                     .SelectMany(property => Reflect.Interfaces(o).Select(i => i.GetProperty(property)))
-                     .Where(p => p?.PropertyType == typeof(string)).ToArray()!))
+        foreach (var p in NameProperties.GetOrAdd(o.GetType(), type =>
+                 {
+                     var named = new[] { "Name", "Label" }.SelectMany(property => Reflect.Interfaces(o).Select(i => i.GetProperty(property)))
+                         .Where(p => p?.PropertyType == typeof(string)).ToArray()!;
+                     // A Service Studio object without a public model interface (a test case, an assert node): its own Name or Label.
+                     return named.Length > 0 || type.Namespace?.StartsWith("ServiceStudio.Model", StringComparison.Ordinal) != true ? named
+                         : new[] { "Name", "Label" }.Select(property => type.GetProperty(property)).Where(p => p?.PropertyType == typeof(string)).ToArray()!;
+                 }))
         {
             try { if (p.GetValue(o) is string { Length: > 0 } name) return name; }
             catch (TargetInvocationException) { }
@@ -280,8 +285,14 @@ static class Model
         var record = Refs.Pick(module, name, isId ? "entity" : "entity or structure", records, missingIsNull: true);
         // A freshly created entity has no IdentifierType yet; its Id attribute already carries the type.
         if (isId) return record is IEntitySignature entity ? (ITypeSignature?)entity.IdentifierType ?? entity.IdentifierAttribute?.DataType : null;
-        return record;
+        return record ?? SystemStructure(module, name);
     }
+
+    // A structure the platform puts in every module of the kind (Reactive: Attachment, for email attachments). It is in no list of
+    // the public model, only among the module's structure types.
+    static ITypeSignature? SystemStructure(IESpace module, string name) =>
+        Reflect.Get(module, "StructureTypes") is System.Collections.IEnumerable types
+            ? types.Cast<object>().FirstOrDefault(t => t.GetType().Name == "SystemStructure" && NameOf(t) == name) as ITypeSignature : null;
 
     // Resolve for callers that report problems instead of throwing: ambiguity and unknown types become a problem.
     public static ITypeSignature? Resolve(IESpace module, string spec, List<string> problems, string where)

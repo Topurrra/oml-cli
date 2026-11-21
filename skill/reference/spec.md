@@ -56,6 +56,8 @@ One row per top-level key: what it creates or changes, and the section of this f
 | `screens`, `blocks` (Reactive, Mobile) | Screens, blocks, aggregates, actions, events, widgets. | Reactive UI and Mobile UI |
 | `events`, `triggerEvent`, `onParametersChanged` | Block events: declare on a block, fire with a node, handle on each block instance. | Block events |
 | `emails`, flow node `sendEmail` | Emails (Reactive, and Traditional Web with a `preparation`) and sending them from a server action or a Traditional process. | Emails |
+| `tests` | Service Studio's test cases: `name`, `flow` (execute nodes, then `assert` nodes with `condition`), optional `setup`, `tearDown`, `description`. Listed again, a test that exists stays. Run them in Service Studio (Run Selected Test Case). | Platform elements |
+| `entityDiagrams` | `name`, `entities` (names, or `"*"` for the module's). Listed again, a diagram gets the entities it lacks. | Platform elements |
 | `uiFlows` | A UI flow's `comments` (text, or `{ text, isReminder }`) and, in Traditional Web, `entries` (`name`, `screen`, `isDefault`). Listed again: same text or name is the one there. | Platform elements |
 | `screens`, `blocks` (Traditional Web) | Web screens with `preparation` and web widgets. | Traditional Web UI |
 | `layout`, `placeholders`, `template` | Layout blocks and generated list or detail screens. | Layouts and scaffolding |
@@ -330,7 +332,7 @@ These use the installed typed node API and the normal expression-last order:
 | `attachFile` | `fileContent`, optional `fileName`, `mimeType` | Only in a Traditional Web email's `preparation`. Expressions. |
 | `excelToRecordList` | `fileContent`, `sheetName`, `dataType`: `List of <record type>` | Expressions plus list type. Verified in server actions. |
 | `recordListToExcel` | `recordList`, `attributeSelection`: array of field paths such as `Label` | At least one field is required. Selections bind after the list expression. |
-| `sendEmail` | `email`, `from`, `to`, optional `cc`, `bcc`, `logContent` (Traditional Web only), `args` | Reactive: server actions only. Address values are expressions; args map email input names to expressions. See Emails. |
+| `sendEmail` | `email`, `from`, `to`, optional `cc`, `bcc`, `logContent` (Traditional Web only), `attachments` (Reactive: a `List of Attachment`, the system structure with FileName, FileContent, MimeType), `args` | Reactive: server actions only. Address values are expressions; args map email input names to expressions. See Emails. |
 
 Missing elements, unsupported node scopes and model refusals prevent saving. These checks verify the saved model; they do not send email, process a workbook, or download a file at runtime.
 
@@ -784,13 +786,20 @@ Inputs, locals, server-side screen actions, block instances, layouts, access, an
 | TableRecords `headerRow`, `row` | Fill existing HeaderRow/DataRow with HeaderCell/RowCell mapped to Web cells. |
 | Form / EditRecord | Form aliases IEditRecordWidget; no IFormWidget on Service Studio 11.55.92. Use rows with cells. |
 | Button | Text children become its label expression. Other child types are refused. Use label for an expression. |
+| Image | `image` (an image of the module), or `imageType` External with `url`, or Database with `entityIdentifier` and `filename`; `width`, `height`. |
+| ListBox | `source` (a record list), `sourceAttribute` and `selectionAttribute` as Service Studio's dropdown shows them (`Item.Title`, a Boolean `Item.Done`), `selectionMode`. |
+| Label | `value` (an expression; no children) and `targetWidget` (an input of the same screen). |
+| EditableTable | `source`, `showHeader`, `lineCount`; `headerCells` and `bodyCells` hold `EditableTableCell` widgets, whose `children` are the cell content. |
+| Upload | Service Studio's Upload (model name InputFilename). It binds no variable: read `<Upload>.Content`, `.FileName` and `.Type` in the screen action. |
 | Text | Plain text. |
 | `styleClasses` | Plain CSS classes. |
 | `style` | Plain classes or a quoted literal; maps to StyleClasses, not a dynamic expression. |
 
 Other widget properties use installed setters/properties. Events and args keep action-first, screen-second lookup.
 Verified on Service Studio 11.55.92: Container, Expression, Text, Input, Button, Link, If, TableRecords,
-ListRecords, EditRecord, and BlockInstance.
+ListRecords, EditRecord, and BlockInstance; on 11.55.97: Image, ListBox, Label, EditableTable and Upload. Those five have no public
+model type: oml makes them with Service Studio's own classes, and sets an element they name (image, attribute) from the values the
+properties panel offers; a wrong name lists those values.
 Widget interfaces resolve under `OutSystems.Model.UI.Web.Widgets`:
 
 ```powershell
@@ -1000,7 +1009,7 @@ Locales, translation imports, translation writes, and folders run after logic an
 | `locales` | Culture names map to the installed `Culture` enum (`ka-GE` maps to `KA_GE`). Unknown values are problems. Existing locales are reused. |
 | `translate` | Calls `CreateOrUpdateTranslation` on the module. `text` is the API resource ID, such as `MandatoryInput`; it is not a widget path or a search for displayed text. Creates the locale if needed. Values survive save/reopen and appear under `inspect.content.translations`. |
 | `translations` | `{ "import": "ModuleLanguage.ka-GE.resX" }` calls `LoadTextResources`. Refusals prevent saving. On 11.55.92 the headless host refuses ResX format detection, so file round trips are unavailable. Use `translate` for module resource IDs. |
-| `images` | `name`, `file`, optional `public` (false). Uses `CreateImage`. SVG and PNG were verified; the API also lists Jpg, Gif, and Ico. Invalid files are problems. Image widgets can reference the image in the same spec. |
+| `images` | `name`, `file`, optional `public` (false), `localized` (Traditional Web: `{ "pt-PT": "logo-pt.png" }`, the image for each locale; the locale is added when missing). Uses `CreateImage`. SVG and PNG were verified; the API also lists Jpg, Gif, and Ico. Invalid files are problems. Image widgets can reference the image in the same spec. |
 | `scripts` | `name`, `file`, optional `public` (false). Sets `JavaScript` to the file text. Screens and blocks accept `requiredScripts`, an array of script names. |
 | `themes` | `name`, optional `styleSheet` and `baseTheme`. `styleSheet` is CSS text, an existing file path, or `{ "file": ... }`; a value that looks like a path (`theme.css`, `css/app.css`) but names no file is refused. A new theme without `styleSheet` starts empty. On a theme made with Theme Editor, the model keeps the Theme Editor part (its banner and `:root` block, first in `describe --css`) apart: `styleSheet` replaces only the rest. A `styleSheet` copied from `describe --css` may start with that part; apply drops it there, so it is never there twice. A text that differs only in line endings is not a change. Creates a Web theme in Traditional Web modules, otherwise a Mobile theme. Does not select the module default theme. |
 | `resources` | `name`, `file`, optional `public` (false). Stores the exact file bytes. |

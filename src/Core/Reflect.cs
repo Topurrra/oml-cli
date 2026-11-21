@@ -64,6 +64,9 @@ static class Reflect
 
     public static bool Has(object o, string name) => Methods(o).Any(m => m.Name == name);
 
+    // A generic method `name` taking `args` arguments, as CallGeneric finds it (interface methods too).
+    public static bool HasGeneric(object o, string name, int args) => Methods(o).Any(m => m.Name == name && m.IsGenericMethodDefinition && m.GetParameters().Length == args);
+
     static bool Fits(MethodInfo m, object?[] args)
     {
         var ps = m.GetParameters();

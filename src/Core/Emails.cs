@@ -124,12 +124,34 @@ partial class Builder
             call.Remove(key);
         }
         if (call["args"] is JsonObject given) foreach (var (k, v) in given) args[k] = v?.DeepClone();
+        if (call["attachments"] is { } attachments)
+        {
+            AttachmentsInput(send);
+            args["Attachments"] = attachments.DeepClone();
+            call.Remove("attachments");
+        }
         call.Remove("email");
         call["kind"] = "execute";
         call["name"] ??= "sendEmail";
         call["action"] = Model.NameOf(send);
         call["args"] = args;
         return JsonSerializer.SerializeToElement(call);
+    }
+
+    // Reactive email attachments: the Send Email node's Attachments (a List of the system structure Attachment: FileName,
+    // FileContent, MimeType), given to the send action as its optional input Attachments. A send action made before gets the input now.
+    ITypeSignature? AttachmentList() => Model.Resolve(m, "Attachment") is OutSystems.Model.Data.IStructureSignature { Name: "Attachment" } attachment ? m.GetOrCreateListType(attachment) : null;
+
+    void AttachmentsInput(object send)
+    {
+        var action = (IServerAction)send;
+        if (action.InputParameters.Any(p => p.Name == "Attachments")) return;
+        var list = AttachmentList() ?? throw new ModelError("this module has no Attachment system structure, so it cannot send Reactive email attachments");
+        var input = action.CreateInputParameter("Attachments", services.NewKey());
+        input.DataType = list;
+        input.IsMandatory = false;
+        var node = ElementPaths.Children(action).First(x => Reflect.Get(x, "EmailScreen") is not null);
+        Defer(node, ($"serverAction {action.Name}/attachments", () => Reflect.Call(node, "SetAttachments", "Attachments")));
     }
 
     object SendAction(object email)
@@ -143,7 +165,7 @@ partial class Builder
                 : throw new ModelError($"server action '{name}' exists but is not oml's send action for email '{Model.NameOf(email)}' (one that sends it, with inputs From and To)."
                     + " A send action made by Service Studio's own command has no From and To inputs. Rename that action in Service Studio, or give the email another name.");
         var inputs = Elements(Reflect.Get(email, "InputParameters")).ToList();
-        if (inputs.Select(Model.NameOf).FirstOrDefault(i => new[] { "From", "To", "CC", "BCC" }.Contains(i, StringComparer.OrdinalIgnoreCase)) is { } clash)
+        if (inputs.Select(Model.NameOf).FirstOrDefault(i => new[] { "From", "To", "CC", "BCC", "Attachments" }.Contains(i, StringComparer.OrdinalIgnoreCase)) is { } clash)
             throw new ModelError($"email input '{clash}' clashes with the send action input of the same name; rename the email input");
         var create = type.GetMethod("CreateSendEmailServerAction", BindingFlags.Public | BindingFlags.Static, new[] { type })
                      ?? throw new ModelError("this Service Studio build cannot add a Send Email node to a Reactive module");

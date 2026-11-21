@@ -24,7 +24,7 @@ record ScreenSpec(string Name, string Flow = "MainFlow", JsonElement? Title = nu
 partial class Builder(IESpace m, IModelServices services, List<string> created, List<string> existing, List<string> problems, ProductionRules rules)
 {
     readonly Dictionary<object, string?> aggregateNames = new();
-    readonly List<(string label, Action apply)> flows = new(), references = new(), targets = new(), widgets = new(), expressions = new();
+    readonly List<(string label, Action apply)> flows = new(), references = new(), targets = new(), widgets = new(), expressions = new(), picks = new();
 
     public void Run(List<JsonElement>? edits = null)
     {
@@ -177,7 +177,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         var nodes = ((System.Collections.IEnumerable)Reflect.Get(action, "Nodes")!).Cast<object>().ToList();
         var exceptionAction = action is OutSystems.Model.UI.IOnExceptionAction;
         var start = exceptionAction ? null : nodes.OfType<OutSystems.Model.Logic.Nodes.IStartNode>().FirstOrDefault()
-                    ?? (object)Reflect.CallGeneric(action, "CreateNode", typeof(OutSystems.Model.Logic.Nodes.IStartNode), "Start", services.NewKey())!;
+                    ?? NewNode(action, typeof(OutSystems.Model.Logic.Nodes.IStartNode), "Start");
         var named = nodes.Where(n => Model.NameOf(n) is not null).GroupBy(n => Model.NameOf(n)!).ToList();
         var byName = named.Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.Single());
         var ambiguous = named.Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet();
@@ -191,7 +191,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         {
             if (byName.TryGetValue("End", out var e)) return e;
             return byName["End"] = nearestEnd ?? ends.FirstOrDefault()
-                   ?? Reflect.CallGeneric(action, "CreateNode", typeof(OutSystems.Model.Logic.Nodes.IEndNode), "End", services.NewKey())!;
+                   ?? NewNode(action, typeof(OutSystems.Model.Logic.Nodes.IEndNode), "End");
         }
 
         var built = new List<(JsonElement spec, object node, string name, string kind)>();
@@ -215,7 +215,8 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                     type = client ? typeof(OutSystems.Model.Logic.Nodes.IExecuteClientActionNode) : typeof(OutSystems.Model.Logic.Nodes.IExecuteServerActionNode);
                     if (!n.TryGetProperty("name", out _)) name = Model.NameOf(callee) ?? target;
                 }
-                else type = kind.Equals("triggerEvent", StringComparison.OrdinalIgnoreCase) ? typeof(OutSystems.Model.Logic.Nodes.ITriggerNode) : NodeType(kind);
+                else type = kind.Equals("triggerEvent", StringComparison.OrdinalIgnoreCase) ? typeof(OutSystems.Model.Logic.Nodes.ITriggerNode)
+                    : kind.Equals("assert", StringComparison.OrdinalIgnoreCase) ? AssertNode : NodeType(kind);
 
                 if (type == typeof(OutSystems.Model.Logic.Nodes.ITriggerNode)) TriggerBlock(action);
                 if ((byName.ContainsKey(name) || ambiguous.Contains(name))
@@ -223,7 +224,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                     throw new ModelError($"node name '{name}' already exists in this flow{(byName.GetValueOrDefault(name) is IObjectSignature held ? ": " + NameClash.Describe(held) : "")}");
                 // An "End" node reuses the action's existing End, which bare flows and implicit ends also use.
                 var node = name == "End" && type == typeof(OutSystems.Model.Logic.Nodes.IEndNode)
-                    ? End() : Reflect.CallGeneric(action, "CreateNode", type, name, services.NewKey())!;
+                    ? End() : NewNode(action, type, name);
                 if (Reflect.Property(node, "Label", writable: true) is { } labelProperty) labelProperty.SetValue(node, name);
                 if ((Reflect.Property(node, "Name", true) is not null || Reflect.Property(node, "Label", true) is not null)
                     && !ReferenceEquals(node, byName.GetValueOrDefault(name)) && !Fresh(node, name, where)) continue;
@@ -293,7 +294,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
             {
                 if (handlerRegion < 0) return explicitEnd ? End() : successor ?? End();
                 if (!handlerEnds.TryGetValue(handlerRegion, out var end))
-                    handlerEnds[handlerRegion] = end = Reflect.CallGeneric(action, "CreateNode", typeof(OutSystems.Model.Logic.Nodes.IEndNode), "HandlerEnd", services.NewKey())!;
+                    handlerEnds[handlerRegion] = end = NewNode(action, typeof(OutSystems.Model.Logic.Nodes.IEndNode), "HandlerEnd");
                 return end;
             }
             targets.Add(($"{label}/{built[i].name}.flow", () =>
@@ -321,7 +322,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 }
                 if (Reflect.Property(node, "CycleTarget") is not null)
                     Connect(node, "CycleTarget", Resolve(Named("cycle") ?? throw new ModelError($"{name}: 'cycle' target required")));
-                if (Reflect.Property(node, "Target") is not null) Connect(node, "Target", Resolve(Named("next")));
+                if (Reflect.Property(node, "Target") is not null || IsAssert(node)) Connect(node, "Target", Resolve(Named("next")));
             }));
         }
     }
@@ -344,8 +345,17 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         return (callee, callee.GetType().GetInterfaces().Any(i => i.Name == "IClientActionSignature"));
     }
 
-    static void Connect(object from, string property, object to) =>
-        Reflect.Property(from, property, writable: true)!.SetValue(from, to);
+    static void Connect(object from, string property, object to)
+    {
+        if (Reflect.Property(from, property, writable: true) is { } target && target.PropertyType.IsInstanceOfType(to)) { target.SetValue(from, to); return; }
+        // An assert node (test flows) is no public node type: link it as the public Target does, with a Sequence link.
+        var link = property == "Target" ? from.GetType().Assembly.GetType("ServiceStudio.Model.Links+Sequence") : null;
+        var ctor = link?.GetConstructors().FirstOrDefault(c => c.GetParameters() is [{ } p0, { } p1] && p0.ParameterType.IsInstanceOfType(from) && p1.ParameterType.IsInstanceOfType(to))
+            ?? throw new ModelError($"{Model.NameOf(from) ?? from.GetType().Name} cannot go to {Model.NameOf(to) ?? to.GetType().Name}");
+        ctor.Invoke([from, to]);
+    }
+
+    static bool IsAssert(object node) => node.GetType().FullName == "ServiceStudio.Model.TestNodes+Assert";
 
     // Bind by parameter name, never by position (skill §9).
     static void Arguments(object owner, JsonElement args)

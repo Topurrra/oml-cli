@@ -45,7 +45,12 @@ static class SpecFiles
             o[key] = mine;
         }
         foreach (var list in new[] { "images", "scripts", "resources" })
-            if (root[list] is JsonArray items) foreach (var item in items) Fix(item as JsonObject, "file");
+            if (root[list] is JsonArray items) foreach (var item in items)
+            {
+                Fix(item as JsonObject, "file");
+                if ((item as JsonObject)?["localized"] is JsonObject localized)   // an image per locale: { "pt-PT": "logo-pt.png" }
+                    foreach (var culture in localized.Select(kv => kv.Key).ToList()) Fix(localized, culture);
+            }
         if (root["themes"] is JsonArray themes) foreach (var theme in themes) Fix(theme as JsonObject, "styleSheet");
         if (root["copy"] is JsonArray copies) foreach (var copy in copies) Fix(copy as JsonObject, "from");
         Fix(root["module"] as JsonObject, "icon");

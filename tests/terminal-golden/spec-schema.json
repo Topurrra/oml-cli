@@ -252,6 +252,14 @@
       "items": {},
       "description": "A UI flow's `comments` (text, or `{ text, isReminder }`) and, in Traditional Web, `entries` (`name`, `screen`, `isDefault`). Listed again: same text or name is the one there. (oml spec uiFlows)"
     },
+    "tests": {
+      "type": "array",
+      "items": {}
+    },
+    "entityDiagrams": {
+      "type": "array",
+      "items": {}
+    },
     "$schema": {
       "type": "string"
     }
@@ -1035,6 +1043,12 @@
         },
         "public": {
           "type": "boolean"
+        },
+        "localized": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false,
@@ -1197,7 +1211,8 @@
             "sendEmail",
             "triggerEvent",
             "ajaxRefresh",
-            "attachFile"
+            "attachFile",
+            "assert"
           ]
         },
         "name": {
@@ -1276,7 +1291,8 @@
                   "sendEmail",
                   "triggerEvent",
                   "ajaxRefresh",
-                  "attachFile"
+                  "attachFile",
+                  "assert"
                 ]
               },
               "name": {

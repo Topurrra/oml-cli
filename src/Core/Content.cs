@@ -6,7 +6,7 @@ using OutSystems.Model.Enumerations;
 namespace OmlCli;
 
 record CopySpec(string From, List<string> Elements, string? Into = null);
-record ContentFileSpec(string Name, string File, bool? Public = null);
+record ContentFileSpec(string Name, string File, bool? Public = null, Dictionary<string, string>? Localized = null);
 record ThemeSpec(string Name, string? StyleSheet = null, string? BaseTheme = null);
 record FolderSpec(string Name, string Area, List<string> Elements);
 record TranslationImportSpec(string Import);
@@ -27,6 +27,32 @@ static class Content
     static T NamedEnum<T>(string name) where T : struct, Enum =>
         Enum.GetNames<T>().FirstOrDefault(n => n.Equals(name, StringComparison.OrdinalIgnoreCase)) is { } found
             ? Enum.Parse<T>(found) : throw new ModelError($"unknown {typeof(T).Name} '{name}'; supported: {(Enum.GetNames<T>().Length > 30 ? "see oml model-types " + typeof(T).Name : string.Join(", ", Enum.GetNames<T>()))}");
+
+    // An image's version for a locale (Service Studio: the image's Localized Images, shown when the app runs in that language). The
+    // locale is added to the module when missing; a locale's image that differs is replaced.
+    static void Localize(IESpace m, object image, ContentFileSpec file, List<string>? changed)
+    {
+        if (file.Localized is null) return;
+        if (file.Localized.Count > 0 && !WebUi.IsTraditional(m))
+            throw new ModelError("localized images are a Traditional Web feature; in Reactive, choose the image by locale in an expression (GetCurrentLocale())");
+        foreach (var (name, path) in file.Localized)
+        {
+            var bytes = System.IO.File.ReadAllBytes(path);
+            var locale = (OutSystems.Model.Data.ILocale)Reflect.Call(m, "GetOrCreateLocale", CultureOf(name))!;
+            var img = (OutSystems.Model.UI.IImage)image;
+            if (img.LocalizedImages.FirstOrDefault(l => Equals(l.Locale, locale)) is { } held)
+            {
+                if (held.ImageContent.AsSpan().SequenceEqual(bytes)) continue;
+                held.SetImageContent(bytes, Path.GetFileName(path));
+                changed?.Add($"image {file.Name} for {name}");
+            }
+            else
+            {
+                img.CreateLocalizedImage(locale, bytes, Path.GetFileName(path), Model.Services().NewKey());
+                changed?.Add($"image {file.Name} for {name}");
+            }
+        }
+    }
 
     static Culture CultureOf(string name) => NamedEnum<Culture>(name.Replace('-', '_'));
     internal static IEnumerable<object> Items(object owner, string property) =>
@@ -117,6 +143,7 @@ static class Content
                         Set(found, "JavaScript", code);
                         changed.Add($"javaScript of script {file.Name}");
                     }
+                    if (group.Item3 == "image") Localize(m, found, file, changed);
                     existing.Add($"{group.Item3} {file.Name}");
                     return;
                 }
@@ -128,6 +155,7 @@ static class Content
                 };
                 if (group.Item3 == "script") Set(item, "JavaScript", System.IO.File.ReadAllText(file.File));
                 if (file.Public is { } isPublic) Set(item, "Public", isPublic);
+                if (group.Item3 == "image") Localize(m, item, file, null);
                 CheckName(item, file.Name, problems);
                 created.Add($"{group.Item3} {Model.NameOf(item)}");
             });
@@ -314,7 +342,8 @@ static class Content
 
     public static object Inspect(IESpace m) => new
     {
-        images = OmlCli.Inspect.ByName(Items(m, "Images")).Select(x => new { name = Model.NameOf(x), format = Reflect.Get(x, "OriginalFormat")?.ToString(), bytes = (Reflect.Get(x, "ImageContent") as byte[])?.Length }),
+        images = OmlCli.Inspect.ByName(Items(m, "Images")).Select(x => new { name = Model.NameOf(x), format = Reflect.Get(x, "OriginalFormat")?.ToString(), bytes = (Reflect.Get(x, "ImageContent") as byte[])?.Length,
+            localized = x is OutSystems.Model.UI.IImage { LocalizedImages: var l } && l.Any() ? l.Select(i => i.Locale?.Culture.ToString().Replace('_', '-')).Order(StringComparer.Ordinal).ToList() : null }),
         scripts = OmlCli.Inspect.ByName(Items(m, "Scripts")).Select(x => new { name = Model.NameOf(x), javaScript = Reflect.Get(x, "JavaScript") }),
         resources = OmlCli.Inspect.ByName(Items(m, "Resources")).Select(x => new { name = Model.NameOf(x), isPublic = Reflect.Get(x, "Public"), bytes = (Reflect.Get(x, "ResourceContent") as byte[])?.Length }),
         themes = OmlCli.Inspect.ByName(Items(m, "MobileThemes").Concat(Items(m, "WebThemes"))).Select(x => new { name = Model.NameOf(x), styleSheet = Reflect.Get(x, "StyleSheet"), baseTheme = Reflect.Get(x, "BaseTheme") is { } b ? Model.NameOf(b) : null }),

@@ -35,6 +35,10 @@ static class ElementPaths
     static IEnumerable<IObjectSignature> Direct(IObjectSignature o)
     {
         var all = o.Children.Distinct().ToList();
+        // Test cases (Service Studio's Tests) and entity diagrams are module children the public model leaves out.
+        if (o is IESpace)
+            foreach (var hidden in new[] { "TestCases", "EntityDiagrams" })
+                if (Reflect.Get(o, hidden) is System.Collections.IEnumerable items) all.AddRange(items.OfType<IObjectSignature>().Where(t => !all.Contains(t)));
         var member = Cached(holders, o, () => o is OutSystems.Model.UI.IScreenSignature || Inspect.IsBlock(o));
         bool Moves(IObjectSignature c) => member ? c is not OutSystems.Model.UI.IWidgetSignature : Varies(c);
         if (!all.Any(Moves)) return all;

@@ -36,7 +36,7 @@ static class Describe
         if (Reflect.Get(o, "EntityKind")?.ToString() == "Static") return "StaticEntity";
         if (Inspect.IsBlock(o)) return "Block";
         if (o is IScreenSignature) return "Screen";
-        if (o is IObjectSignature s) return s.GetInterface().Name[1..].Replace("Signature", "");
+        if (o is IObjectSignature s && s.GetInterface() is { } face) return face.Name[1..].Replace("Signature", "");   // none: a test case, an assert
         return ElementPaths.Kind(o);
     }
     internal static string Qualified(IESpace m, object o)
@@ -109,6 +109,21 @@ static class Describe
                 Add(label, value, label + "=" + value);
             }
         if (Reflect.Get(o, "TargetWidget") is IObjectSignature target) { var targetName = Name(target); Add("targetWidget", targetName, "targetWidget=" + targetName); }
+        // Traditional Image and List Box (Service Studio's own classes): the image, and the source record list and its attributes.
+        if (Reflect.Get(o, "ActualImage") is IObjectSignature picture) Add("image", Name(picture), "image=" + Name(picture));
+        if (o.GetType().Name is "Image" or "ListBox" && o.GetType().FullName!.StartsWith("ServiceStudio.Model.WebWidgets+", StringComparison.Ordinal))
+        {
+            if (o.GetType().Name == "Image" && Reflect.Get(o, "Type")?.ToString() is { } imageType && imageType != "Static") Add("imageType", imageType, "imageType=" + imageType);
+            foreach (var key in new[] { "SourceRecordList" })   // url: the generic reader writes it
+                if (Text(Reflect.Get(o, key)) is { Length: > 0 } text) Add("source", text, "source=" + text);
+            foreach (var key in new[] { "SourceAttribute", "SelectionAttribute" })
+                if (Reflect.Get(o, key) is IObjectSignature attribute)
+                {
+                    var path = (Reflect.Get(o, key + "Parent") is IObjectSignature parent ? Name(parent) + "." : "") + Name(attribute);
+                    var label = char.ToLowerInvariant(key[0]) + key[1..];
+                    Add(label, path, label + "=" + path);
+                }
+        }
         // How it looks and behaves: classes, inline style, HTML tag and attributes, input options.
         if (Reflect.Get(o, "Style") is IExpression styleClasses && styleClasses.Text is { Length: > 0 } classes && classes != "\"\"") Add("style", classes, "style=" + classes);
         else if (Text(Reflect.Get(o, "StyleClasses")) is { Length: > 0 } classNames && classNames != "\"\"") Add("style", classNames, "style=" + classNames);
@@ -400,6 +415,7 @@ static class Describe
             { var ex = Reflect.Get(node, "Exception"); Raises.Add(Qualified(m, ex ?? node)); Line(indent, "raise " + Name(ex) + "(" + Expr(node, "ExceptionMessage") + ")"); }
             else if (kind.Contains("Destination")) Line(indent, "navigate to " + Name(Reflect.Get(node, "Destination")) + "(" + Args(node) + ")");
             else if (kind == "TriggerNode") Line(indent, "trigger " + Name(Reflect.Get(node, "Event")) + "(" + Args(node) + ")");
+            else if (node.GetType().FullName == "ServiceStudio.Model.TestNodes+Assert") Line(indent, "assert " + Name(node) + ": " + Expr(node, "Condition"));
             else if (kind == "SendEmailNode" || Reflect.Property(node, "EmailScreen") is not null)
                 Line(indent, "send email " + Name(Reflect.Get(node, "Email") ?? Reflect.Get(node, "EmailScreen")) + " from " + Expr(node, "From") + " to " + Expr(node, "To") + "(" + Args(node) + ")");
             // A refresh node usually has no name: its path is "refresh <data source>" (or the index form shown when that repeats).

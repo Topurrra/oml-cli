@@ -55,6 +55,7 @@ public static class Program
         {
             while (e is TargetInvocationException { InnerException: { } inner }) e = inner;
             UsageLog.CrashType = e.GetType().Name; // the usage log still sees a crash, though the exit code is an ordinary one
+            if (Environment.GetEnvironmentVariable("OML_STACK") == "1") Console.Error.WriteLine(e);   // for oml's own debugging
             var path = e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException;
             TerminalOutput.PrintObject(new { error = e.Message, hint = path ? "Check the path and the arguments of the command (oml <command> --help)." : "This is a bug in oml. Report the command and this message; the usage log notes it as a crash." });
             return path ? 2 : 1;

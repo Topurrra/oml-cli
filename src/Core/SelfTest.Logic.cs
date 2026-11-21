@@ -115,6 +115,39 @@ static partial class SelfTest
             }
         }
 
+        // Traditional widgets without a public model interface (Image, List Box, Label, Editable Table, Upload) and an image per locale.
+        var png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
+        File.WriteAllBytes(Path.Combine(dir, "pic.png"), png);
+        File.WriteAllBytes(Path.Combine(dir, "pic-pt.png"), png);
+        File.WriteAllText(path, """
+            {"entities":[{"name":"Item","attributes":[{"name":"Title"},{"name":"Done","type":"Boolean"}]}],
+             "images":[{"name":"Pic","file":PIC,"localized":{"pt-PT":PICPT}}],
+             "screens":[{"name":"Widgets","locals":[{"name":"Name","type":"Text"}],"preparation":[{"kind":"aggregate","name":"GetItems","sources":["Item"]}],
+               "widgets":[{"type":"Image","name":"Logo","image":"Pic"},
+                 {"type":"ListBox","name":"Box","source":"GetItems.List","sourceAttribute":"Item.Title","selectionAttribute":"Item.Done"},
+                 {"type":"Label","name":"Lbl","value":"\"Name\"","targetWidget":"NameIn"},{"type":"Input","name":"NameIn","variable":"Name"},
+                 {"type":"Upload","name":"Up"},
+                 {"type":"EditableTable","name":"Grid","source":"GetItems.List",
+                  "headerCells":[{"type":"EditableTableCell","children":[{"type":"Text","text":"Title"}]}],
+                  "bodyCells":[{"type":"EditableTableCell","children":[{"type":"Input","name":"TitleIn","variable":"Grid.List.Current.Item.Title"}]}]}]}]}
+            """.Replace("PICPT", JsonSerializer.Serialize(Path.Combine(dir, "pic-pt.png"))).Replace("PIC", JsonSerializer.Serialize(Path.Combine(dir, "pic.png"))));
+        var widgetsOut = Path.Combine(dir, "logic-web-widgets.oml");
+        (code, report) = Apply.Execute(webSource, path, widgetsOut);
+        if (code != 0) failures.Add("traditional widgets: " + JsonSerializer.Serialize(report));
+        else
+        {
+            using var web = Model.Load(widgetsOut);
+            var screen = ElementPaths.Resolve(web, "MainFlow/Widgets");
+            var parts = ProductionRules.Walk(screen).ToList();
+            object Named(string n) => parts.First(o => Model.NameOf(o) == n);
+            if (Model.NameOf(Reflect.Get(Named("Logo"), "ActualImage") ?? "") != "Pic") failures.Add("Traditional Image does not show Pic");
+            if (Model.NameOf(Reflect.Get(Named("Box"), "SourceAttribute") ?? "") != "Title" || Model.NameOf(Reflect.Get(Named("Box"), "SelectionAttribute") ?? "") != "Done")
+                failures.Add("Traditional List Box attributes not set");
+            if (Model.NameOf(Reflect.Get(Named("Lbl"), "TargetWidget") ?? "") != "NameIn") failures.Add("Traditional Label does not target NameIn");
+            if (!parts.Any(o => Model.NameOf(o) == "TitleIn")) failures.Add("Editable Table body cell lost its input");
+            if (web.Images.Single(i => i.Name == "Pic").LocalizedImages.Count() != 1) failures.Add("image Pic has no pt-PT version");
+        }
+
         // repoint: a call node runs another action with the same input and output names. It keeps its key, its argument
         // is bound again by name, and the Assign that reads Run.Id still validates after a reopen.
         File.WriteAllText(path, """

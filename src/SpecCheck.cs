@@ -52,7 +52,7 @@ static class SpecShapes
     {
         "assign", "if", "forEach", "switch", "aggregate", "sql", "execute", "refreshData", "destination", "raiseException",
         "end", "jsonDeserialize", "jsonSerialize", "javaScript", "exceptionHandler", "comment", "message", "download",
-        "excelToRecordList", "recordListToExcel", "sendEmail", "triggerEvent", "ajaxRefresh", "attachFile",
+        "excelToRecordList", "recordListToExcel", "sendEmail", "triggerEvent", "ajaxRefresh", "attachFile", "assert",
     };
 
     public static readonly string[] ProcessKinds = { "humanActivity", "automaticActivity", "decision", "end", "start", "wait", "conditionalStart", "executeProcess", "sendEmail", "comment" };

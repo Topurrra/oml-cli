@@ -36,7 +36,7 @@ record Spec(List<EntitySpec>? Entities = null, List<RecordSpec>? Structures = nu
     List<ContentFileSpec>? Images = null, List<ContentFileSpec>? Scripts = null,
     List<ThemeSpec>? Themes = null, List<ContentFileSpec>? Resources = null,
     List<FolderSpec>? Folders = null, List<string>? TidyFlows = null,
-    List<EmailSpec>? Emails = null, List<JsonElement>? ExternalSites = null, List<JsonElement>? UiFlows = null);
+    List<EmailSpec>? Emails = null, List<JsonElement>? ExternalSites = null, List<JsonElement>? UiFlows = null, List<JsonElement>? Tests = null, List<JsonElement>? EntityDiagrams = null);
 
 /// `--describe` names and `--describe-created` for `oml apply`: the report then carries describe output.
 record ApplyOptions(List<string> Describe, bool DescribeCreated);
@@ -364,7 +364,7 @@ static class Apply
                     || spec.Timers is { Count: > 0 } || spec.Processes is { Count: > 0 }
                     || spec.ClientVariables is not null || spec.SessionVariables is not null || spec.SystemEvents is not null
                     || spec.OnException is not null || spec.GlobalExceptionHandler is not null
-                    || spec.Emails is { Count: > 0 } || spec.ExternalSites is { Count: > 0 } || spec.UiFlows is { Count: > 0 };
+                    || spec.Emails is { Count: > 0 } || spec.ExternalSites is { Count: > 0 } || spec.UiFlows is { Count: > 0 } || spec.Tests is { Count: > 0 } || spec.EntityDiagrams is { Count: > 0 };
         if (logic)
         {
             var dataErrors = Subtract(Model.Errors(m, "validate data"), baseline);
@@ -391,6 +391,8 @@ static class Apply
             foreach (var a in spec.ServerActions ?? new()) builder.Action("serverAction", a);
             foreach (var a in spec.ServiceActions ?? new()) builder.Action("serviceAction", a);
             foreach (var a in spec.ClientActions ?? new()) builder.Action("clientAction", a);
+            builder.Tests(spec.Tests);
+            builder.EntityDiagrams(spec.EntityDiagrams);
             builder.ExternalSites(spec.ExternalSites);   // before the screens that navigate to them
             foreach (var b in spec.Blocks ?? new()) builder.Screen(b, block: true);
             foreach (var sc in Scaffolding.Expand(m, spec.Screens ?? new(), problems)) builder.Screen(sc, block: false);

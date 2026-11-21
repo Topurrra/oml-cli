@@ -31,6 +31,7 @@ partial class Builder
             }
         }
         foreach (var expression in expressions) Try(expression.label, expression.apply);
+        foreach (var pick in picks) Try(pick.label, pick.apply);   // after the expressions they depend on (a source record list)
         foreach (var deletion in dataDeletes) Try(deletion.label, deletion.apply);
     }
 
