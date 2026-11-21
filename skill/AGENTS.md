@@ -12,7 +12,8 @@ Edit O11 modules with `oml` from PATH (`where.exe oml` to check). `oml --help` l
 
 - Keep extra files to a minimum: one change spec and one staged output. Do not leave copies of modules behind.
 - Never overwrite the source. Run `apply` to a separate, new staged file for each attempt.
-- Ask the user before `install`, `publish`, `references`, `lifetime deploy|tag|abort|continue`, or data deletion.
+- Ask the user before `install`, `publish`, `references`, `lifetime deploy|tag|abort|continue`, or data deletion, unless the project profile (`oml config`) says "Do not ask before" that step.
+- Follow the project profile (`.oml/oml-config.json`, printed by `oml config`): it overrides these rules. A command it turns off is refused: name the manual step instead.
 - Before using another module's element, run `oml find <Name> <module.oml> --in <folder|file.oml>`. Show candidates and parameters. Ask the user which to use, even for one match. Use its approved `Module.Name`.
 - Read `saved`, `problems`, `newErrors`, `reopenNewErrors`, `warnings`, and `newWarnings`. Warnings can mean a wrong model. Each entry may carry a `hint`: the fix. Never install a failed result.
 - Do not retry an unchanged spec. Use the reported failure to change it first.

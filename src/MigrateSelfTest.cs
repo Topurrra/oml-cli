@@ -347,6 +347,12 @@ static partial class Migrate
         Check(dec["ApiToken"].Decision == "store" && dec["ApiToken"].Why.Contains("SessionValues") && dec["Cart"].Decision == "store" && dec["Unused"].Decision == "manual" && dec["Unused"].Why.Contains("no screen or block")
             && o.R.Store is not null && Names(o.R.Store.Creation, "serverActions").Contains("GetSession_ApiToken") && Names(o.R.Store.Creation, "structures").Contains("SessionBox_Cart"),
             "a sensitive name or a record that screens use goes to the server store (read through SessionValues); an unused one is manual");
+        // The project configuration turns the server store and merged server calls off (migrate.serverStore, migrate.mergeServerCalls).
+        var plain = Assemble("/p/OrdersWeb.oml", "OrdersNew", "/out", inspect, map, headerNotes, tpl, Run, Fake, serverStore: false, mergeServerCalls: false);
+        var plainDec = plain.R.SessionDecisions.ToDictionary(d => d.Name);
+        Check(plainDec["ApiToken"].Decision == "manual" && plainDec["ApiToken"].Why.Contains("migrate.serverStore") && plain.R.Store is null && plain.Context.StoreVariables is not { Count: > 0 }
+            && plain.Context.ServerOutputs is null && o.Context.ServerOutputs is not null,
+            "migrate.serverStore off: a stored variable stays manual and names the setting; migrate.mergeServerCalls off: the translator gets no server outputs to merge");
         Check(o.Context.ClientVariables.SetEquals(["ThemeName", "LastSearch", "CurrentCustomerId"]) && o.R.Counts["client"] == 3, "context: the client variables");
         Check(StatusCounts(o.Items).Select(kv => kv.Key + kv.Value).SequenceEqual(["partial1", "translated1", "worklist2"]) && o.Output["coverage"]!.ToString() == "screens: 1 translated, 1 partial, 2 worklist of 4", "coverage line");
         var spec = JsonNode.Parse(o.Files.First(f => f.file == "4-screens.json").text)!;

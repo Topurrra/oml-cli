@@ -3,21 +3,24 @@ using System.Text.Json.Nodes;
 
 namespace OmlCli;
 
-// `oml config`: the project profile, `.oml/config.json` in the project root. A person turns parts of the work on or
-// off there (phone and tablet, dark theme, QA, questions, the browser, the hooks), and agents get the result
-// as a few plain lines instead of deciding or asking each time:
+// `oml config`: the project configuration, `.oml/oml-config.json` in the project root. A person turns parts of the work
+// on or off there (phone and tablet, dark theme, QA, questions, which steps need a yes, which commands may run, apply's
+// layout, migrate's choices, the hooks), and agents get the result as a few plain lines they must follow instead of
+// deciding or asking each time:
 //   oml config                    the profile for an agent: only the lines that differ from the default work
 //   oml config show               every setting: value, default, choices and what it does
 //   oml config set <key> <value>  change one setting (the file is made when it is missing)
 //   oml config init               write the file with every default, to edit by hand
 // The file holds only settings: no secrets, no paths outside the project. A missing file or key means the default.
-// Locked settings (asking before install, publish, deploy and data deletion; the .oml write guard) are shown but
-// cannot be turned off. oml hooks read the same file: the session-start hook gives the profile to the agent, the
+// autoApprove.* true means agents run that step without asking; commands.* off makes oml refuse the command. The .oml
+// write guard is locked on. oml hooks read the same file: the session-start hook gives the profile to the agent, the
 // pre-tool hook follows the hooks.* and browser settings, the end-of-turn hook follows memory.reminder.
+// Up to 1.22 the file was .oml/config.json: that name is still read, and the next change writes the new one.
 static class ProjectConfig
 {
     const string Usage = "Usage: oml config [show | init | set <key> <value>] [--dir <project folder>]";
-    internal const string FileName = "config.json";
+    internal const string FileName = "oml-config.json";
+    internal const string LegacyFileName = "config.json";
 
     // Max: the longest value a text setting takes.
     internal sealed record Setting(string Key, string Kind, string Default, string[]? Choices, string About, bool Locked = false, int Max = 300);
@@ -40,10 +43,23 @@ static class ProjectConfig
         new("ask.testScenarios", "bool", "true", null, "Ask whether the user wants test scenarios. Off: follow checks.testScenarios without asking."),
         new("ask.devUrl", "bool", "true", null, "Ask for the DEV URL of a screen. Off: use app.devUrl, or skip the live checks when it is empty."),
         new("ask.producerChoice", "bool", "true", null, "Ask which producer element to use even for one match. Off: one match is used without a question."),
-        new("ask.install", "bool", "true", null, "Ask before oml install.", Locked: true),
-        new("ask.publish", "bool", "true", null, "Ask before oml publish and reference refresh.", Locked: true),
-        new("ask.deploy", "bool", "true", null, "Ask before a LifeTime tag or deployment.", Locked: true),
-        new("ask.dataDeletion", "bool", "true", null, "Ask before anything that deletes data.", Locked: true),
+        new("autoApprove.apply", "bool", "true", null, "Agents run oml apply (it writes a staged copy; the source is not changed) without asking. Off: show the spec and ask before each apply."),
+        new("autoApprove.install", "bool", "false", null, "Agents run oml install without asking, after oml validate shows zero errors. Off: ask first."),
+        new("autoApprove.publish", "bool", "false", null, "Agents run oml publish without asking. Off: ask first."),
+        new("autoApprove.references", "bool", "false", null, "Agents refresh references (oml references) without asking. Off: ask first."),
+        new("autoApprove.deploy", "bool", "false", null, "Agents run LifeTime tag, deploy, abort and continue without asking. Off: ask first."),
+        new("autoApprove.dataDeletion", "bool", "false", null, "Agents run what deletes data (delete edits, test data cleanup, SQL deletes) without asking. Off: ask first."),
+        new("commands.install", "bool", "true", null, "oml install may run. Off: it is refused, and agents leave the install to the user."),
+        new("commands.publish", "bool", "true", null, "oml publish may run. Off: it is refused, and agents name the publish step for the user."),
+        new("commands.references", "bool", "true", null, "oml references may run. Off: it is refused; references are refreshed in Service Studio."),
+        new("commands.pull", "bool", "true", null, "oml pull may run. Off: it is refused; the user saves the .oml from Service Studio."),
+        new("commands.lifetime", "bool", "true", null, "oml lifetime may run. Off: it is refused; deployments are done in LifeTime."),
+        new("commands.studio", "bool", "true", null, "oml studio may drive Service Studio (open, close, tabs, focus). Off: it is refused."),
+        new("commands.migrate", "bool", "true", null, "oml migrate may run. Off: it is refused."),
+        new("apply.autoLayout", "bool", "true", null, "oml apply lays out every flow it changes. Off: flows that already existed keep their layout (new nodes are not arranged; tidyFlows still does it on request), new flows are still laid out."),
+        new("migrate.serverStore", "bool", "true", null, "oml migrate keeps session variables that server logic writes (or sensitive, or records) in a server store (entity SessionValue). Off: they stay manual."),
+        new("migrate.mergeServerCalls", "bool", "true", null, "oml migrate merges consecutive server calls of a screen action into one server action (one request). Off: each call stays."),
+        new("migrate.copyExposed", "bool", "false", null, "oml migrate copies exposed REST and SOAP services into the new module (as --copy-exposed). Off: they stay in the old module."),
         new("lane.fast", "bool", "true", null, "Small changes (only CSS values or texts of existing elements) skip QA, the review file and questions."),
         new("browser", "choice", "oml", ["oml", "agent"], "Who opens the app to look at it: oml (oml qa, its own Edge or Chrome) or agent (the agent's built-in browser)."),
         new("app.devUrl", "text", "", null, "Base URL of the app in DEV, such as https://dev.example.com/Orders."),
@@ -64,19 +80,33 @@ static class ProjectConfig
 
     internal static Setting? Find(string key) => Settings.FirstOrDefault(s => s.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
 
-    // The project root: the nearest folder, from `start` upwards, that has .oml/config.json; null when none has.
+    // The project root: the nearest folder, from `start` upwards, that has .oml/oml-config.json (or the older
+    // .oml/config.json); null when none has.
     internal static string? RootOf(string? start)
     {
         try
         {
             for (var dir = new DirectoryInfo(Path.GetFullPath(string.IsNullOrWhiteSpace(start) ? Environment.CurrentDirectory : start)); dir is not null; dir = dir.Parent)
-                if (File.Exists(Path.Combine(dir.FullName, ".oml", FileName))) return dir.FullName;
+                if (File.Exists(Path.Combine(dir.FullName, ".oml", FileName)) || File.Exists(Path.Combine(dir.FullName, ".oml", LegacyFileName))) return dir.FullName;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or System.Security.SecurityException) { }
         return null;
     }
 
+    // Where the file is written.
     internal static string PathIn(string root) => Path.Combine(root, ".oml", FileName);
+    static string LegacyPathIn(string root) => Path.Combine(root, ".oml", LegacyFileName);
+    // Where it is read: the new name, else the older one while it is the only one there.
+    internal static string ReadPathIn(string root) => !File.Exists(PathIn(root)) && File.Exists(LegacyPathIn(root)) ? LegacyPathIn(root) : PathIn(root);
+
+    // Settings that were renamed or replaced: the message a file that still has them gets.
+    static readonly Dictionary<string, string> Replaced = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ask.install"] = "replaced by autoApprove.install (true: agents install without asking).",
+        ["ask.publish"] = "replaced by autoApprove.publish and autoApprove.references (true: agents do it without asking).",
+        ["ask.deploy"] = "replaced by autoApprove.deploy (true: agents run LifeTime steps without asking).",
+        ["ask.dataDeletion"] = "replaced by autoApprove.dataDeletion (true: agents delete data without asking).",
+    };
 
     // The values of a project: the file's values over the defaults. A file that cannot be read gives the defaults and
     // an error text (the hooks ignore it: a broken file must never block an agent).
@@ -96,7 +126,7 @@ static class ProjectConfig
     internal static Values Load(string? start)
     {
         if (RootOf(start) is not { } root) return new Values();
-        var file = PathIn(root);
+        var file = ReadPathIn(root);
         JsonObject? json;
         try
         {
@@ -117,6 +147,7 @@ static class ProjectConfig
             var key = prefix + name;
             if (key == "version") continue;
             if (node is JsonObject child && Find(key) is null) { Read(child, key + ".", values); continue; }
+            if (Replaced.TryGetValue(key, out var replaced)) { values.Problems.Add($"{key}: {replaced} (ignored)"); continue; }
             if (Find(key) is not { } setting) { values.Problems.Add($"{key}: unknown setting (ignored)."); continue; }
             var text = node switch
             {
@@ -215,8 +246,45 @@ static class ProjectConfig
         if (!v.On("memory.write")) lines.Add("Do not write project memory.");
         if (!v.On("docs.library")) lines.Add("Do not search the OutSystems docs library.");
         if (!v.On("map.use")) lines.Add("Do not use oml map.");
-        lines.Add("Always ask before install, publish, deploy and anything that deletes data.");
+
+        var off = Commands.Where(c => !v.On(c.Key)).Select(c => c.Command).ToList();
+        if (off.Count > 0)
+            lines.Add($"Commands turned off for this project: {Join(off)}. They are refused. Do not run or offer them; name the step for the user to do in Service Studio or LifeTime.");
+        if (!v.On("apply.autoLayout")) lines.Add("oml apply keeps the layout of flows that already exist. Do not add tidyFlows unless the user asks.");
+        var migrate = new List<string>();
+        if (!v.On("migrate.serverStore")) migrate.Add("no server store for session variables (they stay manual)");
+        if (!v.On("migrate.mergeServerCalls")) migrate.Add("consecutive server calls are not merged");
+        if (v.On("migrate.copyExposed")) migrate.Add("exposed REST and SOAP services are copied without asking");
+        if (migrate.Count > 0) lines.Add($"oml migrate in this project: {Join(migrate)}.");
+        lines.AddRange(Approvals(v));
         return lines;
+    }
+
+    // The commands a project can turn off: setting, the command as an agent types it.
+    static readonly (string Key, string Command)[] Commands =
+    [
+        ("commands.install", "oml install"), ("commands.publish", "oml publish"), ("commands.references", "oml references"), ("commands.pull", "oml pull"),
+        ("commands.lifetime", "oml lifetime"), ("commands.studio", "oml studio"), ("commands.migrate", "oml migrate"),
+    ];
+
+    // The approval lines: what agents run without asking (autoApprove.* on) and what still needs a yes. A step whose command
+    // is turned off is in neither.
+    static IEnumerable<string> Approvals(Values v)
+    {
+        (string Key, string Step, string? Command)[] steps =
+        [
+            ("autoApprove.install", "install", "commands.install"), ("autoApprove.publish", "publish", "commands.publish"),
+            ("autoApprove.references", "reference refresh", "commands.references"), ("autoApprove.deploy", "LifeTime steps (tag, deploy, abort, continue)", "commands.lifetime"),
+            ("autoApprove.dataDeletion", "anything that deletes data", null),
+        ];
+        var live = steps.Where(s => s.Command is null || v.On(s.Command)).ToList();
+        var free = live.Where(s => v.On(s.Key)).Select(s => s.Step).ToList();
+        var asked = live.Where(s => !v.On(s.Key)).Select(s => s.Step).ToList();
+        if (!v.On("autoApprove.apply")) yield return "Ask before each oml apply: show the spec and the staged path first.";
+        if (free.Count > 0)
+            yield return $"Do not ask before {string.Join(", ", free)} (autoApprove, set by the user): run it when the task needs it, then report the exact command and its result."
+                + (free.Contains("install") ? " Install only after oml validate --warnings shows zero errors." : "");
+        if (asked.Count > 0) yield return $"Always ask before {string.Join(", ", asked)}: restate the exact command and wait for a yes.";
     }
 
     // The text the session-start hook gives to an agent; null when the project has no config file or the profile is off.
@@ -224,7 +292,7 @@ static class ProjectConfig
     {
         var v = Load(cwd);
         if (v.File is null || v.Error is not null || !v.On("hooks.sessionProfile")) return null;
-        return "oml project profile (.oml/config.json, set by the user; it overrides the defaults of the skill and AGENTS.md):\n- " + string.Join("\n- ", Profile(v));
+        return "oml project profile (.oml/oml-config.json, set by the user; follow it: it overrides the defaults of the skill and AGENTS.md):\n- " + string.Join("\n- ", Profile(v));
     }
 
     // The author name for what oml creates or changes: OML_AUTHOR when it is a valid name, else the profile's `author`;
@@ -241,6 +309,9 @@ static class ProjectConfig
         var v = Load(null);
         if (Environment.GetEnvironmentVariable("OML_AUTHOR") is not { Length: > 0 } && v.Get("author") is { Length: > 0 } author)
             Environment.SetEnvironmentVariable("OML_AUTHOR", author);
+        // Core reads it in FlowLayout.Apply: "keep" leaves flows that existed before the apply as they are.
+        if (!v.On("apply.autoLayout") && Environment.GetEnvironmentVariable("OML_FLOW_LAYOUT") is not { Length: > 0 })
+            Environment.SetEnvironmentVariable("OML_FLOW_LAYOUT", "keep");
         if (Environment.GetEnvironmentVariable("OML_STUDIO_URL") is { Length: > 0 } || Environment.GetEnvironmentVariable("OML_STUDIO_PORT") is { Length: > 0 }) return;
         if (v.Get("outsystems.mcpServer") is not { Length: > 0 } url || !Uri.TryCreate(url, UriKind.Absolute, out var uri)) return;
         Environment.SetEnvironmentVariable("OML_STUDIO_URL", url);
@@ -254,11 +325,16 @@ static class ProjectConfig
     // once). test scenarios runs in Core, so the launcher is the only place that can refuse it. Returns the arguments to run, or the refusal.
     internal static (string[] Args, string? Refusal) Adjust(string[] args)
     {
-        if (args.Length == 0 || args[0] != "qa" && args is not ["test", "scenarios", ..]) return (args, null);
+        if (args.Length == 0) return (args, null);
+        var command = Commands.FirstOrDefault(c => c.Command == "oml " + args[0]);
+        if (command.Key is null && args[0] != "qa" && args is not ["test", "scenarios", ..]) return (args, null);
         if (args.Contains("--no-profile")) return (args.Where(a => a != "--no-profile").ToArray(), null);
         if (args.Contains("--help") || args.Contains("-h")) return (args, null);
         var v = Load(null);
         if (v.File is null || v.Error is not null) return (args, null);
+        if (command.Key is not null)
+            return (args, v.On(command.Key) ? null
+                : $"{command.Key} is off for this project ({v.File}), so {command.Command} is not run. Do this step in Service Studio or LifeTime, or ask the user; oml config set {command.Key} on turns it on, and --no-profile runs it once when the user asked for it in this task.");
         // Only the commands that do the check: qa start, stop and the bare qa only manage the browser session.
         var check = args[0] == "test" ? "checks.testScenarios" : args.Length > 1 && args[1] is "page" or "run" or "record" ? "checks.qa" : null;
         if (check is not null && !v.On(check))
@@ -291,7 +367,8 @@ static class ProjectConfig
                 TerminalOutput.PrintObject(new
                 {
                     profile = Profile(v), file = v.File, error = v.Error, problems = v.Problems.Count == 0 ? null : v.Problems,
-                    note = v.File is null ? "No .oml/config.json here or above: these are the defaults. oml config init writes the file." : null,
+                    note = v.File is null ? "No .oml/oml-config.json here or above: these are the defaults. oml config init writes the file."
+                        : Path.GetFileName(v.File) == LegacyFileName ? $"{v.File} is the older name: oml config init renames it to {FileName}, and oml config set writes the new name." : null,
                 });
                 return v.Error is null ? 0 : 1;
             case ["show"]:
@@ -311,7 +388,9 @@ static class ProjectConfig
             case ["init"]:
                 var root = RootOf(start) ?? start;
                 if (File.Exists(PathIn(root))) return Fail($"{PathIn(root)} exists.", "Change it with oml config set <key> <value>, or edit the file.");
-                Save(root, new Values());
+                var old = Load(root);   // an older .oml/config.json: its values move to the new file
+                if (old.Error is not null) return Fail(old.Error, "Fix or remove the file first. Nothing was changed.");
+                Save(root, old);
                 TerminalOutput.PrintObject(new { file = PathIn(root), next = "Edit the file or use oml config set <key> <value>. oml config show explains every setting." });
                 return 0;
             case ["set", var key, .. var words] when words.Count > 0:
@@ -365,5 +444,7 @@ static class ProjectConfig
         }
         Directory.CreateDirectory(Path.Combine(root, ".oml"));
         File.WriteAllText(PathIn(root), json.ToJsonString(new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }).Replace("\r\n", "\n") + "\n");
+        // The older name is oml's own file: its values are in the new one now.
+        if (File.Exists(LegacyPathIn(root))) File.Delete(LegacyPathIn(root));
     }
 }

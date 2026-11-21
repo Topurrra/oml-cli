@@ -1172,7 +1172,7 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 - **Memory:** `.oml/memory/memory.log`, as `oml memory init` makes it.
 - **The agent's instructions:** a copy of the `skill/` that came with this oml, `AGENTS.md` (any agent) and `CLAUDE.md` with `@AGENTS.md` (Claude Code). `--no-skill` leaves them out.
 - **No hooks.** Agent hooks are optional: run `oml hooks install` in the project when you want them (see [Agent hooks](#agent-hooks)). `--no-hooks` is still accepted and does nothing.
-- **Project profile:** `.oml/config.json` with every default, and `author` from `--author`; see [Project profile](#project-profile).
+- **Project profile:** `.oml/oml-config.json` with every default, and `author` from `--author`; see [Project profile](#project-profile).
 - **OutSystems docs:** `oml outsystems-docs fetch`, once per machine: skipped when the library is there. `--no-library` leaves it out.
 - **Setup check:** `oml doctor`; what it finds is in `notes`. `--no-doctor` leaves it out.
 - **`.gitignore`** (staged copies, caches, local state) and **`PROJECT.md`** (the layout and the next steps).
@@ -1260,18 +1260,22 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 
 ## Project profile
 
-`.oml/config.json` in the project root says what agents do, skip and ask in this project. A person sets it; agents follow it over the defaults of the skill.
+`.oml/oml-config.json` in the project root says what agents do, skip and ask in this project, and which oml commands may run. A person sets it; agents must follow it over the defaults of the skill. (Up to 1.22 the file was `.oml/config.json`: that name is still read, `oml config init` renames it, and the next `oml config set` writes the new name.)
 
-- `oml config` prints the profile: the lines an agent follows. Only what differs from the default work is listed, plus the author line (see **Author** below) and one line that never changes: ask before install, publish, deploy and data deletion.
+- `oml config` prints the profile: the lines an agent follows. Only what differs from the default work is listed, plus the author line (see **Author** below) and the approval lines: what agents run without asking (`autoApprove.*` on) and what still needs a yes.
 - `oml config show` lists every setting with its value, default, choices and what it does.
-- `oml config set <key> <value>` changes one setting and makes the file when it is missing: `oml config set ui.targets desktop`, `oml config set ui.themes light`, `oml config set ask.testing off`, `oml config set browser agent`.
+- `oml config set <key> <value>` changes one setting and makes the file when it is missing: `oml config set ui.targets desktop`, `oml config set ui.themes light`, `oml config set ask.testing off`, `oml config set browser agent`, `oml config set autoApprove.install on`, `oml config set commands.lifetime off`.
 - `oml config init` writes the file with every default. `--dir <project>` works in another folder. The file is found from the current folder upwards.
 
 | Group | Settings |
 |---|---|
 | `ui.*` | `targets` (desktop, tablet, phone), `themes` (light, dark), `rtl`, `accessibility`, `translations`. |
 | `checks.*` | `qa`, `review`, `uiChecklist`, `bestPractices`, `testScenarios`, `testData`: off means agents do not run or offer it unless the user asks in the task. `qa` and `testScenarios` are also refused by the command. |
-| `ask.*` | `testing`, `testScenarios`, `devUrl`, `producerChoice`. Locked on: `install`, `publish`, `deploy`, `dataDeletion`. |
+| `ask.*` | `testing`, `testScenarios`, `devUrl`, `producerChoice`: on means agents ask. |
+| `autoApprove.*` | True means agents run the step without asking, then report the exact command and its result: `apply` (on by default; it writes a staged copy), `install` (still only after `oml validate --warnings` shows zero errors), `publish`, `references`, `deploy` (LifeTime tag, deploy, abort, continue), `dataDeletion`. All but `apply` are off by default. (`ask.install`, `ask.publish`, `ask.deploy` and `ask.dataDeletion` were replaced by these; a file that still has them gets a problem line.) |
+| `commands.*` | `install`, `publish`, `references`, `pull`, `lifetime`, `studio`, `migrate`: off means oml refuses the command (exit 2, naming the setting) and agents name the step for the user to do in Service Studio or LifeTime. `--no-profile` runs it once when the user asks in the task. A step inside `oml batch` is not checked. |
+| `apply.autoLayout` | On: `oml apply` lays out every flow it changes. Off: flows that existed before the apply keep their layout (new nodes in them are not arranged), new flows are still laid out, and `tidyFlows` still lays out the flows it names. |
+| `migrate.*` | `serverStore` (session variables that server logic writes, sensitive ones and records go to the `SessionValue` store; off: they stay manual), `mergeServerCalls` (consecutive server calls of a screen action become one server action; off: they stay), `copyExposed` (as `--copy-exposed`; off by default). |
 | `lane.fast` | A change of only CSS values or texts of existing elements takes 2 tool calls: no QA, review file or questions. |
 | `browser` | `oml` (oml qa and its own Edge or Chrome) or `agent` (the agent's built-in browser). |
 | `app.devUrl` | The base URL of the app in DEV. |
@@ -1279,7 +1283,7 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 | `outsystems.mcpServer` | The address of Service Studio's MCP server (O11), such as `http://127.0.0.1:41820/mcp`. `oml pull`, `publish`, `references`, `studio` and `doctor` use it, and agents are told it. Only this computer (127.0.0.1 or localhost), because the file is shared with the repository. The `OML_STUDIO_URL` or `OML_STUDIO_PORT` variable wins over it. |
 | `outsystems.odcMcpServer` | The address of the OutSystems MCP server of your ODC tenant (`https://<tenant>/mcp`). Agents use it for ODC apps; oml does not call it. |
 | `memory.*`, `docs.library`, `map.use` | `recall`, `write`, `reminder`; the docs library; the application map. |
-| `hooks.*` | `bigDocs`, `testDataApi`, `externalBrowser`, `sessionProfile`. Locked on: `omlWrites`. |
+| `hooks.*` | `bigDocs`, `testDataApi`, `externalBrowser`, `sessionProfile`. Locked on: `omlWrites` (the only locked setting). |
 
 The file holds no secrets: a text value that looks like one is refused. An unknown key or a wrong value is ignored and named in `problems`. A file that cannot be read gives the defaults and never blocks an agent.
 
@@ -1303,7 +1307,7 @@ A read of part of a file is allowed however the agent names the range: `limit` (
 
 With `browser` set to `agent` in the [project profile](#project-profile), it also refuses a shell command that starts Edge, Chrome or Firefox or opens a URL; `oml qa` is allowed. `hooks.bigDocs`, `hooks.testDataApi` and `hooks.externalBrowser` turn the guards off; the `.oml` guard stays.
 
-**Session start.** `install` also adds a session-start hook (`oml hooks session`): when the project has `.oml/config.json`, the agent starts with the project profile as context. `hooks.sessionProfile off` turns it off.
+**Session start.** `install` also adds a session-start hook (`oml hooks session`): when the project has `.oml/oml-config.json`, the agent starts with the project profile as context. `hooks.sessionProfile off` turns it off.
 
 **The command line.** The hook is written as `C:/tools/oml/bin/oml.exe hooks check`: forward slashes, no quotes. Claude Code runs hooks in bash and GitHub Copilot on Windows in PowerShell, where a line that starts with a quoted path is not a command: the hook fails and Copilot denies every tool call ("hook errored"). A path with a space keeps its quotes and gets a `powershell` line for Copilot; a folder without spaces is safer. Hooks installed by oml 1.21 or older: run `oml hooks install` again (`oml hooks status` says so).
 

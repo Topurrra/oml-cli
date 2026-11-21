@@ -150,8 +150,11 @@ internal static class MenuTest
                 Check(ProjectConfig.Load(root).Get("browser") == "agent", "Enter cycles a choice");
                 Edit("t:browser Enter Esc Esc");
                 Check(ProjectConfig.Load(root).Get("browser") == "oml", "a choice wraps around");
-                Edit("t:ask.install Enter Esc Esc");
-                Check(shown.Contains("locked") && ProjectConfig.Load(root).On("ask.install"), "a locked setting is refused");
+                Edit("t:hooks.omlWrites Enter Esc Esc");
+                Check(shown.Contains("locked") && ProjectConfig.Load(root).On("hooks.omlWrites"), "a locked setting is refused");
+                Edit("t:autoApprove.install Enter Esc Esc");
+                Check(ProjectConfig.Load(root).On("autoApprove.install") && ProjectConfig.Profile(ProjectConfig.Load(root)).Any(l => l.StartsWith("Do not ask before install")),
+                    "autoApprove.install turns on and the profile says not to ask");
                 Edit("t:ui.targets Enter Space Enter Esc Esc");
                 Check(ProjectConfig.Load(root).Get("ui.targets") == "tablet,phone", "a tick-list changes a list setting: " + ProjectConfig.Load(root).Get("ui.targets"));
                 Edit("t:ui.themes Enter Space Space Enter Esc Esc");
@@ -162,6 +165,16 @@ internal static class MenuTest
                 Check(shown.Contains("https") && ProjectConfig.Load(root).Get("outsystems.odcMcpServer") == "", "a bad address is refused with the reason");
                 var back = ProjectConfig.Load(root);
                 Check(back.Error is null && back.Problems.Count == 0, "the saved file reads back with no problems: " + string.Join("; ", back.Problems));
+
+                // The older file name is read, a replaced key is named, and the next save writes the new name only.
+                var legacy = Path.Combine(tmp, "legacy");
+                Directory.CreateDirectory(Path.Combine(legacy, ".oml"));
+                File.WriteAllText(Path.Combine(legacy, ".oml", ProjectConfig.LegacyFileName), """{ "checks": { "qa": false }, "ask": { "install": true } }""");
+                var old = ProjectConfig.Load(legacy);
+                Check(!old.On("checks.qa") && old.Problems.Any(p => p.Contains("autoApprove.install")), "the older config.json is read and ask.install points to autoApprove: " + string.Join("; ", old.Problems));
+                ProjectConfig.Save(legacy, old);
+                Check(File.Exists(ProjectConfig.PathIn(legacy)) && !File.Exists(Path.Combine(legacy, ".oml", ProjectConfig.LegacyFileName)) && !ProjectConfig.Load(legacy).On("checks.qa"),
+                    "a save writes oml-config.json with the old values and removes config.json");
             });
 
             // 5. The file picker lists files of this folder and modules/, newest first, and folders.

@@ -16,7 +16,7 @@ try {
   $r = Json create alpha --dir $Tmp --no-library --no-doctor
   $root = Join-Path $Tmp 'alpha'
   Require ($LASTEXITCODE -eq 0 -and $r.folder -eq $root) "create: $($r | ConvertTo-Json -Compress)"
-  foreach ($p in 'modules', 'staged', 'specs', 'qa', 'mocks', 'scenarios', '.oml\memory\memory.log', '.oml\map.json', '.oml\config.json', 'skill\SKILL.md', 'AGENTS.md', 'CLAUDE.md', '.gitignore', 'PROJECT.md') {
+  foreach ($p in 'modules', 'staged', 'specs', 'qa', 'mocks', 'scenarios', '.oml\memory\memory.log', '.oml\map.json', '.oml\oml-config.json', 'skill\SKILL.md', 'AGENTS.md', 'CLAUDE.md', '.gitignore', 'PROJECT.md') {
     Require (Test-Path (Join-Path $root $p)) "missing $p"
   }
   Require ((Get-Content (Join-Path $root 'CLAUDE.md') -Raw).Trim() -eq '@AGENTS.md') 'CLAUDE.md imports AGENTS.md'
@@ -25,7 +25,7 @@ try {
   Require (@($r.optional | Where-Object { $_ -like 'oml hooks install*' }).Count -eq 1) "optional names oml hooks install: $($r.optional -join '; ')"
   Require ((Get-Content (Join-Path $root '.gitignore') -Raw) -match '(?m)^staged/') '.gitignore'
   Require (@($r.ready | Where-Object { $_.step -in 'folders', 'memory', 'config', 'skill' -and $_.status -eq 'done' }).Count -eq 4 -and @($r.ready | Where-Object { $_.step -in 'library', 'doctor' -and $_.status -eq 'skipped' }).Count -eq 2) "ready list: $($r.ready | ConvertTo-Json -Compress)"
-  Require ((Get-Content (Join-Path $root '.oml\config.json') -Raw | ConvertFrom-Json).ui.targets.Count -eq 3) 'config.json has the defaults'
+  Require ((Get-Content (Join-Path $root '.oml\oml-config.json') -Raw | ConvertFrom-Json).ui.targets.Count -eq 3) 'oml-config.json has the defaults'
   Push-Location $root
   try {
     $m = Json memory add "alpha uses the Core layer for entities" --kind decision
@@ -36,10 +36,10 @@ try {
   # 1a. --author goes into the project's config; without it, setting one is the first optional step.
   Require (@($r.optional)[0] -like 'oml config set author*') "create without --author: $($r.optional -join ' | ')"
   $a = Json create author-x --dir $Tmp --author "Ana Silva" --no-skill --no-hooks --no-library --no-doctor
-  Require ($LASTEXITCODE -eq 0 -and (Get-Content (Join-Path $Tmp 'author-x\.oml\config.json') -Raw | ConvertFrom-Json).author -eq 'Ana Silva' -and -not (@($a.optional) -like 'oml config set author*')) "create --author: $($a | ConvertTo-Json -Compress)"
+  Require ($LASTEXITCODE -eq 0 -and (Get-Content (Join-Path $Tmp 'author-x\.oml\oml-config.json') -Raw | ConvertFrom-Json).author -eq 'Ana Silva' -and -not (@($a.optional) -like 'oml config set author*')) "create --author: $($a | ConvertTo-Json -Compress)"
   $x = Json create author-y --dir $Tmp --author ('a' * 101) --no-skill --no-hooks --no-library --no-doctor
   Require ($LASTEXITCODE -eq 2 -and -not (Test-Path (Join-Path $Tmp 'author-y'))) 'create --author with a name over 100 characters was not refused, or made a folder'
-  Write-Host 'ok   create --author: written to .oml/config.json; refused when too long'
+  Write-Host 'ok   create --author: written to .oml/oml-config.json; refused when too long'
 
   # 1b. skill refresh: an older or edited copy is brought up to this oml; the project's own files stay.
   $version = (Get-Content (Join-Path $root 'skill\.oml-version') -Raw).Trim()

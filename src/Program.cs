@@ -74,12 +74,11 @@ public static class Program
             TerminalOutput.PrintHelp(filtered[0] == "lifetime" ? LifeTime.Usage.Replace(" | ", Environment.NewLine + "oml lifetime ") : CliUsage.For(filtered[0]), filtered[0]);
             return 0;
         }
-        // qa and test scenarios follow the project profile: its checks, sizes and themes (ProjectConfig.Adjust).
-        if (filtered.FirstOrDefault() is "qa" || filtered is ["test", "scenarios", ..])
+        // qa, test scenarios and the commands a project can turn off (commands.*) follow the project configuration (ProjectConfig.Adjust).
         {
             var (adjusted, refusal) = ProjectConfig.Adjust(filtered);
             if (refusal is not null) { TerminalOutput.PrintObject(new { error = refusal }); return 2; }
-            args = args.Where(a => a != "--no-profile").ToArray();
+            if (adjusted.Length != filtered.Length) args = args.Where(a => a != "--no-profile").ToArray();
             filtered = adjusted;
         }
         return CommandTable.Find(filtered) is { } cmd ? cmd.Run!(args, filtered) : RunCore(args);

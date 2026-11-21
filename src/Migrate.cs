@@ -84,7 +84,10 @@ static partial class Migrate
         var (map, producerNotes) = ProducerMap(header, S(inspect, "name") ?? "");
 
         // The whole plan is decided by pure code over what the child processes print (Assemble); only the files are written here.
-        var plan = Assemble(old, name, outDir, inspect, map, producerNotes, template, (args, stdin) => Child(args, tolerateFailure: true, stdin: stdin), copyExposed: copyExposed);
+        // The project configuration (.oml/oml-config.json) chooses what the plan does: migrate.serverStore, mergeServerCalls, copyExposed.
+        var config = ProjectConfig.Load(null);
+        var plan = Assemble(old, name, outDir, inspect, map, producerNotes, template, (args, stdin) => Child(args, tolerateFailure: true, stdin: stdin),
+            copyExposed: copyExposed || config.On("migrate.copyExposed"), serverStore: config.On("migrate.serverStore"), mergeServerCalls: config.On("migrate.mergeServerCalls"));
         Directory.CreateDirectory(outDir);
         foreach (var (file, text) in plan.Files)
         {
@@ -218,7 +221,8 @@ static partial class Migrate
     // they use, and the session variables each copied server or service action uses (variable -> actions).
     // CopyExposed: the person chose to copy the exposed REST and SOAP services too (--copy-exposed).
     internal sealed record Extra(IReadOnlyList<Call> ScreenWrites, IReadOnlyDictionary<string, string[]> ServerSession, IReadOnlySet<string> ScreenSession, bool CopyExposed = false,
-        IReadOnlyDictionary<string, string>? ServerTexts = null, IReadOnlyList<ActionCall>? ActionCalls = null, IReadOnlyList<SessionWrite>? SessionWrites = null)
+        IReadOnlyDictionary<string, string>? ServerTexts = null, IReadOnlyList<ActionCall>? ActionCalls = null, IReadOnlyList<SessionWrite>? SessionWrites = null,
+        bool ServerStore = true)
     { public static readonly Extra None = new([], new Dictionary<string, string[]>(), new HashSet<string>()); }
 
     internal sealed class Result
@@ -362,8 +366,10 @@ static partial class Migrate
                 }
             }
             // Used by copied server logic but not fit for the browser (written there, a sensitive name, a record or list): the server store.
-            if (decision == "manual" && extra.ServerTexts is not null && type.Length > 0 && (serverUse is { Length: > 0 } || extra.ScreenSession.Contains(n))
-                && ((extra.SessionWrites ?? []).Any(w => w.Variable.Equals(n, StringComparison.OrdinalIgnoreCase)) || SensitiveName(n) || !IsBasicType(type)))
+            var storable = decision == "manual" && extra.ServerTexts is not null && type.Length > 0 && (serverUse is { Length: > 0 } || extra.ScreenSession.Contains(n))
+                && ((extra.SessionWrites ?? []).Any(w => w.Variable.Equals(n, StringComparison.OrdinalIgnoreCase)) || SensitiveName(n) || !IsBasicType(type));
+            if (storable && !extra.ServerStore) why += "; the server store is off for this project (migrate.serverStore in .oml/oml-config.json)";
+            if (storable && extra.ServerStore)
             {
                 var users = (serverUse ?? []).Concat((extra.SessionWrites ?? []).Where(w => w.Variable.Equals(n, StringComparison.OrdinalIgnoreCase)).Select(w => w.Action))
                     .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();

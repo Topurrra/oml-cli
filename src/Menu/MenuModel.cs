@@ -34,7 +34,7 @@ internal static class MenuModel
             new("Open the dashboard", "The local web dashboard in your browser (Ctrl+C stops it).", None, _ => ["dashboard"]),
             new("Install agent hooks in this folder", "Guards for AI agents working here; shows what is installed first.", None, _ => ["hooks", "install"], Before: ["hooks", "status"]),
         ]),
-        new("Project settings", "What agents do, skip and ask in this project (.oml/config.json)", [], "settings"),
+        new("Project settings", "What agents do, skip and ask in this project (.oml/oml-config.json)", [], "settings"),
         new("Module", "Read, check and explain one .oml file", [
             new("What is in it", "Entities, actions, screens and more that the module owns.", [Module()], a => ["inspect", a["file"], "--own"]),
             new("Check it", "Rule findings for the module, with their severity.", [Module()], a => ["check", a["file"]]),

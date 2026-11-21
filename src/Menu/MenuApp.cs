@@ -209,7 +209,7 @@ internal static class MenuApp
 
     // ---------------------------------------------------------------- project settings
 
-    // One row per setting of .oml/config.json: its value and what it does. Space or Enter changes it and saves at once.
+    // One row per setting of .oml/oml-config.json: its value and what it does. Space or Enter changes it and saves at once.
     internal static void Settings(Screen s, string dir)
     {
         var root = ProjectConfig.RootOf(dir);
@@ -253,6 +253,6 @@ internal static class MenuApp
             text = typed;
         }
         var (problem, _, value, _) = ProjectConfig.Change(root, set, text);
-        return problem is not null ? (problem, true) : ($"Saved: {set.Key} = {MenuModel.Show(set, value)} (.oml/config.json)", false);
+        return problem is not null ? (problem, true) : ($"Saved: {set.Key} = {MenuModel.Show(set, value)} (.oml/oml-config.json)", false);
     }
 }

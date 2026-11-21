@@ -19,7 +19,7 @@ namespace OmlCli;
 //   gemini  .gemini\settings.json        Gemini CLI (BeforeTool).
 // The files hold this machine's oml.exe path, so they are personal and not committed. `remove` takes out only oml's
 // entries; `status` says where it is installed.
-// The project profile (.oml/config.json, see ProjectConfig) turns the guards on or off (hooks.*), adds the browser
+// The project profile (.oml/oml-config.json, see ProjectConfig) turns the guards on or off (hooks.*), adds the browser
 // guard (browser = agent) and is given to the agent by the session-start hook (`oml hooks session`).
 // The command line: Claude Code runs a hook in bash, Copilot on Windows in PowerShell, where a line that starts with a
 // quoted path is a string, not a command, so the hook fails and Copilot denies every tool call ("hook errored"). So the
@@ -269,7 +269,7 @@ static class AgentHooks
                     if (testHosts.Any(h => part.Contains(h, StringComparison.OrdinalIgnoreCase)) && !Regex.IsMatch(part, @"^\s*(&\s*)?(""[^""]*\boml(\.exe)?""|\S*\boml(\.exe)?)\s+test\s+data\b", RegexOptions.IgnoreCase))
                         return TestDataOnly;
                     if (noBrowser && Rx.Browser.IsMatch(part) && !Rx.OmlCommand.IsMatch(part))
-                        return "this project sets browser = agent (.oml/config.json): look at the app with your own built-in browser tool, not Edge, Chrome or Firefox started from a shell.";
+                        return "this project sets browser = agent (.oml/oml-config.json): look at the app with your own built-in browser tool, not Edge, Chrome or Firefox started from a shell.";
                     if (Rx.OmlWrite.IsMatch(part))
                         return "rule 9: this command writes an .oml file. Change modules only with oml apply to a new staged file; install copies it over the target after the user says yes.";
                     if (bigDocs && Rx.Reader.IsMatch(part) && !Rx.LineLimit.IsMatch(part) && BigDocs.FirstOrDefault(d => Regex.IsMatch(part, @"reference[\\/]" + Regex.Escape(d.File) + @"\b", RegexOptions.IgnoreCase)) is { File: not null } doc)

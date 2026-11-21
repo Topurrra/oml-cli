@@ -57,12 +57,16 @@ static class FlowLayout
             if (matches.Count == 0) problems.Add($"tidyFlows: no flows match '{pattern}'");
             selected.UnionWith(matches);
         }
+        // OML_FLOW_LAYOUT=keep (apply.autoLayout off in the project configuration): flows that existed before this apply keep
+        // their layout; only new flows and the ones tidyFlows names are laid out.
+        var keep = string.Equals(Environment.GetEnvironmentVariable("OML_FLOW_LAYOUT"), "keep", StringComparison.OrdinalIgnoreCase);
         foreach (var flow in flows)
         {
             // A flow whose node set changed gets laid out again, unless this session placed its new nodes on their links
             // (PositionOnLink) without also deleting a node, and the user did not ask for a tidy: then the surrounding
             // layout is preserved, as it is when a step is inserted into an existing link.
             if (selected.Contains(flow)) { Layout(flow); continue; }
+            if (keep && before.ContainsKey(Key(flow))) continue;
             if (!before.TryGetValue(Key(flow), out var old) || !old.SetEquals(Nodes(flow).Select(Key)))
                 if (!positioned.Contains(Key(flow)) || deleted.Contains(Key(flow))) Layout(flow);
         }

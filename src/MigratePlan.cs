@@ -537,7 +537,8 @@ static partial class Migrate
     // (tree) -> which copied actions use Session.X (describe) -> export -> a first translation to learn the entity actions and session variables
     // the screens use -> the final decisions (wrappers, client variables) -> the translation with the full context.
     internal static Outcome Assemble(string old, string name, string outDir, JsonNode inspect, IReadOnlyDictionary<string, string> map, List<string> producerNotes,
-        string? template, Func<string[], string?, JsonNode> run, Func<JsonObject, ScreenTranslator.Context, ScreenTranslator.Result>? translate = null, bool copyExposed = false)
+        string? template, Func<string[], string?, JsonNode> run, Func<JsonObject, ScreenTranslator.Context, ScreenTranslator.Result>? translate = null, bool copyExposed = false,
+        bool serverStore = true, bool mergeServerCalls = true)
     {
         translate ??= ScreenTranslator.Translate;
         var r = Build(inspect, old, name, outDir, map, [], Extra.None with { CopyExposed = copyExposed });
@@ -593,10 +594,10 @@ static partial class Migrate
         // 5. first pass (all entity actions have a wrapper name, so none is refused), then the final decisions, then the real pass
         var allWrappers = EntityActionMap(r.EntityNames).ToDictionary(kv => kv.Key, kv => kv.Value.entity + "_" + kv.Value.op);
         var first = TranslateAll(r.Screens, exports, new ScreenTranslator.Context(r.OldName, allWrappers, new HashSet<string>(), new HashSet<string>(r.Screens.Where(s => s.Kind == "Block").Select(s => s.Name)), layout, placeholders), translate);
-        r = Build(inspect, old, name, outDir, map, calls, ExtraFrom(first, r.EntityNames, serverUse) with { CopyExposed = copyExposed, ServerTexts = serverTexts, ActionCalls = actionCalls, SessionWrites = sessionWrites });
+        r = Build(inspect, old, name, outDir, map, calls, ExtraFrom(first, r.EntityNames, serverUse) with { CopyExposed = copyExposed, ServerTexts = serverTexts, ActionCalls = actionCalls, SessionWrites = sessionWrites, ServerStore = serverStore });
         r.Notes.AddRange(producerNotes); r.Notes.AddRange(notes);
         if (ti is not null) TemplateClashes(r, ti);
-        var context = MakeContext(r, layout, placeholders) with { ServerOutputs = ServerOutputs(inspect, r), SessionInputs = r.SessionInputs,
+        var context = MakeContext(r, layout, placeholders) with { ServerOutputs = mergeServerCalls ? ServerOutputs(inspect, r) : null, SessionInputs = r.SessionInputs,
             StaticRecords = StaticRecords(inspect),
             StoreVariables = r.SessionDecisions.Where(d => d.Decision == "store").ToDictionary(d => d.Name, d => d.Type, StringComparer.OrdinalIgnoreCase),
             ClientTypes = r.ClientVariables.OfType<JsonObject>().Where(c => S(c, "name") is not null).ToDictionary(c => S(c, "name")!, c => S(c, "type") ?? "Text", StringComparer.OrdinalIgnoreCase) };

@@ -10,7 +10,7 @@ Website: [topurrra.github.io/oml-cli](https://topurrra.github.io/oml-cli/) · [R
 
 ## Project settings
 
-`.oml/config.json` in the project says what agents do, skip and ask in this project. `oml create` writes it with every default. Change it with `oml config`:
+`.oml/oml-config.json` in the project says what agents do, skip and ask in this project: which steps run without a yes (`autoApprove.install`, `publish`, ...), which oml commands may run (`commands.*`), apply's flow layout, migrate's choices and more. Agents must follow it. `oml create` writes it with every default. Change it with `oml config`:
 
 ```
 oml config show                      # every setting, its value and what it does
@@ -26,7 +26,7 @@ Agents get the result at the start of a session when `oml hooks install` was run
 
 ## Interactive menu
 
-Do not want to learn 50 commands? Type `oml` in a terminal, or `oml menu`: tasks in groups (set up, project settings, read and check a module, an application, what agents did, docs, assets), each with a one-line description. Arrows or `j`/`k` move, Enter chooses, typing filters, Esc goes back, `q` quits. Before a task runs, the menu shows the command line it will run, so you learn the commands as you go. Project settings has an editor for `.oml/config.json`.
+Do not want to learn 50 commands? Type `oml` in a terminal, or `oml menu`: tasks in groups (set up, project settings, read and check a module, an application, what agents did, docs, assets), each with a one-line description. Arrows or `j`/`k` move, Enter chooses, typing filters, Esc goes back, `q` quits. Before a task runs, the menu shows the command line it will run, so you learn the commands as you go. Project settings has an editor for `.oml/oml-config.json`.
 
 It is for people only. A bare `oml` opens the menu only when a person is at a real terminal: input and output are not redirected, `OML_OUTPUT` is not `json`, and no agent or CI variable is set (`OML_SESSION`, `CLAUDE_SESSION_ID`, `CLAUDE_CODE_SESSION_ID`, `CODEX_SESSION_ID`, `CI`, `GITHUB_ACTIONS`). In every other case a bare `oml` prints the overview and every command prints the same JSON as before. `OML_MENU=0` turns the bare-`oml` menu off.
 

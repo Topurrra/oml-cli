@@ -29,7 +29,7 @@ Also:
 
 - Change modules only with `oml apply`, always to a NEW staged file.
 - Inspect before you design; reuse existing elements.
-- Confirm with the user before `install`, `publish`, `references`, `lifetime tag|deploy|abort|continue`, and data deletion. Restate the exact command and wait for a yes.
+- Confirm with the user before `install`, `publish`, `references`, `lifetime tag|deploy|abort|continue`, and data deletion. Restate the exact command and wait for a yes. Exception: the project profile says "Do not ask before" a step (`autoApprove`). Then run it and report the command and result.
 - Before you use another module's element, run `oml find <Name> <module.oml> --in <producer folder|file.oml>`. Show the candidates and their parameters and ask which to use, even for one match. Use its `Module.Name`; never guess.
 - Publish and reference refresh use Service Studio's Beta MCP tools: tell the user before the first use. Its first call shows an `oml-cli` approval dialog. Do not repeat a blocked publish.
 - A running Service Studio: bring it forward with `oml studio focus`. Never use computer use's `open_application` for it: that opens a second, empty window.
@@ -51,7 +51,7 @@ Plain technical English (ISO 24495-1; ASD-STE100 style):
 
 Several commands = ONE tool call: chain with `;` or use an `oml batch` file. A normal task needs 4 to 8 tool calls. If you are past 12, stop and check whether you are repeating reads or applying one element at a time.
 
-Project profile: a session may start with an "oml project profile" (`.oml/config.json`: sizes, themes, checks, questions, browser, fast lane). It overrides this loop. No such text? Add `oml config` to the read call.
+Project profile: a session may start with an "oml project profile" (`.oml/oml-config.json`: sizes, themes, checks, questions, approvals, commands, browser, fast lane). Follow every line; it overrides this loop and the rules above. No such text? Add `oml config` to the read call.
 
 0. No `.oml` file? Ask the user to open the module in Service Studio, then `oml pull --out <Module>.oml`. If pull reports `attention`, follow it.
 1. **Read (1 call).** Write `read.json` and run `oml batch read.json; oml team-rules`:

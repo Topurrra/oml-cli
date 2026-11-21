@@ -7,7 +7,7 @@ namespace OmlCli;
 // `oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--no-skill] [--no-library]
 // [--no-doctor]`: a project that is ready to work in, from one command. The output's `ready` list has one row per
 // step (done, skipped or failed, with the command that repeats it): folders, memory (as oml memory init), the project
-// profile (.oml/config.json, see ProjectConfig), the skill, the OutSystems docs for oml doc --search
+// profile (.oml/oml-config.json, see ProjectConfig), the skill, the OutSystems docs for oml doc --search
 // --library (downloaded once per machine; skipped when they are there), the modules and the map, and a setup check
 // (oml doctor). The starting point of a project. A new folder with a place for every kind of work (modules, staged copies, specs, QA files, mocks,
 // scenarios), the project memory, the agent's instructions (the skill, AGENTS.md, CLAUDE.md), a
@@ -47,7 +47,7 @@ static class CreateCommand
                 default: return Fail($"Unknown or incomplete option {args[i]}.", "Usage: " + CliUsage.For("create").Trim());
             }
         }
-        // The name oml writes as creator and last modifier in this project (`author` in .oml/config.json).
+        // The name oml writes as creator and last modifier in this project (`author` in .oml/oml-config.json).
         if (author is not null && ProjectConfig.Normalize(ProjectConfig.Find("author")!, author, out author) is { } badAuthor)
             return Fail($"--author: {badAuthor}");
         foreach (var input in inputs)
@@ -76,7 +76,7 @@ static class CreateCommand
         var profile = new ProjectConfig.Values();
         if (author is { Length: > 0 }) profile.Put("author", author);
         ProjectConfig.Save(root, profile);
-        created.Add(".oml/config.json");
+        created.Add(".oml/oml-config.json");
         Step("config", "done", (author is { Length: > 0 } ? $"author {author}, the rest " : "") + "defaults; oml config show explains every setting");
 
         // The agent's instructions: a copy of the skill that came with this oml, AGENTS.md for any agent, CLAUDE.md for Claude Code.
@@ -278,18 +278,19 @@ static class CreateCommand
         | Folder | For |
         |---|---|
         | `modules/` | The project's `.oap` and `.oml` files, as downloaded (`oml lifetime download`) or saved (`oml pull`). Never edited. |
-        | `staged/` | The agent's staged copies (`oml apply` writes here). Installed only after your yes. |
+        | `staged/` | The agent's staged copies (`oml apply` writes here). Installed only after your yes, unless `autoApprove.install` is on. |
         | `specs/` | Change specs (JSON). |
         | `qa/` | QA files and saved replays (`oml qa run <file> --save <replay>`). |
         | `mocks/` | Mock responses for your mock server (`oml mock --all --out mocks`). |
         | `scenarios/` | What to test after a change (`oml test scenarios <source> <staged> --out scenarios/<task>`). |
-        | `.oml/` | Project memory (`oml memory`), the project profile (`config.json`), the map's project name, test-data runs. |
+        | `.oml/` | Project memory (`oml memory`), the project configuration (`oml-config.json`), the map's project name, test-data runs. |
 
         ## Project profile
 
-        `.oml/config.json` says what agents do, skip and ask in this project: screen sizes, themes, QA,
-        questions, the browser. `oml config show` explains every setting, and `oml config set <key> <value>`
-        changes one, for example `oml config set ui.targets desktop` or `oml config set ask.testing off`.
+        `.oml/oml-config.json` says what agents do, skip and ask in this project: screen sizes, themes, QA,
+        questions, which steps need your yes (`autoApprove.*`), which oml commands may run (`commands.*`), apply's
+        flow layout, migrate's choices, the browser. `oml config show` explains every setting, and `oml config set <key> <value>`
+        changes one, for example `oml config set ui.targets desktop` or `oml config set autoApprove.install on`.
         Agents read it when they run oml. With the optional hooks (`oml hooks install`) they also get it at the start of a session.
 
         ## Next steps

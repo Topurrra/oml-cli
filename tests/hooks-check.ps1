@@ -108,7 +108,8 @@ Require ((Hook 'session' @{ hook_event_name = 'SessionStart'; cwd = $prof }).Out
 Push-Location $prof
 try {
   & $Oml config set ui.targets desktop | Out-Null; & $Oml config set browser agent | Out-Null; & $Oml config set ask.testing off | Out-Null
-  Require ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $prof '.oml\config.json'))) 'oml config set writes .oml/config.json'
+  Require (-not (Test-Path (Join-Path $prof '.oml\config.json'))) 'oml config set wrote the older file name'
+  Require ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $prof '.oml\oml-config.json'))) 'oml config set writes .oml/oml-config.json'
   $x = Hook 'session' @{ hook_event_name = 'SessionStart'; cwd = $prof }
   $ctx = ($x.Out | ConvertFrom-Json)
   Require ($x.Exit -eq 0 -and $ctx.additionalContext -match 'desktop only' -and $ctx.additionalContext -match 'Do not ask whether to test' -and $ctx.hookSpecificOutput.additionalContext -eq $ctx.additionalContext) "session profile: $($x.Out)"
@@ -121,6 +122,15 @@ try {
   Require ($LASTEXITCODE -eq 2) 'a locked setting was turned off'
   & $Oml config set ui.targets watch 2>&1 | Out-Null
   Require ($LASTEXITCODE -eq 2) 'an unknown value was accepted'
+  # autoApprove: the profile says what runs without a yes; commands.*: a command turned off is refused
+  & $Oml config set autoApprove.install on | Out-Null
+  $p = (& $Oml config) -join ' '
+  Require ($p -match 'Do not ask before install' -and $p -match 'Always ask before publish') "autoApprove.install is not in the profile: $p"
+  & $Oml config set commands.publish off | Out-Null
+  $x = (& $Oml publish Orders.oml 2>&1) -join ''
+  Require ($LASTEXITCODE -eq 2 -and $x -match 'commands.publish is off') "commands.publish off did not refuse oml publish: $x"
+  Require (((& $Oml config) -join ' ') -match 'Commands turned off for this project: oml publish') 'commands.publish off is not in the profile'
+  & $Oml config set commands.publish on | Out-Null
   # qa follows the sizes and themes; the MCP address stays on this computer
   $x = (& $Oml qa page http://127.0.0.1:9 --width 390 2>&1) -join ''
   Require ($LASTEXITCODE -eq 2 -and $x -match 'phone size') "qa --width 390 in a desktop-only project: $x"
@@ -133,7 +143,7 @@ try {
   try {
     Require (((& $Oml config) -join '') -match 'ask the user which author name') 'the profile does not ask for an author when none is set'
     & $Oml config set author "Ana Silva" | Out-Null
-    Require ($LASTEXITCODE -eq 0 -and (Get-Content (Join-Path $prof '.oml\config.json') -Raw | ConvertFrom-Json).author -eq 'Ana Silva') 'config set author did not store the name'
+    Require ($LASTEXITCODE -eq 0 -and (Get-Content (Join-Path $prof '.oml\oml-config.json') -Raw | ConvertFrom-Json).author -eq 'Ana Silva') 'config set author did not store the name'
     Require (((& $Oml config) -join '') -match 'Author for what you create: Ana Silva\.') 'config does not show the author'
     & $Oml config set author "Ana`tSilva" 2>&1 | Out-Null
     Require ($LASTEXITCODE -eq 2) 'an author with a control character was accepted'
@@ -143,7 +153,7 @@ try {
     Require (((& $Oml config) -join '') -match 'Author for what you create: Ben Costa\.') 'OML_AUTHOR does not win over the file'
     Remove-Item Env:OML_AUTHOR
     & $Oml config set author "" | Out-Null
-    Require ($LASTEXITCODE -eq 0 -and (Get-Content (Join-Path $prof '.oml\config.json') -Raw | ConvertFrom-Json).author -eq '' -and ((& $Oml config) -join '') -match 'ask the user which author name') 'an empty author did not clear it'
+    Require ($LASTEXITCODE -eq 0 -and (Get-Content (Join-Path $prof '.oml\oml-config.json') -Raw | ConvertFrom-Json).author -eq '' -and ((& $Oml config) -join '') -match 'ask the user which author name') 'an empty author did not clear it'
   } finally { if ($null -ne $savedAuthor) { $env:OML_AUTHOR = $savedAuthor } }
   # a check that is off is refused by the command; --no-profile skips it; qa --help is never refused
   & $Oml config set checks.qa off | Out-Null
@@ -160,7 +170,7 @@ try {
   $x = (& $Oml test scenarios a.oml b.oml --no-profile 2>&1) -join ''
   Require ($x -notmatch 'checks\.testScenarios is off') "test scenarios --no-profile was refused by the profile: $x"
   & $Oml config set checks.testScenarios on | Out-Null
-  Set-Content (Join-Path $prof '.oml\config.json') '{ broken'
+  Set-Content (Join-Path $prof '.oml\oml-config.json') '{ broken'
   Require ((Hook 'check' @{ tool_name = 'Bash'; cwd = $prof; tool_input = @{ command = 'ls' } }).Exit -eq 0) 'a broken config file blocked the agent'
 } finally { Pop-Location }
 Write-Host 'ok   hooks: command line for bash and PowerShell, session profile, config: guards on and off, browser guard, locked settings, a broken file never blocks'
