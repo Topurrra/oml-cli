@@ -305,7 +305,7 @@ To add a handler to an existing action without changing Start:
 
 The flow must start with `exceptionHandler`. `insertNodes` also accepts handler nodes after the inserted main path. All normal connector and validation rules still apply.
 
-`onException` creates a UI-flow exception action (Reactive, Mobile and Traditional Web). In Traditional Web the handler path cannot end with `end`; end it with a `destination` to a screen. `name` defaults to `OnException`, `flow` defaults to `MainFlow`, `locals` uses the shared variable shape, and `nodes` holds flow nodes. It has no Start. It must contain at least one exception handler:
+`onException` creates a UI-flow exception action (Reactive, Mobile and Traditional Web); an array of them creates one per UI flow. In Traditional Web the handler path cannot end with `end`; end it with a `destination` to a screen. `name` defaults to `OnException`, `flow` defaults to `MainFlow`, `locals` uses the shared variable shape, and `nodes` holds flow nodes. It has no Start. It must contain at least one exception handler:
 
 ```json
 {

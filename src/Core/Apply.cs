@@ -29,7 +29,7 @@ record Spec(List<EntitySpec>? Entities = null, List<RecordSpec>? Structures = nu
     List<ModuleVariableSpec>? ClientVariables = null,
     List<ModuleVariableSpec>? SessionVariables = null,
     Dictionary<string, string>? SystemEvents = null,
-    OnExceptionSpec? OnException = null,
+    JsonElement? OnException = null,   // one OnException action { name, flow, locals, nodes }, or an array of them (one per UI flow)
     string? GlobalExceptionHandler = null,
     List<CopySpec>? Copy = null,
     List<string>? Locales = null, TranslationImportSpec? Translations = null, List<TranslationSpec>? Translate = null,

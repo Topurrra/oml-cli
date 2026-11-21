@@ -12,7 +12,7 @@ oml migrate check Orders.oml OrdersApp.oml
 
 `check` is the last step: the new module validates, every copied action keeps its inputs and outputs, no screen lets in someone the old one did not, and the `TODO migrate` stubs that are left are counted. Fix each failed check before you report the migration done.
 
-`plan` reads the old module (it must be Traditional Web) and writes, into a new folder, files for `oml apply`. It changes no module. Its output lists `next` (the commands in order), `notes` and `coverage` (`screens: 7 translated, 3 partial, 1 worklist of 11`). `--template` is a Reactive template module: its layout block (`LayoutTopMenu`, `LayoutSideMenu`, else the first `Layout...`) and placeholders are given to the translation. Without it the screens have no layout block.
+`plan` reads the old module (it must be Traditional Web) and writes, into a new folder, files for `oml apply`. It changes no module. Its output lists `next` (the commands in order), `notes` and `coverage` (translated, partial and worklist counts). `--template` is a Reactive template module: its layout block (`LayoutTopMenu`, `LayoutSideMenu`, else the first `Layout...`) and placeholders are given to the translation. Without it the screens have no layout block.
 
 | File | What it is |
 |---|---|
@@ -59,13 +59,14 @@ OutSystemsUIWeb, RichWidgets and OutSystemsChartsWeb blocks are translated by a 
 | `Get<Static>(id).<Static>.<Attr>` in a screen | The value, or a client function `Get<Static><Attr>(Id)` (code) |
 | `CheckRole` | `Check<Role>Role()` in the screen is `ServerValues.Has<Role>Role` (code); it only hides parts, the server action checks again |
 | Ajax Refresh | Nothing: bound data updates; `refreshData` for the aggregates behind a refreshed table or list the export names, else a Todo (code) |
-| Notify and OnNotify of web blocks | The block's `Notify` event (input `Message`), a `triggerEvent` node, the handler on the instance; `NotifyGetMessage()` is `Message` (code) |
+| Notify and OnNotify of web blocks | The block's `Notify` event (input `Message`) fired by `triggerEvent`, handled on the instance (code) |
 | JavaScript of a screen or block | A script of the module that it requires (code); jQuery and `osjs` code must be rewritten |
-| Send Email in a screen action | Server action with `sendEmail` of a Reactive email from `emails` (`oml spec emails`) |
+| Send Email in a screen action | Server action with `sendEmail` of a Reactive email (`oml spec emails`) |
 | Commit Transaction in screen logic | Server action; a Todo, like other page-only System actions (`RunJavaScript`) and unmapped UI library actions |
 | Download in a screen action | Download node (code) |
+| UI flow OnException | The flow's `onException` (code); not if the template's flow has one or a screen is missing |
 
-Every server action a screen calls is a public endpoint: start it with identity and role checks (`oml doc security`).
+Every server action a screen calls is a public endpoint: check identity and roles in it (`oml doc security`).
 
 ## Widgets
 
@@ -78,7 +79,7 @@ Every server action a screen calls is a public endpoint: start it with identity 
 | Radio Button | Radio Group of the variable, one Radio Button per choice (code) |
 | Edit Record, Show Record | Form; on an aggregate's whole record its inputs bind to that record, else to a local record variable |
 | Table Records, List Records | Table or List on the aggregate. List_Navigation, List_Counter and List_SortColumn are translated by code (OutSystems UI Pagination, header sort, locals, handlers) |
-| Expression with escaping off | Avoid; if needed, an unescaped expression block (XSS risk) |
+| Expression with escaping off | Avoid; else an unescaped expression block (XSS risk) |
 | Editable Table, List Box | Build a Table with inputs, or a list of Checkboxes |
 | Link with Method Submit, Ajax Submit or Ajax | Button or Link with On Click and a client action |
 | Link to an External URL | HTML element `a` with `href`; a button calls `RedirectToURL` (code) |

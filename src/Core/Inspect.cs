@@ -69,6 +69,8 @@ static class Inspect
             siteProperties = Rows("siteProperties", h.Keep(m.SiteProperties), p => new { name = p.Name, type = Model.Describe(m, p.DataType),
                 @default = p.DefaultValue?.Text, multiTenant = p.IsMultiTenant.ToString(), description = p.Description, lastModifiedBy = h.By(p), lastModifiedDate = h.On(p) }),
             exceptions = Rows("exceptions", h.Keep(m.UserExceptions), e => new { name = e.Name, @public = Reflect.Get(e, "Public") as bool?, lastModifiedBy = h.By(e), lastModifiedDate = h.On(e) }),
+            // Each UI flow and its OnException action (a property of the flow, not a node), so a migration knows which flows handle exceptions.
+            uiFlows = Rows("uiFlows", m.WebFlows.Cast<object>().Concat(m.MobileFlows), f => new { name = Model.NameOf(f), onException = Reflect.Get(f, "OnExceptionHandler") is { } x ? Model.NameOf(x) : null }),
             references = Rows("references", m.References, r => new
             {
                 module = r.Name,
@@ -235,7 +237,7 @@ static class Inspect
             foreach (var key in only.Split(',', StringSplitOptions.TrimEntries))
             {
                 if (groups.TryGetValue(key, out var sections)) keep.UnionWith(sections);
-                else if (new[] { "entities", "structures", "screens", "blocks", "references", "timers", "roles", "processes", "siteProperties", "sessionVariables", "exceptions", "otherContent" }.Contains(key, StringComparer.OrdinalIgnoreCase)) keep.Add(key);
+                else if (new[] { "entities", "structures", "screens", "blocks", "references", "timers", "roles", "processes", "siteProperties", "sessionVariables", "exceptions", "uiFlows", "otherContent" }.Contains(key, StringComparer.OrdinalIgnoreCase)) keep.Add(key);
                 else throw new CliError($"Unknown inspect section '{key}'.", 2);
             }
             if (since is not null && keep.All(k => k.Equals("references", StringComparison.OrdinalIgnoreCase)))

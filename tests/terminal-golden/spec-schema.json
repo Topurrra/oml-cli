@@ -161,7 +161,17 @@
       "description": "Module state and calls from platform lifecycle events. Module kind limits apply. (oml spec systemEvents)"
     },
     "onException": {
-      "$ref": "#/$defs/OnExceptionSpec",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/OnExceptionSpec"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OnExceptionSpec"
+          }
+        }
+      ],
       "description": "Separate exception paths and a Reactive global handler. (oml spec onException)"
     },
     "globalExceptionHandler": {

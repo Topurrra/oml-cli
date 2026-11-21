@@ -211,6 +211,7 @@ static partial class Migrate
         if (Has("SOAP") || Has("WebReference") || Has("Integration")) return ("copy", "consumed SOAP or other integration element: copied by name; its Service Center configuration does not follow, set it again for the new module");
         if (Has("Email")) return ("translate", "email: exported and translated like a screen when its Preparation loads no data (it lands in 4-screens.md)");
         if (Has("Entry")) return ("manual", "entry point: Reactive has no entry points; the URL of a screen or a redirect screen replaces it");
+        if (Has("OnException")) return ("translate", "a UI flow's exception handler: translated into onException of 4-screens.json, unless the template's flow of that name has one (a note then says what the old one did)");
         return ("manual", "not covered by oml migrate: rebuild or check it by hand");
     }
 
@@ -367,6 +368,62 @@ static partial class Migrate
                 ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["Id"] = entity + " Identifier" } : new Dictionary<string, string>();
         }
         return map;
+    }
+
+    // What an OnException action did, in a few words per handler ("AllExceptions: navigate to InternalError").
+    internal static string HandlerSummary(JsonObject export)
+    {
+        var nodes = ((export["flow"] as JsonObject)?["nodes"] as JsonArray ?? []).OfType<JsonObject>().ToList();
+        var byName = nodes.Where(n => S(n, "name") is not null).GroupBy(n => S(n, "name")!).ToDictionary(g => g.Key, g => g.First());
+        var parts = new List<string>();
+        foreach (var h in nodes.Where(n => S(n, "kind") == "exceptionHandler"))
+        {
+            var steps = new List<string>();
+            for (var (next, guard) = (S(h, "next"), 0); next is not null && next != "End" && byName.TryGetValue(next, out var n) && guard < 12; next = S(n, "next"), guard++)
+                steps.Add(S(n, "kind") switch
+                {
+                    "destination" => "navigate to " + S(n, "screen"),
+                    "execute" => "call " + (S(n, "action") ?? S(n, "_ref")),
+                    "raiseException" => "raise " + S(n, "exception"),
+                    var k => k ?? "node",
+                });
+            parts.Add($"{S(h, "exception")}: {(steps.Count > 0 ? string.Join(", ", steps) : "nothing")}");
+        }
+        return parts.Count > 0 ? string.Join("; ", parts) : "no exception handler";
+    }
+
+    // The old module's UI flow OnException actions (inspect uiFlows), translated like screen actions into entries of the spec's onException.
+    // A flow of the same name that already has one in the template keeps the template's (Reactive templates handle sign-in and errors there,
+    // and apply would reuse a same-named one without the old nodes): a note says what the old one did. One that cannot be translated, or
+    // that navigates to a screen the new module will not have, is a note too: a wrong handler is worse than the module's global one.
+    internal static List<JsonObject> OnExceptionHandlers(List<string> notes, JsonNode? inspect, JsonNode? template, List<Item> items,
+        Func<IReadOnlyList<string>, IReadOnlyDictionary<string, JsonObject>> export, ScreenTranslator.Context context)
+    {
+        var result = new List<JsonObject>();
+        var old = Rows(inspect, "uiFlows").Where(f => S(f, "name") is not null && S(f, "onException") is not null).Select(f => (flow: S(f, "name")!, name: S(f, "onException")!)).ToList();
+        if (old.Count == 0) return result;
+        var taken = Rows(template, "uiFlows").Where(f => S(f, "name") is not null && S(f, "onException") is not null)
+            .GroupBy(f => S(f, "name")!, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => S(g.First(), "onException")!, StringComparer.OrdinalIgnoreCase);
+        var screens = items.Where(i => i.S.Kind == "Screen" && i.Spec is not null).Select(i => S(i.Spec!, "name")).Concat(Rows(template, "screens").Select(x => S(x, "name")))
+            .OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var exported = export(old.Select(h => $"{h.flow}/{h.name}").ToList());
+        foreach (var (flow, name) in old)
+        {
+            var e = exported.GetValueOrDefault($"{flow}/{name}") ?? new JsonObject { ["error"] = "no result from oml export" };
+            var did = S(e, "error") is { } err ? $"(oml export could not read it: {err})" : HandlerSummary(e);
+            if (taken.TryGetValue(flow, out var theirs))
+            { notes.Add($"The template's {flow}/{theirs} stays the exception handler of {flow}. The old {flow}/{name} did: {did}. If it did more than the template's (logging, a special screen), add that to {theirs} by hand."); continue; }
+            var t = ScreenTranslator.TranslateOnException(e, context);
+            if (t.Spec is null)
+            { notes.Add($"The old {flow}/{name} was not translated ({string.Join(" ", t.Todo).TrimEnd('.')}); it did: {did}. Build the OnException of {flow} by hand."); continue; }
+            var missing = ((t.Spec["nodes"] as JsonArray) ?? []).OfType<JsonObject>().Where(n => S(n, "kind") == "destination").Select(n => S(n, "screen")).OfType<string>()
+                .Where(sc => !screens.Contains(sc)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (missing.Count > 0)
+            { notes.Add($"The old {flow}/{name} navigates to {string.Join(", ", missing)}, which the new module will not have, so it is not added: {did}. Add the screen, or point the handler at one the new module has."); continue; }
+            notes.AddRange(t.Todo);
+            result.Add(t.Spec);
+        }
+        return result;
     }
 
     // The old module's server functions (inspect marks them function: true).
@@ -713,17 +770,23 @@ static partial class Migrate
             r.Notes.Add($"A translation reported the entity action {a} without a wrapper for it: add the wrapper by hand.");
         items = DropReplacedLayouts(r, items, exports, layout);
         // Server functions the screens call in the browser: copied as client functions of the same name, or a Todo on each screen that calls one.
+        // The UI flows' OnException actions: the spec's onException, one per flow (OnExceptionHandlers).
+        var handlers = OnExceptionHandlers(r.Notes, inspect, ti, items, paths => ExportActions(Try(["export", old, .. paths], null, "oml export of the UI flows' OnException actions"), paths), context);
         var fnCopies = new List<JsonObject>();
-        var usedBy = items.Where(i => i.Spec?["_serverFunctions"] is JsonArray).SelectMany(i => ((JsonArray)i.Spec!["_serverFunctions"]!).Select(x => (fn: x!.ToString(), item: i))).ToList();
+        var usedBy = items.Where(i => i.Spec?["_serverFunctions"] is JsonArray).SelectMany(i => ((JsonArray)i.Spec!["_serverFunctions"]!).Select(x => (fn: x!.ToString(), item: (Item?)i, flow: (string?)null)))
+            .Concat(handlers.Where(h => h["_serverFunctions"] is JsonArray).SelectMany(h => ((JsonArray)h["_serverFunctions"]!).Select(x => (fn: x!.ToString(), item: (Item?)null, flow: S(h, "flow"))))).ToList();
         foreach (var i in items) i.Spec?.Remove("_serverFunctions");
+        foreach (var h in handlers) h.Remove("_serverFunctions");
         if (usedBy.Count > 0)
         {
             var (copies, refused) = ClientFunctions(usedBy.Select(u => u.fn), names => ExportActions(Try(["export", old, .. names.Select(n => "ServerAction:" + n)], null, "oml export of the server functions"), names),
                 ServerFunctionNames(inspect));
             fnCopies = copies;
-            foreach (var (fn, item) in usedBy.Where(u => refused.ContainsKey(u.fn)))
+            foreach (var (fn, item, flow) in usedBy.Where(u => refused.ContainsKey(u.fn)))
             {
-                item.Todo.Add($"it calls the server function {fn} in the browser, which Reactive cannot, and {fn} was not copied as a client function ({refused[fn]}); return the value from a data action or server action, or write {fn} as a client function");
+                var why = $"it calls the server function {fn} in the browser, which Reactive cannot, and {fn} was not copied as a client function ({refused[fn]}); return the value from a data action or server action, or write {fn} as a client function";
+                if (item is null) { r.Notes.Add($"The OnException of the UI flow {flow}: {why}."); continue; }
+                item.Todo.Add(why);
                 var at = items.IndexOf(item);
                 if (at >= 0 && items[at].Status == "translated") items[at] = items[at] with { Status = "partial" };
             }
@@ -740,6 +803,15 @@ static partial class Migrate
             foreach (var img in shown) if (!els.Any(e => e?.ToString() == "Image:" + img)) els.Add("Image:" + img);
         }
         r.ScreensSpec = ScreensSpec(r, items);
+        if (handlers.Count > 0)
+        {
+            r.ScreensSpec ??= new JsonObject();
+            var merged = r.ScreensSpec["serverActions"] as JsonArray ?? new JsonArray();
+            foreach (var h in handlers)
+                if (h["_serverActions"] is JsonArray sas) { h.Remove("_serverActions"); foreach (var x in sas.ToList()) { sas.Remove(x); merged.Add(x); } }
+            if (merged.Count > 0) r.ScreensSpec["serverActions"] = merged;
+            r.ScreensSpec["onException"] = handlers.Count == 1 ? handlers[0] : new JsonArray(handlers.Select(h => (JsonNode?)h).ToArray());
+        }
         if (fnCopies.Count > 0 && r.ScreensSpec is not null)
         {
             var cas = r.ScreensSpec["clientActions"] as JsonArray ?? new JsonArray();

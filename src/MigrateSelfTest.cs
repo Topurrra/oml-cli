@@ -240,6 +240,34 @@ static partial class Migrate
             && ExportActions(JsonNode.Parse("""{ "name": "A" }"""), ["A"])["A"]["name"] is not null && ExportActions(null, ["A", "B"])["B"]["error"] is not null,
             "server functions: names from inspect; export answers by name, a missing one is an error");
 
+        // UI flow OnException actions: translated into the spec's onException; the template's own handler of a flow stays (a note says what the
+        // old one did); one that navigates to a screen the new module will not have is a note; a flow without one is left alone.
+        var onexInspect = JsonNode.Parse("""{ "uiFlows": [ { "name": "Common", "onException": "OnException" }, { "name": "MainFlow", "onException": "HandleMain" }, { "name": "Admin", "onException": "OnAdminError" }, { "name": "Plain" } ] }""");
+        var onexTemplate = JsonNode.Parse("""{ "uiFlows": [ { "name": "Common", "onException": "OnException" } ], "screens": [ { "name": "Login" } ] }""");
+        var onexExports = JsonNode.Parse("""
+        { "Common/OnException": { "kind": "OnException", "name": "OnException", "uiFlow": "Common", "moduleKind": "Traditional", "flow": { "complete": true, "nodes": [
+            { "kind": "exceptionHandler", "name": "All", "exception": "AllExceptions", "next": "Go" }, { "kind": "destination", "name": "Go", "screen": "Login" } ] } },
+          "MainFlow/HandleMain": { "kind": "OnException", "name": "HandleMain", "uiFlow": "MainFlow", "moduleKind": "Traditional", "locals": [ { "name": "Msg", "type": "Text" } ], "flow": { "complete": true, "nodes": [
+            { "kind": "exceptionHandler", "name": "All", "exception": "AllExceptions", "abortTransaction": true, "logError": true, "next": "Tell" },
+            { "kind": "execute", "name": "Tell", "action": "RichWidgets.Feedback_Message", "_ref": "RichWidgets.Feedback_Message", "args": { "Message": "AllExceptions.ExceptionMessage", "Type": "Entities.MessageType.Error" }, "next": "Go" },
+            { "kind": "destination", "name": "Go", "screen": "Oops" } ] } },
+          "Admin/OnAdminError": { "kind": "OnException", "name": "OnAdminError", "uiFlow": "Admin", "moduleKind": "Traditional", "flow": { "complete": true, "nodes": [
+            { "kind": "exceptionHandler", "name": "Sec", "exception": "SecurityException", "next": "Away" }, { "kind": "destination", "name": "Away", "screen": "Gone" } ] } } }
+        """)!.AsObject();
+        var onexNotes = new List<string>();
+        var asked = new List<string>();
+        var onexItems = new List<Item> { new(new Screen("Oops", "Screen", "MainFlow", [], [], "Oops.json"), "translated", [], JsonNode.Parse("""{ "name": "Oops" }""")!.AsObject(), [], [], null) };
+        var onex = OnExceptionHandlers(onexNotes, onexInspect, onexTemplate, onexItems, paths => { asked.AddRange(paths); return paths.ToDictionary(p => p, p => (JsonObject)onexExports[p]!.DeepClone()); },
+            new ScreenTranslator.Context("Old", new Dictionary<string, string>(), new HashSet<string>(), new HashSet<string>(), null, []));
+        Check(onex.Count == 1 && S(onex[0], "name") == "HandleMain" && S(onex[0], "flow") == "MainFlow" && S(onex[0]["locals"]![0]!, "name") == "Msg"
+            && S(onex[0]["nodes"]![0]!, "kind") == "exceptionHandler" && onex[0]["nodes"]![0]!["abortTransaction"] is null && onex[0]["nodes"]![0]!["logError"]!.GetValue<bool>()
+            && S(onex[0]["nodes"]![1]!, "kind") == "message" && S(onex[0]["nodes"]![1]!, "type") == "error" && S(onex[0]["nodes"]![2]!, "screen") == "Oops"
+            && asked.SequenceEqual(["Common/OnException", "MainFlow/HandleMain", "Admin/OnAdminError"]),
+            $"OnException: MainFlow's handler is an onException entry (Feedback_Message a message node, abort transaction gone, Log Error kept): {string.Join(" ", onex.Select(h => h.ToJsonString()))}");
+        Check(onexNotes.Count == 2 && onexNotes[0].StartsWith("The template's Common/OnException stays") && onexNotes[0].Contains("did: AllExceptions: navigate to Login")
+            && onexNotes[1].Contains("Admin/OnAdminError navigates to Gone, which the new module will not have") && onexNotes[1].Contains("SecurityException: navigate to Gone"),
+            $"OnException: the template's handler stays and a missing screen keeps one out, each with a note: [{string.Join(" | ", onexNotes)}]");
+
         return fails;
     }
 
@@ -339,7 +367,7 @@ static partial class Migrate
         Check(PickLayout(JsonNode.Parse(SampleTemplate)!) == "LayoutTopMenu" && PickLayout(JsonNode.Parse("""{ "blocks": [ { "name": "LayoutSideMenu" }, { "name": "LayoutBlank" } ] }""")!) == "LayoutSideMenu"
             && PickLayout(JsonNode.Parse("""{ "blocks": [ { "name": "Menu" }, { "name": "LayoutZ" }, { "name": "LayoutBlank" } ] }""")!) == "LayoutZ" && PickLayout(JsonNode.Parse("""{ "blocks": [ { "name": "Menu" } ] }""")!) is null, "layout: top menu, then side menu, then the first, else none");
         Check(Placeholders(JsonNode.Parse(SampleLayoutExport)).SequenceEqual(["Header", "Content"]) && Placeholders(null).Count == 0, "placeholders are read from the widget tree, in an If too");
-        Check(DecideOther("SOAPClient").decision == "copy" && DecideOther("ISOAPClient").decision == "copy" && DecideOther("WebReference").decision == "copy" && DecideOther("Integration").decision == "copy" && DecideOther("Email").decision == "translate" && DecideOther("IEmail").decision == "translate" && DecideOther("EntryPoint").decision == "manual" && DecideOther("WebService").decision == "stay", "other content by kind name, with or without the leading I");
+        Check(DecideOther("SOAPClient").decision == "copy" && DecideOther("ISOAPClient").decision == "copy" && DecideOther("WebReference").decision == "copy" && DecideOther("Integration").decision == "copy" && DecideOther("Email").decision == "translate" && DecideOther("IEmail").decision == "translate" && DecideOther("EntryPoint").decision == "manual" && DecideOther("WebService").decision == "stay" && DecideOther("OnExceptionAction").decision == "translate", "other content by kind name, with or without the leading I");
         var texts = SessionUse(SampleDescribe, ["ThemeName", "CurrentCustomerId"]);
         Check(texts.Count == 1 && texts["CurrentCustomerId"].SequenceEqual(["SaveOrder"]), "Session.X is matched as a whole identifier: ThemeNameX and Session.Other.ThemeName are not ThemeName");
         var shapes = ExportChunks(Enumerable.Range(0, 60).Select(i => new Screen("S" + i, "Screen", "", [], [], $"screens/S{i}.txt")));

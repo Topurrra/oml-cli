@@ -30,7 +30,7 @@ static class SpecModel
             .ToList();
 }
 
-enum RawKind { Any, Flow, ProcessList, Named, Widgets, Edits, Object, Elements }
+enum RawKind { Any, Flow, ProcessList, Named, Widgets, Edits, Object, Elements, OnException }
 
 static class SpecShapes
 {
@@ -45,8 +45,12 @@ static class SpecShapes
         "Edits" => RawKind.Edits,
         "Module" => RawKind.Object,
         "Elements" => RawKind.Elements,
+        "OnException" => RawKind.OnException,   // one OnExceptionSpec, or an array of them (one per UI flow)
         _ => RawKind.Any,
     };
+
+    // The record of one onException entry (it lives in the Core assembly, reached like every spec record: from the root's assembly).
+    public static Type OnExceptionType => SpecModel.Root.Assembly.GetType("OmlCli.OnExceptionSpec") ?? throw new InvalidOperationException("OnExceptionSpec is missing");
 
     public static readonly string[] NodeKinds =
     {
@@ -251,6 +255,11 @@ sealed class SpecChecker
             case RawKind.Elements when v.ValueKind == JsonValueKind.String && v.GetString() != "*":
                 Add(path, "a string value must be \"*\" (all supported public elements); use an array of names otherwise"); break;
             case RawKind.Elements when v.ValueKind is not (JsonValueKind.String or JsonValueKind.Array): Expect(path, "\"*\" or an array of names", v); break;
+            case RawKind.OnException when v.ValueKind == JsonValueKind.Array:
+                var h = 0;
+                foreach (var e in v.EnumerateArray()) Record(e, SpecShapes.OnExceptionType, Item(path, h++));
+                break;
+            case RawKind.OnException: Record(v, SpecShapes.OnExceptionType, path); break;
             case RawKind.Elements when v.ValueKind == JsonValueKind.Array:
                 var i = 0;
                 foreach (var e in v.EnumerateArray()) { if (e.ValueKind != JsonValueKind.String) Expect(Item(path, i), "a string", e); i++; }
@@ -537,6 +546,7 @@ static class SpecSchema
             {
                 RawKind.Object => new JsonObject { ["type"] = "object" },
                 RawKind.Elements => new JsonObject { ["oneOf"] = new JsonArray(new JsonObject { ["const"] = "*" }, new JsonObject { ["type"] = "array", ["items"] = new JsonObject { ["type"] = "string" } }) },
+                RawKind.OnException => new JsonObject { ["oneOf"] = new JsonArray(For(SpecShapes.OnExceptionType, member, defs), new JsonObject { ["type"] = "array", ["items"] = For(SpecShapes.OnExceptionType, member, defs) }) },
                 _ => new JsonObject(),
             };
         if (SpecModel.IsList(type))

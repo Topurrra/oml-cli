@@ -14,7 +14,8 @@ partial class Builder
     {
         ModuleVariables(spec.ClientVariables, true);
         ModuleVariables(spec.SessionVariables, false);
-        if (spec.OnException is { } handler) Try("onException", () => ExceptionAction(handler));
+        foreach (var (handler, i) in OnExceptions(spec.OnException).Select((h, i) => (h, i)))
+            Try(spec.OnException?.ValueKind == JsonValueKind.Array ? $"onException[{i}]" : "onException", () => ExceptionAction(handler ?? throw new ModelError("an onException entry must be an object { name, flow, locals, nodes }")));
         if (spec.GlobalExceptionHandler is { } name) Try("globalExceptionHandler", () =>
         {
             if (WebUi.IsTraditional(m) || m.Kind.ToString() == "Service")
@@ -74,6 +75,19 @@ partial class Builder
             if (s.Default is { } value) Defer(variable, (collection + "." + s.Name + ".default", () => Reflect.Call(variable, "SetDefaultValue", value)));
             created.Add(collection + " " + s.Name);
         });
+    }
+
+    // onException is one object, or an array of them (a module may handle exceptions in several UI flows).
+    static List<OnExceptionSpec?> OnExceptions(JsonElement? value)
+    {
+        if (value is not { } v || v.ValueKind == JsonValueKind.Null) return [];
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        OnExceptionSpec? One(JsonElement e)
+        {
+            try { return e.ValueKind == JsonValueKind.Object ? e.Deserialize<OnExceptionSpec>(options) : null; }
+            catch (JsonException) { return null; }   // a key of the wrong type: the entry is refused with the shape it needs
+        }
+        return v.ValueKind == JsonValueKind.Array ? v.EnumerateArray().Select(One).ToList() : [One(v)];
     }
 
     object ExceptionAction(OnExceptionSpec s)

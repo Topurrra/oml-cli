@@ -82,6 +82,20 @@ static class ScreenTranslator
         List<string> EntityActions,                         // entity actions its logic calls ("CreateOrUpdateOrder"), for the wrapper list
         List<string> SessionVariables);                     // session variables it reads or writes
 
+    // A UI flow's OnException action (oml export kind OnException). Its nodes go through the screen-action translation: exception handlers,
+    // destinations, Feedback_Message as a message node, server calls merged into one server action, queries in a server action. The spec is
+    // an entry of the spec's onException ({ name, flow, locals, nodes }); Kind is "UI flow" and its Todos start with the flow's name.
+    internal static Result TranslateOnException(JsonObject export, Context context)
+    {
+        var flow = Run.S(export["uiFlow"]) ?? "MainFlow";
+        var el = new JsonObject
+        {
+            ["kind"] = "OnException", ["name"] = flow, ["flow"] = flow, ["moduleKind"] = export["moduleKind"]?.DeepClone(), ["error"] = export["error"]?.DeepClone(),
+            ["actions"] = new JsonArray(new JsonObject { ["name"] = Run.S(export["name"]) ?? "OnException", ["locals"] = export["locals"]?.DeepClone(), ["flow"] = export["flow"]?.DeepClone() }),
+        };
+        return Translate(el, context);
+    }
+
     internal static Result Translate(JsonObject element, Context context)
     {
         try { return new Run(element, context).Go(); }
@@ -106,6 +120,7 @@ static class ScreenTranslator
         readonly JsonObject el;
         readonly Context cx;
         readonly string name, kindWord;
+        readonly bool onException;   // the element is a UI flow's OnException action (TranslateOnException)
         readonly bool block;
         readonly List<string> todo = [], entityActions = [], session = [];
         readonly HashSet<string> seen = new(StringComparer.Ordinal);
@@ -140,7 +155,8 @@ static class ScreenTranslator
         {
             el = element; cx = context;
             block = string.Equals(S(el["kind"]), "Block", StringComparison.OrdinalIgnoreCase);
-            kindWord = block ? "Block" : "Screen";
+            onException = string.Equals(S(el["kind"]), "OnException", StringComparison.OrdinalIgnoreCase);
+            kindWord = block ? "Block" : onException ? "UI flow" : "Screen";
             name = S(el["name"]) ?? throw new InvalidOperationException("the element has no name");
         }
 
@@ -569,6 +585,7 @@ static class ScreenTranslator
             if (moduleKind is not null && !moduleKind.Equals("Traditional", StringComparison.OrdinalIgnoreCase))
                 return Worklist(kind, $"{kind} {name}: it comes from a {moduleKind} module, and oml migrate translates only Traditional Web screens, blocks and emails.");
             if (kind.Equals("Email", StringComparison.OrdinalIgnoreCase)) return Email();
+            if (onException) return OnException();
             if (!kind.Equals("Screen", StringComparison.OrdinalIgnoreCase) && !block)
                 return Worklist(kind, $"{kind} {name}: only screens, web blocks and emails can be translated.");
 
@@ -1215,6 +1232,28 @@ static class ScreenTranslator
             return string.Join(", ", parts) + (nodes.Count > 10 ? $", and {nodes.Count - 10} more" : "");
         }
 
+        // A UI flow's OnException: the one action, translated as a screen action is (the Traditional abort-transaction flag goes: a client
+        // action has no transaction, and a merged server action rolls back on its own). It must start with an exception handler; a stub
+        // (what could not be translated) gives no spec, so the template's or the module's own handler is not replaced by an empty one.
+        Result OnException()
+        {
+            var a = Objs(el["actions"]).First();
+            var act = Action(a);
+            var nodes = act["flow"] as JsonArray ?? [];
+            var first = nodes.OfType<JsonObject>().FirstOrDefault(n => S(n["kind"]) != "comment");
+            if (first is null || S(first["kind"]) != "exceptionHandler")
+            {
+                if (first is not null) Todo($"its OnException does not start with an exception handler after the translation; build it by hand");
+                return new Result(null, kindWord, "worklist", todo, entityActions, session);
+            }
+            var spec = new JsonObject { ["name"] = S(act["name"]), ["flow"] = name };
+            if (act["locals"] is JsonArray { Count: > 0 } locals) spec["locals"] = locals.DeepClone();
+            spec["nodes"] = nodes.DeepClone();
+            if (serverActions.Count > 0) spec["_serverActions"] = new JsonArray(serverActions.Select(x => (JsonNode?)x.DeepClone()).ToArray());
+            if (usedFunctions.Count > 0) spec["_serverFunctions"] = new JsonArray(usedFunctions.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
+            return new Result(spec, kindWord, todo.Count == 0 ? "translated" : "partial", todo, entityActions, session);
+        }
+
         // ---------- screen and block actions ----------
 
         static readonly HashSet<string> ActionKinds = ["assign", "if", "switch", "foreach", "execute", "destination", "raiseexception", "message", "comment", "javascript", "end", "ajaxrefresh", "exceptionhandler", "refreshdata", "download"];
@@ -1476,7 +1515,7 @@ static class ScreenTranslator
                     o["args"] = new JsonObject { ["URL"] = Rw(S((n["args"] as JsonObject)?["URL"]) ?? "\"\"", at) }; o["next"] = "End";
                     break;
                 case "destination": o["kind"] = "destination"; Copy("name"); o["screen"] = Leaf(S(n["screen"])!); Args(); break;
-                case "exceptionhandler": o["kind"] = "exceptionHandler"; Copy("name", "exception", "next"); break;   // client actions have handlers too; abort transaction is server only
+                case "exceptionhandler": o["kind"] = "exceptionHandler"; Copy("name", "exception", "logError", "next"); break;   // client actions have handlers too (and Log Error); abort transaction is server only
                 case "raiseexception": o["kind"] = "raiseException"; Copy("name", "exception"); Expr("message"); break;
                 case "message": o["kind"] = "message"; Copy("name"); Expr("message"); Copy("type", "next"); if (o["type"] is null) o["type"] = "info"; break;
                 case "comment": o["kind"] = "comment"; o["text"] = S(n["text"]) ?? ""; break;   // its name is made up (Comment1) and nothing connects to it

@@ -84,7 +84,7 @@ font: font, fonts
 form: form, forms
 function: function, functions
 giv: give, gives
-handl: handle, handling
+handl: handle, handled, handling
 handler: handler, handlers
 hold: hold, holds
 http: http, https

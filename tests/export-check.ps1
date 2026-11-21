@@ -82,7 +82,7 @@ $many = @(($text -join "`n") | ConvertFrom-Json)
 Require ($many.Count -eq 3 -and $many[0].name -eq 'WebDetail' -and $many[1].element -eq 'NoSuchScreen' -and $many[1].error -and $many[2].name -eq 'WebItems') "several names: $($text -join ' ')"
 Require (@($many[0].inputs)[0].name -eq 'ItemId' -and @($many[0].inputs)[0].type -eq 'WebItem Identifier') 'WebDetail input'
 $text = & $Oml export $web WebItem
-Require ($LASTEXITCODE -eq 1 -and (($text -join "`n") | ConvertFrom-Json).error -match 'screens, blocks, emails and server actions') "export of an entity: exit $LASTEXITCODE $text"
+Require ($LASTEXITCODE -eq 1 -and (($text -join "`n") | ConvertFrom-Json).error -match 'screens, blocks, emails, server actions and OnException actions') "export of an entity: exit $LASTEXITCODE $text"
 $text = & $Oml export $web WebItems WebDetail
 Require ($LASTEXITCODE -eq 0 -and @(($text -join "`n") | ConvertFrom-Json).Count -eq 2) 'two good names'
 
