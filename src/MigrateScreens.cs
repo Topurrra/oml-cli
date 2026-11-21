@@ -196,7 +196,7 @@ static class ScreenTranslator
         {
             if (string.IsNullOrEmpty(text)) return text ?? "";
             text = ListCalls(text);
-            text = StaticReads(text);
+            if (!InData) text = StaticReads(text);   // a data action runs on the server, where Get<Entity> works
             var sb = new StringBuilder();
             int i = 0, n = text.Length;
             var last = '\0';
@@ -258,10 +258,41 @@ static class ScreenTranslator
             if (inInitialize) Todo($"{at} reads {expr}, now {ServerValuesName}.{output}; onInitialize runs before the data action {ServerValuesName} has fetched, so move this logic to {ServerValuesName}'s onAfterFetch");
         }
 
+        bool InData => daRenames is not null;
+
+        // A query of the Preparation data action read on the screen: <Q>.List is the output <Q>List, whose records are the entity itself
+        // (List.Current.<Entity>.X is List.Current.X); <Q>.Count is <Q>Count.
+        bool PrepQuery(string text, string q, int after, out string replacement, out int end)
+        {
+            replacement = ""; end = after;
+            var m = Regex.Match(text[after..], @"^\s*\.\s*(List|Count)(?!\w)");
+            if (!m.Success || prepReads.GetValueOrDefault(q) is not { Kind: "query" } read) return false;
+            if (m.Groups[1].Value.Equals("Count", StringComparison.OrdinalIgnoreCase)) { replacement = $"{prepName}.{q}Count"; end = after + m.Length; return true; }
+            replacement = $"{prepName}.{q}List"; end = after + m.Length;
+            var cur = Regex.Match(text[end..], @"^\s*\.\s*Current\s*\.\s*(\w+)(?!\w)");
+            if (cur.Success && cur.Groups[1].Value.Equals(Leaf(read.Record), StringComparison.OrdinalIgnoreCase)) { replacement += ".Current"; end += cur.Length; }
+            return true;
+        }
+
         // One identifier that starts a path (not a member): the rewrite, and where the scan resumes.
         bool Substitute(string text, string id, int after, string at, out string replacement, out int end)
         {
             replacement = ""; end = after;
+            if (InData)
+            {
+                // In the Preparation data action: what the logic writes is the output that stands for it; the browser's names are refused.
+                if (daRenames!.TryGetValue(id, out var renamed)) { replacement = renamed; return true; }
+                if (id.Equals("Session", StringComparison.OrdinalIgnoreCase) && after < text.Length && text[after] == '.') daProblem ??= $"{at} reads a session variable, which a data action cannot";
+                else if (forms.ContainsKey(id) || tables.ContainsKey(id) || widgetByName.ContainsKey(id)) daProblem ??= $"{at} reads the widget {id}, which a data action cannot";
+                return false;
+            }
+            if (prepReads.TryGetValue(id, out var pr))
+            {
+                if (pr.Kind == "query") return PrepQuery(text, id, after, out replacement, out end);
+                var cm = Regex.Match(text[after..], @"^\s*\.\s*(\w+)");
+                if (cm.Success) { replacement = $"{prepName}.{id}_{cm.Groups[1].Value}"; end = after + cm.Length; return true; }
+                return false;
+            }
             if (!serverSide && id.Equals("Site", StringComparison.OrdinalIgnoreCase) && after < text.Length && text[after] == '.' && cx.SiteProperties is { Count: > 0 } sites)
             {
                 var m = Regex.Match(text[(after + 1)..], @"^[A-Za-z_]\w*");
@@ -306,6 +337,10 @@ static class ScreenTranslator
             { replacement = pg.Max; end = after + 10; return true; }
             if (tables.TryGetValue(id, out var source))
             {
+                // A table on a query of the Preparation data action: <Table>.List is that query's list output.
+                if (Regex.Match(source, @"^(\w+)\.List$") is { Success: true } tq && prepReads.GetValueOrDefault(tq.Groups[1].Value) is { Kind: "query" }
+                    && text.AsSpan(after).StartsWith(".List", StringComparison.OrdinalIgnoreCase))
+                    return PrepQuery(text, tq.Groups[1].Value, after, out replacement, out end);
                 if (text.AsSpan(after).StartsWith(".List", StringComparison.OrdinalIgnoreCase) && (after + 5 >= text.Length || !(char.IsLetterOrDigit(text[after + 5]) || text[after + 5] == '_')))
                 { replacement = source; end = after + 5; return true; }
                 if (text.AsSpan(after).StartsWith(".LineCount", StringComparison.OrdinalIgnoreCase) && (after + 10 >= text.Length || !(char.IsLetterOrDigit(text[after + 10]) || text[after + 10] == '_')))
@@ -562,6 +597,8 @@ static class ScreenTranslator
                 extraLocals["SessionKey"] = new JsonObject { ["name"] = "SessionKey", ["type"] = "Text" };
                 initFills.Insert(0, ("SessionKey", "Client.SessionKey"));
             }
+            if (prepAction is not null) { var das = spec["dataActions"] as JsonArray ?? new JsonArray(); das.Add(prepAction); spec["dataActions"] = das; }
+            if (prepHandler is not null) actions.Add(prepHandler);
             foreach (var a in extraActions) actions.Add(a);   // list handlers and actions that widgets needed (after the widgets)
             Lifecycle(aggs, actions, spec);
             foreach (var l in extraLocals.Values) locals.Add(l);
@@ -719,9 +756,16 @@ static class ScreenTranslator
             }
             var logic = calls.Where(n => NodeKind(n) != "aggregate").ToList();
             if (logic.Count == 0) return result;
-            var why = Lift(calls, nodes.Where(n => NodeKind(n) == "comment").ToList(), logic);
-            if (why is not null)
-                Todo($"its Preparation logic was not translated ({why}); the aggregates were kept, and the nodes left are {Summary(logic)}; a data action is the usual home for this logic (skill/reference/traditional-to-reactive.md): move it there and set the screen's data from its outputs");
+            var comments = nodes.Where(n => NodeKind(n) == "comment").ToList();
+            // Logic that works on the server (SQL, server calls) becomes the data action Preparation (one request, the Traditional order); logic
+            // that does not is lifted into client actions when it can be, else it goes to the data action too.
+            var serverWork = logic.Any(n => NodeKind(n) == "sql" || NodeKind(n) == "execute" && !Leaf(S(n["action"]) ?? S(n["_ref"]) ?? "").Equals("Feedback_Message", StringComparison.OrdinalIgnoreCase));
+            string? dataWhy = null;
+            if (serverWork && (dataWhy = DataAction(calls, comments, logic, result)) is null) return result;
+            var why = Lift(calls, comments, logic);
+            if (why is null) return result;
+            if (!serverWork && (dataWhy = DataAction(calls, comments, logic, result)) is null) return result;
+            Todo($"its Preparation logic was not translated ({why}; as a data action: {dataWhy}); the aggregates were kept, and the nodes left are {Summary(logic)}; move the logic to a data action by hand and set the screen's data from its outputs (skill/reference/traditional-to-reactive.md)");
             return result;
         }
 
@@ -919,6 +963,211 @@ static class ScreenTranslator
             }
             return null;
         }
+
+        // Rule 1b. A Preparation whose logic works on the server (SQL, server calls) or cannot be lifted becomes one data action, Preparation: it
+        // runs on the server in one request, in the Traditional order, as the Preparation did. Its nodes are the logic, plus the aggregates the logic
+        // reads or that read a node's output; the other aggregates stay screen aggregates (one whose filter reads a local the logic sets is fetched
+        // on demand, after the data action). A local or input the logic assigns is an output <Name>Value (a data action cannot set screen variables;
+        // an output cannot share a local's name): it starts from the local and onAfterFetch copies it back. What the screen reads of a node is an
+        // output too: <Query>List (List of the query's one entity or structure; List.Current.<Entity>.X becomes .Current.X), <Query>Count, and
+        // <Node>_<Output> of a server action call. Returns null when it was built, else why not (nothing is kept then).
+        static readonly HashSet<string> DataKinds = ["assign", "if", "switch", "foreach", "execute", "aggregate", "sql", "raiseexception", "jsonserialize", "jsondeserialize", "exceptionhandler"];
+        Dictionary<string, string>? daRenames;   // local -> output, while the data action's nodes are rewritten
+        string? daProblem;                       // what the rewrite found that a data action cannot read
+        readonly Dictionary<string, (string Kind, string Record)> prepReads = new(StringComparer.OrdinalIgnoreCase);   // node -> what the screen reads of it
+        string prepName = "Preparation";
+        JsonObject? prepAction, prepHandler;
+
+        static IEnumerable<string> Texts(JsonNode? n, bool skipNames = true)
+        {
+            switch (n)
+            {
+                case JsonObject o:
+                    foreach (var (k, v) in o) if (!(skipNames && (NameKeys.Contains(k) || k is "sources" or "outputs" or "_path" or "sql" or "left" or "right" or "as" or "function")))
+                        foreach (var t in Texts(v, skipNames)) yield return t;
+                    break;
+                case JsonArray a: foreach (var x in a) foreach (var t in Texts(x, skipNames)) yield return t; break;
+                case JsonValue v when v.GetValueKind() == System.Text.Json.JsonValueKind.String && S(v) is { } s: yield return s; break;
+            }
+        }
+
+        string? DataAction(List<JsonObject> calls, List<JsonObject> comments, List<JsonObject> logic, JsonArray screenAggs)
+        {
+            var bad = logic.Where(n => !DataKinds.Contains(NodeKind(n))).ToList();
+            if (bad.Count > 0) return $"{Summary(bad)} cannot run in a data action, which runs on the server and cannot navigate or show a message";
+            foreach (var x in logic.Where(n => NodeKind(n) == "execute"))
+            {
+                var act = S(x["action"]) ?? S(x["_ref"]) ?? "";
+                if (IsNotify(x) || Leaf(act).Equals("Feedback_Message", StringComparison.OrdinalIgnoreCase)
+                    || (UiLibraryMap.IsLibrary(act) || !act.Contains('.')) && UiLibraryMap.Action(act.Contains('.') ? act : "RichWidgets." + Leaf(act)) is { ReactiveKind: "clientAction" })
+                    return $"it calls {act}, which runs in the browser";
+            }
+            var names = calls.Select(n => S(n["name"])).ToList();
+            if (names.Any(Blank) || names.Distinct(StringComparer.OrdinalIgnoreCase).Count() != names.Count) return "its nodes have no unique names";
+            var byName = calls.ToDictionary(n => S(n["name"])!, StringComparer.OrdinalIgnoreCase);
+            var order = names.Select(x => x!).ToList();
+            string Implicit(JsonObject n) { var i = order.FindIndex(x => x.Equals(S(n["name"]), StringComparison.OrdinalIgnoreCase)); return i + 1 < order.Count ? order[i + 1] : "End"; }
+            if (calls.Any(n => Connectors.Select(k => S(n[k])).Concat(Objs(n["cases"]).Select(c => S(c["next"]))).Any(t => t is not null && t != "End" && !byName.ContainsKey(t))))
+                return "a connector names a node that is not in the Preparation";
+
+            var aggNames = calls.Where(n => NodeKind(n) == "aggregate").Select(n => S(n["name"])!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var logicNames = logic.Select(n => S(n["name"])!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> RootsIn(IEnumerable<string> texts, HashSet<string> among) => texts.SelectMany(Chains).Select(Root).Where(among.Contains).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // Locals and inputs the logic assigns; Session.X cannot be written from a data action.
+            var targets = logic.Where(n => NodeKind(n) == "assign").SelectMany(n => (n["assign"] as JsonObject ?? []).Select(kv => Chains(kv.Key).FirstOrDefault())).OfType<string>().Select(Root).ToList();
+            if (targets.FirstOrDefault(t => t.StartsWith("Session.", StringComparison.OrdinalIgnoreCase)) is { } sw) return $"it sets {sw}, which a data action cannot";
+            if (targets.FirstOrDefault(t => !varTypes.ContainsKey(t) && !t.Equals("Site", StringComparison.OrdinalIgnoreCase)) is { } unknown) return $"it assigns {unknown}, which is not an input or local of the screen";
+            var written = targets.Where(varTypes.ContainsKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // The aggregates that go in: read by the logic, or reading a node's output. The others stay; one that reads an assigned local refetches after.
+            var moved = RootsIn(logic.SelectMany(n => Texts(n)), aggNames);
+            var refetch = new List<string>();
+            foreach (var a in calls.Where(n => NodeKind(n) == "aggregate" && !moved.Contains(S(n["name"])!)))
+            {
+                var roots = AggregateExprs(a).SelectMany(Chains).Select(Root).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (roots.Any(logicNames.Contains)) moved.Add(S(a["name"])!);
+                else if (roots.Any(written.Contains)) refetch.Add(S(a["name"])!);
+            }
+            foreach (var m in moved)
+            {
+                if (paging.Values.Any(p => p.Agg.Equals(m, StringComparison.OrdinalIgnoreCase)) || sorting.Values.Any(s => s.Agg.Equals(m, StringComparison.OrdinalIgnoreCase)))
+                    return $"the aggregate {m} pages or sorts a list and its logic reads it";
+                if (afterFills.Any(f => f.agg.Equals(m, StringComparison.OrdinalIgnoreCase)) || forms.Values.Any(f => f.StartsWith(m + ".", StringComparison.OrdinalIgnoreCase)))
+                    return $"a form shows a record of the aggregate {m}, which its logic reads";
+            }
+
+            // What the screen reads of the nodes that go in: every text outside the Preparation, and the aggregates that stay.
+            var outside = Texts(el["widgets"]).Concat(Texts(el["actions"])).Concat(S(el["title"]) is { } tt ? [tt] : [])
+                .Concat(calls.Where(n => NodeKind(n) == "aggregate" && !moved.Contains(S(n["name"])!)).SelectMany(n => AggregateExprs(n)));
+            var inside = moved.Concat(logicNames).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var outputs = new List<(string Name, string Type, string Value)>();
+            var reads = new Dictionary<string, (string Kind, string Record)>(StringComparer.OrdinalIgnoreCase);
+            foreach (var chain in outside.SelectMany(Chains).Where(c => inside.Contains(c.Split('.')[0])).Distinct(StringComparer.OrdinalIgnoreCase).ToList())
+            {
+                var parts = chain.Split('.');
+                var node = byName[parts[0]];
+                var nn = S(node["name"])!;
+                switch (NodeKind(node))
+                {
+                    case "aggregate" or "sql":
+                        if (parts.Length < 2) continue;
+                        var record = NodeKind(node) == "sql"
+                            ? (node["outputs"] as JsonArray is { Count: 1 } so ? S(so[0]) : null)
+                            : (node["sources"] as JsonArray is { Count: 1 } src && !new[] { "groupBy", "aggregates", "calculated" }.Any(k => node[k] is JsonArray { Count: > 0 }) ? S(src[0]) : null);
+                        if (record is null) return $"the screen reads {nn}, whose records hold several entities or computed values, which a data action output cannot hold";
+                        reads[nn] = ("query", record);
+                        if (parts[1].Equals("List", StringComparison.OrdinalIgnoreCase) && !outputs.Any(o => o.Name.Equals(nn + "List", StringComparison.OrdinalIgnoreCase)))
+                            outputs.Add((nn + "List", "List of " + record, nn + ".List"));
+                        else if (parts[1].Equals("Count", StringComparison.OrdinalIgnoreCase) && NodeKind(node) == "aggregate" && !outputs.Any(o => o.Name.Equals(nn + "Count", StringComparison.OrdinalIgnoreCase)))
+                            outputs.Add((nn + "Count", "Long Integer", nn + ".Count"));
+                        else if (!parts[1].Equals("List", StringComparison.OrdinalIgnoreCase) && !parts[1].Equals("Count", StringComparison.OrdinalIgnoreCase))
+                            return $"the screen reads {chain}, which a data action output does not give";
+                        break;
+                    case "execute":
+                        if (parts.Length < 2) continue;
+                        var act = S(node["action"]) ?? S(node["_ref"]) ?? "";
+                        if (cx.ServerOutputs?.GetValueOrDefault(act)?.FirstOrDefault(kv => kv.Key.Equals(parts[1], StringComparison.OrdinalIgnoreCase)) is not { Key: { } ok, Value: { } type })
+                            return $"the screen reads {chain}, an output of {act} whose type is not known here";
+                        reads[nn] = ("call", "");
+                        if (!outputs.Any(o => o.Name.Equals($"{nn}_{ok}", StringComparison.OrdinalIgnoreCase))) outputs.Add(($"{nn}_{ok}", type, $"{nn}.{ok}"));
+                        break;
+                    default: return $"the screen reads {chain}, a node of the Preparation";
+                }
+            }
+
+            // The data action: the start values of what the logic writes, the nodes (connectors made explicit, around the aggregates that stay),
+            // the outputs the screen reads, then End.
+            var taken = new HashSet<string>(varTypes.Keys.Concat(order).Concat(outputs.Select(o => o.Name)), StringComparer.OrdinalIgnoreCase);
+            var renames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var w in written.Order(StringComparer.OrdinalIgnoreCase)) { var r = w + "Value"; for (var i = 2; !taken.Add(r); i++) r = w + "Value" + i; renames[w] = r; }
+            string Resolve(string t) { for (var g = 0; g < 200 && t != "End" && NodeKind(byName[t]) == "aggregate" && !moved.Contains(t); g++) t = S(byName[t]["next"]) ?? Implicit(byName[t]); return t; }
+            const string SetOutputs = "SetOutputs";
+            var hasOutputs = outputs.Count > 0;
+            string To(string? t, JsonObject n) { t = Resolve(t ?? Implicit(n)); return t == "End" && hasOutputs ? SetOutputs : t == "End" ? "End" : S(byName[t]["name"])!; }
+            var entry = Resolve(order[0]);
+
+            var mark = (todo: todo.Count, actions: entityActions.Count, server: new SortedDictionary<string, (string, string)>(serverValues, StringComparer.OrdinalIgnoreCase));
+            var an = UniqueAction("Preparation");
+            var flow = new JsonArray();
+            if (renames.Count > 0)
+                flow.Add(new JsonObject { ["kind"] = "assign", ["name"] = UniqueIn(taken, "Start" + "Values"),
+                    ["assign"] = new JsonObject(renames.Select(kv => KeyValuePair.Create(kv.Value, (JsonNode?)JsonValue.Create(kv.Key)))), ["next"] = entry == "End" && hasOutputs ? SetOutputs : entry });
+            daRenames = renames; serverSide = true; daProblem = null;
+            try
+            {
+                foreach (var n in calls.Where(n => NodeKind(n) != "aggregate" || moved.Contains(S(n["name"])!)))
+                {
+                    var c = (JsonObject)n.DeepClone();
+                    JsonObject o;
+                    switch (NodeKind(c))
+                    {
+                        case "aggregate":
+                            o = new JsonObject { ["kind"] = "aggregate", ["name"] = S(c["name"]) };
+                            foreach (var key in new[] { "sources", "joins", "filters", "sorts", "groupBy", "aggregates", "calculated", "groupFilters", "groupSorts", "groupCalculated", "maxRecords", "startIndex", "timeout" })
+                                if (c[key] is { } v) o[key] = RwTree(v, $"the aggregate {S(c["name"])}", "name", "sources", "type", "function", "as", "left", "right");
+                            o["next"] = To(S(c["next"]), c);
+                            break;
+                        case "sql" or "jsonserialize" or "jsondeserialize":
+                            o = (JsonObject)RwTree(c, $"the node {S(c["name"])}", [.. NameKeys, "sql", "outputs", "_path", "dataType"])!;
+                            o.Remove("_path");
+                            o["next"] = To(S(c["next"]), c);
+                            break;
+                        default:
+                            switch (NodeKind(c))
+                            {
+                                case "if": c["true"] = To(S(c["true"]), c); c["false"] = To(S(c["false"]), c); break;
+                                case "switch": foreach (var cs in Objs(c["cases"])) cs["next"] = To(S(cs["next"]), c); c["otherwise"] = To(S(c["otherwise"]), c); break;
+                                case "foreach": c["cycle"] = To(S(c["cycle"]), c); c["next"] = To(S(c["next"]), c); break;
+                                case "raiseexception": break;
+                                default: c["next"] = To(S(c["next"]), c); break;
+                            }
+                            o = Node(c, an);
+                            break;
+                    }
+                    flow.Add(o);
+                }
+            }
+            finally { daRenames = null; serverSide = false; }
+            if (daProblem is { } problem)
+            {
+                todo.RemoveRange(mark.todo, todo.Count - mark.todo); entityActions.RemoveRange(mark.actions, entityActions.Count - mark.actions);
+                serverValues.Clear(); foreach (var (k, v) in mark.server) serverValues[k] = v;
+                actionNames.Remove(an);
+                return problem;
+            }
+            if (hasOutputs)
+                flow.Add(new JsonObject { ["kind"] = "assign", ["name"] = SetOutputs, ["assign"] = new JsonObject(outputs.Select(o => KeyValuePair.Create(o.Name, (JsonNode?)JsonValue.Create(o.Value)))), ["next"] = "End" });
+            foreach (var cm in comments) flow.Add(new JsonObject { ["kind"] = "comment", ["text"] = S(cm["text"]) ?? "" });
+            var outs = renames.Select(kv => (Name: kv.Value, Type: varTypes[kv.Key])).Concat(outputs.Select(o => (o.Name, o.Type)));
+            prepName = an;
+            prepAction = new JsonObject
+            {
+                ["name"] = an,
+                ["description"] = "The Preparation of the Traditional screen, on the server in one request (oml migrate).",
+                ["outputs"] = new JsonArray(outs.Select(o => (JsonNode?)new JsonObject { ["name"] = o.Name, ["type"] = o.Type }).ToArray()),
+                ["flow"] = flow,
+            };
+            foreach (var (k, v) in reads) prepReads[k] = v;
+            // Back on the screen: the moved aggregates go, the locals take the values, the aggregates that read them fetch again.
+            foreach (var a in screenAggs.OfType<JsonObject>().Where(a => moved.Contains(S(a["name"]) ?? "")).ToList()) screenAggs.Remove(a);
+            foreach (var m in moved) { aggregates.Remove(m); aggDefs.Remove(m); }
+            if (renames.Count > 0 || refetch.Count > 0)
+            {
+                var hflow = new JsonArray();
+                var steps = new List<JsonObject>();
+                if (renames.Count > 0) steps.Add(new JsonObject { ["kind"] = "assign", ["name"] = "TakeValues", ["assign"] = new JsonObject(renames.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode?)JsonValue.Create($"{an}.{kv.Value}")))) });
+                foreach (var r in refetch)
+                {
+                    steps.Add(new JsonObject { ["kind"] = "refreshData", ["name"] = "Refresh" + r, ["dataSource"] = r });
+                    if (screenAggs.OfType<JsonObject>().FirstOrDefault(a => string.Equals(S(a["name"]), r, StringComparison.OrdinalIgnoreCase)) is { } sa) sa["fetch"] = "onDemand";
+                }
+                for (var i = 0; i < steps.Count; i++) { steps[i]["next"] = i + 1 < steps.Count ? S(steps[i + 1]["name"]) : "End"; hflow.Add(steps[i]); }
+                prepHandler = new JsonObject { ["name"] = UniqueAction(an + "OnAfterFetch"), ["flow"] = hflow };
+                prepAction["onAfterFetch"] = S(prepHandler["name"]);
+            }
+            return null;
+        }
+
+        static string UniqueIn(HashSet<string> taken, string wanted) { var u = wanted; for (var i = 2; !taken.Add(u); i++) u = wanted + i; return u; }
 
         // Rule 2 and the lifecycle: a form record filled from an input or local at initialize, or from an aggregate after its fetch, becomes an assign
         // at the start of the handler (made if there is none); then the handlers are added to the actions and named by their keys.
@@ -1143,7 +1392,7 @@ static class ScreenTranslator
                     var map = new JsonObject();
                     foreach (var (k, v) in n["assign"] as JsonObject ?? [])
                     {
-                        if (Regex.IsMatch(k, @"^\s*Site\.\w+\s*$"))   // a site property is set on the server only
+                        if (!serverSide && Regex.IsMatch(k, @"^\s*Site\.\w+\s*$"))   // a site property is set on the server only
                         {
                             Todo($"{at} sets the site property {k.Trim()}, which a screen action cannot do in Reactive; set it in a server action that the action calls");
                             map[k] = Rw(S(v), at);
@@ -1534,12 +1783,13 @@ static class ScreenTranslator
                 if (UiLibraryMap.IsLibrary(action))
                     Todo($"{at} calls {action} of a Traditional UI library, which the new module does not reference" + (UiLibraryMap.Action(action) is { } lib
                         ? (lib.Reactive is { Length: > 0 } r ? $"; the map gives {r} ({lib.ReactiveKind}): {lib.Notes}" : $"; {lib.Notes}") : "; replace or remove the call"));
-                else if (PageOnly.TryGetValue(leaf, out var instead) && (!action.Contains('.') || action.StartsWith("(System).", StringComparison.OrdinalIgnoreCase) || action.StartsWith("System.", StringComparison.OrdinalIgnoreCase)))
+                else if (!InData && PageOnly.TryGetValue(leaf, out var instead) && (!action.Contains('.') || action.StartsWith("(System).", StringComparison.OrdinalIgnoreCase) || action.StartsWith("System.", StringComparison.OrdinalIgnoreCase)))
                     Todo($"{at} calls {leaf}, which works on the page a Traditional server request renders; a Reactive screen action runs in the browser: {instead}");
             }
             if (n["args"] is JsonObject args2 && args2.Count > 0) o["args"] = RwTree(args2, at);
             if (cx.SessionInputs?.GetValueOrDefault(action) is { Count: > 0 } carried)   // the client variable that used to be a session variable
             {
+                if (InData) daProblem ??= $"{at} calls {action}, which takes a client variable that a data action cannot read";
                 var a3 = o["args"] as JsonObject ?? new JsonObject();
                 foreach (var (input, variable) in carried) if (!a3.ContainsKey(input)) a3[input] = "Client." + variable;
                 o["args"] = a3;
@@ -2511,7 +2761,7 @@ static class ScreenTranslator
         var noWrapper = Translate(detail, plain with { Wrappers = new Dictionary<string, string>() });
         Check(noWrapper.EntityActions.SequenceEqual(["CreateOrUpdateOrder"]) && Text(noWrapper.Spec, "actions", 0, "flow", 0, "action") == "CreateOrUpdateOrder" && Has(noWrapper.Todo, "Order_CreateOrUpdate", "wrapper"), "OrderDetail without a wrapper: the node stays, the entity action is recorded and a Todo names the wrapper");
 
-        // 3. A Preparation with an if and a server call is not translated (rule 2); the screen is still built.
+        // 3. A Preparation with an if and a server call is the data action Preparation (rule 1b).
         var prep = Parse("""
         { "kind": "Screen", "name": "Dash", "flow": "MainFlow", "moduleKind": "Traditional", "preparation": { "complete": true, "nodes": [
             { "kind": "if", "name": "IsAdmin", "condition": "Role", "true": "Load", "false": "End" },
@@ -2520,8 +2770,9 @@ static class ScreenTranslator
           "actions": [], "widgets": [ { "kind": "WebText", "type": "Text", "props": { "text": "Hi" } } ] }
         """);
         var pr = Translate(prep, plain);
-        Check(pr.Status == "partial" && Text(pr.Spec, "aggregates", 0, "name") == "GetStats" && At(pr.Spec, "onInitialize") is null && At(pr.Spec, "actions") is null && Text(pr.Spec, "widgets", 0, "text") == "Hi" && Has(pr.Todo, "Preparation", "if IsAdmin", "execute Load", "not on every path", "aggregates were kept", "data action"),
-            $"Dash: an aggregate on only one branch: the logic is not translated, the aggregate is kept, the Todo lists the nodes and asks for a data action: [{string.Join(" | ", pr.Todo)}]");
+        Check(pr.Status == "translated" && Text(pr.Spec, "aggregates", 0, "name") == "GetStats" && At(pr.Spec, "onInitialize") is null && At(pr.Spec, "actions") is null && Text(pr.Spec, "widgets", 0, "text") == "Hi"
+            && Text(pr.Spec, "dataActions", 0, "name") == "Preparation" && Text(pr.Spec, "dataActions", 0, "flow", 0, "true") == "Load" && Text(pr.Spec, "dataActions", 0, "flow", 1, "action") == "LoadDashboard" && Text(pr.Spec, "dataActions", 0, "flow", 1, "next") == "End",
+            $"Dash: an if and a server call are the data action Preparation; the aggregate the logic does not read stays a screen aggregate: {pr.Spec?.ToJsonString()} [{string.Join(" | ", pr.Todo)}]");
 
         // 4. A screen action with an aggregate becomes a stub that keeps the widget binding valid (rule 3).
         var stub = Parse("""
@@ -2659,33 +2910,48 @@ static class ScreenTranslator
         Check(At(after, "flow")!.AsArray().Count == 3 && Text(after, "flow", 0, "name") == "Any" && Text(after, "flow", 0, "kind") == "if" && Text(after, "flow", 0, "true") == "NoOrders" && Text(after, "flow", 0, "false") == "Stats"
             && Text(after, "flow", 1, "kind") == "execute" && Text(after, "flow", 1, "action") == "LoadStats" && Text(after, "flow", 1, "next") == "End" && Text(after, "flow", 2, "assign", "Note") == "\"No orders for \" + Client.Lang" && Text(after, "flow", 2, "next") == "End", "Customers: the onAfterFetch action starts at the if and keeps its branches, the server call and the assign, with explicit connectors");
 
-        //    The unsafe cases: the aggregates are kept, the logic is not translated, and the Todo names the nodes and why.
-        JsonObject Prep(string nodes, string locals = "") => Parse("{ \"kind\": \"Screen\", \"name\": \"P\", \"flow\": \"MainFlow\", \"moduleKind\": \"Traditional\", " + locals + "\"preparation\": { \"complete\": true, \"nodes\": [" + nodes + "] }, \"widgets\": [] }");
-        void NotLifted(string what, string nodes, string[] words, int aggregatesKept = 1)
-        {
-            var x = Translate(Prep(nodes), plain);
-            Check(x.Status == "partial" && At(x.Spec, "onInitialize") is null && At(x.Spec, "actions") is null && At(x.Spec, "aggregates")!.AsArray().Count == aggregatesKept && At(x.Spec, "aggregates", 0, "onAfterFetch") is null
-                && Has(x.Todo, new[] { "Preparation logic was not translated", "aggregates were kept", "data action" }.Concat(words).ToArray()), $"{what}: kept the aggregates, left the logic, said why: [{string.Join(" | ", x.Todo)}]");
-        }
-        NotLifted("two aggregates read after the first", """
+        //    The cases Lift cannot prove become the data action Preparation (the Traditional order, on the server); one that navigates stays a Todo.
+        JsonObject Prep(string nodes, string locals = "", string widgets = "") => Parse("{ \"kind\": \"Screen\", \"name\": \"P\", \"flow\": \"MainFlow\", \"moduleKind\": \"Traditional\", " + locals + "\"preparation\": { \"complete\": true, \"nodes\": [" + nodes + "] }, \"widgets\": [" + widgets + "] }");
+        var dataCx = plain with { ServerOutputs = new Dictionary<string, IReadOnlyDictionary<string, string>> { ["LoadLimit"] = new Dictionary<string, string> { ["Limit"] = "Integer" } } };
+        string Kinds(JsonNode? flow) => string.Join(",", (flow as JsonArray ?? []).OfType<JsonObject>().Select(n => Text(n, "name") ?? Text(n, "kind")));
+        var two = Translate(Prep("""
             { "kind": "aggregate", "name": "GetA", "sources": ["A"], "next": "GetB" }, { "kind": "aggregate", "name": "GetB", "sources": ["B"], "next": "Sum" },
             { "kind": "assign", "name": "Sum", "assign": { "Total": "GetA.List.Length + GetB.List.Length" }, "next": "End" }
-            """, ["assign Sum", "read 2 aggregates", "GetA, GetB"], 2);
-        NotLifted("SQL in the Preparation", """
-            { "kind": "sql", "name": "Raw", "next": "GetX" }, { "kind": "aggregate", "name": "GetX", "sources": ["X"], "next": "End" }
-            """, ["sql Raw", "SQL node needs a server action"]);
-        NotLifted("an assignment to what a filter reads", """
-            { "kind": "assign", "name": "Clean", "assign": { "Search": "Trim(Search)" }, "next": "GetX" },
-            { "kind": "aggregate", "name": "GetX", "sources": ["X"], "filters": ["X.Name like Search"], "next": "End" }
-            """, ["assign Clean", "assigns Search", "order"]);
-        NotLifted("a filter that reads the output of a node", """
-            { "kind": "execute", "name": "Load", "action": "LoadLimit", "_ref": "LoadLimit", "next": "GetX" },
-            { "kind": "aggregate", "name": "GetX", "sources": ["X"], "maxRecords": "Load.Limit", "next": "End" }
-            """, ["execute Load", "reads the output of the node Load"]);
-        NotLifted("a Destination before the aggregate and a node after it", """
+            """, "\"locals\": [ { \"name\": \"Total\", \"type\": \"Integer\" } ], "), dataCx);
+        Check(two.Status == "translated" && At(two.Spec, "aggregates") is null && Text(two.Spec, "dataActions", 0, "name") == "Preparation" && Kinds(At(two.Spec, "dataActions", 0, "flow")) == "StartValues,GetA,GetB,Sum"
+            && Text(two.Spec, "dataActions", 0, "flow", 0, "assign", "TotalValue") == "Total" && Text(two.Spec, "dataActions", 0, "flow", 3, "assign", "TotalValue") == "GetA.List.Length + GetB.List.Length"
+            && Text(two.Spec, "dataActions", 0, "outputs", 0, "name") == "TotalValue" && Text(two.Spec, "dataActions", 0, "onAfterFetch") == "PreparationOnAfterFetch"
+            && Text(two.Spec, "actions", 0, "flow", 0, "assign", "Total") == "Preparation.TotalValue",
+            $"Data action: two aggregates read by the logic go in, the local is an output copied back after the fetch: {two.Spec?.ToJsonString()} [{string.Join(" | ", two.Todo)}]");
+        var sqlPrep = Translate(Prep("""
+            { "kind": "sql", "name": "Raw", "sql": "SELECT {Order}.* FROM {Order} WHERE {Order}.[Total] > @Min", "params": [ { "name": "Min", "type": "Integer", "value": "Load.Limit" } ], "outputs": ["Order"], "next": "Load" },
+            { "kind": "execute", "name": "Load", "action": "LoadLimit", "next": "GetX" }, { "kind": "aggregate", "name": "GetX", "sources": ["X"], "next": "End" }
+            """, "", """
+                    { "kind": "WebTableRecords", "type": "TableRecords", "name": "Rows", "props": { "source": "Raw.List" }, "header": [], "row": [ { "kind": "WebCell", "type": "Cell", "children": [ { "kind": "WebExpression", "type": "Expression", "props": { "value": "Raw.List.Current.Order.Total + Load.Limit" } } ] } ] },
+                    { "kind": "WebExpression", "type": "Expression", "props": { "value": "Rows.List.Length" } }
+                    """), dataCx);
+        Check(sqlPrep.Status == "translated" && Text(sqlPrep.Spec, "aggregates", 0, "name") == "GetX" && Kinds(At(sqlPrep.Spec, "dataActions", 0, "flow")) == "Raw,Load,SetOutputs"
+            && Text(sqlPrep.Spec, "dataActions", 0, "flow", 1, "next") == "SetOutputs" && Text(sqlPrep.Spec, "dataActions", 0, "flow", 0, "params", 0, "value") == "Load.Limit"
+            && Text(sqlPrep.Spec, "dataActions", 0, "outputs", 0, "name") == "RawList" && Text(sqlPrep.Spec, "dataActions", 0, "outputs", 0, "type") == "List of Order"
+            && Text(sqlPrep.Spec, "dataActions", 0, "outputs", 1, "name") == "Load_Limit" && Text(sqlPrep.Spec, "dataActions", 0, "flow", 2, "assign", "RawList") == "Raw.List"
+            && Text(sqlPrep.Spec, "widgets", 0, "source") == "Preparation.RawList" && Text(sqlPrep.Spec, "widgets", 0, "row", 0, "children", 0, "value") == "Preparation.RawList.Current.Total + Preparation.Load_Limit"
+            && Text(sqlPrep.Spec, "widgets", 1, "value") == "Preparation.RawList.Length" && At(sqlPrep.Spec, "actions") is null,
+            $"Data action: SQL and a server call; what the screen reads of them are outputs (List.Current.Order.X is List.Current.X): {sqlPrep.Spec?.ToJsonString()} [{string.Join(" | ", sqlPrep.Todo)}]");
+        var refetch = Translate(Prep("""
+            { "kind": "assign", "name": "Clean", "assign": { "Search": "Trim(Search)" }, "next": "Load" }, { "kind": "execute", "name": "Load", "action": "LoadLimit", "next": "GetX" },
+            { "kind": "aggregate", "name": "GetX", "sources": ["X"], "filters": ["X.Name like Search"], "next": "GetY" }, { "kind": "aggregate", "name": "GetY", "sources": ["Y"], "maxRecords": "Load.Limit", "next": "End" }
+            """, "\"locals\": [ { \"name\": \"Search\", \"type\": \"Text\" } ], "), dataCx);
+        Check(refetch.Status == "translated" && Text(refetch.Spec, "aggregates", 0, "name") == "GetX" && Text(refetch.Spec, "aggregates", 0, "fetch") == "onDemand" && At(refetch.Spec, "aggregates", 1) is null
+            && Kinds(At(refetch.Spec, "dataActions", 0, "flow")) == "StartValues,Clean,Load,GetY" && Text(refetch.Spec, "dataActions", 0, "flow", 1, "assign", "SearchValue") == "Trim(SearchValue)"
+            && Text(refetch.Spec, "dataActions", 0, "flow", 2, "next") == "GetY" && Text(refetch.Spec, "actions", 0, "flow", 1, "dataSource") == "GetX",
+            $"Data action: an aggregate that reads an assigned local fetches after it, one that reads a node's output goes in: {refetch.Spec?.ToJsonString()} [{string.Join(" | ", refetch.Todo)}]");
+        var away = Translate(Prep("""
             { "kind": "if", "name": "Gone", "condition": "Flag", "true": "Away", "false": "GetX" }, { "kind": "destination", "name": "Away", "screen": "Home" },
             { "kind": "aggregate", "name": "GetX", "sources": ["X"], "next": "Use" }, { "kind": "assign", "name": "Use", "assign": { "N": "GetX.List.Length" }, "next": "End" }
-            """, ["if Gone", "ends in a Destination"]);
+            """), plain);
+        Check(away.Status == "partial" && At(away.Spec, "dataActions") is null && At(away.Spec, "actions") is null && At(away.Spec, "aggregates")!.AsArray().Count == 1
+            && Has(away.Todo, "Preparation logic was not translated", "aggregates were kept", "ends in a Destination", "destination Away", "cannot run in a data action"),
+            $"A Preparation that navigates: kept the aggregates, left the logic, said why for both ways: [{string.Join(" | ", away.Todo)}]");
 
         // 13. Rule 2: forms. A record of a screen aggregate (done above, in OrderDetail); an input is the local's default; a local is copied at initialize unless the
         //     Preparation assigns it; an aggregate's own record binds the form directly (Reactive scaffolding); a function result or an unknown source stay Todo lines.
