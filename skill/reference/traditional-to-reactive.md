@@ -51,7 +51,7 @@ OutSystemsUIWeb, RichWidgets and OutSystemsChartsWeb blocks are translated by a 
 | Traditional | Reactive |
 |---|---|
 | Preparation | Aggregates stay screen aggregates (code). Logic with SQL or server calls becomes the data action `Preparation`, in the Traditional order and one request, with the aggregates it reads; assigned locals come back as `<Local>Value` outputs in its `onAfterFetch`, and what the screen reads of a query is `Preparation.<Query>List` (code). Other logic: `onInitialize` and one aggregate's `onAfterFetch` when provable, else the data action. A Preparation that navigates is a Todo |
-| Aggregate or SQL in a screen action | A server action returning what the later nodes read (SQL always on the server); the action is a stub |
+| Aggregate or SQL in a screen action | Joins the server action below; later nodes read `<Query>_List` (`.Current.X`) and `<Query>_Count` (code). Reading a widget or multi-entity records: a stub |
 | Screen action (server) | Client action; two or more server calls in a row become one server action `<Screen>_<Action>` that starts with the screen's access check (`AccessDenied`) (code) |
 | Session variable | Client variable when it holds nothing sensitive (the user can read it), passed as an input to server logic; else data read again on the server |
 | Site property read in the screen | `ServerValues.X`, an output of the data action `ServerValues`; aggregates keep `Site.X`; a secret one is a Todo (code) |
