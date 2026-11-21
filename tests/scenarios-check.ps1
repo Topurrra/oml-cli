@@ -1,6 +1,6 @@
 # oml test scenarios: a source module and a staged copy with a new public action (a branch, a raised exception, a
 # mandatory input, an entity write) and a new screen (a named field, a button whose action shows a warning or a success
-# message). Checks the BDD and QA scenarios, the qa.json skeleton, that a private action and an unchanged module give
+# message). Checks the BDD and QA scenarios, the browser script skeleton, that a private action and an unchanged module give
 # nothing, and the refusals. Throws on the first failure.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
@@ -29,10 +29,10 @@ try {
   Require (-not ($md -match 'Helper')) 'a private action must not be listed'
   Write-Host 'ok   test scenarios: BDD per public action (branches, raise, empty input, entity write), QA per screen path'
 
-  $qa = Get-Content (Join-Path $out 'qa\ContactForm.qa.json') -Raw | ConvertFrom-Json
+  $qa = Get-Content (Join-Path $out 'browser\ContactForm.browser.json') -Raw | ConvertFrom-Json
   Require ($qa.steps[0].open -eq 'ContactForm' -and $qa.steps[1].fill.NameInput -and $qa.steps[2].click -eq 'SaveButton' -and $qa.steps[2].expect.feedback.type -eq 'success') "qa skeleton: $($qa | ConvertTo-Json -Compress -Depth 6)"
-  Require ((Get-Content (Join-Path $out 'qa\ContactForm.qa.json') -Raw) -match '<FILL: https://') 'qa skeleton: readable placeholder'
-  Write-Host 'ok   test scenarios: the qa.json skeleton follows the success path'
+  Require ((Get-Content (Join-Path $out 'browser\ContactForm.browser.json') -Raw) -match '<FILL: https://') 'qa skeleton: readable placeholder'
+  Write-Host 'ok   test scenarios: the browser script skeleton follows the success path'
 
   # Nothing changed: no scenario. A folder that is not empty is refused.
   $same = Json test scenarios $staged $staged --out (Join-Path $Tmp 'same')

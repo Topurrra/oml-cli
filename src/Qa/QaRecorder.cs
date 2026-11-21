@@ -3,17 +3,17 @@ using System.Text.Json.Nodes;
 
 namespace OmlCli.Qa;
 
-// `oml qa record <url> [--out <qa.jsonc>]`: opens the app in a visible window and writes a QA file from what a
+// `oml browser record <url> [--out <script.jsonc>]`: opens the app in a visible window and writes a browser script from what a
 // person does there. Each click becomes a click step with the widget Name (or text: label) the page helper gives;
 // text typed and options picked before it become fill and select steps (from the field values before and after);
 // a click that changes the screen gets "expect screen", one that shows a feedback message gets "expect feedback".
-// A password field is written as "$env:QA_PASSWORD", never its value. Ends when the window closes or on Ctrl+C.
+// A password field is written as "$env:APP_PASSWORD", never its value. Ends when the window closes or on Ctrl+C.
 static class QaRecorder
 {
     public static async Task<int> Run(string url, QaCommand.Settings o)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !uri.Scheme.StartsWith("http")) throw new QaUsage($"{url} is not an http(s) URL.");
-        var file = Path.GetFullPath(o.Get("--out") ?? "qa-recorded.jsonc");
+        var file = Path.GetFullPath(o.Get("--out") ?? "browser-recorded.jsonc");
         if (File.Exists(file)) throw new QaUsage($"{file} exists. Give a new --out file.");
         MouseHook.PerMonitorDpi();
         var (browser, note) = await QaCommand.Engine(o, o.Int("--width", 1366), o.Int("--height", 900), headed: true);
@@ -75,7 +75,7 @@ static class QaRecorder
         }
 
         var qa = new JsonObject { ["baseUrl"] = baseUrl.AbsoluteUri, ["steps"] = steps };
-        var header = $"// Recorded by oml qa record from {start} on {DateTime.Now:yyyy-MM-dd HH:mm}. Check the steps, add expectations, and run it with oml qa run.\n";
+        var header = $"// Recorded by oml browser record from {start} on {DateTime.Now:yyyy-MM-dd HH:mm}. Check the steps, add expectations, and run it with oml browser run.\n";
         await File.WriteAllTextAsync(file, header + qa.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + "\n");
         TerminalOutput.PrintObject(new { file, steps = steps.Count, engine = browser.Mode, engineNote = note, notes });
         return 0;
@@ -119,8 +119,8 @@ static class QaRecorder
             if (field.Type == "select") select[target] = field.Value;
             else if (field.Type == "password")
             {
-                fill[target] = "$env:QA_PASSWORD";
-                notes.Add($"{target} is a password field: set QA_PASSWORD before you run the file.");
+                fill[target] = "$env:APP_PASSWORD";
+                notes.Add($"{target} is a password field: set APP_PASSWORD before you run the file.");
             }
             else fill[target] = field.Value;
         }

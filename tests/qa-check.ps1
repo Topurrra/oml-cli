@@ -1,5 +1,5 @@
-# oml qa: the usage text and every refusal that comes before a browser starts (no URL, bad file, bad JSON, no steps,
-# unknown engine, bad numbers, unknown option). A live app is not part of the suite: run a QA file by hand against a
+# oml browser: the usage text and every refusal that comes before a browser starts (no URL, bad file, bad JSON, no steps,
+# unknown engine, bad numbers, unknown option). A live app is not part of the suite: run a browser script by hand against a
 # development environment. Throws on the first failure.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
@@ -19,25 +19,25 @@ function Call([string[]]$a) {
 function File([string]$name, [string]$text) { $p = Join-Path $work $name; Set-Content $p $text; $p }
 
 $r = Call 'qa', '--help'
-foreach ($line in 'oml qa page', 'oml qa run', 'oml qa record', 'oml qa start', 'oml qa stop') { Require ($r.Exit -eq 0 -and $r.Text -match $line) "help misses ${line}: $($r.Text)" }
+foreach ($line in 'oml browser page', 'oml browser run', 'oml browser record', 'oml browser start', 'oml browser stop') { Require ($r.Exit -eq 0 -and $r.Text -match $line) "help misses ${line}: $($r.Text)" }
 
-# record: refused before a window opens. (qa stop is not called: it would stop a real session on this machine.)
+# record: refused before a window opens. (browser stop is not called: it would stop a real session on this machine.)
 $r = Call 'qa', 'record', 'not-a-url'
 Require ($r.Exit -eq 2 -and $r.Json.error -match 'not an http') "record without URL: $($r.Text)"
 $taken = File 'taken.jsonc' '{}'
 $r = Call 'qa', 'record', 'https://dev.example.com/App/Home', '--out', $taken
 Require ($r.Exit -eq 2 -and $r.Json.error -match 'exists') "record over an existing file: $($r.Text)"
 $r = Call 'qa', 'frobnicate', 'x'
-Require ($r.Exit -eq 2 -and $r.Json.error -match 'oml qa run') "unknown subcommand: $($r.Text)"
+Require ($r.Exit -eq 2 -and $r.Json.error -match 'oml browser run') "unknown subcommand: $($r.Text)"
 
 $r = Call @('qa')
-Require ($r.Exit -eq 2 -and $r.Json.error -match 'oml qa run') "no arguments: $($r.Text)"
+Require ($r.Exit -eq 2 -and $r.Json.error -match 'oml browser run') "no arguments: $($r.Text)"
 
 $r = Call 'qa', 'page', 'not-a-url'
 Require ($r.Exit -eq 2 -and $r.Json.error -match 'not an http') "page without URL: $($r.Text)"
 
 $r = Call 'qa', 'run', (Join-Path $work 'missing.json')
-Require ($r.Exit -eq 2 -and $r.Json.error -match 'No QA file') "missing file: $($r.Text)"
+Require ($r.Exit -eq 2 -and $r.Json.error -match 'No browser script') "missing file: $($r.Text)"
 
 $bad = File 'bad.json' '{ "steps": [ '
 $r = Call 'qa', 'run', $bad

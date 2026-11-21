@@ -35,7 +35,7 @@ internal static class CommandTable
         new("outsystems-docs", (_, f) => Library.Run(Rest(f)), NoTimings: true, Help: true),
         new("team-rules", (_, f) => CompanySkills.Run(Rest(f)), NoTimings: true),
         new("dashboard", (_, f) => Dashboard.Run(Rest(f)), NoTimings: true, Help: true),
-        new("qa", (_, f) => Qa.QaCommand.Run(Rest(f)), NoTimings: true, Help: true),
+        new("browser", (_, f) => Qa.QaCommand.Run(Rest(f)), NoTimings: true, Help: true),
         new("show-change", (_, f) => Dashboard.Dif(Rest(f)), NoTimings: true, Help: true),
         new("explorer-menu", (_, f) => Setup.Run(Rest(f)), _ => OperatingSystem.IsWindows(), NoTimings: true, Help: true),
         new("architecture", TeamRun, f => f.Contains("--team")),

@@ -96,11 +96,11 @@ static class Doctor
         // 7. browser
         var browser = Locations.BrowserPath();
         checks.Add(browser is null
-            ? new Check("browser", "warn", "No Edge or Chrome found for oml qa.",
+            ? new Check("browser", "warn", "No Edge or Chrome found for oml browser.",
                 "Install Microsoft Edge or Chrome, or set OML_BROWSER to a browser .exe.")
-            : new Check("browser", "ok", $"Browser for oml qa: {browser}. " + (Qa.QaPolicy.BlocksDevTools() is { } policy
-                ? $"oml qa uses UI Automation: {policy} (no network or JavaScript-error checks)."
-                : "oml qa uses DevTools.")));
+            : new Check("browser", "ok", $"Browser for oml browser: {browser}. " + (Qa.QaPolicy.BlocksDevTools() is { } policy
+                ? $"oml browser uses UI Automation: {policy} (no network or JavaScript-error checks)."
+                : "oml browser uses DevTools.")));
 
         // 8. path
         var folder = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);

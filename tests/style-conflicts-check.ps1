@@ -1,4 +1,4 @@
-# oml qa page --style-conflicts, end to end with a real browser (DevTools): a local page with an OutSystems UI style
+# oml browser page --style-conflicts, end to end with a real browser (DevTools): a local page with an OutSystems UI style
 # sheet (by its file name) whose more specific rule beats the module's rule on one property. Checks the conflict found,
 # the property the module alone sets not reported, an element without a contest not reported, and the UI Automation
 # refusal. Skips when no browser with DevTools is available. Throws on the first failure.
@@ -46,13 +46,13 @@ $url = "http://127.0.0.1:$port/index.html"
 
 $r = Call 'qa', 'page', $url, '--style-conflicts', 'sc-', '--no-session', '--engine', 'cdp'
 if ($r.Exit -eq 2 -and $r.Text -match 'DevTools|browser|Edge|Chrome|policy') { Write-Host "skip style-conflicts: no browser with DevTools ($($r.Json.error))"; return }
-Require ($r.Exit -eq 0 -and $r.Json.styleConflicts) "qa page: $($r.Text)"
+Require ($r.Exit -eq 0 -and $r.Json.styleConflicts) "browser page: $($r.Text)"
 $s = $r.Json.styleConflicts
 Require ($s.checkedElements -eq 3 -and $s.total -eq 1) "counts: $($s | ConvertTo-Json -Compress)"
 $c = $s.conflicts[0]
 Require ($c.property -eq 'color' -and $c.yours -eq '.sc-x { color: red }' -and $c.wins -eq 'div[data-switch].sc-x { color: blue }' -and $c.winsFrom -eq 'OutSystemsUI.OutSystemsUI.css' -and $c.elements -eq 2) "conflict: $($c | ConvertTo-Json -Compress)"
 Require ($s.hint -match 'more specific selector') "hint: $($s.hint)"
-Write-Host 'ok   qa page --style-conflicts: an OutSystems UI rule that wins is reported with both selectors; uncontested properties are not'
+Write-Host 'ok   browser page --style-conflicts: an OutSystems UI rule that wins is reported with both selectors; uncontested properties are not'
 } finally {
   if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
   Remove-TestWorkFolder $Tmp

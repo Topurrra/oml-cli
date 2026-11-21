@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace OmlCli.Qa;
 
-// Left clicks for `oml qa record` with the UI Automation engine. A low-level mouse hook sees every click on the
+// Left clicks for `oml browser record` with the UI Automation engine. A low-level mouse hook sees every click on the
 // desktop; it only queues the point, and the recorder keeps the ones inside its own browser window (WindowOf). The
 // hook needs a thread with a message loop, so it runs on one of its own until Dispose.
 sealed class MouseHook : IDisposable
@@ -36,7 +36,7 @@ sealed class MouseHook : IDisposable
     public MouseHook()
     {
         proc = OnMouse; // kept in a field: the native hook calls it until Dispose
-        thread = new Thread(Loop) { IsBackground = true, Name = "oml qa mouse hook" };
+        thread = new Thread(Loop) { IsBackground = true, Name = "oml browser mouse hook" };
         thread.Start();
         ready.Wait();
         if (error is not null) throw new QaUsage(error);

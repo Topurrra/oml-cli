@@ -16,7 +16,7 @@ try {
   $r = Json create alpha --dir $Tmp --no-library --no-doctor
   $root = Join-Path $Tmp 'alpha'
   Require ($LASTEXITCODE -eq 0 -and $r.folder -eq $root) "create: $($r | ConvertTo-Json -Compress)"
-  foreach ($p in 'modules', 'staged', 'specs', 'qa', 'mocks', 'scenarios', '.oml\memory\memory.log', '.oml\map.json', '.oml\oml-config.json', 'skill\SKILL.md', 'AGENTS.md', 'CLAUDE.md', '.gitignore', 'PROJECT.md') {
+  foreach ($p in 'modules', 'staged', 'specs', 'browser', 'mocks', 'scenarios', '.oml\memory\memory.log', '.oml\map.json', '.oml\oml-config.json', 'skill\SKILL.md', 'AGENTS.md', 'CLAUDE.md', '.gitignore', 'PROJECT.md') {
     Require (Test-Path (Join-Path $root $p)) "missing $p"
   }
   Require ((Get-Content (Join-Path $root 'CLAUDE.md') -Raw).Trim() -eq '@AGENTS.md') 'CLAUDE.md imports AGENTS.md'

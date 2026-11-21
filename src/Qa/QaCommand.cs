@@ -4,26 +4,37 @@ using System.Text.Json.Nodes;
 
 namespace OmlCli.Qa;
 
-// `oml qa`: test a running OutSystems web app like a manual tester, in a browser of its own (see IQaEngine).
-//   qa page <url>      what is on the screen, compactly: actions, inputs, tables, messages, layout, calls, errors
-//   qa run <steps>     run a QA file: open, click, fill, select, press, wait, screenshot, expect
-//   qa record <url>    open a window, record what a person does in it, write a QA file
-//   qa start | stop    keep one browser open between runs (QaSession): no cold start, logins stay
+// `oml browser` (formerly `oml browser`, still accepted): the agent's browser and computer use for a running OutSystems web app, in a
+// browser of its own (see IQaEngine).
+//   browser page <url>         what is on the screen, compactly: actions, inputs, tables, messages, layout, calls, errors, a11y;
+//                              --snapshot <file.json> also saves a record of it for browser diff
+//   browser run <script>       run a browser script: open, click, fill, select, press, wait, screenshot, expect
+//   browser record <url>       open a window, record what a person does in it, write a browser script
+//   browser look <url> <el>    one element: widget path, box, computed values, the winning CSS rules (BrowserTools)
+//   browser sweep <url>        the page at each supported width: overflow and its cause, layout, widgets per width
+//   browser diff <a> <b|url>   what changed between two snapshots, as text
+//   browser start | stop       keep one browser open between runs (QaSession): no cold start, logins stay
 static class QaCommand
 {
     public static int Run(string[] args)
     {
         try
         {
-            if (args.Length == 0) throw new QaUsage(CliUsage.For("qa"));
+            if (args.Length == 0) throw new QaUsage(CliUsage.For("browser"));
             switch (args[0])
             {
                 case "start": return QaSession.Start(Options(args[1..]));
                 case "stop": return QaSession.Stop();
                 case "serve" when args.Length >= 2: return QaSession.Serve(args[1], Options(args[2..]));
                 case "record" when args.Length >= 2: return QaRecorder.Run(args[1], Options(args[2..])).GetAwaiter().GetResult();
-                case "run" or "page" when args.Length >= 2:
-                    var options = Options(args[2..]);
+                // Two snapshot files compare at once; a URL as the second side is the page now, taken by a browser.
+                case "diff" when args.Length >= 3 && !(Uri.TryCreate(args[2], UriKind.Absolute, out var live) && live.Scheme.StartsWith("http")):
+                    if (args.Length > 3) throw new QaUsage("diff takes two snapshot files, or a snapshot file and a URL.");
+                    TerminalOutput.PrintNode(BrowserTools.Diff(BrowserTools.ReadSnapshot(args[1]), BrowserTools.ReadSnapshot(args[2])));
+                    return 0;
+                case "look" or "diff" when args.Length >= 3:
+                case "run" or "page" or "sweep" when args.Length >= 2:
+                    var options = Options(args[0] is "look" or "diff" ? args[3..] : args[2..]);
                     if (!options.Has("--no-session") && QaSession.Forward(args) is { } forwarded)
                     {
                         TerminalOutput.PrintNode(forwarded.Output);
@@ -32,7 +43,7 @@ static class QaCommand
                     var (code, output) = Execute(args, null).GetAwaiter().GetResult();
                     TerminalOutput.PrintNode(output);
                     return code;
-                default: throw new QaUsage(CliUsage.For("qa"));
+                default: throw new QaUsage(CliUsage.For("browser"));
             }
         }
         catch (QaUsage e) { TerminalOutput.PrintObject(new { error = e.Message }); return 2; }
@@ -46,8 +57,40 @@ static class QaCommand
     // A run or page request, on its own browser or on the session's (shared, which stays open).
     public static async Task<(int Code, JsonObject Output)> Execute(string[] args, (IQaEngine Engine, string? Note)? shared)
     {
-        var options = Options(args[2..]);
-        return args[0] switch { "run" => await RunFile(args[1], options, shared), _ => await Page(args[1], options, shared) };
+        var options = Options(args[0] is "look" or "diff" ? args[3..] : args[2..]);
+        return args[0] switch
+        {
+            "run" => await RunFile(args[1], options, shared),
+            "look" => await Closer(options, shared, b => BrowserTools.Look(b, args[1], args[2], options)),
+            "sweep" => await Closer(options, shared, b => BrowserTools.Sweep(b, args[1], options)),
+            "diff" => await Closer(options, shared, async b =>
+            {
+                await b.Navigate(args[2]);
+                await b.WaitReady(Math.Max(options.Int("--timeout", 15_000), 30_000));
+                var after = JsonNode.Parse((await b.Helper("snapshot")).GetRawText())!.AsObject();
+                return BrowserTools.Diff(BrowserTools.ReadSnapshot(args[1]), after);
+            }),
+            _ => await Page(args[1], options, shared),
+        };
+    }
+
+    // look, sweep and diff: on the session's browser, or on one of their own that closes after.
+    static async Task<(int, JsonObject)> Closer(Settings o, (IQaEngine Engine, string? Note)? shared, Func<IQaEngine, Task<JsonObject>> work)
+    {
+        var (browser, note) = shared ?? await Engine(o, o.Int("--width", 1366), o.Int("--height", 900));
+        try
+        {
+            var result = await work(browser);
+            if (note is not null) result["engineNote"] = note;
+            if (shared is not null) result["session"] = true;
+            return (result["error"] is null ? 0 : 2, result);
+        }
+        finally
+        {
+            if (shared is null) browser.Dispose();
+            else if (browser is CdpEngine cdp && o.Has("--theme"))   // the session's browser goes back to the normal color scheme
+                try { await cdp.Cdp.Send("Emulation.setEmulatedMedia", new { features = Array.Empty<object>() }); } catch (CdpException) { }
+        }
     }
 
     public sealed record Settings(Dictionary<string, string?> Values)
@@ -57,7 +100,8 @@ static class QaCommand
         public int Int(string name, int fallback) => Get(name) is { } v ? int.TryParse(v, out var n) && n > 0 ? n : throw new QaUsage($"{name} takes a positive number.") : fallback;
     }
 
-    public static readonly string[] Valued = ["--base-url", "--width", "--height", "--timeout", "--out", "--screenshot", "--engine", "--save", "--style-conflicts"];
+    public static readonly string[] Valued = ["--base-url", "--width", "--height", "--timeout", "--out", "--screenshot", "--engine", "--save", "--style-conflicts",
+        "--state", "--theme", "--widths", "--snapshot"];
     static readonly string[] Flags = ["--headed", "--continue", "--no-session"];
 
     public static Settings Options(string[] args)
@@ -67,7 +111,7 @@ static class QaCommand
         {
             if (Flags.Contains(args[i])) values[args[i]] = null;
             else if (Valued.Contains(args[i]) && i + 1 < args.Length) values[args[i]] = args[++i];
-            else throw new QaUsage($"Unknown or incomplete option {args[i]}. {CliUsage.For("qa")}");
+            else throw new QaUsage($"Unknown or incomplete option {args[i]}. {CliUsage.For("browser")}");
         }
         return new Settings(values);
     }
@@ -92,7 +136,7 @@ static class QaCommand
 
     static JsonElement ReadQaFile(string file)
     {
-        if (!File.Exists(file)) throw new QaUsage($"No QA file at {file}.");
+        if (!File.Exists(file)) throw new QaUsage($"No browser script at {file}.");
         try { return JsonDocument.Parse(File.ReadAllText(file), new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }).RootElement; }
         catch (JsonException e) { throw new QaUsage($"{file} is not valid JSON: {e.Message}"); }
     }
@@ -110,7 +154,7 @@ static class QaCommand
         var width = o.Int("--width", viewport.ValueKind == JsonValueKind.Object && vp.TryGetProperty("width", out var w) ? w.GetInt32() : 1366);
         var height = o.Int("--height", viewport.ValueKind == JsonValueKind.Object && vp.TryGetProperty("height", out var h) ? h.GetInt32() : 900);
         var timeout = o.Int("--timeout", root.TryGetProperty("timeout", out var t) ? t.GetInt32() : 15_000);
-        var outDir = o.Get("--out") ?? Path.Combine(Path.GetTempPath(), "oml-qa", DateTime.Now.ToString("yyyyMMdd-HHmmss"));
+        var outDir = o.Get("--out") ?? Path.Combine(Path.GetTempPath(), "oml-browser", DateTime.Now.ToString("yyyyMMdd-HHmmss"));
         var keepGoing = o.Has("--continue");
 
         var clock = Stopwatch.StartNew();
@@ -144,13 +188,13 @@ static class QaCommand
                 {
                     await File.WriteAllTextAsync(save, Saved(root, steps, results, browser.Mode, baseUrl));
                     report["saved"] = save;
-                    report["replay"] = $"oml qa run {save}";
+                    report["replay"] = $"oml browser run {save}";
                 }
             }
             if (o.Has("--out"))
             {
                 Directory.CreateDirectory(outDir);
-                var path = Path.Combine(outDir, "qa-report.json");
+                var path = Path.Combine(outDir, "browser-report.json");
                 await File.WriteAllTextAsync(path, report.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
                 report["report"] = Path.GetFullPath(path);
             }
@@ -177,12 +221,17 @@ static class QaCommand
             var page = new JsonObject { ["url"] = now, ["screen"] = Uri.UnescapeDataString(path[(path.LastIndexOf('/') + 1)..]), ["engine"] = browser.Mode, ["engineNote"] = engineNote };
             foreach (var (key, value) in summary.ToList()) { summary.Remove(key); page[key] = value; }
             var calls = new JsonArray();
+            var slow = new JsonArray();
             foreach (var r in browser.Network.CallsSince(seq).Where(r => r.Done))
             {
                 var read = await browser.ReadCall(r);
-                calls.Add(new JsonObject { ["name"] = r.Call, ["status"] = r.Status, ["rows"] = read.Rows, ["exception"] = read.Exception });
+                calls.Add(new JsonObject { ["name"] = r.Call, ["status"] = r.Status, ["rows"] = read.Rows, ["exception"] = read.Exception, ["ms"] = r.Ms > 0 ? r.Ms : null });
+                if (r.Ms >= SlowMs) slow.Add($"{r.Call} took {r.Ms} ms{(read.Rows is { } rows ? $" for {rows} rows" : "")}");
             }
             page["calls"] = calls;
+            page["slowCalls"] = slow;
+            page["a11y"] = await BrowserTools.A11y(browser);
+            if (o.Get("--snapshot") is { } snapshot) page["snapshot"] = await BrowserTools.Snapshot(browser, snapshot);
             var boxes = await browser.Helper("boxes");
             page["layout"] = new JsonArray([.. QaLayout.Findings(boxes).Select(f => (JsonNode)f)]);
             // A browser window has a minimum width (about 500 px for Edge), so UI Automation cannot show a phone width.
@@ -204,7 +253,7 @@ static class QaCommand
         finally { if (shared is null) browser.Dispose(); }
     }
 
-    // A passing run as a QA file to replay without an agent: the same steps, each action with a time limit from what it took
+    // A passing run as a browser script to replay without an agent: the same steps, each action with a time limit from what it took
     // (three times as long, at least 2 seconds; never a fixed wait), and, where a step checked nothing, the screen it ended
     // on and the calls it made (DevTools only). Secrets stay "$env:NAME" references, as the file had them.
     static string Saved(JsonElement root, JsonElement steps, JsonArray results, string mode, Uri? baseUrl)
@@ -234,9 +283,11 @@ static class QaCommand
             saved.Add(s);
         }
         file["steps"] = saved;
-        file["saved"] = $"oml qa run --save, {DateTime.Now:yyyy-MM-dd HH:mm}: a passing run. Replay it with oml qa run; no agent needed.";
+        file["saved"] = $"oml browser run --save, {DateTime.Now:yyyy-MM-dd HH:mm}: a passing run. Replay it with oml browser run; no agent needed.";
         return file.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + "\n";
     }
+
+    const long SlowMs = 1000;   // a server call this slow is worth a look (an aggregate fetching too much, a missing index)
 
     // Drops empty arrays and nulls, so an agent reads only what is there.
     public static JsonObject Prune(JsonObject o)

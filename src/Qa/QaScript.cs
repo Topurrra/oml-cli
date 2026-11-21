@@ -18,7 +18,7 @@ static class QaScript
           const txt = e => (e.innerText || e.value || e.getAttribute('aria-label') || e.getAttribute('title') || '').replace(/\s+/g, ' ').trim();
           const CLICKABLE = 'button,a,[data-button],[data-link],input[type=submit],input[type=button],[role=button],[role=link],[role=tab],[role=menuitem],[role=switch],[role=checkbox],[onclick],summary';
           const FIELDS = 'input:not([type=hidden]),textarea,select,[contenteditable=true]';
-          const name = id => !id || id.startsWith('$') ? null : id.split('-').pop();
+          const name = id => { const n = id && id.split('-').pop(); return !n || n.startsWith('$') ? null : n; };   // b2-$b1 is a block wrapper
           const byName = n => [...document.querySelectorAll('[id]')].filter(e => e.id === n || e.id.endsWith('-' + n));
           const labelOf = e => {
             if (e.labels && e.labels.length) return txt(e.labels[0]);
@@ -47,7 +47,82 @@ static class QaScript
             return t ? 'text:' + t.slice(0, 40) : null;
           };
           const ROWS = 3;
+          // Where an element is in the module: the screen (the last part of the URL path), the web blocks around it (Reactive
+          // puts data-block="Module.Block" on each block instance) and the nearest widget Name on the way up.
+          const pathOf = e => {
+            const blocks = [];
+            let widget = null;
+            for (let n = e; n && n.nodeType === 1; n = n.parentElement) {
+              if (!widget && n.id && name(n.id)) widget = name(n.id);
+              const b = n.getAttribute('data-block');
+              if (b) blocks.unshift(b);
+            }
+            const screen = decodeURIComponent(location.pathname.replace(/\/$/, '').split('/').pop() || '');
+            return { screen, blocks, widget, path: [screen, ...blocks, widget].filter(Boolean).join(' > ') };
+          };
+          const PROPS = ['display', 'position', 'visibility', 'opacity', 'width', 'height', 'margin', 'padding', 'border', 'border-radius', 'box-sizing',
+            'color', 'background-color', 'background-image', 'font-family', 'font-size', 'font-weight', 'line-height', 'text-align', 'white-space', 'overflow',
+            'flex-direction', 'justify-content', 'align-items', 'gap', 'grid-template-columns', 'z-index', 'box-shadow', 'cursor', 'transform', 'outline'];
+          const hiddenBy = e => {
+            for (let n = e; n && n.nodeType === 1; n = n.parentElement) {
+              const s = getComputedStyle(n), d = { tag: n.tagName.toLowerCase(), id: n.id || undefined, cls: (n.className && n.className.baseVal === undefined ? n.className : '').split(' ').filter(Boolean).slice(0, 3).join('.') || undefined };
+              if (s.display === 'none') return { why: 'display: none', on: d };
+              if (s.visibility === 'hidden') return { why: 'visibility: hidden', on: d };
+              if (+s.opacity === 0) return { why: 'opacity: 0', on: d };
+            }
+            const r = e.getBoundingClientRect();
+            if (r.width === 0 || r.height === 0) return { why: `size ${Math.round(r.width)} x ${Math.round(r.height)} px` };
+            if (r.right < 0 || r.bottom < 0 || r.left > document.documentElement.scrollWidth) return { why: 'outside the page' };
+            return null;
+          };
+          const short = e => (e.tagName.toLowerCase() + (e.id ? '#' + (name(e.id) || e.id) : '') + [...e.classList].slice(0, 2).map(c => '.' + c).join(''));
           return {
+            pathOf(e) { return pathOf(e || window.__omlqaLast); },
+            // What the last located element is and why it looks as it does: its place in the module, box, the computed values that
+            // shape it, the layout of its parent, and what hides or covers it.
+            lookLast() {
+              const e = window.__omlqaLast;
+              if (!e) return null;
+              const s = getComputedStyle(e), r = e.getBoundingClientRect(), p = e.parentElement, ps = p ? getComputedStyle(p) : null;
+              const computed = {};
+              for (const k of PROPS) { const v = s.getPropertyValue(k); if (v && v !== 'none' && v !== 'normal' && v !== 'auto' && v !== '0px' && v !== 'rgba(0, 0, 0, 0)' && v !== 'static' && v !== 'visible') computed[k] = v; }
+              const px = k => Math.round(parseFloat(s.getPropertyValue(k)) || 0);
+              return {
+                ...pathOf(e), tag: e.tagName.toLowerCase(), id: e.id || undefined, classes: [...e.classList], text: txt(e).slice(0, 80) || undefined,
+                box: { x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height),
+                  margin: [px('margin-top'), px('margin-right'), px('margin-bottom'), px('margin-left')].join(' '),
+                  padding: [px('padding-top'), px('padding-right'), px('padding-bottom'), px('padding-left')].join(' '),
+                  border: [px('border-top-width'), px('border-right-width'), px('border-bottom-width'), px('border-left-width')].join(' ') },
+                computed,
+                parent: p ? { el: short(p), display: ps.display, flexDirection: ps.display.includes('flex') ? ps.flexDirection : undefined, gridTemplateColumns: ps.display.includes('grid') ? ps.gridTemplateColumns : undefined,
+                  gap: ps.gap !== 'normal' ? ps.gap : undefined, width: Math.round(p.getBoundingClientRect().width) } : undefined,
+                children: e.children.length || undefined,
+                hidden: hiddenBy(e) || undefined,
+                covered: (() => { const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return h && !(e === h || e.contains(h) || h.contains(e)) ? short(h) : undefined; })(),
+                clip: { x: r.left + scrollX, y: r.top + scrollY, width: Math.max(1, r.width), height: Math.max(1, r.height) },
+              };
+            },
+            // The elements wider than the window, deepest first (their parents are wide because of them), with their place in the module.
+            overflowing(width) {
+              const w = width || document.documentElement.clientWidth;
+              const wide = [...document.body.querySelectorAll('*')].filter(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > w + 1 && vis(e); });
+              const leaves = wide.filter(e => !wide.some(o => o !== e && e.contains(o)));
+              return leaves.slice(0, 10).map(e => { const r = e.getBoundingClientRect(); return { el: short(e), path: pathOf(e).path, right: Math.round(r.right), width: Math.round(r.width) }; });
+            },
+            // A record of the screen to compare later (oml browser diff): every visible named widget with its place, box, text and the
+            // computed values people notice.
+            snapshot() {
+              const seen = new Map();
+              for (const e of document.querySelectorAll('[id]')) {
+                const n = name(e.id);
+                if (!n || !vis(e) || /^(reactContainer|transitionContainer)$/.test(n) || e.tagName === 'SCRIPT' || e.tagName === 'LINK') continue;
+                const p = pathOf(e).path, key = seen.has(p) ? p + '#' + [...seen.keys()].filter(k => k === p || k.startsWith(p + '#')).length : p;
+                const r = e.getBoundingClientRect(), s = getComputedStyle(e);
+                seen.set(key, { box: [Math.round(r.left + scrollX), Math.round(r.top + scrollY), Math.round(r.width), Math.round(r.height)], text: txt(e).slice(0, 80),
+                  style: { color: s.color, background: s.backgroundColor, font: s.fontSize + ' ' + s.fontWeight, display: s.display } });
+              }
+              return { url: location.href, viewport: { w: innerWidth, h: innerHeight }, body: document.body.className, widgets: Object.fromEntries(seen) };
+            },
             locate(t, nth, wantField) {
               let how, m;
               const hash = t.match(/^(.*)#(\d+)$/);

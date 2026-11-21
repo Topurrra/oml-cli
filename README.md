@@ -4,7 +4,7 @@
 
 You describe a change in a JSON spec, apply it to a new staged file, check it, and then install it. You can use `oml` yourself, or give its skill to an AI agent.
 
-**New here?** [INSTRUCTION.md](INSTRUCTION.md) shows in one page how to work with any agent: development, manual QA, QA automation, test scenarios, test data, mocks and the application map.
+**New here?** [INSTRUCTION.md](INSTRUCTION.md) shows in one page how to work with any agent: development, looking at the running app, browser automation, test scenarios, test data, mocks and the application map.
 
 Website: [topurrra.github.io/oml-cli](https://topurrra.github.io/oml-cli/) · [Releases](https://github.com/Topurrra/oml-cli/releases) · [Changelog](CHANGELOG.md)
 
@@ -16,7 +16,7 @@ Website: [topurrra.github.io/oml-cli](https://topurrra.github.io/oml-cli/) · [R
 oml config show                      # every setting, its value and what it does
 oml config set ui.targets desktop    # no phone or tablet checks
 oml config set ui.themes light       # no dark theme checks
-oml config set checks.qa off         # no oml qa runs
+oml config set checks.browser off         # no oml browser runs
 oml config set ask.testing off       # stop asking whether to test
 oml config set author "Your Name"    # the name Service Studio shows on what oml creates or changes
 oml config                           # what agents are told
@@ -69,7 +69,7 @@ Hooks are optional: run `oml hooks install` in the project folder once if you wa
 |---|---|
 | Build and change | One JSON spec for entities, static entities, CRUD actions, server/service/client actions, flows, aggregates with joins, SQL, REST, screens and blocks (Reactive, Mobile, Traditional Web), timers, roles, processes, translations and resources. New flows are laid out the way Service Studio does it. Existing screens, blocks, emails and themes take new CSS, and `replaceWidgets` replaces part of a screen, with no rebuild. |
 | Read cheaply | `inspect`, `describe` (what an action or screen does, in a few lines), `find` (which module owns an element). Compact JSON output keeps agent token use low. `--history` and `--changed-since` show who changed an element and when. |
-| Check UI | After you install and publish to DEV, `qa page` opens the screen in a browser, takes a screenshot and prints what it shows: actions, inputs, tables, messages, layout and errors. Before a publish there is no visual check, so the agent reports "pending visual check". |
+| Check UI | After you install and publish to DEV, `browser page` opens the screen in a browser, takes a screenshot and prints what it shows: actions, inputs, tables, messages, layout and errors. Before a publish there is no visual check, so the agent reports "pending visual check". |
 | Architecture | `architecture` makes one zoomable HTML page from a folder of `.oap`/`.oml` files or a LifeTime team: applications, modules, End-user/Core/Foundation layers, dependencies and findings. |
 | Check | `check` finds AI Mentor-like patterns (performance, security, maintainability, architecture) in a module, an application or a team in seconds, with a team rules file, a baseline and an HTML report. A subset of AI Mentor, not a replacement. |
 | Review | `review` compares two versions of a module (before and after a change) by the model's own keys, so a rename stays a rename. It lists what changed in plain words (data, logic steps, UI, integrations, roles, settings), the production-rule risks and the new `check` findings, as JSON, Markdown for a pull request, an HTML page or release notes for testers. |
@@ -102,7 +102,7 @@ Developers work in Service Studio. Most commands are for AI agents, so agents ca
 | Read a module | `inspect`, `describe`, `find`, `stats`, `tree` | Agents |
 | Change a module | `new`, `apply`, `spec`, `batch`, `install`, `validate`, `translations export` | Agents |
 | Knowledge | `doc`, `explain-warning` | Agents |
-| UI | `qa page` | Agents, sometimes developers |
+| UI | `browser page` | Agents, sometimes developers |
 | Tests | `test bdd` | Agents |
 | Packages | `app list`, `app extract`, `app pack`, `extension inspect`, `extension new`, `templates` | Agents, sometimes developers |
 | Service Studio and deploy | `studio`, `pull`, `publish`, `references`, `lifetime` | Agents; publish and deploy after you confirm |
@@ -228,7 +228,7 @@ Keep the `skill/` folder at the project root in every case: both files point to 
 | Other agents | Give them `skill/AGENTS.md` (or `skill/SKILL.md`) as their instructions, with the `skill/` folder in the project. | not verified per agent |
 - **Leading cheap worker agents (optional):** the lead model also reads [skill/architect.md](skill/architect.md). It plans lanes, gives each worker a brief ([worker-brief.md](skill/reference/worker-brief.md)), checks the results and merges them with one multi-part `oml apply`. It is not part of the default load.
 
-Tell the agent where `oml` and the module file are. No file yet? Open the module in Service Studio and let the agent run `oml pull`. The agent then works in a loop: read the module (`inspect`, `describe`, `find`) → copy a recipe into a spec → `apply` to a new staged file → `validate` and `describe` → for UI, after you publish to DEV, `qa page` with a screenshot → fix and repeat. It asks you before anything that changes a real module or an environment.
+Tell the agent where `oml` and the module file are. No file yet? Open the module in Service Studio and let the agent run `oml pull`. The agent then works in a loop: read the module (`inspect`, `describe`, `find`) → copy a recipe into a spec → `apply` to a new staged file → `validate` and `describe` → for UI, after you publish to DEV, `browser page` with a screenshot → fix and repeat. It asks you before anything that changes a real module or an environment.
 
 To keep agents from reading the whole spec reference, `oml spec <key>` prints only the section for one key (15-60 lines) and `oml spec check <spec.json>` finds typos, wrong types and bad flow targets in milliseconds, before `apply`. `oml spec schema` writes a JSON Schema for autocomplete in VS Code.
 
@@ -304,7 +304,7 @@ Agents do the work; people make the decisions that touch production.
 
 | Step | Who |
 |---|---|
-| Read modules, write specs, `apply`, `validate`, `qa page`, `architecture`, `check`, `review`, `openapi`, `test bdd` | Agent |
+| Read modules, write specs, `apply`, `validate`, `browser page`, `architecture`, `check`, `review`, `openapi`, `test bdd` | Agent |
 | `memory recall`, `memory add` (only after you ran `memory init`) | Agent |
 | `install` a staged file over a module | Agent, after you confirm |
 | Publish and refresh references | Agent, after you confirm; you approve Service Studio's connection dialog once per session |

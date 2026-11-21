@@ -12,9 +12,9 @@ namespace OmlCli;
 //   - BDD (Given/When/Then) for every public server or service action the change created or changed: the main path, each
 //     If branch, each exception it raises or handles, each mandatory input left empty, each entity it writes. These become
 //     BDDFramework tests with `oml test bdd` (server logic is what BDD tests; screens are not).
-//   - QA for every screen the change created or changed: open it, fill its named fields, click each button or link with an
+//   - a browser script for every screen the change created or changed: open it, fill its named fields, click each button or link with an
 //     action, and expect the messages and screens that action leads to; an empty-list scenario per screen aggregate. Each
-//     screen also gets a runnable qa.json skeleton (baseUrl to fill in) for `oml qa run`.
+//     screen also gets a runnable browser script skeleton (baseUrl to fill in) for `oml browser run`.
 // The list is what the flows show; an agent writes the values and the expected results the model cannot know.
 static class Scenarios
 {
@@ -66,17 +66,17 @@ static class Scenarios
         var qaFiles = new List<string>();
         if (screens.Count > 0)
         {
-            md.Append("\n## Screens (QA)\n\nEach screen has a qa.json skeleton in `qa/`. Set `baseUrl`, check the steps, then run: `oml qa run qa/<Screen>.qa.json --save <Screen>.replay.json`\n");
-            Directory.CreateDirectory(Path.Combine(outDir, "qa"));
+            md.Append("\n## Screens (browser)\n\nEach screen has a browser script skeleton in `browser/`. Set `baseUrl`, check the steps, then run: `oml browser run browser/<Screen>.browser.json --save <Screen>.replay.json`\n");
+            Directory.CreateDirectory(Path.Combine(outDir, "browser"));
             foreach (var (name, scenarios, qa, status) in screens)
             {
                 Section(md, $"{name} ({status})", scenarios);
-                var file = Path.Combine(outDir, "qa", name + ".qa.json");
+                var file = Path.Combine(outDir, "browser", name + ".browser.json");
                 File.WriteAllText(file, qa.ToJsonString(new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }) + "\n");
                 qaFiles.Add(file);
             }
         }
-        if (actions.Count + screens.Count == 0) md.Append("\nNo public action and no screen was created or changed: nothing to test here with BDD or QA.\n");
+        if (actions.Count + screens.Count == 0) md.Append("\nNo public action and no screen was created or changed: nothing to test here with BDD or in a browser.\n");
         var mdFile = Path.Combine(outDir, "scenarios.md");
         File.WriteAllText(mdFile, md.ToString());
         return Cli.Emit(new
@@ -84,9 +84,9 @@ static class Scenarios
             scenarios = mdFile, folder = outDir,
             actions = actions.Select(a => new { name = a.name, status = a.status, scenarios = a.scenarios.Count }).ToArray(),
             screens = screens.Select(s => new { name = s.name, status = s.status, scenarios = s.scenarios.Count }).ToArray(),
-            qa = qaFiles,
+            browser = qaFiles,
             bdd = actions.Count == 0 ? null : $"oml test bdd {staged} {string.Join(" ", actions.Select(a => a.name))} --bdd <BDDFramework.oml>",
-            next = "Show scenarios.md to the user: it is what to test. Fill in values and expected results with them, then automate: BDD for the actions, the qa files for the screens.",
+            next = "Show scenarios.md to the user: it is what to test. Fill in values and expected results with them, then automate: BDD for the actions, the browser scripts for the screens.",
         });
     }
 
@@ -225,8 +225,8 @@ static class Scenarios
                 var title = $"Click {label}" + (conditions.Count == 0 ? "" : ": " + string.Join(", ", conditions));
                 scenarios.Add(new Scenario(title, [.. given, .. conditions.Select(c => $"{c} (<FILL: values that make it so>)")], [$"they click {label}"], then));
             }
-            if (target is null) continue; // an unnamed widget cannot be a qa target: the scenario tells the agent to name it
-            // The qa skeleton follows the path that ends in a success message, else the first one.
+            if (target is null) continue; // an unnamed widget cannot be a browser target: the scenario tells the agent to name it
+            // The browser script skeleton follows the path that ends in a success message, else the first one.
             var main = paths.FirstOrDefault(p => p.outcomes.Any(o => o.Type == "success")) is { outcomes: not null } ok ? ok : paths[0];
             var expect = new JsonObject();
             if (main.outcomes.FirstOrDefault(o => o.Kind == "feedback") is { } msg) expect["feedback"] = msg.Text is null ? (JsonNode)(msg.Type ?? "success") : new JsonObject { ["type"] = msg.Type ?? "success", ["text"] = msg.Text };
@@ -236,7 +236,7 @@ static class Scenarios
             if (expect.Count > 0) step["expect"] = expect;
             steps.Add(step);
         }        foreach (var w in clickables.Where(w => Model.NameOf(w) is not { Length: > 0 }))
-            scenarios.Add(new Scenario($"Name the {ElementPaths.Kind(w)} so tests can find it", [$"a {ElementPaths.Kind(w)} on {name} has no Name"], ["an agent writes the qa file"], ["it gives the widget a Name (spec setProperty), so a qa step can click it"]));
+            scenarios.Add(new Scenario($"Name the {ElementPaths.Kind(w)} so tests can find it", [$"a {ElementPaths.Kind(w)} on {name} has no Name"], ["an agent writes the browser script"], ["it gives the widget a Name (spec setProperty), so a qa step can click it"]));
         foreach (var agg in widgets.Where(w => w.GetType().Name.Contains("Aggregate") || ElementPaths.Kind(w).Contains("Aggregate")))
             scenarios.Add(new Scenario($"{Model.NameOf(agg)} returns nothing", [$"no record matches {Model.NameOf(agg)} (<FILL: how>)"], [$"they open {name}"], ["the screen shows its empty state: <FILL: text>"]));
         var qa = new JsonObject { ["baseUrl"] = "<FILL: https://<environment>/<App>/>", ["steps"] = steps };

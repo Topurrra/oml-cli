@@ -51,7 +51,7 @@ static class AgentHooks
         internal static readonly Regex Separators = new(@"&&|\|\||;|\r?\n", RegexOptions.CultureInvariant);
         internal static readonly Regex Reader = new(@"^\s*(?:&\s*)?(?:cat|type|more|less|gc|Get-Content|bat)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         internal static readonly Regex LineLimit = new(@"-(?:TotalCount|Head|Tail|First|Last)\b|\|", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        // A shell command that starts a browser, and one that is oml itself (oml qa starts its own browser).
+        // A shell command that starts a browser, and one that is oml itself (oml browser starts its own browser).
         internal static readonly Regex Browser = new(@"(?<![\w-])(?:msedge|chrome|chromium|firefox)(?:\.exe)?(?![\w-])|\b(?:start|Start-Process|xdg-open|open)\s+[""']?https?://", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         internal static readonly Regex OmlCommand = new(@"^\s*(?:&\s*)?(?:""[^""]*\boml(?:\.exe)?""|\S*\boml(?:\.exe)?)\s", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         internal static readonly Regex OmlWrite = new(
@@ -100,7 +100,7 @@ static class AgentHooks
         {
             folder = dir, agents = results,
             blocks = verb == "install" ? new[] { "reading skill/reference/commands.md, spec.md or model-api.md whole", "editing or writing .oml files (rule 9)", "calling the test-data API other than through oml test data" } : null,
-            reminds = verb == "install" ? "once, when the agent finishes a session that changed a module or ran qa but saved nothing to the project memory: to save what the next agent should know, or say there is nothing (OML_MEMORY_REMINDER=0 turns it off)" : null,
+            reminds = verb == "install" ? "once, when the agent finishes a session that changed a module or used oml browser but saved nothing to the project memory: to save what the next agent should know, or say there is nothing (OML_MEMORY_REMINDER=0 turns it off)" : null,
             next = verb switch
             {
                 "install" => "Each agent reads its hook when a session starts in this folder (Codex: trust the project first). oml hooks remove takes them out. oml config sets what the guards and the session profile do.",
@@ -146,7 +146,7 @@ static class AgentHooks
     // The decision goes on stdout with exit 0: "block" for Claude Code, Codex, Copilot and Cursor, "deny" for Gemini CLI;
     // each sends the reason back to the agent as the next prompt. Anything it cannot read lets the agent stop.
     static readonly HashSet<string> ChangeCommands = new(StringComparer.Ordinal)
-        { "apply", "install", "new", "publish", "references", "studio close", "extension new", "app pack", "lifetime deploy", "lifetime tag", "qa" };
+        { "apply", "install", "new", "publish", "references", "studio close", "extension new", "app pack", "lifetime deploy", "lifetime tag", "browser", "qa" };   // qa: older usage logs
 
     static int Stop(string input)
     {

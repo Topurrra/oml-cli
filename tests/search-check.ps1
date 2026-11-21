@@ -65,7 +65,7 @@ Write-Host 'ok   search cache: same hits from the saved index, a damaged file is
 # release number. Do not tune on blind4.
 # commands: 40 plain requests a command answers ("deploy to production" -> oml lifetime). Measured before the command words in
 # src/DocSearch.cs: 0.361/0.556/0.484; after: 0.778/0.972/0.870 (tune MRR -0.001, held 0, blind2 0, blind3 -0.003, blind4
-# +0.003) on the first 36; with the 4 oml qa requests 0.750/0.925/0.847. It was tuned on, so it is not blind.
+# +0.003) on the first 36; with the 4 oml browser requests 0.750/0.925/0.847. It was tuned on, so it is not blind.
 # Scoring a command on its name and its curated words only (the usage line's description is shown, not scored, so a
 # word in it cannot pull the command into an unrelated query): commands 0.725/0.950/0.840 after adding words to 3
 # commands (describe: server; openapi: generate file rest api service; qa: test, screen, record, clicking, through);

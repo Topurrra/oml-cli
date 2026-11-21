@@ -140,15 +140,15 @@ internal static class MenuTest
                     shown = Ansi.Replace(text.ToString(), "");
                     Check(keys.Left == 0, $"settings script '{script}' left {keys.Left} keys");
                 }
-                Check(ProjectConfig.Load(root).On("checks.qa"), "checks.qa starts on");
-                Edit("t:checks.qa Enter Esc Esc");
-                Check(!ProjectConfig.Load(root).On("checks.qa"), "Enter toggles a boolean off");
-                Check(shown.Contains("Saved: checks.qa = off"), "the screen says it saved");
-                Edit("t:checks.qa Enter Esc Esc");
-                Check(ProjectConfig.Load(root).On("checks.qa"), "Enter toggles it back on");
-                Edit("t:browser Enter Esc Esc");
+                Check(ProjectConfig.Load(root).On("checks.browser"), "checks.browser starts on");
+                Edit("t:checks.browser Enter Esc Esc");
+                Check(!ProjectConfig.Load(root).On("checks.browser"), "Enter toggles a boolean off");
+                Check(shown.Contains("Saved: checks.browser = off"), "the screen says it saved");
+                Edit("t:checks.browser Enter Esc Esc");
+                Check(ProjectConfig.Load(root).On("checks.browser"), "Enter toggles it back on");
+                Edit("t:Who Enter Esc Esc");
                 Check(ProjectConfig.Load(root).Get("browser") == "agent", "Enter cycles a choice");
-                Edit("t:browser Enter Esc Esc");
+                Edit("t:Who Enter Esc Esc");
                 Check(ProjectConfig.Load(root).Get("browser") == "oml", "a choice wraps around");
                 Edit("t:hooks.omlWrites Enter Esc Esc");
                 Check(shown.Contains("locked") && ProjectConfig.Load(root).On("hooks.omlWrites"), "a locked setting is refused");
@@ -171,9 +171,9 @@ internal static class MenuTest
                 Directory.CreateDirectory(Path.Combine(legacy, ".oml"));
                 File.WriteAllText(Path.Combine(legacy, ".oml", ProjectConfig.LegacyFileName), """{ "checks": { "qa": false }, "ask": { "install": true } }""");
                 var old = ProjectConfig.Load(legacy);
-                Check(!old.On("checks.qa") && old.Problems.Any(p => p.Contains("autoApprove.install")), "the older config.json is read and ask.install points to autoApprove: " + string.Join("; ", old.Problems));
+                Check(!old.On("checks.browser") && old.Problems.Any(p => p.Contains("autoApprove.install")), "the older config.json is read and ask.install points to autoApprove: " + string.Join("; ", old.Problems));
                 ProjectConfig.Save(legacy, old);
-                Check(File.Exists(ProjectConfig.PathIn(legacy)) && !File.Exists(Path.Combine(legacy, ".oml", ProjectConfig.LegacyFileName)) && !ProjectConfig.Load(legacy).On("checks.qa"),
+                Check(File.Exists(ProjectConfig.PathIn(legacy)) && !File.Exists(Path.Combine(legacy, ".oml", ProjectConfig.LegacyFileName)) && !ProjectConfig.Load(legacy).On("checks.browser"),
                     "a save writes oml-config.json with the old values and removes config.json");
             });
 

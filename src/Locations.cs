@@ -23,7 +23,7 @@ static class Locations
         ? Path.GetFullPath(record)
         : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "oml-cli", "selftest-passed.txt");
 
-    // Headless Edge or Chrome for `oml qa`. OML_BROWSER wins when it is set.
+    // Headless Edge or Chrome for `oml browser`. OML_BROWSER wins when it is set.
     public static string? BrowserPath()
     {
         var env = Environment.GetEnvironmentVariable("OML_BROWSER");

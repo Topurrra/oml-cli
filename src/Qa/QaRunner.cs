@@ -5,10 +5,10 @@ using System.Text.RegularExpressions;
 
 namespace OmlCli.Qa;
 
-// Runs the steps of a QA file like a tester would: one action per step, then wait until the screen is ready, then
+// Runs the steps of a browser script like a tester would: one action per step, then wait until the screen is ready, then
 // the step's expectations (retried until they hold or the timeout passes), then the checks every step gets for free:
 // no JavaScript exception, no failed request, no server exception from an OutSystems call, no error feedback message.
-// capture: also report the screen each step ended on, for `qa run --save`.
+// capture: also report the screen each step ended on, for `browser run --save`.
 sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string shotDir, bool capture = false)
 {
     static readonly string[] Actions = ["open", "click", "fill", "select", "press", "wait", "screenshot", "expect"];
@@ -76,7 +76,7 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
             : baseUrl is not null ? new Uri(baseUrl, text.TrimStart('/'))
             : throw new QaUsage($"open: \"{text}\" is not a full URL; give baseUrl in the file or --base-url.");
         if (baseUrl is not null && !url.Host.Equals(baseUrl.Host, StringComparison.OrdinalIgnoreCase))
-            throw new QaUsage($"open: {url.Host} is not the host of baseUrl ({baseUrl.Host}). A QA file stays on one environment.");
+            throw new QaUsage($"open: {url.Host} is not the host of baseUrl ({baseUrl.Host}). A browser script stays on one environment.");
         await browser.Navigate(url.AbsoluteUri);
     }
 

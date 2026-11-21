@@ -103,14 +103,14 @@ try {
   $before = (Get-Item (Join-Path $p '.oml\memory\memory.log')).Length
   $doc = Json memory doctor --dir $p --file $sample
   $cmds = @($doc.suggestedTraps | ForEach-Object command)
-  Require ($cmds -contains 'oml qa' -and $cmds -contains 'oml apply' -and $cmds -notcontains 'oml lifetime deploy') "doctor: suggestions $($cmds -join ',')"
+  Require ($cmds -contains 'oml browser' -and $cmds -contains 'oml apply' -and $cmds -notcontains 'oml lifetime deploy') "doctor: suggestions $($cmds -join ',')"
   Require (-not (($doc | ConvertTo-Json -Depth 6) -match 'ghp_1234|Ignore previous')) 'doctor: a secret or injected text in a suggestion'
-  $trap = $doc.suggestedTraps | Where-Object command -eq 'oml qa'
-  Require ($trap.add -like 'oml memory add "oml qa fails with: *--kind trap*' -and $trap.passedWith -like 'oml qa*--out*') "doctor: add command $($trap | ConvertTo-Json -Compress)"
+  $trap = $doc.suggestedTraps | Where-Object command -eq 'oml browser'
+  Require ($trap.add -like 'oml memory add "oml browser fails with: *--kind trap*' -and $trap.passedWith -like 'oml browser*--out*') "doctor: add command $($trap | ConvertTo-Json -Compress)"
   Require ((Get-Item (Join-Path $p '.oml\memory\memory.log')).Length -eq $before) 'doctor wrote a record'
-  & $Oml memory add "oml qa fails with: Browser not found, install Edge" --kind trap --module Orders --dir $p | Out-Null
+  & $Oml memory add "oml browser fails with: Browser not found, install Edge" --kind trap --module Orders --dir $p | Out-Null
   $doc = Json memory doctor --dir $p --file $sample
-  Require (@($doc.suggestedTraps | Where-Object command -eq 'oml qa').Count -eq 0) 'doctor: a trap record covers the failure now'
+  Require (@($doc.suggestedTraps | Where-Object command -eq 'oml browser').Count -eq 0) 'doctor: a trap record covers the failure now'
   Write-Host 'ok   memory doctor: suggests trap records for repeated failures, writes nothing'
 
   # 6. Golden: report and proposals on the sample log.
@@ -146,27 +146,27 @@ try {
   $env:OML_TEST_NOW = '2026-10-05T12:00:00Z'
   $first = Json evolve propose --file $sample --dir $p
   $mem = ($first.proposals | Where-Object kind -eq 'memory' | Select-Object -First 1).id
-  $skill = ($first.proposals | Where-Object title -like '*evolved-qa*').id
+  $skill = ($first.proposals | Where-Object title -like '*evolved-browser*').id
   $rej = ($first.proposals | Where-Object title -like '*evolved-apply*').id
   Require ($mem -and $skill -and $rej) "accept: proposals missing $($first.proposals | ConvertTo-Json -Compress -Depth 4)"
   $a = Json evolve accept $mem --dir $p; Require ($LASTEXITCODE -eq 0 -and @($a.records).Count -eq 1) "accept memory: $($a | ConvertTo-Json -Compress)"
   $trap = (Json memory list --kind trap --dir $p).records | Where-Object id -eq $a.records[0]
   Require ($trap.text -like 'oml *fails with:*') 'accept memory: the trap record'
-  $a = Json evolve accept $skill --dir $p; Require ($LASTEXITCODE -eq 0 -and $a.skill -eq 'evolved-qa') "accept skill: $($a | ConvertTo-Json -Compress)"
-  Require (((Json team-rules).skills | Where-Object name -eq 'evolved-qa')) 'accept skill: not installed'
+  $a = Json evolve accept $skill --dir $p; Require ($LASTEXITCODE -eq 0 -and $a.skill -eq 'evolved-browser') "accept skill: $($a | ConvertTo-Json -Compress)"
+  Require (((Json team-rules).skills | Where-Object name -eq 'evolved-browser')) 'accept skill: not installed'
   $again = Json evolve accept $skill --dir $p; Require ($LASTEXITCODE -eq 1) 'accept: twice'
   Json evolve reject $rej --why "known already" --dir $p | Out-Null
   $env:OML_TEST_NOW = '2026-10-08T00:00:00Z'
   $second = Json evolve propose --file $sample --dir $p
-  Require (-not ($second.proposals.id -contains $rej) -and -not ($second.proposals.title -like '*evolved-apply*') -and -not ($second.proposals.title -like '*evolved-qa*')) "reject: proposed again $($second.proposals.title -join ' | ')"
-  # Measuring: qa failed more after the skill was accepted (2026-10-05T12:00Z): "worse", with the undo command.
+  Require (-not ($second.proposals.id -contains $rej) -and -not ($second.proposals.title -like '*evolved-apply*') -and -not ($second.proposals.title -like '*evolved-browser*')) "reject: proposed again $($second.proposals.title -join ' | ')"
+  # Measuring: oml browser failed more after the skill was accepted (2026-10-05T12:00Z): "worse", with the undo command.
   $rep = Json evolve report --file $sample --dir $p
   $effect = $rep.accepted | Where-Object id -eq $skill
   Require ($effect.verdict -eq 'worse' -and $effect.hint -like "*oml learn undo $skill*") "effect: $($effect | ConvertTo-Json -Compress -Depth 4)"
   $h = Json evolve history --file $sample --dir $p
   Require (@($h.accepted).Count -eq 2 -and $h.rejected -ge 1) 'history'
   Json evolve undo $skill --dir $p | Out-Null; Json evolve undo $mem --dir $p | Out-Null
-  Require (-not ((Json team-rules).skills | Where-Object name -eq 'evolved-qa')) 'undo skill'
+  Require (-not ((Json team-rules).skills | Where-Object name -eq 'evolved-browser')) 'undo skill'
   Require (((Json memory list --all --dir $p).records | Where-Object id -eq $a.records).status -ne 'live') 'undo memory'
   Require ((Json evolve history --dir $p --file $sample).accepted.undoneAt.Count -eq 2) 'undo: history'
   Write-Host 'ok   evolve: accept installs and writes, reject is remembered, report marks a worse change, undo takes it back'

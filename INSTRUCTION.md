@@ -43,20 +43,20 @@ Ask in plain words: *"Add a Customer entity with a list screen"*, *"Make Save va
 |---|---|---|
 | Read | `oml inspect`, `oml describe`, `oml find` | Learns what the module holds before changing it. |
 | Change | `oml spec check`, `oml apply` | Writes a change spec and applies it to a **new staged file**. Your module stays as it is. |
-| Look | `oml qa page` | After you install and publish to DEV, the agent opens the screen, takes a screenshot and checks it. Before the publish there is no visual check: the agent reports "pending visual check". |
+| Look | `oml browser page` | After you install and publish to DEV, the agent opens the screen, takes a screenshot and checks it. Before the publish there is no visual check: the agent reports "pending visual check". |
 | Report | `oml review`, `oml show-change` | Shows what changed and its risks, as Markdown or a page with flow diagrams. |
 | Install | `oml install` | Only after you say yes. |
 
-### Manual QA (what a manual tester does)
-`oml qa page <url>` opens a running app and lists what the screen shows: buttons, fields, tables, messages, errors and layout problems. `oml qa run <file>` clicks, types and checks like a tester. `oml qa record <url>` writes a test from what **you** click.
+### Look at the running app (what a manual tester does)
+`oml browser page <url>` opens a running app and lists what the screen shows: buttons, fields, tables, messages, errors and layout problems. `oml browser run <file>` clicks, types and checks like a tester. `oml browser record <url>` writes a test from what **you** click.
 
-### QA automation (pay once, replay for free)
-The agent tests a flow once with `oml qa run`, then saves the passing run: `oml qa run flow.json --save flow.replay.json`. Anyone replays it with `oml qa run flow.replay.json`, with no agent and no tokens. Each step has a time limit, so a slower app fails the test.
+### Browser automation (pay once, replay for free)
+The agent tests a flow once with `oml browser run`, then saves the passing run: `oml browser run flow.json --save flow.replay.json`. Anyone replays it with `oml browser run flow.replay.json`, with no agent and no tokens. Each step has a time limit, so a slower app fails the test.
 
 ### Test scenarios after every task
 After a task, the agent offers `oml test scenarios <source.oml> <staged.oml>`. It lists what to test, from the model:
 - **BDD** (Given / When / Then) for every public action the task created or changed. `oml test bdd` builds the BDDFramework tests.
-- **QA** for every changed screen: one scenario per path through each button, with a ready `qa.json` to run.
+- **Browser scripts** for every changed screen: one scenario per path through each button, with a ready `<Screen>.browser.json` to run.
 
 ### Seeing the database (dev only)
 Agents cannot see what was saved. `oml test data module` builds a small dev-only module that works through your module's **wrapper actions** (Create, Get, Update, Delete of an entity; the developer or the agent adds a missing one, as usual). It has no table of its own, so deleting it later leaves nothing in the database. Then the agent can `create` test data, `update` it, `check` what was saved and `cleanup` exactly what it created, like a BDD test. It calls that API only through oml. Ask your team before publishing it to DEV.
@@ -109,7 +109,7 @@ The agent saves decisions, your answers and traps with `oml memory`, so the next
 | Is the memory store healthy? | `oml memory doctor --module <file.oml>` (also checks that the elements it names still exist) |
 | What changed in the staged module? | `oml review <source.oml> <staged.oml> --md review.md` |
 | Is the staged module safe to install? | `oml validate <staged.oml> --warnings`, then `oml install <staged.oml> <target.oml>` yourself (a backup is kept) |
-| Does the app still work? | `oml qa run <file.json>` (a saved test; no agent needed) |
+| Does the app still work? | `oml browser run <file.json>` (a saved test; no agent needed) |
 
 Every command prints JSON; add `--pretty` to read it yourself.
 

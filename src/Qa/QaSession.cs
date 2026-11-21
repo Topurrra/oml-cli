@@ -6,14 +6,14 @@ using System.Text.Json.Nodes;
 
 namespace OmlCli.Qa;
 
-// `oml qa start` keeps one browser open in a background `oml qa serve` process, so later `qa run` and `qa page`
+// `oml browser start` keeps one browser open in a background `oml browser serve` process, so later `browser run` and `browser page`
 // skip the browser's cold start (6 to 8 seconds) and keep the app's login. They find the session through a state
 // file and talk to it over a named pipe that only the same Windows user can open. One request at a time.
-// The session stops on `oml qa stop`, after 30 minutes without a request, or when its browser is closed.
+// The session stops on `oml browser stop`, after 30 minutes without a request, or when its browser is closed.
 static class QaSession
 {
     static readonly TimeSpan Idle = TimeSpan.FromMinutes(30);
-    static string StateFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "oml-cli", "qa-session.json");
+    static string StateFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "oml-cli", "browser-session.json");
 
     sealed record State(string Pipe, int Pid, string Engine, string? Note, int Width, int Height, DateTime Started);
 
@@ -33,7 +33,7 @@ static class QaSession
     {
         session = started ? "started" : "running", engine = s.Engine, engineNote = s.Note, pid = s.Pid,
         viewport = new { width = s.Width, height = s.Height }, since = s.Started.ToString("s"),
-        hint = "qa run and qa page now use this browser. oml qa stop closes it.",
+        hint = "browser run, page, look, sweep and diff now use this browser. oml browser stop closes it.",
     };
 
     public static int Start(QaCommand.Settings o)
@@ -50,9 +50,9 @@ static class QaSession
         // reads oml's output through a pipe would wait for the session to end. The session reports a start error in
         // ErrorFile instead of its output.
         var info = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden };
-        foreach (var a in new[] { "qa", "serve", pipe }) info.ArgumentList.Add(a);
+        foreach (var a in new[] { "browser", "serve", pipe }) info.ArgumentList.Add(a);
         foreach (var (key, value) in o.Values) { info.ArgumentList.Add(key); if (value is not null) info.ArgumentList.Add(value); }
-        using var server = Process.Start(info) ?? throw new QaUsage("Could not start the QA session.");
+        using var server = Process.Start(info) ?? throw new QaUsage("Could not start the browser session.");
         for (var clock = Stopwatch.StartNew(); clock.Elapsed < TimeSpan.FromSeconds(60); Thread.Sleep(100))
         {
             if (ReadState() is { } s && s.Pipe == pipe)
@@ -61,10 +61,10 @@ static class QaSession
                 return 0;
             }
             if (server.HasExited)
-                throw new QaUsage("The QA session stopped at start: " + (File.Exists(ErrorFile) ? File.ReadAllText(ErrorFile).Trim() : $"exit code {server.ExitCode}"));
+                throw new QaUsage("The browser session stopped at start: " + (File.Exists(ErrorFile) ? File.ReadAllText(ErrorFile).Trim() : $"exit code {server.ExitCode}"));
         }
         try { server.Kill(true); } catch (InvalidOperationException) { }
-        throw new QaUsage("The QA session did not start in 60 seconds.");
+        throw new QaUsage("The browser session did not start in 60 seconds.");
     }
 
     static string ErrorFile => Path.ChangeExtension(StateFile, ".error.txt");
@@ -96,12 +96,12 @@ static class QaSession
         if (s is null) return null;
         if (!Running(s)) { File.Delete(StateFile); return null; }
         var sent = args.ToArray();
-        if (sent[0] == "run") sent[1] = Path.GetFullPath(sent[1]);
+        if (sent[0] is "run" or "diff") sent[1] = Path.GetFullPath(sent[1]);
         for (var i = 2; i < sent.Length - 1; i++)
-            if (sent[i] is "--out" or "--screenshot") sent[i + 1] = Path.GetFullPath(sent[i + 1]);
+            if (sent[i] is "--out" or "--screenshot" or "--snapshot") sent[i + 1] = Path.GetFullPath(sent[i + 1]);
         JsonObject answer;
         try { answer = Send(s, new JsonObject { ["args"] = new JsonArray([.. sent.Select(a => (JsonNode)a)]) }, 30 * 60_000); }
-        catch (TimeoutException) { throw new QaUsage("The QA session is busy with another request. Wait, or run with --no-session."); }
+        catch (TimeoutException) { throw new QaUsage("The browser session is busy with another request. Wait, or run with --no-session."); }
         return (answer["code"]!.GetValue<int>(), answer["output"]!.AsObject());
     }
 
@@ -114,7 +114,7 @@ static class QaSession
         writer.WriteLine(request.ToJsonString());
         var line = reader.ReadLineAsync();
         if (!line.Wait(answerMs)) throw new TimeoutException();
-        return JsonNode.Parse(line.Result ?? throw new IOException("The QA session closed the connection."))!.AsObject();
+        return JsonNode.Parse(line.Result ?? throw new IOException("The browser session closed the connection."))!.AsObject();
     }
 
     // The background process: one browser, requests one by one, until stop, idle or the browser is gone.

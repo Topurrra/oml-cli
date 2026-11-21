@@ -9,7 +9,7 @@ namespace OmlCli;
 // step (done, skipped or failed, with the command that repeats it): folders, memory (as oml memory init), the project
 // profile (.oml/oml-config.json, see ProjectConfig), the skill, the OutSystems docs for oml doc --search
 // --library (downloaded once per machine; skipped when they are there), the modules and the map, and a setup check
-// (oml doctor). The starting point of a project. A new folder with a place for every kind of work (modules, staged copies, specs, QA files, mocks,
+// (oml doctor). The starting point of a project. A new folder with a place for every kind of work (modules, staged copies, specs, browser scripts, mocks,
 // scenarios), the project memory, the agent's instructions (the skill, AGENTS.md, CLAUDE.md), a
 // .gitignore and a PROJECT.md with the next steps. With --in it copies the project's modules in and builds the
 // application map under the project's name, so `oml map ...` works there at once. Nothing outside the new folder changes,
@@ -17,7 +17,7 @@ namespace OmlCli;
 static class CreateCommand
 {
     static readonly Regex ProjectName = new("^[a-z0-9][a-z0-9-]{0,39}$", RegexOptions.CultureInvariant);
-    static readonly string[] Folders = ["modules", "staged", "specs", "qa", "mocks", "scenarios"];
+    static readonly string[] Folders = ["modules", "staged", "specs", "browser", "mocks", "scenarios"];
 
     static int Fail(string message, string? hint = null, int code = 2)
     {
@@ -115,7 +115,7 @@ static class CreateCommand
 
         File.WriteAllText(Path.Combine(root, ".gitignore"), string.Join("\n",
             "# oml: staged copies and outputs are rebuilt, never committed",
-            "staged/", "*.staged.oml", "qa/out/", "*.blank.oml",
+            "staged/", "*.staged.oml", "browser/out/", "*.blank.oml",
             "# oml: caches and local state (memory.log itself is kept)",
             ".oml/memory/memory.idx", ".oml/memory/.lock", ".oml/memory/memory.log.torn-*", ".oml/testdata/", ".oml/evolve/*/",
             ".claude/settings.local.json", ".codex/hooks.json", ".gemini/settings.json", "") );
@@ -174,7 +174,7 @@ static class CreateCommand
                 "oml config set ui.targets desktop   (and the other settings: what agents do, skip and ask; oml config show)",
                 "oml team-rules add <file.md>   (your team's own rules)",
                 "oml hooks install   (optional agent hooks: guards, a memory reminder, the profile at session start)",
-                "oml qa start --headed   (log in to the app once; later qa runs keep the login)",
+                "oml browser start --headed   (log in to the app once; later browser runs keep the login)",
                 "oml explorer-menu   (right-click entries in Windows Explorer, once per machine)",
             }.OfType<string>().ToArray(),
             next = inputs.Count > 0
@@ -280,14 +280,14 @@ static class CreateCommand
         | `modules/` | The project's `.oap` and `.oml` files, as downloaded (`oml lifetime download`) or saved (`oml pull`). Never edited. |
         | `staged/` | The agent's staged copies (`oml apply` writes here). Installed only after your yes, unless `autoApprove.install` is on. |
         | `specs/` | Change specs (JSON). |
-        | `qa/` | QA files and saved replays (`oml qa run <file> --save <replay>`). |
+        | `browser/` | Browser scripts and saved replays (`oml browser run <file> --save <replay>`). |
         | `mocks/` | Mock responses for your mock server (`oml mock --all --out mocks`). |
         | `scenarios/` | What to test after a change (`oml test scenarios <source> <staged> --out scenarios/<task>`). |
         | `.oml/` | Project memory (`oml memory`), the project configuration (`oml-config.json`), the map's project name, test-data runs. |
 
         ## Project profile
 
-        `.oml/oml-config.json` says what agents do, skip and ask in this project: screen sizes, themes, QA,
+        `.oml/oml-config.json` says what agents do, skip and ask in this project: screen sizes, themes, browser checks,
         questions, which steps need your yes (`autoApprove.*`), which oml commands may run (`commands.*`), apply's
         flow layout, migrate's choices, the browser. `oml config show` explains every setting, and `oml config set <key> <value>`
         changes one, for example `oml config set ui.targets desktop` or `oml config set autoApprove.install on`.

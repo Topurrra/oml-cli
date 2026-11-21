@@ -39,7 +39,7 @@ static class CliUsage
         oml review <before.oml> <after.oml> [--md <file.md>] [--out <file.html>] [--notes <file.md>] [--rules <oml-rules.json>]   (what changed, production-rule risks, new check findings)
         oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
         oml test bdd <module.oml> <ServerAction>... --bdd <BDDFramework.oml> [--out <spec.json>] [--module-name <TestModule>] [--producer <path>]   (spec for BDD test screens in a separate test module)
-        oml test scenarios <source.oml> <staged.oml> [--out <folder>]   (what to test after a change: BDD per changed public action, QA scenarios and qa.json per screen)
+        oml test scenarios <source.oml> <staged.oml> [--out <folder>]   (what to test after a change: BDD per changed public action, scenarios and a browser script per screen)
         oml test data module <producer.oml> --entity <Entity>:Create=<A>,Delete=<B>[,Get=..][,Update=..][,CreateOrUpdate=..]... [--name <Module>] [--out <spec.json>]   (dev-only test-data module through your wrapper actions)
         oml test data allow <dev host> | create <Entity> --values <json> [--run <id>] | update <Entity> <Id> --values <json> | check <Entity> <Id> [--expect <json>] [--absent] | cleanup [--run <id>] | status   (DEV test data, BDD style; cleanup removes exactly what the run created)
         oml flow <module.oml> <Action>   (one flow as a graph: nodes with their positions and what they do, and the connectors; the Dif page draws it)
@@ -86,11 +86,14 @@ static class CliUsage
         oml publish --in <folder> --order <order.json>   (publish many modules in that order; stops at the first failure)
         oml references <Module | file.oml>  (Refresh All references through Service Studio)
         oml lifetime environments|teams|team-apps|apps|download|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lifetime' for usage)
-        oml qa page <url> [--headed] [--width N] [--height N] [--timeout <ms>] [--screenshot <file.png>] [--style-conflicts <class prefix>] [--engine auto|cdp|uia] [--no-session]   (test a running app: what the screen shows, compactly: actions, inputs, tables, messages, layout, the OutSystems calls it made, errors)
-        oml qa run <qa.json> [--save <new.json>] [--base-url <url>] [--headed] [--width N] [--height N] [--timeout <ms>] [--out <folder>] [--continue] [--engine auto|cdp|uia] [--no-session]   (run QA steps like a manual tester: open, click, fill, select, press, wait, expect; exit 1 when a step fails)
-        oml qa record <url> [--out <qa.jsonc>] [--engine auto|cdp|uia] [--width N] [--height N]   (open the app in a window and write a QA file from what you click and type; close the window or press Ctrl+C to finish)
-        oml qa start [--engine auto|cdp|uia] [--headed] [--width N] [--height N]   (keep one browser open: later qa run and qa page skip the browser start and keep the login)
-        oml qa stop   (close the browser of oml qa start)
+        oml browser page <url> [--headed] [--width N] [--height N] [--timeout <ms>] [--screenshot <file.png>] [--style-conflicts <class prefix>] [--snapshot <file.json>] [--engine auto|cdp|uia] [--no-session]   (look at a running app: what the screen shows, compactly: actions, inputs, tables, messages, layout, the OutSystems calls it made and the slow ones, errors, accessibility)
+        oml browser run <script.json> [--save <new.json>] [--base-url <url>] [--headed] [--width N] [--height N] [--timeout <ms>] [--out <folder>] [--continue] [--engine auto|cdp|uia] [--no-session]   (run browser steps like a manual tester: open, click, fill, select, press, wait, expect; exit 1 when a step fails)
+        oml browser record <url> [--out <script.jsonc>] [--engine auto|cdp|uia] [--width N] [--height N]   (open the app in a window and write a browser script from what you click and type; close the window or press Ctrl+C to finish)
+        oml browser start [--engine auto|cdp|uia] [--headed] [--width N] [--height N]   (keep one browser open: later browser run and browser page skip the browser start and keep the login)
+        oml browser look <url> <widget | text:<text> | css:<selector>> [--state hover|focus|active|focus-visible] [--theme dark|light] [--screenshot <file.png>] [--width N] [--no-session]   (one element: screen > blocks > widget, box, computed values, the CSS rule that wins each property and what it beats, what hides or covers it)
+        oml browser sweep <url> [--widths 390,768,1366] [--out <folder>] [--no-session]   (the page at each width the project supports: overflow and the elements that cause it, layout findings, widgets shown or hidden per width)
+        oml browser diff <before.json> <after.json | url>   (what changed between two snapshots (page --snapshot), as text: widgets added, removed, moved, resized, restyled, new text)
+        oml browser stop   (close the browser of oml browser start)
         oml font woff2 <input> [output.woff2] [--force]
         oml font batch <folder> [--out folder] [--force]
         oml image <input> [--to png|jpeg|webp|svg|ico] [--max-width N] [--max-height N] [--quality 1-100] [--out file] [--force] [--precision 0-10] [--strip-title] [--remove-ids] [--aggressive]   (convert, resize or optimize a raster image or SVG)
@@ -128,7 +131,7 @@ static class CliUsage
         Memory and learning: memory, learn (project facts, decisions and traps for agents; lessons from where agents fail and retry)
         Agents: batch, hooks, show-change, dashboard (several commands in one process; agent hooks; a change walkthrough; the local web dashboard)
         Service Studio and LifeTime: studio, pull, publish, references, lifetime (Studio's open modules; save, publish and refresh references; the LifeTime API)
-        Testing: qa, test bdd, test scenarios, test data (test a running app in a browser and replay it; BDD specs; what to test after a change; dev test data)
+        Testing: browser, test bdd, test scenarios, test data (look at and drive a running app in a browser, explain its styles, replay it; BDD specs; what to test after a change; dev test data)
         Assets: font, image (woff2 fonts; convert, resize, trace and ICO images)
         Packages: app, extension, templates (.oap and .osp packages; .xif extensions; sample modules)
         Setup: version, selftest, doctor, menu, explorer-menu, log, model-types, widget-types (the build and its checks; a menu for people; Explorer right-click entries; the usage log; OutSystems API members)
@@ -146,7 +149,7 @@ static class CliUsage
     {
         ["census"] = "stats", ["meta"] = "header", ["expr"] = "expression", ["api"] = "model-types", ["widgets"] = "widget-types",
         ["setup"] = "explorer-menu", ["run"] = "batch", ["evolve"] = "learn", ["skills"] = "team-rules", ["library"] = "outsystems-docs",
-        ["warn"] = "explain-warning", ["lt"] = "lifetime", ["dif"] = "show-change",
+        ["warn"] = "explain-warning", ["lt"] = "lifetime", ["dif"] = "show-change", ["qa"] = "browser",
     };
 
     // The new name of a command word, or the word itself.

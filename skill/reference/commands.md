@@ -605,7 +605,7 @@ It runs these checks, in this order. Each one has a `status` (`ok`, `warn`, `fai
 | selfTest | The self-test passed on this Service Studio build. |
 | studioMcp | Service Studio's MCP server answers. It must be 11.55.91 or later for publish. Optional. |
 | lifeTime | `OML_LIFETIME_HOST` and `OML_LIFETIME_TOKEN`. The token is never printed. |
-| browser | Edge or Chrome for `oml qa`. `OML_BROWSER` wins. |
+| browser | Edge or Chrome for `oml browser`. `OML_BROWSER` wins. |
 | path | The folder of `oml` is on PATH. |
 
 `ok` is `false` when any check fails. The exit code is `0` when nothing fails, and `1` otherwise.
@@ -920,8 +920,8 @@ Exposed REST has no typed request/response format setting on this build; Text bo
 `oml test scenarios <source.oml> <staged.oml> [--out <folder>]` lists what to test after a change, from the model. It compares the source module with the staged copy and covers every public server or service action and every screen the change created or changed (a change is any node, widget, name or expression under it). The output folder (default `<staged>.scenarios`) must be new or empty.
 
 - **Server logic (BDD).** Per action: the main path (valid inputs, its outputs, the entities it saves or deletes), each If branch (true and false), each Switch case and Otherwise, each exception it raises or handles, and each mandatory Text or Identifier input left empty. BDDFramework tests server logic, not screens; build the tests with the printed `oml test bdd` command.
-- **Screens (QA).** Per screen: it opens, and per named button or link with an action, one scenario per path through that action (the If conditions on the way), with the messages and screens the user then sees. A screen aggregate adds an empty-list scenario. An unnamed button gets a scenario to name it, since a qa step needs a widget Name.
-- **qa.json skeletons.** `qa/<Screen>.qa.json` per screen: open, fill the named fields, click, and expect what the success path shows. Set `baseUrl` and the values, run it with `oml qa run ... --save <replay.json>`, and the replay needs no agent.
+- **Screens (browser).** Per screen: it opens, and per named button or link with an action, one scenario per path through that action (the If conditions on the way), with the messages and screens the user then sees. A screen aggregate adds an empty-list scenario. An unnamed button gets a scenario to name it, since a browser step needs a widget Name.
+- **Browser script skeletons.** `browser/<Screen>.browser.json` per screen: open, fill the named fields, click, and expect what the success path shows. Set `baseUrl` and the values, run it with `oml browser run ... --save <replay.json>`, and the replay needs no agent.
 - `<FILL: ...>` marks what the model cannot know: values and expected results. Show `scenarios.md` to the user and fill these in with them.
 ## Test data
 
@@ -976,20 +976,29 @@ oml new Orders_Tests.oml --name Orders_Tests --kind CrossDevice
 oml apply Orders_Tests.oml Orders_Tests.bdd-spec.json Orders_Tests.staged.oml
 ```
 
-## QA
+## Browser
 
-`oml qa page <url> [--headed] [--width N] [--height N] [--timeout <ms>] [--screenshot <file.png>] [--engine auto|cdp|uia] [--no-session]`
-`oml qa run <qa.json> [--base-url <url>] [--headed] [--width N] [--height N] [--timeout <ms>] [--out <folder>] [--continue] [--engine auto|cdp|uia] [--no-session]`
-`oml qa record <url> [--out <qa.jsonc>] [--engine auto|cdp|uia] [--width N] [--height N]`
-`oml qa start [--engine auto|cdp|uia] [--headed] [--width N] [--height N]` and `oml qa stop`
+`oml browser page <url> [--headed] [--width N] [--height N] [--timeout <ms>] [--screenshot <file.png>] [--engine auto|cdp|uia] [--no-session]`
+`oml browser run <script.json> [--base-url <url>] [--headed] [--width N] [--height N] [--timeout <ms>] [--out <folder>] [--continue] [--engine auto|cdp|uia] [--no-session]`
+`oml browser record <url> [--out <script.jsonc>] [--engine auto|cdp|uia] [--width N] [--height N]`
+`oml browser start [--engine auto|cdp|uia] [--headed] [--width N] [--height N]` and `oml browser stop`
+`oml browser look <url> <target> [--state hover|focus|active|focus-visible] [--theme dark|light] [--screenshot <file.png>]`
+`oml browser sweep <url> [--widths 390,768,1366] [--out <folder>]`
+`oml browser page <url> --snapshot <file.json>`, then `oml browser diff <before.json> <after.json | url>`
 
-Tests the published app like a manual tester. It uses the real app, with real data and server actions. It opens Edge or Chrome with a new, empty profile, never yours. The profile is deleted at the end.
+The agent's browser and computer use for the published app: it looks at and drives the real app, with real data and server actions, like a manual tester. (`oml qa` is the old name and still works.) It opens Edge or Chrome with a new, empty profile, never yours. The profile is deleted at the end.
 
-`qa page` prints what the screen shows, in about 2 KB: `actions`, `inputs`, `tables` (columns, row count, 3 sample rows), `feedback` and `invalid` messages, `headings`, other named `widgets`, `layout` findings, the real `viewport`, and `errors`. With the DevTools engine it also prints `calls`: each OutSystems call with its `status`, `rows` and server `exception`. Use it to find the targets for a QA file.
+`browser page` prints what the screen shows, in about 2 KB: `actions`, `inputs`, `tables` (columns, row count, 3 sample rows), `feedback` and `invalid` messages, `headings`, other named `widgets`, `layout` findings, the real `viewport`, and `errors`. With the DevTools engine it also prints `calls`: each OutSystems call with its `status`, `rows`, server `exception` and `ms`; `slowCalls`: the calls that took a second or more (an aggregate that fetches too much, a missing index); and `a11y`: from the browser's accessibility tree, buttons, links, fields and images without a name (with the widget Name), headings that skip a level, and no level-1 heading. Use it to find the targets for a browser script.
+
+### Look closer (DevTools engine)
+
+- **`look <url> <target>`** answers "why does this element look like this?". Output: `path` (screen > web blocks > widget, from the blocks' `data-block` names), `box` (position, size, margin, padding, border), `computed` (the values that shape it), `parent` (its display, flex or grid columns, gap, width), `hidden` (what hides it: `display: none` on which ancestor, zero size, outside the page), `covered` (an element on top of it), and `rules`: per property, the declaration that wins (`selector (sheet.css)`, or `style attribute`), the ones it `beats`, and for color and font values set on an ancestor where they are `inherited` from. Browser defaults are left out. `--state hover` (or `focus`, `active`, `focus-visible`) forces the state first, so a hover color that loses shows in `beats`. `--theme dark` emulates `prefers-color-scheme: dark` (a theme that switches with a class needs that class on the page). `--screenshot` captures only the element.
+- **`sweep <url>`** opens the page at each width the project supports (`ui.targets` in `.oml/oml-config.json`: phone 390, tablet 768, desktop 1366; `--widths` sets others). Per width: `layout` findings (overflow is measured against the width asked for), `overflowBy` (the deepest elements wider than the window, with their widget path), `body` (the classes OutSystems UI sets, such as `phone`), and `hiddenHere` or `onlyHere` (widgets shown at the widest width and not here, or the other way round). `--out` saves `sweep-<width>.png` per width.
+- **`page --snapshot <file.json>`** saves a record of the screen: every visible named widget with its path, box, text and the colors, font and display people notice. **`diff <before.json> <after.json>`** compares two of them; a URL as the second side takes the page as it is now. Take one before a publish and diff after it: `changes` lists, in this order, widgets `added`, `removed`, new `text`, `style` changes, `resized` and `moved` (4 px or more; up to 25 lines of each kind), with `counts`. Different widths are flagged as not comparable.
 
 Targets are OutSystems names. A widget's Name is the last part of its DOM id (`b2-b3-SaveButton` is `SaveButton`). Other targets: `text:<label>` (a button, link or field label), `css:<selector>` (DevTools only), and `Name#N` for the Nth match.
 
-A QA file (JSONC):
+A browser script (JSONC):
 
 ```jsonc
 {
@@ -1000,7 +1009,7 @@ A QA file (JSONC):
     { "open": "OrdersList", "expect": { "screen": "OrdersList", "table": { "target": "OrdersTable", "rows": ">0" } } },
     { "expect": { "table": { "target": "OrdersTable", "column": "Status", "notMatch": "^\\d+$" } } },
     { "click": "NewOrderLink", "expect": { "screen": "OrderDetail" } },
-    { "fill": { "CustomerInput": "Ana", "PasswordInput": "$env:QA_PASSWORD" } },
+    { "fill": { "CustomerInput": "Ana", "PasswordInput": "$env:APP_PASSWORD" } },
     { "select": { "StatusDropdown": "Open" } },
     { "click": "SaveButton", "expect": { "feedback": "success" } }
   ]
@@ -1019,7 +1028,7 @@ A QA file (JSONC):
 
 `expect` keys: `screen`, `url`, `text`, `noText`, `visible`, `hidden`, `value` (`{ "Field": "text" }`), `feedback` (`"success"` or `{ "type", "text" }`), `call` (`"FetchOrders"` or `{ "name", "rows": ">0" }`, DevTools only), `table` (`target`, `rows`, `column`, `match`, `notMatch`), `count` (`{ "target", "is": ">=2" }`), `invalid` (`true`, `false` or a field), `inView` (a target or list, wholly in the window without scrolling), `layout` (`true`, or a list of kinds). Counts take `>`, `>=`, `<`, `<=`, `=`, `!=` or a number. Expectations are retried until they hold or the timeout passes.
 
-**Replay without an agent.** `oml qa run <qa.json> --save <new.json>` saves a passing run as a new QA file: the same steps, each action with `maxMs` (three times what it took, at least 2 seconds), and, where a step checked nothing, an `expect` of the screen it ended on and of the first call it made (DevTools only). `maxMs` is a time limit, never a wait: a step that takes longer fails, because the app got slower. A failing run saves nothing, and `--save` never overwrites a file. Anyone can replay the saved file with `oml qa run <new.json>`; an agent is needed only when a replay fails.
+**Replay without an agent.** `oml browser run <script.json> --save <new.json>` saves a passing run as a new browser script: the same steps, each action with `maxMs` (three times what it took, at least 2 seconds), and, where a step checked nothing, an `expect` of the screen it ended on and of the first call it made (DevTools only). `maxMs` is a time limit, never a wait: a step that takes longer fails, because the app got slower. A failing run saves nothing, and `--save` never overwrites a file. Anyone can replay the saved file with `oml browser run <new.json>`; an agent is needed only when a replay fails.
 
 Layout findings come from the boxes of the screen's actions and fields. Positions are for checks only; clicks always find the element first.
 
@@ -1038,31 +1047,31 @@ Two engines. `--engine auto` (default) picks one:
 | `cdp` | DevTools: real input events, the DOM, the network and JavaScript errors. Headless unless `--headed`. | Needs remote debugging. A `RemoteDebuggingAllowed = 0` policy blocks it. |
 | `uia` | Windows UI Automation over a normal browser window. Chromium shows DOM ids as automation ids, so widget Names work. The window is placed left of all monitors unless `--headed`. | No `call`, JavaScript errors, `press` or `css:`. Ready means "the screen stopped changing", not "the network is idle". Each `open` opens a new window, which takes the keyboard focus for a moment. |
 
-`auto` reads the Edge or Chrome policy and uses `uia` when remote debugging is off. `oml doctor` shows which engine `qa` uses. oml reads the policy only; it never changes it.
+`auto` reads the Edge or Chrome policy and uses `uia` when remote debugging is off. `oml doctor` shows which engine `oml browser` uses. oml reads the policy only; it never changes it.
 
-Output: `{ ok, passed, failed, skipped, ms, engine, engineNote, steps: [ { n, do, ok, ms, readyMs, calls, error, notes, screenshot, url } ] }`. With `--out`, also `qa-report.json` and the screenshots in that folder; without it, screenshots go to `%TEMP%\oml-qa\<time>`.
+Output: `{ ok, passed, failed, skipped, ms, engine, engineNote, steps: [ { n, do, ok, ms, readyMs, calls, error, notes, screenshot, url } ] }`. With `--out`, also `browser-report.json` and the screenshots in that folder; without it, screenshots go to `%TEMP%\oml-browser\<time>`.
 
-The UI Automation window cannot be narrower than the browser allows (about 500 px for Edge). Check `viewport` in `qa page`; test phone widths with the DevTools engine.
+The UI Automation window cannot be narrower than the browser allows (about 500 px for Edge). Check `viewport` in `browser page`; test phone widths with the DevTools engine.
 
 ### Session
 
-`oml qa start` keeps one browser open in a background process. Later `qa run` and `qa page` use it: no browser start (6 to 8 seconds), and the app's login stays. Their output has `"session": true`. `--no-session` runs one command in a browser of its own. The session uses the engine and window size it started with.
+`oml browser start` keeps one browser open in a background process. Later `browser run`, `page`, `look`, `sweep` and `diff` use it: no browser start (6 to 8 seconds), and the app's login stays. Their output has `"session": true`. `--no-session` runs one command in a browser of its own. The session uses the engine and window size it started with.
 
-The session listens on a named pipe that only the same Windows user can open. It does one request at a time; a second one gets "busy". It stops on `oml qa stop`, after 30 minutes without a request, or when its browser is closed. Its state is in `%LOCALAPPDATA%\oml-cli\qa-session.json`.
+The session listens on a named pipe that only the same Windows user can open. It does one request at a time; a second one gets "busy". It stops on `oml browser stop`, after 30 minutes without a request, or when its browser is closed. Its state is in `%LOCALAPPDATA%\oml-cli\browser-session.json`.
 
 ### Record
 
-`oml qa record <url>` opens the app in a visible window. Use the app; oml writes a QA file (default `qa-recorded.jsonc`; an existing file is refused).
+`oml browser record <url>` opens the app in a visible window. Use the app; oml writes a browser script (default `browser-recorded.jsonc`; an existing file is refused).
 
 - Each click on a button or link becomes a `click` step with the widget Name, or `text:<label>` for an element without a Name.
 - Text typed into a field you clicked, and dropdown choices, become `fill` and `select` steps. They are read at the next click.
 - A click that changes the screen gets `expect screen`; one that shows a feedback message gets `expect feedback`.
-- A password field is written as `"$env:QA_PASSWORD"`, never its value.
+- A password field is written as `"$env:APP_PASSWORD"`, never its value.
 - Fields that changed without a click into them (the screen set them, or Tab) are listed in `notes`, not recorded.
 
 Finish with Ctrl+C in the console (keeps text typed after the last click) or by closing the window. Check the file and add expectations before you run it. With UI Automation, a low-level mouse hook sees your left clicks; only clicks inside the recording window are used.
 
-Use test data on a development environment only. Do not run a QA file that clicks Save or Delete against production.
+Use test data on a development environment only. Do not run a browser script that clicks Save or Delete against production.
 
 Exit 0 when every step passed, 1 when a step failed, 2 for a usage or environment problem.
 
@@ -1168,7 +1177,7 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 
 `oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--no-skill] [--no-library] [--no-doctor]` is the starting point of a project, such as `oml create falcon --in C:\Downloads\falcon`. The name is 1-40 lower-case letters, digits and hyphens; the folder `<parent>\<project>` must be new or empty, and nothing is created when an input is wrong.
 
-- **Folders:** `modules/` (the project's `.oap` and `.oml` files), `staged/`, `specs/`, `qa/`, `mocks/`, `scenarios/`.
+- **Folders:** `modules/` (the project's `.oap` and `.oml` files), `staged/`, `specs/`, `browser/`, `mocks/`, `scenarios/`.
 - **Memory:** `.oml/memory/memory.log`, as `oml memory init` makes it.
 - **The agent's instructions:** a copy of the `skill/` that came with this oml, `AGENTS.md` (any agent) and `CLAUDE.md` with `@AGENTS.md` (Claude Code). `--no-skill` leaves them out.
 - **No hooks.** Agent hooks are optional: run `oml hooks install` in the project when you want them (see [Agent hooks](#agent-hooks)). `--no-hooks` is still accepted and does nothing.
@@ -1177,7 +1186,7 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 - **Setup check:** `oml doctor`; what it finds is in `notes`. `--no-doctor` leaves it out.
 - **`.gitignore`** (staged copies, caches, local state) and **`PROJECT.md`** (the layout and the next steps).
 
-The output has `ready`: one row per step with `status` (`done`, `skipped`, `failed` or `attention`) and, when it did not finish, `fix`: the command that repeats it. `optional` lists what a person may still want: `oml config set`, `oml team-rules add`, `oml hooks install`, `oml qa start --headed`, `oml explorer-menu`.
+The output has `ready`: one row per step with `status` (`done`, `skipped`, `failed` or `attention`) and, when it did not finish, `fix`: the command that repeats it. `optional` lists what a person may still want: `oml config set`, `oml team-rules add`, `oml hooks install`, `oml browser start --headed`, `oml explorer-menu`.
 - **With `--in`:** the modules are copied into `modules/`, and the application map is built under the project's name (`oml map build <project> --in modules`), so `oml map overview` works there at once.
 ## Map
 
@@ -1235,7 +1244,7 @@ before: Orders.oml
 after: Orders.staged.oml
 ```
 
-- **Images and video.** `![Today](media/save-today.png)` shows the image under the paragraph, with its label as a caption. A `.mp4` or `.webm` path shows a video with controls. The path is relative to the Markdown file's folder and must stay below it. Typical source: `oml qa page <screen url> --screenshot media/save-proposed.png`. A file that is missing or refused shows a red message with the reason, not a broken image.
+- **Images and video.** `![Today](media/save-today.png)` shows the image under the paragraph, with its label as a caption. A `.mp4` or `.webm` path shows a video with controls. The path is relative to the Markdown file's folder and must stay below it. Typical source: `oml browser page <screen url> --screenshot media/save-proposed.png`. A file that is missing or refused shows a red message with the reason, not a broken image.
 - **Galleries.** A `:::gallery` block groups images: `side-by-side` (a row that wraps on a narrow window), `grid` (small tiles) or `carousel` (one at a time, **Previous** and **Next** buttons, "n of m"). An optional title goes last in square brackets.
 
 The lines of a gallery (the block ends with a line that holds only `:::`):
@@ -1270,14 +1279,14 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 | Group | Settings |
 |---|---|
 | `ui.*` | `targets` (desktop, tablet, phone), `themes` (light, dark), `rtl`, `accessibility`, `translations`. |
-| `checks.*` | `qa`, `review`, `uiChecklist`, `bestPractices`, `testScenarios`, `testData`: off means agents do not run or offer it unless the user asks in the task. `qa` and `testScenarios` are also refused by the command. |
+| `checks.*` | `browser` (was `qa`; the old key is still read), `review`, `uiChecklist`, `bestPractices`, `testScenarios`, `testData`: off means agents do not run or offer it unless the user asks in the task. `qa` and `testScenarios` are also refused by the command. |
 | `ask.*` | `testing`, `testScenarios`, `devUrl`, `producerChoice`: on means agents ask. |
 | `autoApprove.*` | True means agents run the step without asking, then report the exact command and its result: `apply` (on by default; it writes a staged copy), `install` (still only after `oml validate --warnings` shows zero errors), `publish`, `references`, `deploy` (LifeTime tag, deploy, abort, continue), `dataDeletion`. All but `apply` are off by default. (`ask.install`, `ask.publish`, `ask.deploy` and `ask.dataDeletion` were replaced by these; a file that still has them gets a problem line.) |
 | `commands.*` | `install`, `publish`, `references`, `pull`, `lifetime`, `studio`, `migrate`: off means oml refuses the command (exit 2, naming the setting) and agents name the step for the user to do in Service Studio or LifeTime. `--no-profile` runs it once when the user asks in the task. A step inside `oml batch` is not checked. |
 | `apply.autoLayout` | On: `oml apply` lays out every flow it changes. Off: flows that existed before the apply keep their layout (new nodes in them are not arranged), new flows are still laid out, and `tidyFlows` still lays out the flows it names. |
 | `migrate.*` | `serverStore` (session variables that server logic writes, sensitive ones and records go to the `SessionValue` store; off: they stay manual), `mergeServerCalls` (consecutive server calls of a screen action become one server action; off: they stay), `copyExposed` (as `--copy-exposed`; off by default). |
-| `lane.fast` | A change of only CSS values or texts of existing elements takes 2 tool calls: no QA, review file or questions. |
-| `browser` | `oml` (oml qa and its own Edge or Chrome) or `agent` (the agent's built-in browser). |
+| `lane.fast` | A change of only CSS values or texts of existing elements takes 2 tool calls: no browser check, review file or questions. |
+| `browser` | `oml` (oml browser and its own Edge or Chrome) or `agent` (the agent's built-in browser). |
 | `app.devUrl` | The base URL of the app in DEV. |
 | `author` | The name oml writes as creator and last modifier of what it creates or changes (see below). One line, at most 100 characters; `""` clears it. The `OML_AUTHOR` variable wins over it. |
 | `outsystems.mcpServer` | The address of Service Studio's MCP server (O11), such as `http://127.0.0.1:41820/mcp`. `oml pull`, `publish`, `references`, `studio` and `doctor` use it, and agents are told it. Only this computer (127.0.0.1 or localhost), because the file is shared with the repository. The `OML_STUDIO_URL` or `OML_STUDIO_PORT` variable wins over it. |
@@ -1287,7 +1296,7 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 
 The file holds no secrets: a text value that looks like one is refused. An unknown key or a wrong value is ignored and named in `problems`. A file that cannot be read gives the defaults and never blocks an agent.
 
-`oml qa` follows `ui.targets` and `ui.themes`: a `--width` of a size the project does not support (phone under 600 px, tablet under 1024 px, desktop from there) or a `--theme` it does not support is refused with the reason. `--no-profile` skips the check once, for when the user asks for that size or theme in the task. A command whose check is off is refused first (exit 2): `oml qa page`, `run` and `record` need `checks.qa`, and `oml test scenarios` needs `checks.testScenarios`. The message names the setting and the file; `oml config set checks.qa on` turns it on, and `--no-profile` runs the command once when the user asked for it in the task. `oml qa start`, `stop`, `oml qa` alone and `--help` are never refused. A step inside `oml batch` is not checked.
+`oml browser` follows `ui.targets` and `ui.themes`: a `--width` of a size the project does not support (phone under 600 px, tablet under 1024 px, desktop from there) or a `--theme` it does not support is refused with the reason. `--no-profile` skips the check once, for when the user asks for that size or theme in the task. A command whose check is off is refused first (exit 2): `oml browser page`, `run` and `record` need `checks.browser`, and `oml test scenarios` needs `checks.testScenarios`. The message names the setting and the file; `oml config set checks.browser on` turns it on, and `--no-profile` runs the command once when the user asked for it in the task. `oml browser start`, `stop`, `oml browser` alone and `--help` are never refused. A step inside `oml batch` is not checked.
 
 **Author.** Service Studio shows "Created by" and "Last modified by" on most top-level elements; without a name it shows Unknown. `oml apply` (with what a `copy` pastes) and `oml new` write the author as `CreatedBy` on what the run created and as `LastModifiedBy`, with `LastModifiedDate` set to the local time, on what it created or changed, found as `oml review` finds changes. Other elements are not touched. The apply report has `author` (the name, or null). A field this Service Studio build does not let oml write is skipped; when no element took the name, `warnings` says so once. Without an author (or with an `OML_AUTHOR` that is not a valid name, which `next` then names) the apply still saves, and `next` says to ask the user for a name, run `oml config set author "<name>"` and apply again to a new staged file. The profile always has one author line: the name, or "ask the user before the first change". `oml create --author "<name>"` sets it in a new project.
 
@@ -1305,7 +1314,7 @@ Agents get the profile from the session-start hook (see [Agent hooks](#agent-hoo
 
 A read of part of a file is allowed however the agent names the range: `limit` (Claude Code, Cursor, Gemini CLI), `view_range` (Copilot) or a start and end line (VS Code), at most 400 lines.
 
-With `browser` set to `agent` in the [project profile](#project-profile), it also refuses a shell command that starts Edge, Chrome or Firefox or opens a URL; `oml qa` is allowed. `hooks.bigDocs`, `hooks.testDataApi` and `hooks.externalBrowser` turn the guards off; the `.oml` guard stays.
+With `browser` set to `agent` in the [project profile](#project-profile), it also refuses a shell command that starts Edge, Chrome or Firefox or opens a URL; `oml browser` is allowed. `hooks.bigDocs`, `hooks.testDataApi` and `hooks.externalBrowser` turn the guards off; the `.oml` guard stays.
 
 **Session start.** `install` also adds a session-start hook (`oml hooks session`): when the project has `.oml/oml-config.json`, the agent starts with the project profile as context. `hooks.sessionProfile off` turns it off.
 
@@ -1315,7 +1324,7 @@ Anything the hook cannot read is allowed: a broken hook never blocks work. Each 
 
 **Memory reminder** (the end-of-turn hook, `oml hooks stop`): small models often forget `oml memory add`. When the agent finishes, the hook asks it once to save what the next agent should know, and only when all of these hold:
 
-- the session changed something or tested the app (`apply`, `install`, `new`, `publish`, `references`, `extension new`, `app pack`, `lifetime deploy|tag`, `qa`) and saved nothing (`memory add` or `retract`), going by the usage log since the session started (the transcript file's creation time, else the last 2 hours);
+- the session changed something or tested the app (`apply`, `install`, `new`, `publish`, `references`, `extension new`, `app pack`, `lifetime deploy|tag`, `browser`) and saved nothing (`memory add` or `retract`), going by the usage log since the session started (the transcript file's creation time, else the last 2 hours);
 - the project folder has a memory store (`.oml/memory/memory.log`);
 - the agent is not already continuing because of a stop hook (`stop_hook_active`), so it never asks twice.
 

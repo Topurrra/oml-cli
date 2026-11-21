@@ -1,14 +1,14 @@
 # UI checklist
 
 Use this list for every block and screen you build. You cannot see the result, so look at a screenshot of the real app.
-Never report UI work as done without at least one screenshot that you looked at: `oml qa page --screenshot` after the user publishes to DEV (or your own browser when the project profile says `browser agent`). Before a publish there is no visual check: report the work as "pending visual check" instead of done.
+Never report UI work as done without at least one screenshot that you looked at: `oml browser page --screenshot` after the user publishes to DEV (or your own browser when the project profile says `browser agent`). Before a publish there is no visual check: report the work as "pending visual check" instead of done.
 
 - **Labels:** No default widget texts. A new Link has the text "link" and a new Button has "Button". Replace them; do not add text after them.
 - **Content:** Use real demo content. No "Demo content", "Lorem ipsum" or "Text".
 - **Theme:** Use theme variables (`var(--color-...)`) and your own variables for new colours, also in the header and footer.
 - **Theme CSS:** Scope theme rules to your class (`[data-theme="dark"] .my-block`). Never style `body`, `html`, `*` or a bare `button`.
 - **Size:** A canvas, a background effect or an absolute child needs a parent with an explicit `height`, `min-height` or `aspect-ratio`.
-- **Screen size:** The screen must be readable at 1366 and 1920 px (390 px for mobile work): nothing cut off, empty or one pixel high.
+- **Screen size:** The screen must be readable at 1366 and 1920 px (390 px for mobile work): nothing cut off, empty or one pixel high. `oml browser sweep <url>` checks every width the project supports.
 - **Layout:** Responsive units (`%`, `rem`, `minmax`, `flex`). No horizontal scroll (`horizontalOverflow` must be `false`).
 - **Focus:** Focus is visible on every link, button and input.
 - **Names:** Each Input has a Label or prompt. Each icon-only Button has an aria label. Decorative elements have `aria-hidden="true"`.
@@ -19,11 +19,11 @@ Never report UI work as done without at least one screenshot that you looked at:
 - **JavaScript cleanup:** Every `window` or `document` listener, timer, observer and animation frame is removed in `OnDestroy`.
 - **Lists:** List items are direct children of the list, after a `<script>`: style `.my-list > *`; in a grid hide `[data-list] > script`.
 - **CSS variables:** Reactive drops `--name` from a style attribute: set them from a Script (`style.setProperty`).
-- **Platform widgets:** Restyle Switch, Checkbox, Dropdown and Input with OutSystems UI's selector plus your class (`input[data-switch].my-switch`); check with `oml qa page --style-conflicts`.
+- **Platform widgets:** Restyle Switch, Checkbox, Dropdown and Input with OutSystems UI's selector plus your class (`input[data-switch].my-switch`); check with `oml browser page --style-conflicts`.
 
 ## The loop
 
 1. `oml apply` the spec to a new staged file.
 2. The user installs and publishes to DEV. Until then, report "pending visual check".
-3. `oml qa page <screen url> --screenshot <Screen>.png`; look at the picture and read `layout` and `errors` too.
+3. `oml browser page <screen url> --screenshot <Screen>.png`; look at the picture and read `layout`, `a11y` and `errors` too. A style that is not what you wrote: `oml browser look <url> <Widget>` names the rule that wins. Changing a published screen: `--snapshot before.json` first, then `oml browser diff before.json <url>`.
 4. Fix every problem you see in a new staged file. Repeat from step 1.

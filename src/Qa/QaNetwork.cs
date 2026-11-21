@@ -20,6 +20,8 @@ sealed class QaNetwork
         public bool Done;
         public string? Failed;
         public string? Call;      // the OutSystems call name, for screenservices/moduleservices requests
+        public long EndedMs;      // when it finished or failed (0 while open)
+        public long Ms => EndedMs > 0 ? EndedMs - StartedMs : 0;
     }
 
     readonly object gate = new();
@@ -57,6 +59,7 @@ sealed class QaNetwork
                     if (requests.TryGetValue(p.GetProperty("requestId").GetString()!, out var ended))
                     {
                         ended.Done = true;
+                        ended.EndedMs = clock.ElapsedMilliseconds;
                         if (method == "Network.loadingFailed" && !(p.TryGetProperty("canceled", out var c) && c.GetBoolean()))
                             ended.Failed = p.GetProperty("errorText").GetString();
                         lastActivityMs = clock.ElapsedMilliseconds;

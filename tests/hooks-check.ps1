@@ -114,7 +114,7 @@ try {
   $ctx = ($x.Out | ConvertFrom-Json)
   Require ($x.Exit -eq 0 -and $ctx.additionalContext -match 'desktop only' -and $ctx.additionalContext -match 'Do not ask whether to test' -and $ctx.hookSpecificOutput.additionalContext -eq $ctx.additionalContext) "session profile: $($x.Out)"
   Require ((Hook 'check' @{ tool_name = 'Bash'; cwd = $prof; tool_input = @{ command = 'Start-Process msedge https://dev.example.com' } }).Exit -eq 2) 'browser = agent did not refuse starting Edge'
-  Require ((Hook 'check' @{ tool_name = 'Bash'; cwd = $prof; tool_input = @{ command = 'oml qa page https://dev.example.com --screenshot a.png' } }).Exit -eq 0) 'browser = agent refused oml qa'
+  Require ((Hook 'check' @{ tool_name = 'Bash'; cwd = $prof; tool_input = @{ command = 'oml browser page https://dev.example.com --screenshot a.png' } }).Exit -eq 0) 'browser = agent refused oml browser'
   & $Oml config set hooks.bigDocs off | Out-Null
   Require ((Hook 'check' @{ tool_name = 'Read'; cwd = $prof; tool_input = @{ file_path = 'skill/reference/commands.md' } }).Exit -eq 0) 'hooks.bigDocs off still refused the read'
   Require ((Hook 'check' @{ tool_name = 'Edit'; cwd = $prof; tool_input = @{ file_path = 'Orders.oml' } }).Exit -eq 2) 'the .oml write guard must stay on'
@@ -132,7 +132,7 @@ try {
   Require (((& $Oml config) -join ' ') -match 'Commands turned off for this project: oml publish') 'commands.publish off is not in the profile'
   & $Oml config set commands.publish on | Out-Null
   # qa follows the sizes and themes; the MCP address stays on this computer
-  $x = (& $Oml qa page http://127.0.0.1:9 --width 390 2>&1) -join ''
+  $x = (& $Oml browser page http://127.0.0.1:9 --width 390 2>&1) -join ''
   Require ($LASTEXITCODE -eq 2 -and $x -match 'phone size') "qa --width 390 in a desktop-only project: $x"
   & $Oml config set outsystems.mcpServer http://example.com/mcp 2>&1 | Out-Null
   Require ($LASTEXITCODE -eq 2) 'a Service Studio MCP address on another machine was accepted'
@@ -156,14 +156,14 @@ try {
     Require ($LASTEXITCODE -eq 0 -and (Get-Content (Join-Path $prof '.oml\oml-config.json') -Raw | ConvertFrom-Json).author -eq '' -and ((& $Oml config) -join '') -match 'ask the user which author name') 'an empty author did not clear it'
   } finally { if ($null -ne $savedAuthor) { $env:OML_AUTHOR = $savedAuthor } }
   # a check that is off is refused by the command; --no-profile skips it; qa --help is never refused
-  & $Oml config set checks.qa off | Out-Null
-  $x = (& $Oml qa page http://127.0.0.1:9 2>&1) -join ''
-  Require ($LASTEXITCODE -eq 2 -and $x -match 'checks\.qa') "qa page with checks.qa off: $x"
-  $x = (& $Oml qa --help 2>&1) -join ''
-  Require ($LASTEXITCODE -eq 0 -and $x -notmatch 'checks\.qa is off') "qa --help with checks.qa off: $x"
-  $x = (& $Oml qa page http://127.0.0.1:9 --no-profile 2>&1) -join ''
-  Require ($x -notmatch 'checks\.qa is off') "qa page --no-profile was refused by the profile: $x"
-  & $Oml config set checks.qa on | Out-Null
+  & $Oml config set checks.browser off | Out-Null
+  $x = (& $Oml browser page http://127.0.0.1:9 2>&1) -join ''
+  Require ($LASTEXITCODE -eq 2 -and $x -match 'checks\.browser') "browser page with checks.browser off: $x"
+  $x = (& $Oml browser --help 2>&1) -join ''
+  Require ($LASTEXITCODE -eq 0 -and $x -notmatch 'checks\.browser is off') "browser --help with checks.browser off: $x"
+  $x = (& $Oml browser page http://127.0.0.1:9 --no-profile 2>&1) -join ''
+  Require ($x -notmatch 'checks\.browser is off') "browser page --no-profile was refused by the profile: $x"
+  & $Oml config set checks.browser on | Out-Null
   & $Oml config set checks.testScenarios off | Out-Null
   $x = (& $Oml test scenarios a.oml b.oml 2>&1) -join ''
   Require ($LASTEXITCODE -eq 2 -and $x -match 'checks\.testScenarios') "test scenarios with checks.testScenarios off: $x"
@@ -265,7 +265,7 @@ try {
   Set-Content $log @((Line 10 'inspect'), (Line 5 'describe'), (Line 4 'apply' 1))
   Require ($null -eq (Stop-Hook @{ hook_event_name = 'Stop'; cwd = $mem })) 'reminded after a session that only read (and a failed apply)'
   Set-Content $log @((Line 3 'qa'))
-  Require ((Stop-Hook @{ hook_event_name = 'Stop'; cwd = $mem }).reason -match 'qa 1x') 'no reminder after a qa run'
+  Require ((Stop-Hook @{ hook_event_name = 'Stop'; cwd = $mem }).reason -match '(qa|browser) 1x') 'no reminder after a browser run (old log name qa)'
   foreach ($junk in 'not json', '', '[1]') {
     $out = $junk | & $Oml hooks stop 2>&1
     Require ($LASTEXITCODE -eq 0 -and -not "$out".Trim()) "unreadable stop input '$junk': exit $LASTEXITCODE $out"
