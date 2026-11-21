@@ -83,10 +83,53 @@ static partial class Migrate
     {
         var fails = SelfTestData();
         fails.AddRange(SelfTestWiring(show));
+        fails.AddRange(SelfTestCheck());
         fails.AddRange(ScreenTranslator.SelfTest(show).Select(f => "translator: " + f)); // the screen rules, on their own samples
         if (fails.Count == 0) { Console.WriteLine("ok"); return 0; }
         foreach (var f in fails) Console.WriteLine("FAIL " + f);
         return 1;
+    }
+
+    // migrate check over two small inspects: a retyped output and a missing input fail, a new input warns, a lost role and Anonymous
+    // fail, a missing block input warns, the stubs are counted, a module-qualified type is the same type, a wrapper is not compared.
+    static List<string> SelfTestCheck()
+    {
+        var fails = new List<string>();
+        void Expect(bool ok, string what) { if (!ok) fails.Add("check: " + what); }
+        var oldI = JsonNode.Parse("""
+            { "name": "OrdersWeb", "entities": [{ "name": "Order" }],
+              "serverActions": [
+                { "name": "SaveOrder", "inputs": [{ "name": "Id", "type": "Order Identifier" }, { "name": "Note", "type": "Text" }], "outputs": [{ "name": "Ok", "type": "Boolean" }] },
+                { "name": "Total", "inputs": [{ "name": "Id", "type": "Order Identifier" }], "outputs": [{ "name": "Sum", "type": "Decimal" }] },
+                { "name": "Order_Create", "inputs": [{ "name": "Source", "type": "Order" }], "outputs": [] } ],
+              "screens": [ { "name": "Orders", "inputs": ["Filter"], "roles": ["OrderManager"] }, { "name": "Home", "inputs": [], "roles": ["Registered"] },
+                { "name": "Audit", "inputs": ["Day"], "roles": ["Auditor", "OrderManager"] } ],
+              "blocks": [ { "name": "Card", "inputs": ["Title", "Body"] } ] }
+            """)!;
+        var newI = JsonNode.Parse("""
+            { "name": "OrdersApp",
+              "serverActions": [
+                { "name": "SaveOrder", "inputs": [{ "name": "Id", "type": "OrdersWeb.Order Identifier" }, { "name": "Note", "type": "Text" }, { "name": "SessionKey", "type": "Text" }], "outputs": [{ "name": "Ok", "type": "Boolean" }] },
+                { "name": "Total", "inputs": [], "outputs": [{ "name": "Sum", "type": "Integer" }] } ],
+              "screens": [ { "name": "Orders", "inputs": ["Filter"], "roles": ["Registered"] }, { "name": "Home", "inputs": [], "roles": ["Anonymous", "Registered"] },
+                { "name": "Audit", "inputs": [], "roles": ["Auditor"] } ],
+              "blocks": [ { "name": "Card", "inputs": ["Title"] } ] }
+            """)!;
+        var validation = JsonNode.Parse("""{ "errorCount": 0, "warningCount": 2 }""")!;
+        var r = Check(oldI, newI, validation, new Dictionary<string, string> { ["Screen:Orders"] = "action Save\n  comment TODO migrate: x\n  comment TODO migrate: y\n", ["Screen:Home"] = "fine" });
+        JsonObject C(string name) => r["checks"]!.AsArray().OfType<JsonObject>().First(c => S(c, "check") == name);
+        string D(string name) => string.Join(" | ", Strings(C(name), "details"));
+        Expect(S(C("validation"), "status") == "warn", "validation: warnings warn");
+        Expect(S(C("signatures"), "status") == "fail" && D("signatures").Contains("Total: input Id is missing") && D("signatures").Contains("Total: output Sum was Decimal, is Integer")
+            && D("signatures").Contains("SaveOrder: new input SessionKey") && !D("signatures").Contains("SaveOrder: input Id") && !D("signatures").Contains("Order_Create"),
+            "signatures: " + D("signatures"));
+        Expect(S(C("screens"), "status") == "fail" && D("screens").Contains("Orders: every signed-in user can open it now") && D("screens").Contains("Home: Anonymous can open it now")
+            && D("screens").Contains("Audit: input Day is missing") && D("screens").Contains("Audit: role OrderManager can no longer open it") && !D("screens").Contains("Orders: role OrderManager"),
+            "screens: " + D("screens"));
+        Expect(S(C("blocks"), "status") == "warn" && D("blocks").Contains("Card: input Body is missing"), "blocks: " + D("blocks"));
+        Expect(S(C("todos"), "status") == "warn" && D("todos") == "Screen:Orders: 2", "todos: " + D("todos"));
+        Expect(B(r, "ok") == false, "ok is false when a check fails");
+        return fails;
     }
 
     // The pure decisions over the sample: data and logic (as before), session variables, other content, layout, style sheets, status.
@@ -153,7 +196,7 @@ static partial class Migrate
         var next0 = Next(r, "/p/OrdersWeb.oml", "OrdersNew", "/out");
         var exposedCopy = Build(inspect, "/p/OrdersWeb.oml", "OrdersNew", "/out", map, calls, Extra.None with { CopyExposed = true });
         Check(exposedCopy.Others.Single(o => o.Name == "LegacyApi").Decision == "copy" && exposedCopy.ExposedKept.Count == 0 && !Next(exposedCopy, "/p/OrdersWeb.oml", "OrdersNew", "/out")[0].Contains("Ask the person"), "--copy-exposed: the exposed SOAP service is copied and nothing is asked");
-        Check(next0.Count == 10 && next0[0].Contains("Ask the person") && next0[0].Contains("LegacyApi") && next0[0].Contains("--copy-exposed") && next0[3].Contains(Path.Combine("/out", "OrdersWeb.prepared.oml")) && next0[3].Contains("2-source.json") && next0[3].Contains("never install it") && next0[4].Contains("<a Reactive template module") && next0[5].Contains("Manage Dependencies") && next0[5].Contains("Missing (") && next0[6].Contains("3-new-module.json") && next0[8].Contains("4-screens.md") && next0[9].Contains("--plan"), "next without screens spec: ten steps, the exposed-API question first, the missing reference before the copy, the working copy third, the template placeholder");
+        Check(next0.Count == 11 && next0[0].Contains("Ask the person") && next0[0].Contains("LegacyApi") && next0[0].Contains("--copy-exposed") && next0[3].Contains(Path.Combine("/out", "OrdersWeb.prepared.oml")) && next0[3].Contains("2-source.json") && next0[3].Contains("never install it") && next0[4].Contains("<a Reactive template module") && next0[5].Contains("Manage Dependencies") && next0[5].Contains("Missing (") && next0[6].Contains("3-new-module.json") && next0[8].Contains("4-screens.md") && next0[9].Contains("--plan") && next0[10].Contains("migrate check"), "next without screens spec: eleven steps (check last), the exposed-API question first, the missing reference before the copy, the working copy third, the template placeholder");
 
         // No write at all: no wrapper, no edits.
         var none = Build(inspect, "/p/OrdersWeb.oml", "OrdersNew", "/out", map, []);
@@ -369,7 +412,7 @@ static partial class Migrate
         var old = JsonNode.Parse(SampleInspect)!.DeepClone(); ((JsonObject)old).Remove("otherContent");
         Check(Build(old, "/p/OrdersWeb.oml", "OrdersNew", "/out", map, []).Notes.Any(n => n.Contains("did not report otherContent")), "an older Core without otherContent: a note");
         var nx = o.Output["next"]!.AsArray().Select(x => x!.ToString()).ToList();
-        Check(nx.Count == 11 && nx[0].Contains("--copy-exposed") && nx[3].Contains("2-source.json") && nx[4].Contains(tpl) && nx[5].Contains("Manage Dependencies") && nx[7].Contains("4-screens.json") && nx[7].Contains("OrdersNew.screens.oml") && nx[9].Contains("4-screens.md") && nx[10].Contains("--plan") && nx[10].Contains("OrdersNew.screens.oml"), "next: the template path, the screens apply after the new module, status with --plan");
+        Check(nx.Count == 12 && nx[0].Contains("--copy-exposed") && nx[3].Contains("2-source.json") && nx[4].Contains(tpl) && nx[5].Contains("Manage Dependencies") && nx[7].Contains("4-screens.json") && nx[7].Contains("OrdersNew.screens.oml") && nx[9].Contains("4-screens.md") && nx[10].Contains("--plan") && nx[10].Contains("OrdersNew.screens.oml") && nx[11].Contains("migrate check") && nx[11].Contains("OrdersNew.screens.oml"), "next: the template path, check last, the screens apply after the new module, status with --plan");
 
         // status with the plan
         var newer = JsonNode.Parse("""{ "name": "OrdersNew", "screens": [ { "name": "Orders" }, { "name": "OrderDetail" } ], "blocks": [] }""")!;

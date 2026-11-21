@@ -6,7 +6,8 @@ using System.Text.RegularExpressions;
 
 namespace OmlCli;
 
-// `oml migrate plan <old.oml> --name <New> [--in <folder|file.oml>]... [--out <folder>]` and `oml migrate status <old.oml> <new.oml>`:
+// `oml migrate plan <old.oml> --name <New> [--in <folder|file.oml>]... [--out <folder>]`, `oml migrate status <old.oml> <new.oml>` and
+// `oml migrate check <old.oml> <new.oml>` (MigrateCheck.cs):
 // the preparation of a Traditional Web module's move to a new Reactive module. It runs in the launcher and starts oml as a child
 // process for the Core commands it needs (inspect, header, describe), so the decisions below are pure functions of their JSON
 // (Build, ProducerMap, EntityWrites, Compare), tested by the hidden `oml migrate selftest`. Nothing outside --out is written;
@@ -26,6 +27,7 @@ static partial class Migrate
             {
                 "plan" => Plan(args[1..]),
                 "status" => Status(args[1..]),
+                "check" => CheckCommand(args[1..]),
                 "selftest" => SelfTest(args.Contains("--show")),
                 _ => throw new Refusal($"Unknown migrate command '{args[0]}'.", "Usage: " + CliUsage.For("migrate").Replace("\r", "").Replace("\n", " | ")),
             };
@@ -665,6 +667,7 @@ static partial class Migrate
         next.Add("Check the apply report, then ask the person to install and publish the new module.");
         next.Add($"Give {F("4-screens.md")} to an AI agent with: oml doc traditional-to-reactive (it lists what is built, what is left per element, and css/README.md for the theme)");
         next.Add($"oml migrate status {Q(old)} {last} --plan {Q(outDir)}   (what is done, what is still to do, what exists twice, the screens by status)");
+        next.Add($"oml migrate check {Q(old)} {last}   (validation, copied action signatures, who may open each screen, TODO stubs left; fix every failed check)");
         return next;
     }
 

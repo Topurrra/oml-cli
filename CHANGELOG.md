@@ -61,6 +61,8 @@ Traditional Web to Reactive, prepared by code, and an interactive menu for peopl
 
 - **Golden rules for agents (`oml doc golden-rules`, also in SKILL.md and AGENTS.md).** 1: UI is previewed first in the running app (the agent's browser dev tools, or the new `oml browser try <url> --css --html <target>=<file> --append --js --screenshot`, which injects the plan into the live page and saves nothing) and built only after the user's yes, with no AI slop (the app's theme and OutSystems UI patterns, no generic decoration, real words, every state). 2: everything is optimized, maintainable and built to scale (fetch only what is shown, no queries or server calls in loops, slow work in timers, the right layer, `oml check --diff` before reporting). `checks.uiPreview` in `.oml/oml-config.json` turns the preview off.
 
+- **`oml migrate check <old.oml> <new.oml>`: is the new module a correct copy?** Beyond the names `migrate status` compares: the new module's validation, every server and service action in both keeps its inputs and outputs with their types (a module-qualified type is the same type; a new input warns), every screen in both keeps its inputs, a screen that lets in someone the old one did not (Anonymous added, Registered where only custom roles were, a new custom role) fails while narrower access warns, blocks keep their inputs, and the `TODO migrate` stubs left are counted per screen and block. Exit 1 on a failed check; the plan's `next` ends with it.
+
 ### Fixed
 
 - Re-applying a process whose Decision goes to two named End nodes swapped the Ends and failed ("Cannot change the target node to End"); each End is now found from the node that goes to it.

@@ -80,7 +80,7 @@ $shapes = [ordered]@{
   'map'                    = @('map build badinput --in {p}')
   'mock'                   = @('mock --all --personas {p}')
   'export'                 = @('export {p} Foo')
-  'migrate'                = @('migrate plan {p} --name X', 'migrate status {p} {p}')
+  'migrate'                = @('migrate plan {p} --name X', 'migrate status {p} {p}', 'migrate check {p} {p}')
   'config'                 = @('config show --dir {p}')
 }
 # The extension a path argument should have, by the first word of the shape (default .oml).

@@ -14,6 +14,7 @@ static class CliUsage
         oml new <out.oml> --from-template <template.oml> [--name N] [--kind K]
         oml migrate plan <old.oml> --name <NewModule> [--in <folder|file.oml>]... [--out <folder>] [--template <reactive.oml>] [--copy-exposed]   (a Traditional Web module's move to Reactive: plan, specs for old and new module, screens translated or listed; changes no module)
         oml migrate status <old.oml> <new.oml> [--plan <folder>]   (by name: done, still to do, only in new, duplicates, screens by status)
+        oml migrate check <old.oml> <new.oml>   (is the new module a correct copy: validation, action signatures, screen inputs and who may open them, block inputs, TODO stubs left; exit 1 on a failed check)
         oml app list <file.oap|file.osp>
         oml app extract <file.oap|file.osp> <outdir>
         oml app check <file.oap|file.osp> --producers <folder|package> [--deep]

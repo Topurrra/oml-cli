@@ -7,7 +7,10 @@ How Traditional Web parts map to Reactive, and how `oml migrate` prepares the mo
 ```text
 oml migrate plan Orders.oml --name OrdersApp --in C:\producers --template Starter.oml --out migrate\OrdersApp
 oml migrate status Orders.oml OrdersApp.oml --plan migrate\OrdersApp
+oml migrate check Orders.oml OrdersApp.oml
 ```
+
+`check` is the last step: the new module validates, every copied action keeps its inputs and outputs, no screen lets in someone the old one did not, and the `TODO migrate` stubs that are left are counted. Fix each failed check before you report the migration done.
 
 `plan` reads the old module (it must be Traditional Web) and writes, into a new folder, files for `oml apply`. It changes no module. Its output lists `next` (the commands in order), `notes` and `coverage` (`screens: 7 translated, 3 partial, 1 worklist of 11`). `--template` is a Reactive template module: its layout block (`LayoutTopMenu`, `LayoutSideMenu`, else the first `Layout...`) and placeholders are given to the translation. Without it the screens have no layout block.
 

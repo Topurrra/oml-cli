@@ -29,10 +29,11 @@ function Tokens($path) { [math]::Ceiling((Get-Content -Raw $path).Replace("`r`n"
 # traditional-to-reactive was raised from 900 to 1250 for the `oml migrate` flow and what the developer decides, then to 1700 for the screen translation (4-screens.json, client variables, layout, css, other content). memory
 # was raised by 200 for "What recall learns" (usefulness, newest wins, stale records, suggested traps, oml learn). warnings was
 # raised by 50 because the command is now named `oml explain-warning` (was `oml warn`) and the file names it twice.
+# traditional-to-reactive was raised by 100 for oml migrate check, the last step of the flow.
 $budget = [ordered]@{
   'ui-reactive' = 1650; 'osui-patterns' = 2000; 'data-rules' = 1250; 'logic-rules' = 1200; 'security' = 800
   'rest' = 950; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2200
-  'traditional-to-reactive' = 2100; 'troubleshooting' = 2300; 'ui-checklist' = 700; 'testing' = 2000
+  'traditional-to-reactive' = 2200; 'troubleshooting' = 2300; 'ui-checklist' = 700; 'testing' = 2000
   'best-practices' = 1300; 'rules' = 900; 'memory' = 1300; 'dif' = 800; 'harnesses' = 300; 'golden-rules' = 1300
 }
 # Where a topic's file is: skill/reference/<topic>.md, except rules (skill/rules.md; SKILL.md holds the same 11 rules).
@@ -176,8 +177,8 @@ if ($help -gt 700 * 1.15) { Fail "oml --help is $help tokens; budget 700 (+15%)"
 # and oml mock lines; 2900 for the longer renamed commands and the test scenarios and test data lines; 2950 for oml skill refresh and browser page --style-conflicts; 3050 for oml config and the create options; 3150 for oml export and the --template and --plan options of oml migrate. Agents read the overview
 # (oml --help), not this.
 $helpAll = [math]::Ceiling((Run 'help', '--all').Text.Length / 4)
-# 3350 for oml browser look, sweep and diff.
-if ($helpAll -gt 3350 * 1.15) { Fail "oml help --all is $helpAll tokens; budget 3350 (+15%)" }
+# 3350 for oml browser look, sweep and diff; 3450 for oml browser try and oml migrate check.
+if ($helpAll -gt 3450 * 1.15) { Fail "oml help --all is $helpAll tokens; budget 3450 (+15%)" }
 # every command word of the full usage is named in the overview (a word is whole: `test` is not `testing`)
 $fullUsage = (Run 'help', '--all').Text
 $overview = (Run '--help').Text
