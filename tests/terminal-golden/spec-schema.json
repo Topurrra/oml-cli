@@ -254,11 +254,13 @@
     },
     "tests": {
       "type": "array",
-      "items": {}
+      "items": {},
+      "description": "Service Studio's test cases: `name`, `flow` (execute nodes, then `assert` nodes with `condition`), optional `setup`, `tearDown`, `description`. Listed again, a test that exists stays. Run them in Service Studio (Run Selected Test Case). (oml spec tests)"
     },
     "entityDiagrams": {
       "type": "array",
-      "items": {}
+      "items": {},
+      "description": "`name`, `entities` (names, or `\"*\"` for the module's). Listed again, a diagram gets the entities it lacks. (oml spec entityDiagrams)"
     },
     "$schema": {
       "type": "string"

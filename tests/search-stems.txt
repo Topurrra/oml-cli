@@ -111,6 +111,7 @@ list: list, listed, lists
 literal: literal, literals
 load: load, loaded, loading, loads
 local: local, locals
+locale: locale, locales
 log: log, logging
 mak: make, makes
 map: map, mapped, maps

@@ -787,7 +787,7 @@ Inputs, locals, server-side screen actions, block instances, layouts, access, an
 | Form / EditRecord | Form aliases IEditRecordWidget; no IFormWidget on Service Studio 11.55.92. Use rows with cells. |
 | Button | Text children become its label expression. Other child types are refused. Use label for an expression. |
 | Image | `image` (an image of the module), or `imageType` External with `url`, or Database with `entityIdentifier` and `filename`; `width`, `height`. |
-| ListBox | `source` (a record list), `sourceAttribute` and `selectionAttribute` as Service Studio's dropdown shows them (`Item.Title`, a Boolean `Item.Done`), `selectionMode`. |
+| ListBox | `source` (a record list), `sourceAttribute` and `selectionAttribute` named as Service Studio shows them (`Customer.Name`, a Boolean `Customer.IsActive`), `selectionMode`. |
 | Label | `value` (an expression; no children) and `targetWidget` (an input of the same screen). |
 | EditableTable | `source`, `showHeader`, `lineCount`; `headerCells` and `bodyCells` hold `EditableTableCell` widgets, whose `children` are the cell content. |
 | Upload | Service Studio's Upload (model name InputFilename). It binds no variable: read `<Upload>.Content`, `.FileName` and `.Type` in the screen action. |

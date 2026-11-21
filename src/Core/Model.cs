@@ -227,7 +227,7 @@ static class Model
                      var named = new[] { "Name", "Label" }.SelectMany(property => Reflect.Interfaces(o).Select(i => i.GetProperty(property)))
                          .Where(p => p?.PropertyType == typeof(string)).ToArray()!;
                      // A Service Studio object without a public model interface (a test case, an assert node): its own Name or Label.
-                     return named.Length > 0 || type.Namespace?.StartsWith("ServiceStudio.Model", StringComparison.Ordinal) != true ? named
+                     return named.Length > 0 || !HiddenKinds.Any(k => type.FullName!.StartsWith(k, StringComparison.Ordinal)) ? named
                          : new[] { "Name", "Label" }.Select(property => type.GetProperty(property)).Where(p => p?.PropertyType == typeof(string)).ToArray()!;
                  }))
         {
@@ -239,6 +239,8 @@ static class Model
 
     // The Name and Label properties NameOf reads, per concrete type, in the order it reads them.
     static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, PropertyInfo[]> NameProperties = new();
+    // Service Studio classes oml builds that have no public model type: test cases and their nodes, entity diagrams.
+    static readonly string[] HiddenKinds = ["ServiceStudio.Model.TestFlows+", "ServiceStudio.Model.TestNodes+", "ServiceStudio.Model.Flows+EntityDiagram", "ServiceStudio.Model.Nodes+DiagramEntity"];
 
     static readonly (string name, Func<IESpace, ITypeSignature> get)[] BasicTypes =
     {
