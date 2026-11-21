@@ -91,6 +91,7 @@ static class CliUsage
         oml browser record <url> [--out <script.jsonc>] [--engine auto|cdp|uia] [--width N] [--height N]   (open the app in a window and write a browser script from what you click and type; close the window or press Ctrl+C to finish)
         oml browser start [--engine auto|cdp|uia] [--headed] [--width N] [--height N]   (keep one browser open: later browser run and browser page skip the browser start and keep the login)
         oml browser look <url> <widget | text:<text> | css:<selector>> [--state hover|focus|active|focus-visible] [--theme dark|light] [--screenshot <file.png>] [--width N] [--no-session]   (one element: screen > blocks > widget, box, computed values, the CSS rule that wins each property and what it beats, what hides or covers it)
+        oml browser try <url> [--css <file.css>] [--html <target>=<file.html>] [--append <target>=<file.html>] [--js <file.js>] [--screenshot <file.png>] [--no-session]   (preview planned UI in the running page before building it; nothing is saved)
         oml browser sweep <url> [--widths 390,768,1366] [--out <folder>] [--no-session]   (the page at each width the project supports: overflow and the elements that cause it, layout findings, widgets shown or hidden per width)
         oml browser diff <before.json> <after.json | url>   (what changed between two snapshots (page --snapshot), as text: widgets added, removed, moved, resized, restyled, new text)
         oml browser stop   (close the browser of oml browser start)

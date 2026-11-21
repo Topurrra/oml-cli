@@ -98,7 +98,10 @@ static class QaSession
         var sent = args.ToArray();
         if (sent[0] is "run" or "diff") sent[1] = Path.GetFullPath(sent[1]);
         for (var i = 2; i < sent.Length - 1; i++)
-            if (sent[i] is "--out" or "--screenshot" or "--snapshot") sent[i + 1] = Path.GetFullPath(sent[i + 1]);
+            if (sent[i] is "--out" or "--screenshot" or "--snapshot" or "--js") sent[i + 1] = Path.GetFullPath(sent[i + 1]);
+            else if (sent[i] is "--css" && File.Exists(sent[i + 1])) sent[i + 1] = Path.GetFullPath(sent[i + 1]);
+            else if (sent[i] is "--html" or "--append" && sent[i + 1].IndexOf('=') is var eq and > 0)
+                sent[i + 1] = sent[i + 1][..(eq + 1)] + Path.GetFullPath(sent[i + 1][(eq + 1)..]);
         JsonObject answer;
         try { answer = Send(s, new JsonObject { ["args"] = new JsonArray([.. sent.Select(a => (JsonNode)a)]) }, 30 * 60_000); }
         catch (TimeoutException) { throw new QaUsage("The browser session is busy with another request. Wait, or run with --no-session."); }

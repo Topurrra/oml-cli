@@ -22,6 +22,10 @@ Edit O11 modules with `oml` from PATH (`where.exe oml` to check). `oml --help` l
 - Before deployment, show the user the tags, keys, environments, and `isModified`. After a timeout, check status before retrying. Never auto-continue an intervention.
 - Never claim a command ran or passed unless you saw its output.
 
+## Golden rules
+
+UI: preview first in the running app (browser dev tools or `oml browser try`), build after a yes, no AI slop. All work: optimized, maintainable, built to scale. Read `oml doc golden-rules` before you build.
+
 ## Writing to the user
 
 Plain technical English (ISO 24495-1; ASD-STE100 style):

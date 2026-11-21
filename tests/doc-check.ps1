@@ -33,7 +33,7 @@ $budget = [ordered]@{
   'ui-reactive' = 1650; 'osui-patterns' = 2000; 'data-rules' = 1250; 'logic-rules' = 1200; 'security' = 800
   'rest' = 950; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2200
   'traditional-to-reactive' = 2100; 'troubleshooting' = 2300; 'ui-checklist' = 700; 'testing' = 2000
-  'best-practices' = 1300; 'rules' = 900; 'memory' = 1300; 'dif' = 800; 'harnesses' = 300
+  'best-practices' = 1300; 'rules' = 900; 'memory' = 1300; 'dif' = 800; 'harnesses' = 300; 'golden-rules' = 1300
 }
 # Where a topic's file is: skill/reference/<topic>.md, except rules (skill/rules.md; SKILL.md holds the same 11 rules).
 function TopicFile($t) { if ($t -eq 'rules') { Join-Path $repo 'skill/rules.md' } else { Join-Path $ref "$t.md" } }
@@ -112,7 +112,8 @@ foreach ($t in $budget.Keys) {
   if ($n -gt $budget[$t] * 1.15) { Fail "$t.md is $n tokens; budget $($budget[$t]) (+15%)" }
 }
 $load = Tokens (Join-Path $repo 'skill/SKILL.md')
-if ($load -gt 2700 * 1.15) { Fail "SKILL.md is $load tokens; budget 2700 (+15%)" }
+# 2900: the two golden rules (oml doc golden-rules holds the details).
+if ($load -gt 2900 * 1.15) { Fail "SKILL.md is $load tokens; budget 2900 (+15%)" }
 
 # 7b. AGENTS.md points to the rules and holds none, SKILL.md holds every rule, and every rule on the website, read as in rules.md
 $ruleLines = @{}

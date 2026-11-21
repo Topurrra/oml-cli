@@ -30,6 +30,7 @@ chang: change, changed, changes, changing
 chart: chart, charts
 check: check, checked, checks
 class: class, classes
+clear: clear, clears
 click: click, clicking
 client: client, clients
 color: color, colors
@@ -87,9 +88,11 @@ handl: handle, handling
 handler: handler, handlers
 hold: hold, holds
 http: http, https
+icon: icon, icons
 identifier: identifier, identifiers
 ignor: ignore, ignores
 imag: image, images
+import: import, imports
 includ: include, including
 index: index, indexed, indexes
 input: input, inputs
@@ -170,11 +173,13 @@ request: request, requested, requests
 requir: required, requires
 resourc: resource, resources
 result: result, results
+reus: reuse, reused
 rol: role, roles
 row: row, rows
 rul: rule, rules
 run: run, running, runs
 sav: save, saved, saving
+say: say, says
 scaffold: scaffold, scaffolding
 schedul: schedule, schedules
 screen: screen, screens
@@ -194,6 +199,7 @@ sort: sort, sorting, sorts
 sourc: source, sources
 spec: spec, specs
 start: start, started, starting, starts
+stat: state, states
 stay: stay, stays
 step: step, steps
 stop: stop, stops

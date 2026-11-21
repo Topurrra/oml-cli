@@ -34,6 +34,7 @@ static class ProjectConfig
         new("ui.accessibility", "bool", "true", null, "Check contrast, labels and keyboard use for new UI."),
         new("ui.translations", "bool", "false", null, "New texts need translations (the module is multilingual)."),
         new("checks.browser", "bool", "true", null, "Run oml browser page after a publish to see the result in the app."),
+        new("checks.uiPreview", "bool", "true", null, "Before building UI, show a preview injected into the running app (browser dev tools or oml browser try) and build after the user's yes (golden rule 1)."),
         new("checks.review", "bool", "true", null, "Write the oml review file (.md) for a staged change."),
         new("checks.uiChecklist", "bool", "true", null, "Follow oml doc ui-checklist for UI work."),
         new("checks.bestPractices", "bool", "true", null, "Read oml doc best-practices before adding entities, screens or flows no recipe covers."),
@@ -222,6 +223,7 @@ static class ProjectConfig
 
         var skipped = new List<string>();
         if (!v.On("checks.browser")) skipped.Add("oml browser");
+        if (!v.On("checks.uiPreview")) skipped.Add("the UI preview before building (golden rule 1)");
         if (!v.On("checks.review")) skipped.Add("the oml review file");
         if (!v.On("checks.uiChecklist")) skipped.Add("oml doc ui-checklist");
         if (!v.On("checks.bestPractices")) skipped.Add("oml doc best-practices");
@@ -340,7 +342,7 @@ static class ProjectConfig
             return (args, v.On(command.Key) ? null
                 : $"{command.Key} is off for this project ({v.File}), so {command.Command} is not run. Do this step in Service Studio or LifeTime, or ask the user; oml config set {command.Key} on turns it on, and --no-profile runs it once when the user asked for it in this task.");
         // Only the commands that do the check: browser start, stop and the bare browser only manage the browser session.
-        var check = args[0] == "test" ? "checks.testScenarios" : args.Length > 1 && args[1] is "page" or "run" or "record" or "look" or "sweep" or "diff" ? "checks.browser" : null;
+        var check = args[0] == "test" ? "checks.testScenarios" : args.Length > 1 && args[1] is "page" or "run" or "record" or "look" or "sweep" or "diff" or "try" ? "checks.browser" : null;
         if (check is not null && !v.On(check))
             return (args, $"{check} is off for this project ({v.File}), so oml {(args[0] == "test" ? "test scenarios" : args[0])} is not run. Turn it on with oml config set {check} on, or add --no-profile to run it once when the user asked for it in this task.");
         string[] targets = v.List("ui.targets"), themes = v.List("ui.themes");

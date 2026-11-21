@@ -39,6 +39,13 @@ Also:
 - Never claim a command ran or passed unless you saw its output.
 - No comments in `styleSheet`/`javaScript`, only a `/*! */` licence. Long code: `{"file": "x.js"}` (`oml spec file`).
 
+## Golden rules
+
+Two quality rules for all work; details in `oml doc golden-rules`.
+
+1. **UI: preview first, no AI slop.** Before you build UI, inject the planned CSS and HTML into the running page (your browser's dev tools, or `oml browser try`), show it, and build only after a yes. Use the app's theme and OutSystems UI patterns; no generic gradients, emoji icons or filler text.
+2. **Optimized, maintainable, built to scale.** Fetch only what is shown; no queries or server calls in loops; small reusable actions on the right layer; nothing that fails with many users or rows. Run `oml check --diff` before you report.
+
 ## Writing to the user
 
 Plain technical English (ISO 24495-1; ASD-STE100 style):
@@ -64,7 +71,7 @@ Project profile: a session may start with an "oml project profile" (`.oml/oml-co
    Read `summary` first, then its lists. After a good apply, do not run `validate`, `inspect` or `describe` again.
    **A good apply means `saved: true`, no `newErrors`, and no `newWarnings`.** Every new warning is a defect until you prove otherwise. Entries have a `hint` when the fix is known; otherwise `oml explain-warning <id>`. Fix each one or explain it to the user.
 4. **Fix (only if needed, 1 call per attempt).** Change only what the report names, then repeat step 3 with a NEW staged path. Never retry an unchanged spec.
-5. **UI work: see it in the real app.** Ask the user for the DEV URL of the screen if you do not have it. Before a publish there is no visual check: report "pending visual check". After step 6 the user installs and publishes to DEV. Then run `oml browser page <screen url> --screenshot <Screen>.png` (or open the screen in your own browser when the profile says `browser agent`), look at the picture, and read `layout` and `errors`. Fix in a new staged file if needed. A login page? Ask the user to run `oml browser start --headed` and log in; then run it again. Follow `oml doc ui-checklist`.
+5. **UI work: see it in the real app.** Ask the user for the DEV URL of the screen if you do not have it. Before step 2, preview the UI (golden rule 1). Before a publish there is no visual check: report "pending visual check". After step 6 the user installs and publishes to DEV. Then run `oml browser page <screen url> --screenshot <Screen>.png` (or open the screen in your own browser when the profile says `browser agent`), look at the picture, and read `layout` and `errors`. Fix in a new staged file if needed. A login page? Ask the user to run `oml browser start --headed` and log in; then run it again. Follow `oml doc ui-checklist`.
 6. **Report.** Run `oml review <source.oml> <staged.oml> --md <new path>.md`, then show the staged path, what was built and the .md. 0 findings does not mean the code is correct. Ask before `install` or `publish`; run `oml validate <staged.oml> --warnings` right before `install`. A change the user should read first (several parts, a UI): `oml doc dif`. Then ask whether the user wants test scenarios for what was built: `oml test scenarios <source.oml> <staged.oml>` (BDD per public action, a browser script per screen). You may suggest `oml learn report` to the user; never accept, reject or undo a proposal for them.
 
 Expressions use OutSystems syntax; text literals need escaped quotes (`"\"Text\""`). Parts: `oml apply <source.oml> <part1.json> <part2.json> <new-staged.oml>`.
@@ -81,7 +88,7 @@ After the loop: install after a yes (zero validation errors needed; report the b
 | Fix of an error or warning | `oml explain-warning <id or title words>` |
 | Any failure, also platform | `oml doc troubleshooting` |
 
-Topics: `best-practices`, `ui-reactive`, `osui-patterns`, `ui-checklist`, `data-rules`, `logic-rules`, `security`, `rest`, `processes-timers-email`, `architecture-rules`, `traditional-to-reactive`, `warnings`, `testing`, `troubleshooting`, `dif`, `harnesses`.
+Topics: `golden-rules`, `best-practices`, `ui-reactive`, `osui-patterns`, `ui-checklist`, `data-rules`, `logic-rules`, `security`, `rest`, `processes-timers-email`, `architecture-rules`, `traditional-to-reactive`, `warnings`, `testing`, `troubleshooting`, `dif`, `harnesses`.
 
 ## Recipes
 

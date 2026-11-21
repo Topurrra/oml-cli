@@ -12,6 +12,7 @@ namespace OmlCli.Qa;
 //   browser record <url>       open a window, record what a person does in it, write a browser script
 //   browser look <url> <el>    one element: widget path, box, computed values, the winning CSS rules (BrowserTools)
 //   browser sweep <url>        the page at each supported width: overflow and its cause, layout, widgets per width
+//   browser try <url> --css ..  a preview of planned UI injected into the running page (golden rule 1); nothing is saved
 //   browser diff <a> <b|url>   what changed between two snapshots, as text
 //   browser start | stop       keep one browser open between runs (QaSession): no cold start, logins stay
 static class QaCommand
@@ -33,7 +34,7 @@ static class QaCommand
                     TerminalOutput.PrintNode(BrowserTools.Diff(BrowserTools.ReadSnapshot(args[1]), BrowserTools.ReadSnapshot(args[2])));
                     return 0;
                 case "look" or "diff" when args.Length >= 3:
-                case "run" or "page" or "sweep" when args.Length >= 2:
+                case "run" or "page" or "sweep" or "try" when args.Length >= 2:
                     var options = Options(args[0] is "look" or "diff" ? args[3..] : args[2..]);
                     if (!options.Has("--no-session") && QaSession.Forward(args) is { } forwarded)
                     {
@@ -63,6 +64,7 @@ static class QaCommand
             "run" => await RunFile(args[1], options, shared),
             "look" => await Closer(options, shared, b => BrowserTools.Look(b, args[1], args[2], options)),
             "sweep" => await Closer(options, shared, b => BrowserTools.Sweep(b, args[1], options)),
+            "try" => await Closer(options, shared, b => BrowserTools.Try(b, args[1], options)),
             "diff" => await Closer(options, shared, async b =>
             {
                 await b.Navigate(args[2]);
@@ -101,7 +103,7 @@ static class QaCommand
     }
 
     public static readonly string[] Valued = ["--base-url", "--width", "--height", "--timeout", "--out", "--screenshot", "--engine", "--save", "--style-conflicts",
-        "--state", "--theme", "--widths", "--snapshot"];
+        "--state", "--theme", "--widths", "--snapshot", "--css", "--html", "--append", "--js"];
     static readonly string[] Flags = ["--headed", "--continue", "--no-session"];
 
     public static Settings Options(string[] args)

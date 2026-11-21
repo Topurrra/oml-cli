@@ -83,6 +83,7 @@ export const cookbook = [
     ['oml browser start', 'Keep one browser open, so the next browser run and browser page start at once and keep your login.'],
     ['oml browser stop', 'Close the browser that oml browser start opened.'],
     ['oml browser look https://dev.example.com/Orders/OrdersList SaveButton --state hover', 'Why an element looks as it does: its screen, blocks and widget, box, computed values and the CSS rule that wins each property (and what it beats).'],
+    ['oml browser try https://dev.example.com/Orders/OrdersList --css plan.css --html OrdersTable=plan.html --screenshot plan.png', 'Preview planned UI in the running page before building it (golden rule 1). Nothing is saved; a reload removes it.'],
     ['oml browser sweep https://dev.example.com/Orders/OrdersList', 'The page at each width the project supports: horizontal overflow and the elements causing it, widgets shown or hidden per width.'],
     ['oml browser diff before.json https://dev.example.com/Orders/OrdersList', 'What changed since oml browser page --snapshot before.json, as text: widgets added, removed, moved, resized, restyled or with new text.'],
   ] },

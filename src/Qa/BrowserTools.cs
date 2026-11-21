@@ -162,6 +162,68 @@ static class BrowserTools
         return result;
     }
 
+    // ---------- try ----------
+
+    // Golden rule 1: a preview of planned UI in the running page before anything is built. The CSS goes into a <style> of its own,
+    // HTML replaces (--html) or is added to (--append) the content of a located element, and a script runs once. Nothing is saved: a
+    // reload removes it. In a session started with --headed the user sees the preview in that window.
+    public static async Task<JsonObject> Try(IQaEngine browser, string url, QaCommand.Settings o)
+    {
+        var engine = Cdp(browser, "oml browser try (use your own browser's dev tools instead)");
+        string Read(string option, string value)
+        {
+            if (File.Exists(value)) return File.ReadAllText(value);
+            if (option == "--css" && value.Contains('{')) return value;   // a short rule inline
+            throw new QaUsage($"{option}: no file {value}.");
+        }
+        var css = o.Get("--css") is { } c ? Read("--css", c) : null;
+        var html = new List<(string Target, string Html, bool Append)>();
+        foreach (var (option, append) in new[] { ("--html", false), ("--append", true) })
+            if (o.Get(option) is { } spec)
+            {
+                var eq = spec.IndexOf('=');
+                if (eq <= 0) throw new QaUsage($"{option} takes <target>=<file.html>, such as OrdersTable=plan.html.");
+                html.Add((spec[..eq], Read(option, spec[(eq + 1)..]), append));
+            }
+        var js = o.Get("--js") is { } j ? Read("--js", j) : null;
+        if (css is null && html.Count == 0 && js is null) throw new QaUsage("try needs at least one of --css <file.css>, --html <target>=<file.html>, --append <target>=<file.html>, --js <file.js>.");
+
+        var (exceptionCount, _) = browser.ErrorCounts();
+        await browser.Navigate(url);
+        await browser.WaitReady(Math.Max(o.Int("--timeout", 15_000), 30_000));
+        var done = new JsonArray();
+        if (css is not null)
+        {
+            await engine.Eval($"(() => {{ let s = document.getElementById('oml-try'); if (!s) {{ s = document.createElement('style'); s.id = 'oml-try'; document.head.appendChild(s); }} s.textContent += {JsonSerializer.Serialize(css)}; }})()");
+            done.Add($"css: {css.Split('}').Length - 1} rules");
+        }
+        foreach (var (target, markup, append) in html)
+        {
+            var at = await browser.Helper("locate", target, null, false);
+            if (at.GetProperty("found").GetInt32() == 0) throw new QaFailure($"No element matches '{target}' (a widget Name, text:<visible text> or css:<selector>).");
+            if (at.TryGetProperty("ambiguous", out _)) throw new QaFailure($"'{target}' matches {at.GetProperty("found").GetInt32()} elements: add #<n> (from 0) to pick one.");
+            await engine.Eval(append ? $"window.__omlqaLast.insertAdjacentHTML('beforeend', {JsonSerializer.Serialize(markup)})" : $"window.__omlqaLast.innerHTML = {JsonSerializer.Serialize(markup)}");
+            done.Add($"{(append ? "append" : "html")}: {target}");
+        }
+        if (js is not null)
+        {
+            await engine.Eval($"(() => {{ {js}\n}})()");
+            done.Add("js");
+        }
+        await Task.Delay(300);   // let fonts, images and transitions settle
+        var boxes = await browser.Helper("boxes");
+        var result = new JsonObject
+        {
+            ["url"] = await browser.Url(), ["injected"] = done,
+            ["layout"] = new JsonArray([.. QaLayout.Findings(boxes).Select(f => (JsonNode)f)]),
+            ["errors"] = new JsonArray([.. browser.ErrorsSince(exceptionCount, 0).Exceptions.Select(e => (JsonNode)("JavaScript error: " + e))]),
+            ["a11y"] = await A11y(browser),
+            ["note"] = "A preview only: nothing is saved and a reload removes it. Show it to the user; build with oml apply after a yes, matching this preview.",
+        };
+        if (o.Get("--screenshot") is { } shot) result["screenshot"] = await browser.Screenshot(shot);
+        return QaCommand.Prune(result);
+    }
+
     // ---------- sweep ----------
 
     static readonly Dictionary<string, int> TargetWidth = new() { ["phone"] = 390, ["tablet"] = 768, ["desktop"] = 1366 };
