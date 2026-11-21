@@ -369,6 +369,108 @@ static partial class Migrate
         return map;
     }
 
+    // The old module's server functions (inspect marks them function: true).
+    internal static HashSet<string> ServerFunctionNames(JsonNode? inspect) =>
+        Rows(inspect, "serverActions").Where(a => a["function"] is JsonValue f && f.GetValueKind() == System.Text.Json.JsonValueKind.True).Select(a => S(a, "name")).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    // The answer of `oml export <old> ServerAction:A ServerAction:B ...` by name (one name gives an object, several an array); a missing one is an error.
+    internal static Dictionary<string, JsonObject> ExportActions(JsonNode? output, IReadOnlyList<string> names)
+    {
+        var entries = output is JsonArray arr && arr.Count == names.Count ? arr.ToArray() : names.Count == 1 && output is JsonObject ? [output] : null;
+        var map = new Dictionary<string, JsonObject>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < names.Count; i++) map[names[i]] = entries?[i] as JsonObject ?? new JsonObject { ["error"] = "no result from oml export" };
+        return map;
+    }
+
+    static readonly HashSet<string> ClientFunctionKinds = new(StringComparer.OrdinalIgnoreCase) { "assign", "if", "switch", "foreach", "comment", "execute" };
+    static readonly string[] FlowNameKeys = ["kind", "name", "next", "true", "false", "cycle", "otherwise", "action", "_path", "_ref", "type"];
+
+    // Every expression text of an exported node (assignment targets too), not its names and connectors.
+    static IEnumerable<string> NodeTexts(JsonNode? n, string? key = null)
+    {
+        switch (n)
+        {
+            case JsonObject o:
+                foreach (var (k, v) in o)
+                {
+                    if (FlowNameKeys.Contains(k)) continue;
+                    if (k == "assign" && v is JsonObject map) foreach (var (target, _) in map) yield return target;
+                    foreach (var t in NodeTexts(v, k)) yield return t;
+                }
+                break;
+            case JsonArray a: foreach (var x in a) foreach (var t in NodeTexts(x, key)) yield return t; break;
+            case JsonValue v when v.GetValueKind() == System.Text.Json.JsonValueKind.String: yield return v.ToString(); break;
+        }
+    }
+
+    static readonly System.Text.RegularExpressions.Regex FunctionCall = new(@"(?<![\w.])([A-Za-z_]\w*)\s*\(", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    static readonly System.Text.RegularExpressions.Regex ServerOnly = new(@"(?<![\w.])(Site\.\w+|Session\.\w+|Check\w+Role\s*\()", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    // Server functions that screens call in the browser. A Reactive screen runs there and cannot call a server function, so each one becomes
+    // a client function of the same name, as Service Studio's converter does, when its flow can run in the browser: Assign, If, Switch,
+    // For Each, comments and calls of other functions copied the same way, and no Site property, session variable or role check. (The
+    // converter puts a mock body in the others; a mock returns wrong values without a word, so here they are a Todo instead.) The functions
+    // they call are exported too. Returns the copies, and why for each function that is not copied.
+    internal static (List<JsonObject> Copies, Dictionary<string, string> Refused) ClientFunctions(IEnumerable<string> wanted,
+        Func<IReadOnlyList<string>, IReadOnlyDictionary<string, JsonObject>> export, IReadOnlySet<string> functions)
+    {
+        var exported = new Dictionary<string, JsonObject>(StringComparer.OrdinalIgnoreCase);
+        var callees = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var queue = wanted.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        for (var round = 0; queue.Count > 0 && round < 20; round++)
+        {
+            var got = export(queue);
+            queue = [];
+            foreach (var (fn, e) in got)
+            {
+                exported[fn] = e;
+                var nodes = (e["flow"] as JsonObject)?["nodes"] as JsonArray ?? [];
+                var called = nodes.OfType<JsonObject>().Where(n => S(n, "kind") == "execute").Select(n => S(n, "action")).OfType<string>()
+                    .Concat(NodeTexts(nodes).SelectMany(t => FunctionCall.Matches(t).Select(m => m.Groups[1].Value)))
+                    .Where(functions.Contains).Distinct(StringComparer.OrdinalIgnoreCase).Where(c => !c.Equals(fn, StringComparison.OrdinalIgnoreCase)).ToList();
+                callees[fn] = called;
+                foreach (var c in called) if (!exported.ContainsKey(c) && !got.ContainsKey(c) && !queue.Contains(c, StringComparer.OrdinalIgnoreCase)) queue.Add(c);
+            }
+        }
+        var refused = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (fn, e) in exported)
+        {
+            if (S(e, "error") is { } err) { refused[fn] = $"oml export could not read it: {err}"; continue; }
+            var flow = e["flow"] as JsonObject;
+            if (flow?["complete"] is not JsonValue c || c.GetValueKind() != System.Text.Json.JsonValueKind.True)
+            { refused[fn] = "its flow could not be read completely" + ((flow?["unsupported"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault() is { } u ? $" ({S(u, "why")})" : ""); continue; }
+            var nodes = (flow["nodes"] as JsonArray ?? []).OfType<JsonObject>().ToList();
+            if (nodes.FirstOrDefault(n => !ClientFunctionKinds.Contains(S(n, "kind") ?? "")) is { } bad) { refused[fn] = $"its {S(bad, "kind")} node {S(bad, "name")} runs on the server"; continue; }
+            if (nodes.FirstOrDefault(n => S(n, "kind") == "execute" && !functions.Contains(S(n, "action") ?? "")) is { } call) { refused[fn] = $"it calls the server action {S(call, "action") ?? S(call, "_ref")}"; continue; }
+            if (NodeTexts(new JsonArray(nodes.Select(n => (JsonNode?)n.DeepClone()).ToArray())).Select(t => ServerOnly.Match(t)).FirstOrDefault(m => m.Success) is { } so)
+            { refused[fn] = $"it reads {so.Value.TrimEnd('(', ' ')}, which only the server has"; continue; }
+        }
+        // A function that calls one that is not copied is not copied either.
+        for (var changed = true; changed;)
+        {
+            changed = false;
+            foreach (var (fn, called) in callees)
+                if (!refused.ContainsKey(fn) && called.FirstOrDefault(refused.ContainsKey) is { } no) { refused[fn] = $"it calls {no}, which is not copied ({refused[no]})"; changed = true; }
+        }
+        var copies = new List<JsonObject>();
+        foreach (var (fn, e) in exported.Where(kv => !refused.ContainsKey(kv.Key)).OrderBy(kv => kv.Key, StringComparer.Ordinal))
+        {
+            var o = new JsonObject { ["name"] = S(e, "name") ?? fn, ["function"] = true,
+                ["description"] = $"The server function {S(e, "name") ?? fn}, copied for the browser: a Reactive screen cannot call a server function (oml migrate)." };
+            foreach (var key in new[] { "inputs", "outputs", "locals" }) if (e[key] is JsonArray { Count: > 0 } vars) o[key] = vars.DeepClone();
+            var flow = new JsonArray();
+            foreach (var n in ((e["flow"] as JsonObject)!["nodes"] as JsonArray ?? []).OfType<JsonObject>())
+            {
+                var copy = (JsonObject)n.DeepClone();
+                copy.Remove("_path"); copy.Remove("_ref");
+                flow.Add(copy);
+            }
+            o["flow"] = flow;
+            copies.Add(o);
+        }
+        return (copies, refused);
+    }
+
     // 4-screens.json: client variables, then emails, blocks and screens (the non-null specs), applied to the new module after 3-new-module.json.
     internal static JsonObject? ScreensSpec(Result r, IEnumerable<Item> items)
     {
@@ -602,6 +704,7 @@ static partial class Migrate
             SiteProperties = Rows(inspect, "siteProperties").Where(p => S(p, "name") is not null).GroupBy(p => S(p, "name")!, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => S(g.First(), "type") ?? "Text", StringComparer.OrdinalIgnoreCase),
             Roles = Rows(inspect, "roles").Select(p => S(p, "name")).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase),
+            ServerFunctions = ServerFunctionNames(inspect),
             StoreVariables = r.SessionDecisions.Where(d => d.Decision == "store").ToDictionary(d => d.Name, d => d.Type, StringComparer.OrdinalIgnoreCase),
             ClientTypes = r.ClientVariables.OfType<JsonObject>().Where(c => S(c, "name") is not null).ToDictionary(c => S(c, "name")!, c => S(c, "type") ?? "Text", StringComparer.OrdinalIgnoreCase) };
         var items = TranslateAll(r.Screens, exports, context, translate);
@@ -609,6 +712,23 @@ static partial class Migrate
         foreach (var a in items.SelectMany(i => i.EntityActions).Distinct().Where(a => EntityActionMap(r.EntityNames).ContainsKey(a) && !r.WrapperMap.ContainsKey(a)))
             r.Notes.Add($"A translation reported the entity action {a} without a wrapper for it: add the wrapper by hand.");
         items = DropReplacedLayouts(r, items, exports, layout);
+        // Server functions the screens call in the browser: copied as client functions of the same name, or a Todo on each screen that calls one.
+        var fnCopies = new List<JsonObject>();
+        var usedBy = items.Where(i => i.Spec?["_serverFunctions"] is JsonArray).SelectMany(i => ((JsonArray)i.Spec!["_serverFunctions"]!).Select(x => (fn: x!.ToString(), item: i))).ToList();
+        foreach (var i in items) i.Spec?.Remove("_serverFunctions");
+        if (usedBy.Count > 0)
+        {
+            var (copies, refused) = ClientFunctions(usedBy.Select(u => u.fn), names => ExportActions(Try(["export", old, .. names.Select(n => "ServerAction:" + n)], null, "oml export of the server functions"), names),
+                ServerFunctionNames(inspect));
+            fnCopies = copies;
+            foreach (var (fn, item) in usedBy.Where(u => refused.ContainsKey(u.fn)))
+            {
+                item.Todo.Add($"it calls the server function {fn} in the browser, which Reactive cannot, and {fn} was not copied as a client function ({refused[fn]}); return the value from a data action or server action, or write {fn} as a client function");
+                var at = items.IndexOf(item);
+                if (at >= 0 && items[at].Status == "translated") items[at] = items[at] with { Status = "partial" };
+            }
+            r.Notes.AddRange(notes.Where(n => !r.Notes.Contains(n)));
+        }
         // The images the translated widgets show: copied with the logic (3-new-module.json), so 4-screens.json finds them.
         var shown = items.Where(i => i.Spec?["_images"] is JsonArray).SelectMany(i => ((JsonArray)i.Spec!["_images"]!).Select(x => x!.ToString())).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal).ToList();
         foreach (var i in items) i.Spec?.Remove("_images");
@@ -620,6 +740,12 @@ static partial class Migrate
             foreach (var img in shown) if (!els.Any(e => e?.ToString() == "Image:" + img)) els.Add("Image:" + img);
         }
         r.ScreensSpec = ScreensSpec(r, items);
+        if (fnCopies.Count > 0 && r.ScreensSpec is not null)
+        {
+            var cas = r.ScreensSpec["clientActions"] as JsonArray ?? new JsonArray();
+            foreach (var c in fnCopies) if (!cas.OfType<JsonObject>().Any(x => string.Equals(S(x, "name"), S(c, "name"), StringComparison.OrdinalIgnoreCase))) cas.Add(c);
+            r.ScreensSpec["clientActions"] = cas;
+        }
         // Reactive library blocks the translation uses (from the Traditional UI library map): the new module must reference them.
         if (r.ScreensSpec is not null)
         {

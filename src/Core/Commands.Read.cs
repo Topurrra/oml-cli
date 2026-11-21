@@ -194,7 +194,7 @@ public static partial class Cli
         return Emit(new { file = Path.GetFullPath(outFile), statements = parts.Count, characters = text.Length, lines = text.Count(c => c == '\n'), paths = parts.Select(p => p.path).ToArray() });
     }
 
-    // export <module.oml> <Element>...: screens, blocks and emails as structured JSON. One name prints one object, several
+    // export <module.oml> <Element>...: screens, blocks, emails and server actions as structured JSON. One name prints one object, several
     // an array in the order asked; a name that fails gives { element, error } in its place and exit code 1.
     static int? CmdExport(List<string> args)
     {

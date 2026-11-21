@@ -24,6 +24,7 @@ static class Inspect
         {
             name = Model.NameOf(a),
             @public = Reflect.Get(a, "Public") as bool?,
+            function = Reflect.Get(a, "IsFunction") is true || Reflect.Get(a, "Function") is true ? true : (bool?)null,   // only when it is one
             inputs = a.InputParameters.Select(Param),
             outputs = a.OutputParameters.Select(Param),
             lastModifiedBy = h.By(a), lastModifiedDate = h.On(a),

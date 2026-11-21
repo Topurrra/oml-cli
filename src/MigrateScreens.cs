@@ -63,7 +63,10 @@ static class ScreenTranslator
         // The old module's site properties (name -> type) and roles. Site.X and Check<Role>Role() are server only: in a screen they become
         // outputs of the data action ServerValues (ServerReads).
         IReadOnlyDictionary<string, string>? SiteProperties = null,
-        IReadOnlySet<string>? Roles = null);
+        IReadOnlySet<string>? Roles = null,
+        // The old module's server functions. One a screen calls in a client expression is listed in _serverFunctions; the plan copies it as a
+        // client function of the same name (ClientFunctions), so the expression stays as it is.
+        IReadOnlySet<string>? ServerFunctions = null);
 
     // The blocks among the exports whose actions call Notify (or Deprecated_Notify): in Reactive each gets a Notify event.
     internal static HashSet<string> NotifyingBlocks(IEnumerable<JsonObject> exports) =>
@@ -259,6 +262,7 @@ static class ScreenTranslator
         }
 
         bool InData => daRenames is not null;
+        readonly SortedSet<string> usedFunctions = new(StringComparer.OrdinalIgnoreCase);   // server functions called in client expressions (_serverFunctions)
 
         // A query of the Preparation data action read on the screen: <Q>.List is the output <Q>List, whose records are the entity itself
         // (List.Current.<Entity>.X is List.Current.X); <Q>.Count is <Q>Count.
@@ -286,6 +290,8 @@ static class ScreenTranslator
                 else if (forms.ContainsKey(id) || tables.ContainsKey(id) || widgetByName.ContainsKey(id)) daProblem ??= $"{at} reads the widget {id}, which a data action cannot";
                 return false;
             }
+            if (!serverSide && cx.ServerFunctions?.FirstOrDefault(f => f.Equals(id, StringComparison.OrdinalIgnoreCase)) is { } fn && Regex.IsMatch(text[after..], @"^\s*\("))
+            { usedFunctions.Add(fn); return false; }   // the browser calls the client copy of the same name
             if (prepReads.TryGetValue(id, out var pr))
             {
                 if (pr.Kind == "query") return PrepQuery(text, id, after, out replacement, out end);
@@ -610,6 +616,7 @@ static class ScreenTranslator
             if (serverActions.Count > 0) spec["_serverActions"] = new JsonArray(serverActions.Select(x => (JsonNode?)x).ToArray());
             if (images.Count > 0) spec["_images"] = new JsonArray(images.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
             if (clientFunctions.Count > 0) spec["_clientActions"] = new JsonArray(clientFunctions.Select(x => (JsonNode?)x.DeepClone()).ToArray());
+            if (usedFunctions.Count > 0) spec["_serverFunctions"] = new JsonArray(usedFunctions.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
             if (block && notifies)
                 spec["events"] = new JsonArray(new JsonObject { ["name"] = "Notify", ["mandatory"] = false,
                     ["inputs"] = new JsonArray(new JsonObject { ["name"] = "Message", ["type"] = "Text", ["mandatory"] = false }) });
@@ -2949,6 +2956,18 @@ static class ScreenTranslator
             $"Report: a query that reads a widget, or whose records of several entities are read later, makes a stub and the Todo says why: [{string.Join(" | ", st.Todo)}]");
         Check(Text(st.Spec, "widgets", 0, "onClick") == "Calc" && (Text(Act("Odd"), "flow", 0, "text") ?? "").StartsWith("TODO migrate:") && Has(st.Todo, "Odd", "CommitTransaction"),
             "Report: the button still calls the action; an unsupported node makes a stub with one TODO comment");
+
+        // 4b. A server function called in the browser is listed for the plan (which copies it as a client function) and the call stays as it is;
+        //     one called in an aggregate filter runs on the server and is not listed.
+        var fnIn = Parse("""
+        { "kind": "Screen", "name": "Prices", "flow": "MainFlow", "moduleKind": "Traditional", "locals": [ { "name": "P", "type": "Integer", "default": "" } ],
+          "preparation": { "complete": true, "nodes": [ { "kind": "aggregate", "name": "GetItems", "sources": ["Item"], "filters": ["Item.Price > Cap(P)"] } ] },
+          "widgets": [ { "kind": "WebExpression", "type": "Expression", "props": { "value": "Fmt(P) + Other(1)" } } ] }
+        """);
+        var fnR = Translate(fnIn, plain with { ServerFunctions = new HashSet<string>(["Fmt", "Cap", "Unused"], StringComparer.OrdinalIgnoreCase) });
+        Check(Text(fnR.Spec, "_serverFunctions", 0) == "Fmt" && At(fnR.Spec, "_serverFunctions", 1) is null && Text(fnR.Spec, "widgets", 0, "value") == "Fmt(P) + Other(1)"
+            && Text(fnR.Spec, "aggregates", 0, "filters", 0) == "Item.Price > Cap(P)",
+            $"Prices: a server function called in the browser is listed, one in an aggregate filter is not: {fnR.Spec?.ToJsonString()}");
 
         // 5. A web block with a Notify; the block has a placeholder and an input.
         var blockInput = Parse("""

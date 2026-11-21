@@ -4,7 +4,7 @@ using OutSystems.Model.UI;
 
 namespace OmlCli;
 
-// `oml export <module.oml> <Element>...`: a screen, block or email as structured JSON, for code that transforms it (the
+// `oml export <module.oml> <Element>...`: a screen, block, email or server action as structured JSON, for code that transforms it (the
 // first is `oml migrate`). It reads the facts describe prints, with describe's readers, and writes flows as a spec `flow`
 // list takes them. Keys that start with `_` are facts a spec does not take. What cannot be read is said: in a flow's
 // `unsupported` (then `complete` is false) or in the element's `notes`. Nothing is guessed.
@@ -27,14 +27,14 @@ static class Export
         try
         {
             var root = ElementPaths.Resolve(m, path);
-            var kind = root is IEmail ? "Email" : Inspect.IsBlock(root) ? "Block" : root is IScreenSignature ? "Screen" : null;
+            var kind = root is IEmail ? "Email" : Inspect.IsBlock(root) ? "Block" : root is IScreenSignature ? "Screen" : Describe.Kind(root) == "ServerAction" ? "ServerAction" : null;
             if (kind is null)
-                throw new ModelError($"'{path}' is {Describe.Kind(root)} {Describe.Name(root)}: export reads screens, blocks and emails. Read other elements with oml describe.");
+                throw new ModelError($"'{path}' is {Describe.Kind(root)} {Describe.Name(root)}: export reads screens, blocks, emails and server actions. Read other elements with oml describe.");
             if (ElementPaths.Referenced(root))
                 throw new ModelError($"'{path}' is {kind} {Describe.Name(root)} of a referenced module: export it from its producer module.");
             using var unreadable = new Unreadable();
             var reader = new Reader(m);
-            var element = reader.Element(root, kind);
+            var element = kind == "ServerAction" ? reader.ServerAction(root) : reader.Element(root, kind);
             foreach (var item in unreadable.Items() ?? Array.Empty<Unreadable.Item>())
                 if (!FactSources.Any(p => item.part.EndsWith(" property " + p, StringComparison.Ordinal)))   // the typed readers read it already
                     reader.Notes.Add($"could not read {item.part}: {item.reason}");
@@ -185,6 +185,25 @@ static class Export
                     ["name"] = Describe.Name(e), ["mandatory"] = Reflect.Get(e, "IsMandatory") is true, ["inputs"] = Variables(e, "InputParameters", withDefault: false),
                 }).ToArray()));
             Part("widgets", () => Widgets(root, path));
+            return o;
+        }
+
+        // A server action in the spec's serverActions shape: function, public, inputs, locals, outputs and flow (oml migrate reads its
+        // functions, to copy the ones screens use as client functions).
+        public JsonObject ServerAction(IObjectSignature root)
+        {
+            var name = Describe.Name(root);
+            var o = new JsonObject
+            {
+                ["kind"] = "ServerAction", ["name"] = name, ["moduleKind"] = ModuleKind(),
+                ["function"] = Reflect.Get(root, "IsFunction") is true || Reflect.Get(root, "Function") is true,
+                ["public"] = Reflect.Get(root, "Public") is true,
+            };
+            void Part(string key, Func<JsonNode?> read) => Unreadable.Try(() => key + " of " + Unreadable.Where(root), () => { o[key] = read(); });
+            Part("inputs", () => Variables(root, "InputParameters", withDefault: false));
+            Part("locals", () => Variables(root, "LocalVariables", withDefault: false));
+            Part("outputs", () => Variables(root, "OutputParameters", withDefault: false));
+            Part("flow", () => Flow(root, name));
             return o;
         }
 

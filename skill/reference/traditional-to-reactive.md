@@ -50,14 +50,15 @@ OutSystemsUIWeb, RichWidgets and OutSystemsChartsWeb blocks are translated by a 
 
 | Traditional | Reactive |
 |---|---|
-| Preparation | Aggregates stay screen aggregates (code). Logic with SQL or server calls becomes the data action `Preparation`, in the Traditional order and one request, with the aggregates it reads; assigned locals come back as `<Local>Value` outputs in its `onAfterFetch`, and what the screen reads of a query is `Preparation.<Query>List` (code). Other logic: `onInitialize` and one aggregate's `onAfterFetch` when provable, else the data action. A Preparation that navigates is a Todo |
+| Preparation | Aggregates stay screen aggregates. Logic with SQL or server calls becomes the data action `Preparation` (Traditional order, one request) with the aggregates it reads; assigned locals return as `<Local>Value` in `onAfterFetch`, queries the screen reads as `Preparation.<Query>List`. Other logic: `onInitialize` and an aggregate's `onAfterFetch` if provable, else the data action. Navigating: a Todo (code) |
 | Aggregate or SQL in a screen action | Joins the server action below; later nodes read `<Query>_List` (`.Current.X`) and `<Query>_Count` (code). Reading a widget or multi-entity records: a stub |
 | Screen action (server) | Client action; two or more server calls in a row become one server action `<Screen>_<Action>` that starts with the screen's access check (`AccessDenied`) (code) |
-| Session variable | Client variable when it holds nothing sensitive (the user can read it), passed as an input to server logic; else data read again on the server |
+| Session variable | A client variable when harmless (the user can read it), else read on the server (above) |
 | Site property read in the screen | `ServerValues.X`, an output of the data action `ServerValues`; aggregates keep `Site.X`; a secret one is a Todo (code) |
+| Server function in a screen | A client copy, same name (code); with a query, server call, `Site`, `Session` or role check: a Todo |
 | `Get<Static>(id).<Static>.<Attr>` in a screen | The value, or a client function `Get<Static><Attr>(Id)` (code) |
 | `CheckRole` | `Check<Role>Role()` in the screen is `ServerValues.Has<Role>Role` (code); it only hides parts, the server action checks again |
-| Ajax Refresh | Nothing: bound data updates; code emits `refreshData` for the aggregates behind a refreshed table or list when the export names its targets, else a Todo |
+| Ajax Refresh | Nothing: bound data updates; `refreshData` for the aggregates behind a refreshed table or list the export names, else a Todo (code) |
 | Notify and OnNotify of web blocks | The block's `Notify` event (input `Message`), a `triggerEvent` node, the handler on the instance; `NotifyGetMessage()` is `Message` (code) |
 | JavaScript of a screen or block | A script of the module that it requires (code); jQuery and `osjs` code must be rewritten |
 | Send Email in a screen action | Server action with `sendEmail` of a Reactive email from `emails` (`oml spec emails`) |

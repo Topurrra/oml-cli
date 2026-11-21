@@ -213,6 +213,33 @@ static partial class Migrate
         Check(Strings(s["duplicates"], "timers").SequenceEqual(["NightlyCleanup"]) && Strings(s["roles"], "both").SequenceEqual(["OrderManager"]), "status: duplicates and referenced role");
         Check(Strings(s["wrappers"], "presentInOld").SequenceEqual(["Customer_Update"]) && S(s, "progress")!.StartsWith("screens 1 of 2; blocks 0 of 1;"), "status: wrappers and progress");
 
+        // Server functions the screens call in the browser: copied as client functions when their flow can run there (with the functions they
+        // call, exported in a later round); one with a query, a session read, a call of one not copied, or no export is refused with why.
+        var fnExports = JsonNode.Parse("""
+        { "Twice": { "name": "Twice", "function": true, "inputs": [ { "name": "N", "type": "Integer", "mandatory": true } ], "outputs": [ { "name": "R", "type": "Integer" } ],
+            "flow": { "complete": true, "nodes": [ { "kind": "if", "name": "Neg", "condition": "N < 0", "true": "Zero", "false": "Do", "_path": "Twice/Neg" },
+              { "kind": "assign", "name": "Zero", "assign": { "R": "0" }, "next": "End" }, { "kind": "assign", "name": "Do", "assign": { "R": "Half(N) * 4" }, "next": "End", "_path": "Twice/Do" } ] } },
+          "Half": { "name": "Half", "function": true, "inputs": [ { "name": "X", "type": "Integer" } ], "outputs": [ { "name": "Y", "type": "Integer" } ], "flow": { "complete": true, "nodes": [ { "kind": "assign", "name": "A", "assign": { "Y": "X / 2" } } ] } },
+          "AppName": { "name": "AppName", "function": true, "flow": { "complete": true, "nodes": [ { "kind": "aggregate", "name": "GetApp", "sources": ["Application"] } ] } },
+          "Who": { "name": "Who", "function": true, "flow": { "complete": true, "nodes": [ { "kind": "assign", "name": "A", "assign": { "R": "Session.UserName" } } ] } },
+          "Outer": { "name": "Outer", "function": true, "flow": { "complete": true, "nodes": [ { "kind": "assign", "name": "A", "assign": { "R": "AppName() + \"!\"" } } ] } },
+          "Ghost": { "error": "no server action named Ghost" } }
+        """)!.AsObject();
+        var rounds = new List<string>();
+        var (fnCopies, fnRefused) = ClientFunctions(["Twice", "Who", "Outer", "Ghost"], names =>
+        { rounds.Add(string.Join(",", names)); return names.ToDictionary(n => n, n => (JsonObject)fnExports[n]!.DeepClone(), StringComparer.OrdinalIgnoreCase); },
+            new HashSet<string>(["Twice", "Half", "AppName", "Who", "Outer", "Ghost"], StringComparer.OrdinalIgnoreCase));
+        Check(fnCopies.Select(c => S(c, "name")).SequenceEqual(["Half", "Twice"]) && rounds.SequenceEqual(["Twice,Who,Outer,Ghost", "Half,AppName"])
+            && fnCopies[1]["function"]!.GetValue<bool>() && S(fnCopies[1]["inputs"]![0]!, "name") == "N" && S(fnCopies[1]["outputs"]![0]!, "name") == "R"
+            && S(fnCopies[1]["flow"]![2]!["assign"]!, "R") == "Half(N) * 4" && fnCopies[1]["flow"]![0]!["_path"] is null && fnCopies[1]["locals"] is null,
+            $"server functions: Twice and the Half it calls are client functions with their inputs, outputs and flow: {string.Join(" ", fnCopies.Select(c => c.ToJsonString()))}");
+        Check(fnRefused.Count == 4 && fnRefused["AppName"].Contains("aggregate node GetApp runs on the server") && fnRefused["Who"].Contains("reads Session.UserName")
+            && fnRefused["Outer"].StartsWith("it calls AppName, which is not copied") && fnRefused["Ghost"].Contains("no server action named Ghost"),
+            $"server functions: a query, a session read, a call of one not copied and a failed export are refused with why: {string.Join(" | ", fnRefused.Select(kv => kv.Key + ": " + kv.Value))}");
+        Check(ServerFunctionNames(JsonNode.Parse("""{ "serverActions": [ { "name": "A", "function": true }, { "name": "B" } ] }""")).SequenceEqual(["A"])
+            && ExportActions(JsonNode.Parse("""{ "name": "A" }"""), ["A"])["A"]["name"] is not null && ExportActions(null, ["A", "B"])["B"]["error"] is not null,
+            "server functions: names from inspect; export answers by name, a missing one is an error");
+
         return fails;
     }
 

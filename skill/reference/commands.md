@@ -23,7 +23,7 @@ oml templates           (local template/sample modules and bundles)
 oml inspect <module.oml> [--own] [--only entities,structures,actions,screens,blocks,references,timers,roles,processes,rest,static,siteProperties] [--history] [--changed-since <yyyy-mm-dd>]
 oml inspect --in <folder> [--recursive] [--own] [--only ...]   (every .oml in the folder in one process: {modules:[{file,...}]}, a broken file gives an error entry)
 oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [--history] [--css] [--sql [--out <file.sql>]]
-oml export <module.oml> <Element>...   (a screen, web block or email as JSON for tools; read with describe)
+oml export <module.oml> <Element>...   (a screen, web block, email or server action as JSON for tools; read with describe)
 oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
 oml find <module.oml> --text "<words>" [--top N]  (this module's elements ranked by name, description, expressions, SQL, labels)
 oml stats <module.oml>
@@ -138,7 +138,7 @@ Queries show named groups (`group by Year = Year(Order.PlacedOn)`), `having`, `[
 
 #### Export: oml export
 
-`oml export <module.oml> <Element>...` prints a screen, web block or email as JSON that code can transform; `oml describe` prints the same facts as text. Agents should read with `describe`; `export` is for tools, first of all `oml migrate`. `Kind:Name` and tree paths work as in `describe`. One element prints one object; several print an array in the order asked, and a name that fails is `{ "element", "error" }` in its place with exit 1. It is a step of `oml batch`.
+`oml export <module.oml> <Element>...` prints a screen, web block, email or server action (function, inputs, locals, outputs, flow) as JSON that code can transform; `oml describe` prints the same facts as text. Agents should read with `describe`; `export` is for tools, first of all `oml migrate`. `Kind:Name` and tree paths work as in `describe`. One element prints one object; several print an array in the order asked, and a name that fails is `{ "element", "error" }` in its place with exit 1. It is a step of `oml batch`.
 
 ```json
 { "kind": "Screen", "name": "Orders", "flow": "MainFlow", "inputs": [], "locals": [], "styleSheet": "", "preparation": { "nodes": [], "complete": true, "unsupported": [] },

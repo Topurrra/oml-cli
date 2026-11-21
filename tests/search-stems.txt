@@ -173,6 +173,7 @@ request: request, requested, requests
 requir: required, requires
 resourc: resource, resources
 result: result, results
+return: return, returns
 reus: reuse, reused
 rol: role, roles
 row: row, rows
