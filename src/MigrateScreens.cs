@@ -59,7 +59,11 @@ static class ScreenTranslator
         IReadOnlyDictionary<string, IReadOnlyList<(string Id, IReadOnlyDictionary<string, string> Values)>>? StaticRecords = null,
         // Session variables kept in the server store (MigratePlan.StoreSessions): name -> type. A screen reads them through its data action
         // SessionValues and writes them with SetSession_<Name>.
-        IReadOnlyDictionary<string, string>? StoreVariables = null);
+        IReadOnlyDictionary<string, string>? StoreVariables = null,
+        // The old module's site properties (name -> type) and roles. Site.X and Check<Role>Role() are server only: in a screen they become
+        // outputs of the data action ServerValues (ServerReads).
+        IReadOnlyDictionary<string, string>? SiteProperties = null,
+        IReadOnlySet<string>? Roles = null);
 
     // The blocks among the exports whose actions call Notify (or Deprecated_Notify): in Reactive each gets a Notify event.
     internal static HashSet<string> NotifyingBlocks(IEnumerable<JsonObject> exports) =>
@@ -237,10 +241,51 @@ static class ScreenTranslator
             return result;
         }
 
+        // Site properties and role checks are read on the server. Traditional screens ran there; a Reactive screen runs in the browser, where
+        // Site.X and Check<Role>Role() do not exist. Each one a screen reads becomes an output of its data action ServerValues (one request
+        // with the screen's data), so Site.X becomes ServerValues.X and CheckXRole() ServerValues.HasXRole. Aggregate filters run on the server
+        // and keep them (serverSide). A site property whose name says it is secret is not sent to the browser (a Todo instead), as Service
+        // Studio's converter does.
+        internal const string ServerValuesName = "ServerValues";
+        readonly SortedDictionary<string, (string Expr, string Type)> serverValues = new(StringComparer.OrdinalIgnoreCase);
+        bool serverSide, inInitialize;
+        static readonly Regex SecretName = new(@"(api|private|access).*?key|token|secret|pass(word|phrase|key)|pwd|credential|encryption|authentication|authorization|client[_-]?id|connection.*?string",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        void ServerRead(string output, string expr, string type, string at)
+        {
+            serverValues[output] = (expr, type);
+            if (inInitialize) Todo($"{at} reads {expr}, now {ServerValuesName}.{output}; onInitialize runs before the data action {ServerValuesName} has fetched, so move this logic to {ServerValuesName}'s onAfterFetch");
+        }
+
         // One identifier that starts a path (not a member): the rewrite, and where the scan resumes.
         bool Substitute(string text, string id, int after, string at, out string replacement, out int end)
         {
             replacement = ""; end = after;
+            if (!serverSide && id.Equals("Site", StringComparison.OrdinalIgnoreCase) && after < text.Length && text[after] == '.' && cx.SiteProperties is { Count: > 0 } sites)
+            {
+                var m = Regex.Match(text[(after + 1)..], @"^[A-Za-z_]\w*");
+                if (!m.Success || sites.Keys.FirstOrDefault(k => k.Equals(m.Value, StringComparison.OrdinalIgnoreCase)) is not { } prop) return false;
+                if (SecretName.IsMatch(prop))
+                {
+                    Todo($"{at} reads the site property Site.{prop}, which only the server can read, and its name says it is secret, so it is not sent to the browser; read it in a server action and return only what the screen needs");
+                    return false;
+                }
+                ServerRead(prop, "Site." + prop, sites[prop], at);
+                replacement = ServerValuesName; return true;   // ".X" follows as it is
+            }
+            if (!serverSide && cx.Roles is { Count: > 0 } roles && Regex.Match(id, @"^Check(\w+)Role$") is { Success: true } rm
+                && roles.FirstOrDefault(r => r.Equals(rm.Groups[1].Value, StringComparison.OrdinalIgnoreCase)) is { } role)
+            {
+                var call = Regex.Match(text[after..], @"^\s*\(\s*(?:GetUserId\s*\(\s*\)\s*)?\)");
+                if (!call.Success)
+                {
+                    Todo($"{at} calls {id} for a user that may not be the current one, which only the server can check; check it in a server action");
+                    return false;
+                }
+                ServerRead($"Has{role}Role", $"Check{role}Role()", "Boolean", at);
+                replacement = $"{ServerValuesName}.Has{role}Role"; end = after + call.Length; return true;
+            }
             if (id.Equals("Session", StringComparison.OrdinalIgnoreCase) && after < text.Length && text[after] == '.')
             {
                 var m = Regex.Match(text[(after + 1)..], @"^[A-Za-z_]\w*");
@@ -482,8 +527,7 @@ static class ScreenTranslator
             var moduleKind = S(el["moduleKind"]);
             if (moduleKind is not null && !moduleKind.Equals("Traditional", StringComparison.OrdinalIgnoreCase))
                 return Worklist(kind, $"{kind} {name}: it comes from a {moduleKind} module, and oml migrate translates only Traditional Web screens, blocks and emails.");
-            if (kind.Equals("Email", StringComparison.OrdinalIgnoreCase))
-                return new Result(null, "Email", "worklist", [$"Email {name}: build the Reactive email with the spec's emails key (subject{(S(el["subject"]) is { Length: > 0 } subject ? " " + subject : "")}, inputs, widgets and styleSheet) from the exported content; this version does not translate emails."], [], []);
+            if (kind.Equals("Email", StringComparison.OrdinalIgnoreCase)) return Email();
             if (!kind.Equals("Screen", StringComparison.OrdinalIgnoreCase) && !block)
                 return Worklist(kind, $"{kind} {name}: only screens, web blocks and emails can be translated.");
 
@@ -525,6 +569,7 @@ static class ScreenTranslator
             if (aggs.Count > 0) spec["aggregates"] = aggs;
             if (actions.Count > 0) spec["actions"] = actions;
             foreach (var (key, value) in content) spec[key] = value;
+            ServerValuesAction(spec);
             if (serverActions.Count > 0) spec["_serverActions"] = new JsonArray(serverActions.Select(x => (JsonNode?)x).ToArray());
             if (images.Count > 0) spec["_images"] = new JsonArray(images.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
             if (clientFunctions.Count > 0) spec["_clientActions"] = new JsonArray(clientFunctions.Select(x => (JsonNode?)x.DeepClone()).ToArray());
@@ -545,6 +590,63 @@ static class ScreenTranslator
         }
 
         Result Worklist(string kind, string line) => new(null, kind, "worklist", [line], [], []);
+
+        // An email: a Reactive email has inputs, locals and widgets, and no Preparation (it sees only its inputs and locals), so one whose
+        // Preparation loads data stays on the worklist. Its widgets are translated as a screen's are; the spec's emails key accepts only
+        // Container, Expression, If, Image, Link, List, TableRecords (HeaderCell, RowCell) and Text, so another widget leaves it on the worklist too.
+        static readonly HashSet<string> EmailWidgets = new(["Container", "Expression", "If", "Image", "Link", "List", "TableRecords", "HeaderCell", "RowCell", "Text"], StringComparer.Ordinal);
+
+        Result Email()
+        {
+            var subjectText = S(el["subject"]);
+            string Rebuild(string why) => $"Email {name}: {why}; build the Reactive email with the spec's emails key (subject{(subjectText is { Length: > 0 } ? " " + subjectText : "")}, inputs, widgets) from the exported content.";
+            if (el["preparation"] is JsonObject prep && Objs(prep["nodes"]).Any(n => NodeKind(n) != "comment"))
+                return Worklist("Email", Rebuild($"its Preparation ({Summary(Objs(prep["nodes"]).Where(n => NodeKind(n) != "comment").ToList())}) loads data, which a Reactive email cannot; load it in the server action that sends the email and pass it as inputs"));
+            Collect(el["widgets"]);
+            foreach (var note in el["notes"] as JsonArray ?? []) if (S(note) is { Length: > 0 } text) Todo($"the export could read it only in part: {text}");
+            serverSide = true;   // rendered on the server: no ServerValues data action
+            var spec = new JsonObject { ["name"] = name, ["flow"] = S(el["flow"]) ?? "Emails", ["subject"] = Rw(subjectText ?? "\"\"", "the subject") };
+            if (Vars(el["inputs"], true) is { Count: > 0 } inputs) spec["inputs"] = inputs;
+            if (Vars(el["locals"], false) is { Count: > 0 } locals) spec["locals"] = locals;
+            var widgets = Ws(el["widgets"]);
+            serverSide = false;
+            var other = AllWidgetSpecs(widgets).Select(w => S(w["type"]) ?? "?").Where(t => !EmailWidgets.Contains(t)).Distinct().ToList();
+            if (other.Count > 0) return Worklist("Email", Rebuild($"its widgets translate to {string.Join(", ", other)}, which a Reactive email cannot hold"));
+            if (widgets.Count > 0) spec["widgets"] = widgets;
+            if (S(el["styleSheet"]) is { Length: > 0 } css) spec["styleSheet"] = css;
+            if (images.Count > 0) spec["_images"] = new JsonArray(images.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
+            return new Result(spec, "Email", todo.Count == 0 ? "translated" : "partial", todo, entityActions, session);
+        }
+
+        // Every widget of a translated list, at any depth.
+        static IEnumerable<JsonObject> AllWidgetSpecs(JsonArray widgets)
+        {
+            foreach (var w in widgets.OfType<JsonObject>())
+            {
+                yield return w;
+                foreach (var key in new[] { "children", "trueBranch", "falseBranch", "headerRow", "row", "widgets" })
+                    if (w[key] is JsonArray inner) foreach (var x in AllWidgetSpecs(inner)) yield return x;
+            }
+        }
+
+        // The data action ServerValues: one output per server read the built screen still has (a merged server action reads them itself).
+        void ServerValuesAction(JsonObject spec)
+        {
+            if (serverValues.Count == 0) return;
+            var text = spec.ToJsonString();
+            var used = serverValues.Where(kv => Regex.IsMatch(text, @"(?<![\w.])" + ServerValuesName + @"\." + Regex.Escape(kv.Key) + @"(?!\w)", RegexOptions.IgnoreCase)).ToList();
+            if (used.Count == 0) return;
+            var list = spec["dataActions"] as JsonArray ?? new JsonArray();
+            list.Add(new JsonObject
+            {
+                ["name"] = ServerValuesName,
+                ["description"] = "Site properties and role checks the screen reads, read on the server (oml migrate: Traditional screens read them there).",
+                ["outputs"] = new JsonArray(used.Select(kv => (JsonNode?)new JsonObject { ["name"] = kv.Key, ["type"] = kv.Value.Type }).ToArray()),
+                ["flow"] = new JsonArray(new JsonObject { ["kind"] = "assign", ["name"] = "Read",
+                    ["assign"] = new JsonObject(used.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode?)JsonValue.Create(kv.Value.Expr)))), ["next"] = "End" }),
+            });
+            spec["dataActions"] = list;
+        }
 
         // ---------- skeleton parts ----------
 
@@ -606,8 +708,10 @@ static class ScreenTranslator
             foreach (var n in calls.Where(n => NodeKind(n) == "aggregate"))
             {
                 var a = new JsonObject();
+                serverSide = true;   // a screen aggregate runs on the server: Site.X and role checks stay as they are
                 foreach (var key in new[] { "name", "sources", "joins", "filters", "sorts", "groupBy", "aggregates", "calculated", "groupFilters", "groupSorts", "groupCalculated", "maxRecords", "startIndex", "timeout" })
                     if (n[key] is { } v) a[key] = RwTree(v, $"the aggregate {S(n["name"])}", "name", "sources", "type", "function", "as", "left", "right");
+                serverSide = false;
                 if (paging.Values.FirstOrDefault(pg => pg.Agg.Equals(S(n["name"]), StringComparison.OrdinalIgnoreCase)) is { } pg)
                 { a["maxRecords"] = pg.Max; a["startIndex"] = pg.Start; }
                 result.Add(a);
@@ -801,7 +905,7 @@ static class ScreenTranslator
                 }
                 return new JsonObject { ["name"] = actionName, ["flow"] = flow };
             }
-            if (groupA.Count > 0) initAction = Flow(UniqueAction("OnInitialize"), groupA, entry, inA);
+            if (groupA.Count > 0) { inInitialize = true; initAction = Flow(UniqueAction("OnInitialize"), groupA, entry, inA); inInitialize = false; }
             if (groupB.Count > 0) afterFetch[target!] = Flow(UniqueAction(target + "OnAfterFetch"), groupB, bEntry!, inB);
             // Comments of the Preparation go to the first handler, after its nodes.
             if ((initAction ?? afterFetch.GetValueOrDefault(target ?? "")) is { } home && home["flow"] is JsonArray hf)
@@ -861,7 +965,7 @@ static class ScreenTranslator
 
         // ---------- screen and block actions ----------
 
-        static readonly HashSet<string> ActionKinds = ["assign", "if", "switch", "foreach", "execute", "destination", "raiseexception", "message", "comment", "javascript", "end", "ajaxrefresh", "exceptionhandler", "refreshdata"];
+        static readonly HashSet<string> ActionKinds = ["assign", "if", "switch", "foreach", "execute", "destination", "raiseexception", "message", "comment", "javascript", "end", "ajaxrefresh", "exceptionhandler", "refreshdata", "download"];
 
         JsonObject Action(JsonObject a)
         {
@@ -1037,7 +1141,16 @@ static class ScreenTranslator
                 case "assign":
                     o["kind"] = "assign"; Copy("name");
                     var map = new JsonObject();
-                    foreach (var (k, v) in n["assign"] as JsonObject ?? []) map[Rw(k, at)] = Rw(S(v), at);
+                    foreach (var (k, v) in n["assign"] as JsonObject ?? [])
+                    {
+                        if (Regex.IsMatch(k, @"^\s*Site\.\w+\s*$"))   // a site property is set on the server only
+                        {
+                            Todo($"{at} sets the site property {k.Trim()}, which a screen action cannot do in Reactive; set it in a server action that the action calls");
+                            map[k] = Rw(S(v), at);
+                            continue;
+                        }
+                        map[Rw(k, at)] = Rw(S(v), at);
+                    }
                     o["assign"] = map; Copy("next");
                     break;
                 case "if": o["kind"] = "if"; Copy("name"); Expr("condition"); Copy("true", "false"); break;
@@ -1048,6 +1161,8 @@ static class ScreenTranslator
                     o["cases"] = cases; Copy("otherwise");
                     break;
                 case "foreach": o["kind"] = "forEach"; Copy("name"); Expr("recordList"); Copy("cycle", "next"); break;
+                case "download":   // Reactive downloads from a client action too (the content still comes from the server: an aggregate or a call before it)
+                    o["kind"] = "download"; Copy("name"); Expr("fileContent"); Expr("fileName"); Expr("mimeType"); Copy("saveToDisk"); break;
                 case "execute": Execute(n, o, at); break;
                 case "destination" when External(n):   // Reactive opens an address with the RedirectToURL client action
                     o["kind"] = "execute"; Copy("name"); o["action"] = "RedirectToURL";
@@ -1182,6 +1297,7 @@ static class ScreenTranslator
                         if (root.Equals("Client", StringComparison.OrdinalIgnoreCase) && chain.Split('.') is [_, var cv, ..] && cx.ClientTypes?.TryGetValue(cv, out var ct) == true
                             && !actionVars.ContainsKey(cv) && !varTypes.ContainsKey(cv))
                         { inputs[cv] = ct!; clientInputs.Add(cv); continue; }
+                        if (root.Equals(ServerValuesName, StringComparison.OrdinalIgnoreCase) && chain.Split('.') is [_, var sv, ..] && serverValues.ContainsKey(sv)) continue;   // read on the server again
                         return false;   // a widget, an aggregate, a client variable whose type is unknown, or something unknown
                     }
             // What later nodes read of the calls: Node.Output, each one an output of the server action.
@@ -1205,6 +1321,7 @@ static class ScreenTranslator
             {
                 var c = (JsonObject)run[i].DeepClone();
                 foreach (var cv in clientInputs) ReplaceClient(c, cv);
+                ReplaceServerValues(c);
                 c["next"] = i + 1 < run.Count ? S(run[i + 1]["name"]) : outputs.Count > 0 ? "SetOutputs" : "End";
                 body.Add(c);
             }
@@ -1271,9 +1388,16 @@ static class ScreenTranslator
         }
 
         // Client.X -> X in every expression of a node (a merged server action gets the client variable as the input X).
-        static void ReplaceClient(JsonObject n, string variable)
+        static void ReplaceClient(JsonObject n, string variable) =>
+            ReplaceText(n, text => Regex.Replace(text, @"(?<![\w.])Client\." + Regex.Escape(variable) + @"(?!\w)", variable));
+
+        // In a merged server action, ServerValues.X is read on the server again (Site.X, CheckXRole()).
+        void ReplaceServerValues(JsonObject n) =>
+            ReplaceText(n, text => Regex.Replace(text, @"(?<![\w.])" + ServerValuesName + @"\.(\w+)(?!\w)", m => serverValues.TryGetValue(m.Groups[1].Value, out var sv) ? sv.Expr : m.Value));
+
+        // Every expression string of a node (names kept), and the keys and strings of its maps (assign targets and values, arguments).
+        static void ReplaceText(JsonObject n, Func<string, string> Fix)
         {
-            string Fix(string text) => Regex.Replace(text, @"(?<![\w.])Client\." + Regex.Escape(variable) + @"(?!\w)", variable);
             foreach (var (k, v) in n.ToList())
             {
                 if (NameKeys.Contains(k)) continue;
@@ -1310,6 +1434,19 @@ static class ScreenTranslator
         }
 
         static readonly Regex EntityAction = new(@"^(CreateOrUpdate|Create|Update|Delete)([A-Za-z][A-Za-z0-9_]*)$", RegexOptions.CultureInvariant);
+
+        // System actions of a Traditional request that mean nothing in a client action, and what to do instead.
+        static readonly Dictionary<string, string> PageOnly = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["RunJavaScript"] = "use a JavaScript node with the same code",
+            ["AddJavaScriptTag"] = "add the script to the module's Scripts and require it on the screen",
+            ["AddStyleSheetTag"] = "move the style sheet to the screen's or the theme's style sheet",
+            ["AddMetaTag"] = "set meta tags in the layout or with a JavaScript node",
+            ["AddFavicon"] = "the module's icon is the favicon in Reactive; remove the call",
+            ["AddPostProcessingFilter"] = "there is no rendered HTML to filter; remove the call",
+            ["CommitTransaction"] = "each server call commits on its own in Reactive; remove the call, or commit inside the server action that does the work",
+            ["AbortTransaction"] = "abort inside the server action that does the work, or raise an exception there",
+        };
 
         void Execute(JsonObject n, JsonObject o, string at)
         {
@@ -1390,7 +1527,16 @@ static class ScreenTranslator
                 }
                 o["name"] = nodeName ?? action;
             }
-            else o["action"] = action;
+            else
+            {
+                o["action"] = action;
+                // Calls that would be built but do nothing, or nothing right, from a client action: said here rather than left to a person to find.
+                if (UiLibraryMap.IsLibrary(action))
+                    Todo($"{at} calls {action} of a Traditional UI library, which the new module does not reference" + (UiLibraryMap.Action(action) is { } lib
+                        ? (lib.Reactive is { Length: > 0 } r ? $"; the map gives {r} ({lib.ReactiveKind}): {lib.Notes}" : $"; {lib.Notes}") : "; replace or remove the call"));
+                else if (PageOnly.TryGetValue(leaf, out var instead) && (!action.Contains('.') || action.StartsWith("(System).", StringComparison.OrdinalIgnoreCase) || action.StartsWith("System.", StringComparison.OrdinalIgnoreCase)))
+                    Todo($"{at} calls {leaf}, which works on the page a Traditional server request renders; a Reactive screen action runs in the browser: {instead}");
+            }
             if (n["args"] is JsonObject args2 && args2.Count > 0) o["args"] = RwTree(args2, at);
             if (cx.SessionInputs?.GetValueOrDefault(action) is { Count: > 0 } carried)   // the client variable that used to be a session variable
             {
@@ -1420,7 +1566,7 @@ static class ScreenTranslator
             ["confirm"] = "confirmationMessage", // Button, Link: the confirmation text (expression)
             ["linkUrl"] = null,             // Link: an external address
             ["icon"] = "icon",                // Icon: the icon name (plain text)
-            ["radioGroup"] = null,          // Radio Button: a Radio Group widget
+            ["radioGroup"] = "RadioGroup",  // Radio Button: a Radio Group widget (Ws groups the buttons of a variable)
             ["moreInputTypes"] = "inputType",  // Input: types other than Password, Email, Number (Phone Number, ...), passed through as typed
             ["prompt"] = "prompt",          // Input: the prompt (placeholder) text
             ["maxLength"] = "maxLength",    // Input, Text Area: the maximum length
@@ -1430,7 +1576,7 @@ static class ScreenTranslator
             ["imageSize"] = "attributes",   // Image: its width and height, as attributes.width / attributes.height
             ["tableSort"] = null,           // Table Records: sorting by a column
             ["tablePaging"] = null,         // Table Records: lines per page
-            ["dropdownEmpty"] = null,       // Dropdown: the empty entry
+            ["dropdownEmpty"] = "emptyValue",  // Dropdown: the text of the empty entry (a special list with values has no key)
         };
 
         // Writes the fact under its spec key when there is one (true), else says in a Todo what was left (false).
@@ -1590,7 +1736,7 @@ static class ScreenTranslator
         {
             Todo($"{Label(w)} {what}");
             var children = new JsonArray(new JsonObject { ["type"] = "Text", ["text"] = $"TODO migrate: {Label(w)} {what}" });
-            if (withChildren) foreach (var c in Children(w)) One(c, children);
+            if (withChildren) Many(Children(w), children);
             var o = new JsonObject { ["type"] = "Container" };
             if (!Blank(S(w["name"]))) o["name"] = S(w["name"]);
             o["children"] = children;
@@ -1601,7 +1747,52 @@ static class ScreenTranslator
         static JsonObject LabelWidget(string expr, Func<string, string> rewrite) =>
             Literal(expr) is { } lit ? new JsonObject { ["type"] = "Text", ["text"] = lit } : new JsonObject { ["type"] = "Expression", ["value"] = rewrite(expr) };
 
-        JsonArray Ws(JsonNode? widgets) { var a = new JsonArray(); foreach (var w in Objs(widgets)) One(w, a); return a; }
+        JsonArray Ws(JsonNode? widgets) { var a = new JsonArray(); Many(Objs(widgets), a); return a; }
+
+        // Sibling widgets, in order, into a list.
+        void Many(IEnumerable<JsonObject> widgets, JsonArray a)
+        {
+            var list = widgets.ToList();
+            for (var i = 0; i < list.Count; i++)
+            {
+                // Traditional Radio Buttons are loose widgets that share a variable; Reactive puts them in a Radio Group that holds it. The group
+                // takes the siblings from the first Radio Button of a variable to its last one, so the labels between them stay in place.
+                if (WType(list[i]) == "radiobutton" && SpecKeys["radioGroup"] is { } groupType && !inRadioGroup && Prop(list[i], "variable") is { Length: > 0 } variable)
+                {
+                    var last = list.FindLastIndex(x => WType(x) == "radiobutton" && string.Equals(Prop(x, "variable")?.Trim(), variable.Trim(), StringComparison.OrdinalIgnoreCase));
+                    a.Add(RadioGroup(groupType, list.GetRange(i, last - i + 1), variable));
+                    i = last;
+                    continue;
+                }
+                One(list[i], a);
+            }
+        }
+
+        bool inRadioGroup;
+        JsonObject RadioGroup(string type, List<JsonObject> members, string variable)
+        {
+            var at = Label(members[0]);
+            var group = new JsonObject { ["type"] = type, ["variable"] = Rw(variable, at) };
+            // A Radio Group holds Radio Buttons only: the widgets after a button (its label, in Traditional) become the button's content.
+            var kids = new JsonArray();
+            JsonArray? label = null;
+            inRadioGroup = true;
+            foreach (var m in members)
+            {
+                if (WType(m) == "radiobutton")
+                {
+                    if (!group.ContainsKey("onChange") && Prop(m, "onChange") is not null && ActionRef(m, [], "its On Change", "onChange") is { } change) group["onChange"] = change;
+                    One(m, kids);
+                    if (kids[^1] is JsonObject button && S(button["type"]) == "RadioButton") { label = new JsonArray(); button["children"] = label; }
+                    continue;
+                }
+                One(m, label ?? kids);
+            }
+            foreach (var b in kids.OfType<JsonObject>()) if (b["children"] is JsonArray { Count: 0 }) b.Remove("children");
+            inRadioGroup = false;
+            group["children"] = kids;
+            return group;
+        }
 
         // A name of an action of this element for an event (onClick, onChange), or null when there is none.
         string? ActionRef(JsonObject w, HashSet<string> used, string at, params string[] names)
@@ -1650,7 +1841,7 @@ static class ScreenTranslator
                 case "inputpassword":   // a Password Input of Traditional Web is an Input of type Password
                     o = Input(w, used, false); o["inputType"] = "Password"; used.Add("passwordtype"); break;
                 case "customplaceholder": case "placeholdercontent":   // the content area of a Form or a block instance: its widgets move up
-                    foreach (var c in Objs(w["children"])) One(c, into);
+                    Many(Objs(w["children"]), into);
                     return;
                 case "button": case "link": o = Click(w, used, kind == "button"); break;
                 case "if": o = If(w, used); break;
@@ -1690,14 +1881,14 @@ static class ScreenTranslator
                     if (ActionRef(w, used, "its On Change", "onChange") is { } cc) o["onChange"] = cc;
                     break;
                 case "combobox": case "combo": case "dropdown": o = Combo(w, used); break;
-                case "radiobutton" when SpecKeys["radioGroup"] is { } radioType:
-                    o = New(radioType, w, used); Visible(w, used, o);
-                    if (Prop(w, used, "variable") is { } rv) o["variable"] = Rw(rv, Label(w));
+                case "radiobutton" when SpecKeys["radioGroup"] is not null && inRadioGroup:   // inside the Radio Group that Ws made, which holds the variable and On Change
+                    o = New("RadioButton", w, used); Visible(w, used, o);
+                    Prop(w, used, "variable"); Prop(w, used, "onChange"); Prop(w, used, "radioGroup", "groupName");
                     if (Prop(w, used, "value", "valueText") is { } rval) o["value"] = Rw(rval, Label(w));
-                    if (ActionRef(w, used, "its On Change", "onChange") is { } rc) o["onChange"] = rc;
                     break;
                 case "radiobutton": case "radiogroup":
-                    o = TodoBox(w, $"is a Radio Button (variable {Prop(w, "variable") ?? "none"}, value {Prop(w, "value", "valueText") ?? "none"}); the spec has no Radio Group widget, so build the group in Service Studio", false);
+                    o = TodoBox(w, $"is a Radio Button (variable {Prop(w, "variable") ?? "none"}, value {Prop(w, "value", "valueText") ?? "none"}); " + (SpecKeys["radioGroup"] is null
+                        ? "the spec has no Radio Group widget, so build the group in Service Studio" : "it has no variable to group it by, so put it in a Radio Group by hand"), false);
                     used.UnionWith(["variable", "value", "valuetext", "style", "visible", "enabled", "display", "onchange", "mandatory"]);
                     break;
                 case "tablerecords": o = Records(w, used, true); break;
@@ -1710,7 +1901,7 @@ static class ScreenTranslator
                 case "comment": return;
                 case "table": o = HtmlTable(w, used); break;   // a plain HTML table (layout): the same table as HTML elements
                 case "row": case "tablerow": case "cell": case "headercell": case "rowcell": case "tablecell":
-                    foreach (var c in Objs(w["children"])) One(c, into);   // a Reactive Form has no rows and cells: the content moves up
+                    Many(Objs(w["children"]), into);   // a Reactive Form has no rows and cells: the content moves up
                     return;
                 default:
                     o = TodoBox(w, $"is a {S(w["type"]) ?? S(w["kind"])} widget that has no Reactive translation here; rebuild it (its content is kept inside)");
@@ -1890,8 +2081,10 @@ static class ScreenTranslator
             if (Prop(w, used, "labelAttribute", "optionLabel", "optionsText", "label", "text") is { } lab) o["labels"] = Option(lab);
             if (ActionRef(w, used, "its On Change", "onChange") is { } oc) o["onChange"] = oc;
             if (source is null) Todo($"{at} has no source list in the export; set its list, labels and values");
-            if (Prop(w, used, "specialList", "hasSpecialList", "emptyValue", "emptyLabel", "emptyCaption", "emptyText") is { } special)
-                Carry(o, "dropdownEmpty", Rw(special, at), $"{at} uses a special list or Empty Value setting ({special}), which the spec cannot express; build a data action that adds the entry to the options list");
+            if (Prop(w, used, "emptyValue", "emptyLabel", "emptyCaption", "emptyText") is { } empty)
+                Carry(o, "dropdownEmpty", Rw(empty, at), $"{at} has the empty entry {empty}, which the spec cannot express; set the Dropdown's Empty Text in Service Studio");
+            if (Prop(w, used, "specialList", "hasSpecialList") is { } special && !IsFalse(special))
+                Todo($"{at} adds the special list {special} to its options, which a Dropdown cannot: build a data action that returns the options with those entries added, and use it as the list");
             return o;
         }
 
@@ -2169,7 +2362,7 @@ static class ScreenTranslator
             if (block || cx.Layout is null)
             {
                 var all = new JsonArray();
-                foreach (var (_, ws) in groups) foreach (var w in Objs(ws)) One(w, all);
+                foreach (var (_, ws) in groups) Many(Objs(ws), all);
                 if (all.Count > 0) result.Add(("widgets", all));
                 return result;
             }
@@ -2185,7 +2378,7 @@ static class ScreenTranslator
                         Todo($"the content of the layout placeholder {ph} has no placeholder of that name in the layout {cx.Layout} and was put into {main}; move it");
                 }
                 if (placeholders[target] is not JsonArray list) placeholders[target] = list = new JsonArray();
-                foreach (var w in Objs(ws)) One(w, list);
+                Many(Objs(ws), list);
             }
             result.Add(("layout", JsonValue.Create(cx.Layout)!));
             var filled = new JsonObject();
@@ -2409,8 +2602,8 @@ static class ScreenTranslator
         var w = At(m.Spec, "widgets")!.AsArray();
         Check(m.Status == "partial" && Text(w[0], "type") == "Container" && Text(w[0], "children", 1, "text") == "cell" && Has(m.Todo, "Grid", "Editable Table"), "Misc: an Editable Table is a Todo container that keeps its content");
         Check(Text(w[1], "type") == "Container" && Text(w[1], "children", 1, "text") == "kept" && Has(m.Todo, "TabSet", "Tabs"), "Misc: an unknown kind is a Todo container with its children inside");
-        Check(Text(w[2], "type") == "Dropdown" && Text(w[2], "list") == "GetKinds.List" && Text(w[2], "values") == "Kind.Id" && Text(w[2], "labels") == "Kind.Name" && Has(m.Todo, "KindBox", "special list"), "Misc: a combo box becomes a Dropdown with option-record labels and values, the Empty Value is a Todo");
-        Check(Text(w[3], "type") == "Container" && Has(m.Todo, "Opt", "Radio"), "Misc: a Radio Button is a Todo container (the spec has no Radio Group)");
+        Check(Text(w[2], "type") == "Dropdown" && Text(w[2], "list") == "GetKinds.List" && Text(w[2], "values") == "Kind.Id" && Text(w[2], "labels") == "Kind.Name" && Text(w[2], "emptyValue") == "\"none\"" && !Has(m.Todo, "KindBox"), "Misc: a combo box becomes a Dropdown with option-record labels and values and its empty entry");
+        Check(Text(w[3], "type") == "RadioGroup" && Text(w[3], "children", 0, "type") == "RadioButton" && !Has(m.Todo, "Opt"), "Misc: a Radio Button is in a Radio Group of its variable");
         Check(Text(w[4], "type") == "Checkbox" && Text(w[4], "visible") == "Pick > 0" && Text(w[4], "variable") == "Flag", "Misc: Check Box becomes Checkbox with its visibility");
         Check(Text(w[5], "type") == "Image" && Text(w[5], "image") == "Logo", "Misc: an Image keeps its resource name");
         Check(Text(w[6], "type") == "Upload" && Text(w[6], "fileContent") == "Data" && Text(w[6], "fileName") == "FileName", "Misc: an Upload keeps its variables");
@@ -2548,7 +2741,7 @@ static class ScreenTranslator
 
         // 15. Rule 5: the table of widget facts. Every fact is there; turning one on writes the value under the key instead of a Todo.
         var facts = new[] { "confirm", "linkUrl", "icon", "radioGroup", "moreInputTypes", "prompt", "maxLength", "validationMessage", "isDefault", "imageUrl", "imageSize", "tableSort", "tablePaging", "dropdownEmpty" };
-        var on = new[] { "confirm", "icon", "moreInputTypes", "prompt", "maxLength", "isDefault", "imageSize" };
+        var on = new[] { "confirm", "icon", "radioGroup", "moreInputTypes", "prompt", "maxLength", "isDefault", "imageSize", "dropdownEmpty" };
         Check(facts.All(Run.SpecKeys.ContainsKey) && Run.SpecKeys.Count == facts.Length && Run.SpecKeys.Where(kv => kv.Value is null).Select(kv => kv.Key).Order().SequenceEqual(facts.Except(on).Order()), "Facts: every widget fact is in the table; the ones with a known spec key are on, the others are null");
         var widgetFacts = Parse("""
         { "kind": "Screen", "name": "Facts", "flow": "MainFlow", "moduleKind": "Traditional", "preparation": null, "actions": [ { "name": "Act", "flow": { "complete": true, "nodes": [] } } ],
@@ -2562,7 +2755,8 @@ static class ScreenTranslator
         """);
         var before = Translate(widgetFacts, plain);
         var bw = At(before.Spec, "widgets")!.AsArray();
-        Check(before.Todo.Count == 4 && Has(before.Todo, "Site", "https://example.com", "AdvancedHtml") && Has(before.Todo, "Phone", "validation message", "ValidationMessage") && Has(before.Todo, "Pic", "image at") && Has(before.Todo, "Opt", "Radio")
+        Check(before.Todo.Count == 3 && Has(before.Todo, "Site", "https://example.com", "AdvancedHtml") && Has(before.Todo, "Phone", "validation message", "ValidationMessage") && Has(before.Todo, "Pic", "image at")
+            && Text(bw[5], "type") == "RadioGroup" && Text(bw[5], "variable") == "Pick" && Text(bw[5], "children", 0, "type") == "RadioButton" && Text(bw[5], "children", 0, "value") == "1"
             && Text(bw[0], "confirmationMessage") == "\"Sure?\"" && Text(bw[0], "isDefault") == "true" && Text(bw[2], "icon") == "\"star\"" && Text(bw[3], "inputType") == "Phone Number" && Text(bw[3], "prompt") == "\"Phone\"" && Text(bw[3], "maxLength") == "20"
             && Text(bw[4], "attributes", "width") == "100" && Text(bw[4], "attributes", "height") == "50", $"Facts: the facts with a key are written, the others are Todo lines with a hint: [{string.Join(" | ", before.Todo)}]");
         var saved = new Dictionary<string, string?>(Run.SpecKeys);
@@ -2586,9 +2780,20 @@ static class ScreenTranslator
             Console.WriteLine("--- screen entry: Ajax Refresh nodes with targets\n" + rf.Spec!.ToJsonString(indented));
         }
 
-        // 9. Emails, other module kinds and a failed export are worklist entries.
-        var email = Translate(Parse("""{ "kind": "Email", "name": "Welcome", "flow": "Emails", "moduleKind": "Traditional", "subject": "\"Hello\"" }"""), layout);
-        Check(email.Spec is null && email.Status == "worklist" && email.Kind == "Email" && Has(email.Todo, "Welcome", "emails", "subject \"Hello\""), "Welcome: an email is a worklist entry that names the emails key");
+        // 9. An email without Preparation logic is translated (the spec's emails key); one whose Preparation loads data, another module kind
+        //    and a failed export are worklist entries.
+        var email = Translate(Parse("""
+        { "kind": "Email", "name": "Welcome", "flow": "Emails", "moduleKind": "Traditional", "subject": "\"Hello \" + Name", "inputs": [ { "name": "Name", "type": "Text" } ],
+          "widgets": [ { "kind": "InlineExpression", "type": "Expression", "props": { "value": "\"Hi \" + Name", "escapeContent": "True" } }, { "kind": "Text", "props": { "value": "Thanks" } } ] }
+        """), layout);
+        Check(email.Spec is not null && email.Status == "translated" && email.Kind == "Email" && Text(email.Spec, "subject") == "\"Hello \" + Name" && Text(email.Spec, "flow") == "Emails"
+            && Text(email.Spec, "inputs", 0, "name") == "Name" && Text(email.Spec, "widgets", 0, "value") == "\"Hi \" + Name" && Text(email.Spec, "widgets", 1, "text") == "Thanks",
+            $"Welcome: an email without Preparation logic is translated: {email.Spec?.ToJsonString()} [{string.Join(" | ", email.Todo)}]");
+        var loading = Translate(Parse("""
+        { "kind": "Email", "name": "Invoice", "moduleKind": "Traditional", "subject": "\"Invoice\"",
+          "preparation": { "complete": true, "nodes": [ { "kind": "aggregate", "name": "GetLines", "sources": ["Line"] } ] } }
+        """), layout);
+        Check(loading.Spec is null && loading.Status == "worklist" && Has(loading.Todo, "Invoice", "Preparation", "pass it as inputs", "emails key"), "Invoice: an email whose Preparation loads data stays on the worklist");
         var reactive = Translate(Parse("""{ "kind": "Screen", "name": "R", "moduleKind": "Reactive" }"""), layout);
         Check(reactive.Spec is null && reactive.Status == "worklist", "R: a Reactive element is not translated");
         var failed = Translate(Parse("""{ "element": "X", "name": "X", "kind": "Screen", "error": "no such screen" }"""), layout);
@@ -2754,6 +2959,52 @@ static class ScreenTranslator
             && Text(fillFlow, 0, "name") == "LoadAdd" && Text(fillFlow, 1, "assign", "SessionCart.Total") == "SessionCart.Total + 1" && Text(fillFlow, 2, "action") == "SetSession_Cart"
             && Text(fillFlow, 3, "kind") == "refreshData" && Text(sr.Spec, "onInitialize") is not null && Text(sr.Spec, "_images", 0) == "Logo" && !sr.Todo.Any(t => t.Contains("Logo") || t.Contains("Session.Cart")),
             $"Store: read through SessionValues, written with SetSession_Cart, the key filled at initialize; the image is copied: {sr.Spec?.ToJsonString()} [{string.Join(" | ", sr.Todo)}]");
+
+        // 21. Gaps closed after comparing with Service Studio's converter: site properties and role checks are read by the data action
+        //     ServerValues (an aggregate and a merged server action keep reading them on the server, a secret one is a Todo), Radio Buttons of a
+        //     variable become one Radio Group, a Download node is a client node, and calls that mean nothing in a client action are Todo lines.
+        var svIn = Parse("""
+        { "kind": "Screen", "name": "Admin", "flow": "MainFlow", "moduleKind": "Traditional", "access": { "roles": ["Manager"] },
+          "locals": [ { "name": "Draft", "type": "Order" }, { "name": "Pick", "type": "Integer" } ],
+          "preparation": { "complete": true, "nodes": [ { "kind": "aggregate", "name": "GetOrders", "sources": ["Order"], "filters": ["Order.Region = Site.Region"] } ] },
+          "widgets": [
+            { "kind": "Expression", "props": { "value": "Site.AppTitle" } },
+            { "kind": "If", "props": { "condition": "CheckManagerRole(GetUserId())" }, "true": [ { "kind": "Text", "props": { "text": "M" } } ] },
+            { "kind": "Expression", "props": { "value": "Site.ApiToken" } },
+            { "kind": "RadioButton", "name": "One", "props": { "variable": "Pick", "value": "1" } },
+            { "kind": "Text", "props": { "text": "One" } },
+            { "kind": "RadioButton", "name": "Two", "props": { "variable": "Pick", "value": "2" } },
+            { "kind": "Text", "props": { "text": "Two" } } ],
+          "actions": [
+            { "name": "Save", "flow": { "complete": true, "nodes": [
+              { "kind": "execute", "name": "Create", "action": "CreateDraft", "args": { "Order": "Draft", "Note": "Site.AppTitle" }, "next": "Audit" },
+              { "kind": "execute", "name": "Audit", "action": "WriteAudit", "args": { "OrderId": "Create.Id" }, "next": "End" } ] } },
+            { "name": "Get", "flow": { "complete": true, "nodes": [ { "kind": "download", "name": "File", "fileContent": "Draft.File", "fileName": "\"a.txt\"" } ] } },
+            { "name": "Close", "flow": { "complete": true, "nodes": [
+              { "kind": "execute", "name": "Shut", "action": "RichWidgets.Popup_Editor_Close", "next": "Commit" },
+              { "kind": "execute", "name": "Commit", "action": "CommitTransaction", "next": "Title" },
+              { "kind": "assign", "name": "Title", "assign": { "Site.AppTitle": "\"x\"" }, "next": "End" } ] } } ] }
+        """);
+        var svCx = mergeCx with { SiteProperties = new Dictionary<string, string> { ["AppTitle"] = "Text", ["Region"] = "Text", ["ApiToken"] = "Text" }, Roles = new HashSet<string> { "Manager" } };
+        var sv = Translate(svIn, svCx);
+        var svw = sv.Spec!["widgets"] as JsonArray;
+        var svData = (At(sv.Spec, "dataActions") as JsonArray)?.OfType<JsonObject>().FirstOrDefault(d => Text(d, "name") == "ServerValues");
+        Check(Text(svw, 0, "value") == "ServerValues.AppTitle" && Text(svw, 1, "condition") == "ServerValues.HasManagerRole" && Text(svw, 2, "value") == "Site.ApiToken"
+            && Text(sv.Spec, "aggregates", 0, "filters", 0) == "Order.Region = Site.Region"
+            && svData is not null && Text(svData, "outputs", 0, "name") == "AppTitle" && Text(svData, "outputs", 1, "name") == "HasManagerRole" && Text(svData, "outputs", 1, "type") == "Boolean" && At(svData, "outputs", 2) is null
+            && Text(svData, "flow", 0, "assign", "HasManagerRole") == "CheckManagerRole()" && Has(sv.Todo, "Site.ApiToken", "secret"),
+            $"ServerValues: Site.X and CheckXRole() in the browser read the data action, an aggregate keeps Site.X, a secret one is a Todo: {sv.Spec?.ToJsonString()} [{string.Join(" | ", sv.Todo)}]");
+        Check(Text(svw, 3, "type") == "RadioGroup" && Text(svw, 3, "variable") == "Pick" && Text(svw, 3, "children", 0, "type") == "RadioButton" && Text(svw, 3, "children", 0, "children", 0, "text") == "One"
+            && Text(svw, 3, "children", 1, "value") == "2" && At(svw, 3, "children", 2) is null && Text(svw, 4, "text") == "Two" && !Has(sv.Todo, "Radio"),
+            $"Radio: the buttons of a variable are one Radio Group, the label after a button is its content: {svw?.ToJsonString()}");
+        var svSrv = (At(sv.Spec, "_serverActions") as JsonArray)?.OfType<JsonObject>().FirstOrDefault();
+        var svFlows = (At(sv.Spec, "actions") as JsonArray)!.OfType<JsonObject>().ToDictionary(a => Text(a, "name")!, a => a["flow"] as JsonArray);
+        Check(svSrv is not null && (At(svSrv, "flow") as JsonArray)!.OfType<JsonObject>().Any(n => Text(n, "name") == "Create" && Text(n, "args", "Note") == "Site.AppTitle")
+            && !(At(svSrv, "inputs") as JsonArray ?? []).OfType<JsonObject>().Any(i => Text(i, "name") == "ServerValues"),
+            $"ServerValues: a merged server action reads Site.X itself: {svSrv?.ToJsonString()}");
+        Check(Text(svFlows["Get"], 0, "kind") == "download" && Text(svFlows["Get"], 0, "fileName") == "\"a.txt\"" && Text(svFlows["Close"], 0, "kind") == "execute"
+            && Has(sv.Todo, "Popup_Editor_Close", "Traditional UI library") && Has(sv.Todo, "CommitTransaction", "commits on its own") && Has(sv.Todo, "sets the site property Site.AppTitle"),
+            $"Download is a client node; library and page-only calls and a site property set in a screen action are Todo lines: [{string.Join(" | ", sv.Todo)}]");
         return failures;
     }
 

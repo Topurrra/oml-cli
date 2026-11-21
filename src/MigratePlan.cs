@@ -209,7 +209,7 @@ static partial class Migrate
         bool Has(string w) => kind.Contains(w, StringComparison.OrdinalIgnoreCase);
         if (Has("WebService") && !Has("Reference")) return ("stay", "exposed SOAP web service: stays in the old module, so its consumers keep working; copy it by hand if the new module must expose it");
         if (Has("SOAP") || Has("WebReference") || Has("Integration")) return ("copy", "consumed SOAP or other integration element: copied by name; its Service Center configuration does not follow, set it again for the new module");
-        if (Has("Email")) return ("translate", "email: exported and translated like a screen (it lands in 4-screens.md)");
+        if (Has("Email")) return ("translate", "email: exported and translated like a screen when its Preparation loads no data (it lands in 4-screens.md)");
         if (Has("Entry")) return ("manual", "entry point: Reactive has no entry points; the URL of a screen or a redirect screen replaces it");
         return ("manual", "not covered by oml migrate: rebuild or check it by hand");
     }
@@ -599,6 +599,9 @@ static partial class Migrate
         if (ti is not null) TemplateClashes(r, ti);
         var context = MakeContext(r, layout, placeholders) with { ServerOutputs = mergeServerCalls ? ServerOutputs(inspect, r) : null, SessionInputs = r.SessionInputs,
             StaticRecords = StaticRecords(inspect),
+            SiteProperties = Rows(inspect, "siteProperties").Where(p => S(p, "name") is not null).GroupBy(p => S(p, "name")!, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => S(g.First(), "type") ?? "Text", StringComparer.OrdinalIgnoreCase),
+            Roles = Rows(inspect, "roles").Select(p => S(p, "name")).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase),
             StoreVariables = r.SessionDecisions.Where(d => d.Decision == "store").ToDictionary(d => d.Name, d => d.Type, StringComparer.OrdinalIgnoreCase),
             ClientTypes = r.ClientVariables.OfType<JsonObject>().Where(c => S(c, "name") is not null).ToDictionary(c => S(c, "name")!, c => S(c, "type") ?? "Text", StringComparer.OrdinalIgnoreCase) };
         var items = TranslateAll(r.Screens, exports, context, translate);

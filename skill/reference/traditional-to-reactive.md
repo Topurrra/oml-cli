@@ -35,12 +35,12 @@ What stays and what is copied:
 - Migrate producers before consumers. Producers found under `--in` are referenced by themselves; an `unresolved` one needs its producer file (`--in`) or Manage Dependencies. Traditional UI references are left out.
 - Session variables (Reactive has none): basic and harmless, a client variable in 4-screens.json; copied server actions that read it get it as an input, passed on by callers (`2-source.json`: `addVariables`, `rewrite`, `setArgs`). Written there, sensitive or a record: the server store, entity `SessionValue` with `GetSession_<Name>`/`SetSession_<Name>` by session key and user. Else `manual` with the reason.
 - Style: screens and blocks carry their own sheet. Theme sheets target Traditional markup and are not added: port them from `css/` selector by selector into the new module's theme.
-- Emails, SOAP, entry points: a consumed SOAP or integration element is copied (Service Center settings do not follow); an email is translated like a screen; an entry point is manual (use a screen URL or a redirect screen); anything else is listed by kind and name in the notes.
+- Emails, SOAP, entry points: a consumed SOAP or integration element is copied (Service Center settings do not follow); an email is translated like a screen unless its Preparation loads data (then load it in the sending server action and pass inputs); an entry point is manual (use a screen URL or a redirect screen); anything else is listed by kind and name in the notes.
 - You decide: timers and processes now exist in both modules (deactivate or delete one); site property values, timer schedules and integration settings in Service Center do not follow a copy. Once its UI is gone, propose making the old module a service module (rule 3).
 
 ## Screens worklist
 
-`partial` and `worklist` elements are yours: read `screens/<Name>.txt` and the raw export, finish the TODO stubs, tick the box. Code fills a Form's record (aggregate `onAfterFetch`, input, local) and carries confirm text, icon, prompt, max length, input types, default button, image size. Todos: Link URL, Radio Group, validation message, image URL, table sort and paging.
+`partial` and `worklist` elements are yours: read `screens/<Name>.txt` and the raw export, finish the TODO stubs, tick the box. Code fills a Form's record (aggregate `onAfterFetch`, input, local) and carries confirm text, icon, prompt, max length, input types, default button, image size, a Dropdown's empty entry, Radio Groups. Todos: Link URL, validation message, image URL, table sort and paging, a Combo Box special list.
 
 ## UI libraries
 
@@ -54,14 +54,15 @@ OutSystemsUIWeb, RichWidgets and OutSystemsChartsWeb blocks are translated by a 
 | Aggregate or SQL in a screen action | A server action returning what the later nodes read (SQL always on the server); the action is a stub |
 | Screen action (server) | Client action; two or more server calls in a row become one server action `<Screen>_<Action>` that starts with the screen's access check (`AccessDenied`) (code) |
 | Session variable | Client variable when it holds nothing sensitive (the user can read it), passed as an input to server logic; else data read again on the server |
-| Site property read in the screen | Read it in a server action or data action |
+| Site property read in the screen | `ServerValues.X`, an output of the data action `ServerValues`; aggregates keep `Site.X`; a secret one is a Todo (code) |
 | `Get<Static>(id).<Static>.<Attr>` in a screen | The value, or a client function `Get<Static><Attr>(Id)` (code) |
-| `CheckRole` | Stays on the server, in the server action; the client check only hides parts |
+| `CheckRole` | `Check<Role>Role()` in the screen is `ServerValues.Has<Role>Role` (code); it only hides parts, the server action checks again |
 | Ajax Refresh | Nothing: bound data updates; code emits `refreshData` for the aggregates behind a refreshed table or list when the export names its targets, else a Todo |
 | Notify and OnNotify of web blocks | The block's `Notify` event (input `Message`), a `triggerEvent` node, the handler on the instance; `NotifyGetMessage()` is `Message` (code) |
 | JavaScript of a screen or block | A script of the module that it requires (code); jQuery and `osjs` code must be rewritten |
 | Send Email in a screen action | Server action with `sendEmail` of a Reactive email from `emails` (`oml spec emails`) |
-| Commit Transaction in screen logic | Server action |
+| Commit Transaction in screen logic | Server action; a Todo, like other page-only System actions (`RunJavaScript`) and unmapped UI library actions |
+| Download in a screen action | Download node (code) |
 
 Every server action a screen calls is a public endpoint: start it with identity and role checks (`oml doc security`).
 
@@ -73,7 +74,7 @@ Every server action a screen calls is a public endpoint: start it with identity 
 | Container Display | Visible, or an If (an If removes the content). The translator sets Visible |
 | Layout HTML Table, Width, Align, `InWebBlockPreview`, Example | Handled by the translator: HTML elements, CSS and classes; preview and design-time parts dropped |
 | Combo Box | Dropdown with a list, Options Value and Options Text |
-| Radio Button | Radio Group with one Radio Button per choice |
+| Radio Button | Radio Group of the variable, one Radio Button per choice (code) |
 | Edit Record, Show Record | Form; on an aggregate's whole record its inputs bind to that record, else to a local record variable |
 | Table Records, List Records | Table or List on the aggregate. List_Navigation, List_Counter and List_SortColumn are translated by code (OutSystems UI Pagination, header sort, locals, handlers) |
 | Expression with escaping off | Avoid; if needed, an unescaped expression block (XSS risk) |

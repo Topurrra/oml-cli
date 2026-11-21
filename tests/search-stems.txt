@@ -185,7 +185,9 @@ schedul: schedule, schedules
 screen: screen, screens
 script: script, scripts
 second: second, seconds
+secret: secret, secrets
 select: select, selected, selects
+send: send, sending
 servic: service, services
 set: set, sets
 setting: setting, settings
