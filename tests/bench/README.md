@@ -112,8 +112,10 @@ pwsh -NoProfile -File tests/bench/bench.ps1 -Task tests/bench/tasks/oui-subset.m
 The mcp side: copy the start file to a working file (`C:\bench\oui-20261123\mcp-work\OuiBench.oml`), open that copy in Service Studio (**File > Open**), start the MCP server, then:
 
 ```powershell
-pwsh -NoProfile -File tests/bench/bench.ps1 -Task tests/bench/tasks/oui-subset.md -Side mcp -Mode single -SkillPath 'C:\skills\servicestudio-mcp-oml' -Out 'C:\bench\oui-20261123\run-mcp'
+pwsh -NoProfile -File tests/bench/bench.ps1 -Task tests/bench/tasks/oui-subset.md -Side mcp -Mode single -SkillPath 'C:\skills\servicestudio-mcp-oml' -StudioModule OuiBench -Out 'C:\bench\oui-20261123\run-mcp'
 ```
+
+`-StudioModule` names the target module in the prompt and tells the agent never to change another open module; `-KeepModules OUI` names those modules too. An agent can list files outside its folder: keep the reference, the spec folder and the other side's run folder where it cannot find them (the omlcode agent of the first run listed `C:\bench` and saw `reference.oml`, without opening it).
 
 When it ends, save the module in Service Studio (Ctrl+S writes the working file, so the start file stays as it was), then run `verify.ps1` and `compare.ps1` on the working file. `-Side code` runs both sides, mcp first.
 
