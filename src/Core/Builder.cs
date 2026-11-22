@@ -387,9 +387,8 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         foreach (var source in spec.TryGetProperty("sources", out var ss) ? ss.EnumerateArray() : Enumerable.Empty<JsonElement>())
         {
             var name = source.GetString()!;
-            // "Module.Entity" picks the module; the source itself is named Entity, as expressions (Entity.Attr, List.Current.Entity) read it.
             references.Add(($"{where}.sources", () =>
-                Reflect.Call(db, "CreateSource", Refs.Find(m, name, typeof(OutSystems.Model.Logic.Aggregates.IDataSource)), name[(name.LastIndexOf('.') + 1)..])));
+                Reflect.Call(db, "CreateSource", Refs.Find(m, name, typeof(OutSystems.Model.Logic.Aggregates.IDataSource)), name)));
         }
         QueryAttributes(db, spec, where);
         foreach (var filter in spec.TryGetProperty("filters", out var fs) ? fs.EnumerateArray() : Enumerable.Empty<JsonElement>())

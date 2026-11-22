@@ -686,6 +686,7 @@ static class ScreenTranslator
             foreach (var (key, value) in content) spec[key] = value;
             ServerValuesAction(spec);
             if (serverActions.Count > 0) spec["_serverActions"] = new JsonArray(serverActions.Select(x => (JsonNode?)x).ToArray());
+            PlainSources(spec);
             if (images.Count > 0) spec["_images"] = new JsonArray(images.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
             if (layoutParts.Count > 0) spec["_layoutParts"] = new JsonArray(layoutParts.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
             if (clientFunctions.Count > 0) spec["_clientActions"] = new JsonArray(clientFunctions.Select(x => (JsonNode?)x.DeepClone()).ToArray());
@@ -2678,6 +2679,22 @@ static class ScreenTranslator
             return o;
         }
 
+        // A query source of an entity of another module, as the export qualifies it (TraditionalWebSample_CS.Article): its plain name. Apply
+        // resolves a plain name to the one reference of that name and names the source after the entity, as the old expressions read it
+        // (Article.Title); a qualified source would be named TraditionalWebSample_CS_Article. Two referenced entities of one name make apply refuse.
+        static void PlainSources(JsonNode? n)
+        {
+            if (n is JsonObject o)
+            {
+                if (o["sources"] is JsonArray sources)
+                    for (var i = 0; i < sources.Count; i++)
+                        if (sources[i] is JsonValue v && v.GetValueKind() == System.Text.Json.JsonValueKind.String && v.ToString() is var s && s.LastIndexOf('.') is > 0 and var dot)
+                            sources[i] = s[(dot + 1)..];
+                foreach (var (_, c) in o) PlainSources(c);
+            }
+            else if (n is JsonArray a) foreach (var x in a) PlainSources(x);
+        }
+
         // The screen aggregate Get<Entity>Options that lists a Combo Box's Source Entity: one per entity, made at the first Combo Box that needs it.
         string OptionsAggregate(string entity, EntityInfo? info)
         {
@@ -3341,6 +3358,14 @@ static class ScreenTranslator
         Check(Text(w[8], "type") == "Container" && Text(w[8], "visible") == "Pick = 1" && Text(w[8], "children", 0, "type") == "Expression" && Has(m.Todo, "Raw", "unescaped"), "Misc: an unescaped Expression is carried in a Container that holds Visible, with a Todo");
         Check(Text(w[9], "type") == "If" && Text(w[9], "trueBranch", 0, "text") == "yes" && Text(w[9], "falseBranch", 0, "text") == "no", "Misc: an If keeps both branches");
         Check(Text(w[10], "type") == "List" && Text(w[10], "source") == "GetKinds.List" && Text(w[10], "children", 0, "value") == "GetKinds.List.Current.Kind.Name", "Misc: List Records becomes a List with the row content");
+
+        // 8a. A query source of another module's entity (Prod.Article, as the export qualifies it) is its plain name, as the expressions read it.
+        var qualified = Translate(Parse("""
+        { "kind": "Screen", "name": "News", "flow": "MainFlow", "moduleKind": "Traditional", "preparation": { "complete": true, "nodes": [ { "kind": "aggregate", "name": "GetArticles", "sources": ["Prod.Article"], "filters": ["Article.Visible"] } ] },
+          "widgets": [ { "kind": "WebExpression", "type": "Expression", "props": { "value": "GetArticles.Count" } } ] }
+        """), plain);
+        Check(Text(qualified.Spec, "aggregates", 0, "sources", 0) == "Article" && Text(qualified.Spec, "aggregates", 0, "filters", 0) == "Article.Visible",
+            $"News: a qualified query source is its plain name: {qualified.Spec?.ToJsonString()}");
 
         // 8b. Combo Boxes with a Source Entity (as oml export writes them): a static entity lists its active records in order, a regular one sorts by
         //     its label; two boxes on one entity share the aggregate; a Source Attribute is the text; a record list gets its entity's identifier as
