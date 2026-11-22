@@ -15,11 +15,11 @@
       "read-only": 423,
       "changes": 316,
       "out-of-scope": 10,
-      "covered": 292,
+      "covered": 298,
       "coveredWithRule": 0,
       "rule": 0,
-      "not-covered": 14,
-      "coveredPercent": 95.4
+      "not-covered": 8,
+      "coveredPercent": 97.4
     },
     "UI (Traditional Web)": {
       "types": 80,
@@ -27,11 +27,11 @@
       "read-only": 371,
       "changes": 362,
       "out-of-scope": 24,
-      "covered": 324,
+      "covered": 331,
       "coveredWithRule": 1,
       "rule": 0,
-      "not-covered": 14,
-      "coveredPercent": 95.9
+      "not-covered": 7,
+      "coveredPercent": 97.9
     },
     "UI (shared)": {
       "types": 24,
@@ -39,11 +39,11 @@
       "read-only": 128,
       "changes": 135,
       "out-of-scope": 43,
-      "covered": 67,
+      "covered": 76,
       "coveredWithRule": 10,
       "rule": 0,
-      "not-covered": 25,
-      "coveredPercent": 72.8
+      "not-covered": 16,
+      "coveredPercent": 82.6
     },
     "data": {
       "types": 34,
@@ -51,11 +51,11 @@
       "read-only": 125,
       "changes": 142,
       "out-of-scope": 49,
-      "covered": 72,
+      "covered": 82,
       "coveredWithRule": 22,
       "rule": 0,
-      "not-covered": 21,
-      "coveredPercent": 77.4
+      "not-covered": 11,
+      "coveredPercent": 88.2
     },
     "data queries": {
       "types": 17,
@@ -63,11 +63,11 @@
       "read-only": 61,
       "changes": 81,
       "out-of-scope": 9,
-      "covered": 48,
+      "covered": 63,
       "coveredWithRule": 0,
       "rule": 0,
-      "not-covered": 24,
-      "coveredPercent": 66.7
+      "not-covered": 9,
+      "coveredPercent": 87.5
     },
     "integrations": {
       "types": 46,
@@ -75,11 +75,11 @@
       "read-only": 20,
       "changes": 217,
       "out-of-scope": 0,
-      "covered": 187,
+      "covered": 217,
       "coveredWithRule": 0,
       "rule": 0,
-      "not-covered": 30,
-      "coveredPercent": 86.2
+      "not-covered": 0,
+      "coveredPercent": 100
     },
     "logic": {
       "types": 57,
@@ -87,11 +87,11 @@
       "read-only": 130,
       "changes": 235,
       "out-of-scope": 57,
-      "covered": 153,
+      "covered": 163,
       "coveredWithRule": 8,
       "rule": 0,
-      "not-covered": 25,
-      "coveredPercent": 86
+      "not-covered": 15,
+      "coveredPercent": 91.6
     },
     "module": {
       "types": 77,
@@ -99,11 +99,11 @@
       "read-only": 235,
       "changes": 251,
       "out-of-scope": 53,
-      "covered": 131,
+      "covered": 148,
       "coveredWithRule": 3,
       "rule": 8,
-      "not-covered": 59,
-      "coveredPercent": 66.2
+      "not-covered": 42,
+      "coveredPercent": 74.7
     },
     "plugins": {
       "types": 68,
@@ -111,11 +111,11 @@
       "read-only": 118,
       "changes": 106,
       "out-of-scope": 4,
-      "covered": 61,
+      "covered": 64,
       "coveredWithRule": 0,
       "rule": 0,
-      "not-covered": 41,
-      "coveredPercent": 59.8
+      "not-covered": 38,
+      "coveredPercent": 62.7
     },
     "processes": {
       "types": 26,
@@ -123,11 +123,11 @@
       "read-only": 104,
       "changes": 116,
       "out-of-scope": 16,
-      "covered": 74,
+      "covered": 92,
       "coveredWithRule": 6,
       "rule": 0,
-      "not-covered": 26,
-      "coveredPercent": 74
+      "not-covered": 8,
+      "coveredPercent": 92
     }
   },
   "total": {
@@ -136,11 +136,11 @@
     "read-only": 1715,
     "changes": 1961,
     "out-of-scope": 265,
-    "covered": 1409,
+    "covered": 1534,
     "coveredWithRule": 50,
     "rule": 8,
-    "not-covered": 279,
-    "coveredPercent": 83.1
+    "not-covered": 154,
+    "coveredPercent": 90.4
   },
   "types": [
     {
@@ -346,6 +346,7 @@
           "signature": "IFolder Folder { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -390,6 +391,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -420,8 +422,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetDefaultValue",
@@ -509,6 +513,7 @@
           "signature": "IFolder Folder { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -518,6 +523,7 @@
           "signature": "IEntityAttributeSignature IdentifierAttribute { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "entities",
             "entities, structures",
             "staticEntities"
@@ -530,6 +536,7 @@
           "signature": "IEntityAttributeSignature IsActiveAttribute { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "entities",
             "staticEntities"
           ],
@@ -578,6 +585,7 @@
           "signature": "IEntityAttributeSignature LabelAttribute { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "entities",
             "staticEntities"
           ],
@@ -627,6 +635,7 @@
           "signature": "IEntityAttributeSignature OrderByAttribute { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "entities",
             "staticEntities"
           ],
@@ -695,6 +704,7 @@
           "signature": "IEntityAttribute CreateAttribute(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "entities, structures",
             "staticEntities"
           ]
@@ -703,8 +713,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -814,8 +826,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -888,7 +902,10 @@
           "member": "Attributes",
           "kind": "property",
           "signature": "IEnumerable\u003CIEntityAttributeSignature\u003E Attributes { get; }",
-          "status": "read-only"
+          "status": "read-only",
+          "keys": [
+            "apply (ProductionRules.cs)"
+          ]
         },
         {
           "member": "CreatedBy",
@@ -1032,6 +1049,7 @@
           "keys": [
             "actions and flows (by name)",
             "apply (Model.cs)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "entities",
@@ -1198,8 +1216,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -1263,8 +1283,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -1377,6 +1399,7 @@
           "signature": "IFolder Folder { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -1460,8 +1483,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -1533,6 +1558,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -1708,6 +1734,7 @@
           "signature": "IFolder Folder { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -1758,6 +1785,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -1788,8 +1816,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetDefaultValue",
@@ -1865,6 +1895,7 @@
           "signature": "IFolder Folder { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -1935,6 +1966,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -1966,8 +1998,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetDefaultValue",
@@ -2020,6 +2054,7 @@
           "signature": "IRecord CreateRecord(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "staticEntities (by name)"
           ]
         }
@@ -2080,6 +2115,7 @@
           "signature": "IFolder Folder { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -2144,6 +2180,7 @@
           "signature": "IStructureAttribute CreateAttribute(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "entities, structures",
             "restClients, restServices (by name)"
           ]
@@ -2152,8 +2189,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -2246,8 +2285,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -2347,6 +2388,7 @@
           "keys": [
             "actions and flows (by name)",
             "apply (Model.cs)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "emails, sendEmail",
@@ -3090,7 +3132,8 @@
           "signature": "Void Delete()",
           "status": "covered",
           "keys": [
-            "apply (Describe.cs) (by name)"
+            "apply (Describe.cs) (by name)",
+            "apply (ProductionRules.cs) (by name)"
           ]
         },
         {
@@ -3454,8 +3497,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -3562,8 +3607,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -3586,7 +3633,8 @@
           "signature": "DateTime Value { get; set; }",
           "status": "covered",
           "keys": [
-            "edits (by name)"
+            "edits (by name)",
+            "edits.set"
           ]
         }
       ]
@@ -3821,7 +3869,8 @@
           "signature": "IOnExceptionAction GlobalExceptionHandler { get; set; }",
           "status": "covered",
           "keys": [
-            "clientVariables, sessionVariables, systemEvents, onException (by name)"
+            "clientVariables, sessionVariables, systemEvents, onException (by name)",
+            "edits.set"
           ]
         },
         {
@@ -4154,6 +4203,7 @@
           "status": "read-only",
           "keys": [
             "actions and flows",
+            "apply (SystemActions.cs)",
             "entities, structures",
             "images, scripts, themes, resources, folders, locales, translations",
             "module",
@@ -4474,6 +4524,7 @@
           "status": "covered",
           "keys": [
             "actions and flows",
+            "edits.add",
             "references"
           ]
         },
@@ -4481,8 +4532,10 @@
           "member": "CreateClientEntity",
           "kind": "method",
           "signature": "IClientEntity CreateClientEntity(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateClientVariable",
@@ -4490,7 +4543,8 @@
           "signature": "IClientVariable CreateClientVariable(String name, IKey key)",
           "status": "covered",
           "keys": [
-            "clientVariables, sessionVariables, systemEvents, onException (by name)"
+            "clientVariables, sessionVariables, systemEvents, onException (by name)",
+            "edits.add"
           ]
         },
         {
@@ -4499,6 +4553,7 @@
           "signature": "IFolder CreateFolder(ESpaceTreeFolder parentFolder, String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -4531,8 +4586,10 @@
           "member": "CreateIntegration",
           "kind": "method",
           "signature": "T CreateIntegration\u003CT\u003E(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateMetadata",
@@ -4556,6 +4613,7 @@
           "keys": [
             "actions and flows",
             "clientVariables, sessionVariables, systemEvents, onException",
+            "edits.add",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -4565,6 +4623,7 @@
           "signature": "IMobileTheme CreateMobileTheme(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -4574,7 +4633,8 @@
           "signature": "ISystemEvent CreateOnApplicationReady()",
           "status": "covered",
           "keys": [
-            "clientVariables, sessionVariables, systemEvents, onException (by name)"
+            "clientVariables, sessionVariables, systemEvents, onException (by name)",
+            "edits.add"
           ]
         },
         {
@@ -4583,7 +4643,8 @@
           "signature": "ISystemEvent CreateOnApplicationResume()",
           "status": "covered",
           "keys": [
-            "clientVariables, sessionVariables, systemEvents, onException (by name)"
+            "clientVariables, sessionVariables, systemEvents, onException (by name)",
+            "edits.add"
           ]
         },
         {
@@ -4592,7 +4653,8 @@
           "signature": "ISystemEvent CreateOnBeginWebRequest()",
           "status": "covered",
           "keys": [
-            "clientVariables, sessionVariables, systemEvents, onException (by name)"
+            "clientVariables, sessionVariables, systemEvents, onException (by name)",
+            "edits.add"
           ]
         },
         {
@@ -4601,7 +4663,8 @@
           "signature": "ISystemEvent CreateOnSessionStart()",
           "status": "covered",
           "keys": [
-            "clientVariables, sessionVariables, systemEvents, onException (by name)"
+            "clientVariables, sessionVariables, systemEvents, onException (by name)",
+            "edits.add"
           ]
         },
         {
@@ -4610,6 +4673,7 @@
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -4619,6 +4683,7 @@
           "signature": "IProcess CreateProcess(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "processes (by name)"
           ]
         },
@@ -4637,6 +4702,7 @@
           "signature": "IRole CreateRole(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "timers, roles, siteProperties (by name)"
           ]
         },
@@ -4646,6 +4712,7 @@
           "signature": "IScript CreateScript(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -4656,6 +4723,7 @@
           "status": "covered",
           "keys": [
             "actions and flows",
+            "edits.add",
             "references"
           ]
         },
@@ -4665,6 +4733,7 @@
           "signature": "IServerEntity CreateServerEntity(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "entities, structures"
           ]
         },
@@ -4674,7 +4743,8 @@
           "signature": "IServiceAction CreateServiceAction(String name, IKey key)",
           "status": "covered",
           "keys": [
-            "actions and flows"
+            "actions and flows",
+            "edits.add"
           ]
         },
         {
@@ -4683,7 +4753,8 @@
           "signature": "ISessionVariable CreateSessionVariable(Boolean isReadOnly, String name, IKey key)",
           "status": "covered",
           "keys": [
-            "clientVariables, sessionVariables, systemEvents, onException (by name)"
+            "clientVariables, sessionVariables, systemEvents, onException (by name)",
+            "edits.add"
           ]
         },
         {
@@ -4692,6 +4763,7 @@
           "signature": "ISiteProperty CreateSiteProperty(Boolean isReadOnly, String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "timers, roles, siteProperties (by name)"
           ]
         },
@@ -4701,6 +4773,7 @@
           "signature": "IStaticEntity CreateStaticEntity(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "staticEntities (by name)"
           ]
         },
@@ -4710,6 +4783,7 @@
           "signature": "IStructure CreateStructure(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "entities, structures",
             "restClients, restServices (by name)"
           ]
@@ -4720,6 +4794,7 @@
           "signature": "ITimer CreateTimer(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "timers, roles, siteProperties (by name)"
           ]
         },
@@ -4727,8 +4802,10 @@
           "member": "CreateUIFlow",
           "kind": "method",
           "signature": "IUIFlow CreateUIFlow(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateUserException",
@@ -4736,6 +4813,7 @@
           "signature": "IUserException CreateUserException(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "entities, structures"
           ]
         },
@@ -4746,6 +4824,7 @@
           "status": "covered",
           "keys": [
             "clientVariables, sessionVariables, systemEvents, onException",
+            "edits.add",
             "emails, sendEmail",
             "externalSites",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
@@ -4759,6 +4838,7 @@
           "signature": "IWebTheme CreateWebTheme(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -5006,8 +5086,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -5136,8 +5218,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -5214,8 +5298,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -5247,7 +5333,9 @@
           "keys": [
             "actions and flows",
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "apply (ProductionRules.cs)",
+            "apply (SystemActions.cs)",
             "clientVariables, sessionVariables, systemEvents, onException",
             "edits (by name)",
             "edits.set",
@@ -5393,6 +5481,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -5422,8 +5511,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -5632,6 +5723,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -5662,8 +5754,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetDefaultValue",
@@ -5754,8 +5848,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -5873,6 +5969,7 @@
             "aggregate",
             "apply (Describe.cs)",
             "apply (Model.cs)",
+            "apply (ModelOps.cs)",
             "apply (ProductionRules.cs)",
             "apply (ReviewModel.cs)",
             "apply (Unreadable.cs)",
@@ -5907,6 +6004,7 @@
           "keys": [
             "actions and flows",
             "apply (Describe.cs) (by name)",
+            "apply (ProductionRules.cs) (by name)",
             "edits",
             "edits.delete (by name)",
             "emails, sendEmail",
@@ -6048,6 +6146,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "emails, sendEmail",
@@ -6102,8 +6201,10 @@
           "member": "Attribute",
           "kind": "property",
           "signature": "IAttributeSignature Attribute { get; set; }",
-          "status": "not-covered",
-          "reason": "set cannot convert a value to IAttributeSignature"
+          "status": "covered",
+          "keys": [
+            "edits.set"
+          ]
         },
         {
           "member": "Metadata",
@@ -6140,8 +6241,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -6343,6 +6446,8 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
+            "apply (SystemActions.cs)",
             "edits (by name)",
             "edits.set",
             "entities, structures",
@@ -6383,6 +6488,7 @@
           "signature": "IEnumerable\u003CIServerActionSignature\u003E ServerActions { get; }",
           "status": "read-only",
           "keys": [
+            "apply (SystemActions.cs)",
             "references"
           ]
         },
@@ -6422,29 +6528,41 @@
           "member": "MoveAfterSibling",
           "kind": "method",
           "signature": "Void MoveAfterSibling(T sibling, T element)",
-          "status": "not-covered",
-          "reason": "not an element: no element path reaches it"
+          "status": "covered",
+          "keys": [
+            "apply (ModelOps.cs) (by name)",
+            "edits.move"
+          ]
         },
         {
           "member": "MoveBeforeSibling",
           "kind": "method",
           "signature": "Void MoveBeforeSibling(T sibling, T element)",
-          "status": "not-covered",
-          "reason": "not an element: no element path reaches it"
+          "status": "covered",
+          "keys": [
+            "apply (ModelOps.cs) (by name)",
+            "edits.move"
+          ]
         },
         {
           "member": "MoveToEnd",
           "kind": "method",
           "signature": "Void MoveToEnd(T element)",
-          "status": "not-covered",
-          "reason": "not an element: no element path reaches it"
+          "status": "covered",
+          "keys": [
+            "apply (ModelOps.cs) (by name)",
+            "edits.move"
+          ]
         },
         {
           "member": "MoveToStart",
           "kind": "method",
           "signature": "Void MoveToStart(T element)",
-          "status": "not-covered",
-          "reason": "not an element: no element path reaches it"
+          "status": "covered",
+          "keys": [
+            "apply (ModelOps.cs) (by name)",
+            "edits.move"
+          ]
         },
         {
           "member": "SetOrderTo",
@@ -6517,7 +6635,8 @@
           "signature": "Void Delete()",
           "status": "covered",
           "keys": [
-            "apply (Describe.cs) (by name)"
+            "apply (Describe.cs) (by name)",
+            "apply (ProductionRules.cs) (by name)"
           ]
         }
       ]
@@ -6553,7 +6672,8 @@
           "signature": "Void Delete()",
           "status": "covered",
           "keys": [
-            "apply (Describe.cs) (by name)"
+            "apply (Describe.cs) (by name)",
+            "apply (ProductionRules.cs) (by name)"
           ]
         }
       ]
@@ -6641,6 +6761,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -6731,7 +6852,8 @@
           "signature": "IAggregateAttribute CreateAggregateAttribute(String name, IKey key)",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.add"
           ]
         },
         {
@@ -6740,7 +6862,8 @@
           "signature": "ICalculatedAttribute CreateCalculatedAttribute(String name, IKey key)",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.add"
           ]
         },
         {
@@ -6749,7 +6872,8 @@
           "signature": "ICalculatedAttribute CreateCalculatedAttributeInGroupBy(String name, IKey key)",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.add"
           ]
         },
         {
@@ -6758,7 +6882,8 @@
           "signature": "IFilter CreateFilter(String condition)",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -6767,7 +6892,8 @@
           "signature": "IFilter CreateFilterInGroupBy(String condition)",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.add"
           ]
         },
         {
@@ -6776,7 +6902,8 @@
           "signature": "IGroupByAttribute CreateGroupByAttribute(String name, IKey key)",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.add"
           ]
         },
         {
@@ -6785,7 +6912,8 @@
           "signature": "IJoin CreateJoin()",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.add"
           ]
         },
         {
@@ -6794,7 +6922,8 @@
           "signature": "ISort CreateSort()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -6803,7 +6932,8 @@
           "signature": "ISort CreateSortInGroupBy()",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.add"
           ]
         },
         {
@@ -6812,7 +6942,8 @@
           "signature": "IAliasedSource CreateSource(IDataSource dataSource, String name)",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         }
       ]
@@ -6845,7 +6976,8 @@
           "signature": "IAliasedSource LeftSource { get; set; }",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.set"
           ]
         },
         {
@@ -6854,7 +6986,8 @@
           "signature": "IAliasedSource RightSource { get; set; }",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.set"
           ]
         },
         {
@@ -6911,6 +7044,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -6922,8 +7056,10 @@
           "member": "SourceOperation",
           "kind": "property",
           "signature": "IOperation SourceOperation { get; set; }",
-          "status": "not-covered",
-          "reason": "set cannot convert a value to IOperation"
+          "status": "covered",
+          "keys": [
+            "edits.set"
+          ]
         },
         {
           "member": "TextResources",
@@ -6948,8 +7084,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -6991,6 +7129,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -7016,7 +7155,8 @@
           "signature": "ICalculatedAttribute CreateCalculatedAttribute(String name, IKey key)",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.add"
           ]
         },
         {
@@ -7025,7 +7165,8 @@
           "signature": "IFilter CreateFilter()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -7034,7 +7175,8 @@
           "signature": "IJoin CreateJoin()",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.add"
           ]
         },
         {
@@ -7043,7 +7185,8 @@
           "signature": "ISort CreateSort()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -7052,7 +7195,8 @@
           "signature": "IAliasedSource CreateSource(IDataSource dataSource, String name)",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -7061,7 +7205,8 @@
           "signature": "IAliasedSource CreateSource(String name, IKey key)",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         }
       ]
@@ -7076,29 +7221,37 @@
           "member": "RootOperation",
           "kind": "property",
           "signature": "IOperation RootOperation { get; set; }",
-          "status": "not-covered",
-          "reason": "set cannot convert a value to IOperation"
+          "status": "covered",
+          "keys": [
+            "edits.set"
+          ]
         },
         {
           "member": "CreateAddSourceOperation",
           "kind": "method",
           "signature": "IAddSourceOperation CreateAddSourceOperation(IDataSource dataSource)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateCombineSourcesOperation",
           "kind": "method",
           "signature": "ICombineSourcesOperation CreateCombineSourcesOperation()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateGroupByOperation",
           "kind": "method",
           "signature": "IGroupByOperation CreateGroupByOperation()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         }
       ]
     },
@@ -7124,8 +7277,10 @@
           "member": "SourceOperation",
           "kind": "property",
           "signature": "IOperation SourceOperation { get; set; }",
-          "status": "not-covered",
-          "reason": "set cannot convert a value to IOperation"
+          "status": "covered",
+          "keys": [
+            "edits.set"
+          ]
         },
         {
           "member": "CreateAggregateAttribute",
@@ -7133,7 +7288,8 @@
           "signature": "IAggregateAttribute CreateAggregateAttribute(String name, IKey key)",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.add"
           ]
         },
         {
@@ -7142,7 +7298,8 @@
           "signature": "IGroupByAttribute CreateGroupByAttribute(String name, IKey key)",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.add"
           ]
         }
       ]
@@ -7175,7 +7332,8 @@
           "signature": "IAliasedSource LeftSource { get; set; }",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.set"
           ]
         },
         {
@@ -7190,7 +7348,8 @@
           "signature": "IAliasedSource RightSource { get; set; }",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.set"
           ]
         },
         {
@@ -7216,8 +7375,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetCondition",
@@ -7273,8 +7434,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -7349,6 +7512,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -7400,8 +7564,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetMaxRecords",
@@ -7473,6 +7639,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -7503,8 +7670,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetAttribute",
@@ -7550,6 +7719,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -7586,8 +7756,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -7662,8 +7834,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetCondition",
@@ -7709,6 +7883,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -7739,8 +7914,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetAttribute",
@@ -7822,8 +7999,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetAttribute",
@@ -7886,6 +8065,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "emails, sendEmail",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
@@ -7905,6 +8085,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "references",
             "restClients, restServices (by name)",
             "screens, blocks [Traditional Web] (by name)",
@@ -7918,6 +8099,7 @@
           "status": "covered",
           "keys": [
             "edits (by name)",
+            "edits.add",
             "externalSites (by name)",
             "processes (by name)",
             "references",
@@ -7934,6 +8116,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "references (by name)",
             "restClients, restServices (by name)"
           ]
@@ -7962,6 +8145,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -8040,8 +8224,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -8159,6 +8345,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "restClients, restServices (by name)",
             "screens, blocks [Traditional Web] (by name)",
             "timers, roles, siteProperties (by name)"
@@ -8178,6 +8365,7 @@
           "status": "covered",
           "keys": [
             "edits (by name)",
+            "edits.add",
             "externalSites (by name)",
             "processes (by name)",
             "tests (by name)",
@@ -8188,8 +8376,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -8212,6 +8402,7 @@
           "signature": "IFolder Folder { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -8364,6 +8555,7 @@
           "signature": "IFolder Folder { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -8448,8 +8640,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -8540,6 +8734,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -8639,8 +8834,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -8714,6 +8911,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -8744,8 +8942,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -8777,6 +8977,7 @@
           "signature": "IFolder Folder { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -8885,6 +9086,7 @@
           "signature": "IFolder Folder { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -9006,6 +9208,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
             "processes (by name)",
@@ -9024,6 +9227,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "restClients, restServices (by name)",
             "screens, blocks [Traditional Web] (by name)",
             "timers, roles, siteProperties (by name)"
@@ -9036,6 +9240,7 @@
           "status": "covered",
           "keys": [
             "edits (by name)",
+            "edits.add",
             "externalSites (by name)",
             "processes (by name)",
             "tests (by name)",
@@ -9051,6 +9256,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "references (by name)",
             "restClients, restServices (by name)"
           ]
@@ -9112,6 +9318,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "entities, structures",
@@ -9137,8 +9344,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -9273,7 +9482,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -9285,6 +9495,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
             "processes (by name)",
@@ -9305,8 +9516,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOutputParameter",
@@ -9317,6 +9530,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "references (by name)",
             "restClients, restServices (by name)"
           ]
@@ -9348,7 +9562,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         }
       ]
@@ -9438,6 +9653,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -9469,7 +9685,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -9483,8 +9700,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -9513,7 +9732,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         }
       ]
@@ -9568,6 +9788,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -9610,6 +9831,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -9676,6 +9898,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -9692,7 +9915,8 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
-            "edits (by name)"
+            "edits (by name)",
+            "edits.add"
           ]
         }
       ]
@@ -9728,6 +9952,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -9745,6 +9970,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -9879,6 +10105,7 @@
           "signature": "ICommentConnector CreateConnector(IActionNode target)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "processes (by name)"
           ]
         }
@@ -9894,8 +10121,10 @@
           "member": "Connector",
           "kind": "property",
           "signature": "IConnector Connector { get; set; }",
-          "status": "not-covered",
-          "reason": "set cannot convert a value to IConnector"
+          "status": "covered",
+          "keys": [
+            "edits.set"
+          ]
         }
       ]
     },
@@ -10050,6 +10279,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -10073,6 +10303,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -10142,6 +10373,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -10159,6 +10391,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -10202,6 +10435,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -10219,6 +10453,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -10271,6 +10506,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -10298,6 +10534,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -10322,7 +10559,8 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
-            "edits (by name)"
+            "edits (by name)",
+            "edits.set"
           ]
         },
         {
@@ -10367,6 +10605,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -10431,7 +10670,8 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
-            "edits (by name)"
+            "edits (by name)",
+            "edits.set"
           ]
         },
         {
@@ -10455,7 +10695,8 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
-            "edits (by name)"
+            "edits (by name)",
+            "edits.set"
           ]
         },
         {
@@ -10534,6 +10775,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -10551,6 +10793,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -10611,6 +10854,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -10637,6 +10881,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -10745,6 +10990,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -10768,6 +11014,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -10786,6 +11033,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
             "processes (by name)",
@@ -10804,6 +11052,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "references (by name)",
             "restClients, restServices (by name)"
           ]
@@ -10846,6 +11095,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -10938,6 +11188,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -10961,6 +11212,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -11041,6 +11293,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -11159,6 +11412,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -11195,6 +11449,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -11228,6 +11483,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
             "processes (by name)",
@@ -11243,6 +11499,7 @@
           "signature": "ISQLOutput CreateOutput(IRecordTypeSignature entityOrStructure, String name)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "sql (by name)"
           ]
         },
@@ -11287,8 +11544,10 @@
           "member": "Email",
           "kind": "property",
           "signature": "IWebEmail Email { get; set; }",
-          "status": "not-covered",
-          "reason": "set cannot convert a value to IWebEmail"
+          "status": "covered",
+          "keys": [
+            "edits.set"
+          ]
         },
         {
           "member": "From",
@@ -11312,6 +11571,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -11329,6 +11589,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -11400,6 +11661,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -11487,7 +11749,8 @@
           "signature": "IActionNode OtherwiseTarget { get; set; }",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.set"
           ]
         },
         {
@@ -11496,7 +11759,8 @@
           "signature": "ISwitchCondition CreateCondition()",
           "status": "covered",
           "keys": [
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.add"
           ]
         }
       ]
@@ -11532,6 +11796,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.set",
             "events, triggerEvent (by name)"
           ]
         },
@@ -11542,6 +11807,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -11559,6 +11825,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -11739,8 +12006,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -11832,6 +12101,7 @@
           "signature": "IFolder Folder { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -11945,6 +12215,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
             "processes (by name)",
@@ -11961,6 +12232,7 @@
           "status": "covered",
           "keys": [
             "edits (by name)",
+            "edits.add",
             "externalSites (by name)",
             "processes (by name)",
             "tests (by name)",
@@ -11971,43 +12243,55 @@
           "member": "CreateOnActivityClose",
           "kind": "method",
           "signature": "ICallback CreateOnActivityClose()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOnActivityOpen",
           "kind": "method",
           "signature": "ICallback CreateOnActivityOpen()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOnActivityReady",
           "kind": "method",
           "signature": "ICallback CreateOnActivityReady()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOnActivitySkip",
           "kind": "method",
           "signature": "ICallback CreateOnActivitySkip()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOnActivityStart",
           "kind": "method",
           "signature": "ICallback CreateOnActivityStart()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOnProcessStart",
           "kind": "method",
           "signature": "ICallback CreateOnProcessStart()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOutputParameter",
@@ -12018,6 +12302,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "references (by name)",
             "restClients, restServices (by name)"
           ]
@@ -12055,6 +12340,7 @@
             "aggregate (by name)",
             "clientVariables, sessionVariables, systemEvents, onException (by name)",
             "edits (by name)",
+            "edits.set",
             "emails, sendEmail (by name)",
             "processes (by name)",
             "references (by name)",
@@ -12209,6 +12495,7 @@
           "signature": "IFolder Folder { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -12264,6 +12551,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -12330,8 +12618,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -12409,6 +12699,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -12449,6 +12740,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "restClients, restServices (by name)",
             "screens, blocks [Traditional Web] (by name)",
             "timers, roles, siteProperties (by name)"
@@ -12461,6 +12753,7 @@
           "status": "covered",
           "keys": [
             "edits (by name)",
+            "edits.add",
             "externalSites (by name)",
             "processes (by name)",
             "tests (by name)",
@@ -12476,6 +12769,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "references (by name)",
             "restClients, restServices (by name)"
           ]
@@ -12553,6 +12847,7 @@
           "signature": "ICommentConnector CreateConnector(IProcessNode target)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "processes (by name)"
           ]
         }
@@ -12638,15 +12933,19 @@
           "member": "CreateOnReady",
           "kind": "method",
           "signature": "ICallback CreateOnReady()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOnStart",
           "kind": "method",
           "signature": "ICallback CreateOnStart()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOutputParameter",
@@ -12657,6 +12956,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "references (by name)",
             "restClients, restServices (by name)"
           ]
@@ -12688,6 +12988,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -12722,6 +13023,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -12782,6 +13084,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -12801,6 +13104,7 @@
           "signature": "IDecisionConnector CreateConnector(String name, IProcessNode target)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "processes (by name)"
           ]
         },
@@ -12813,6 +13117,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "restClients, restServices (by name)",
             "screens, blocks [Traditional Web] (by name)",
             "timers, roles, siteProperties (by name)"
@@ -12825,6 +13130,7 @@
           "status": "covered",
           "keys": [
             "edits (by name)",
+            "edits.add",
             "externalSites (by name)",
             "processes (by name)",
             "tests (by name)",
@@ -12902,6 +13208,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -13084,29 +13391,37 @@
           "member": "CreateOnClose",
           "kind": "method",
           "signature": "ICallback CreateOnClose()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOnOpen",
           "kind": "method",
           "signature": "ICallback CreateOnOpen()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOnReady",
           "kind": "method",
           "signature": "ICallback CreateOnReady()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOnSkip",
           "kind": "method",
           "signature": "ICallback CreateOnSkip()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOutputParameter",
@@ -13117,6 +13432,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "references (by name)",
             "restClients, restServices (by name)"
           ]
@@ -13208,6 +13524,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -13356,8 +13673,10 @@
           "member": "Email",
           "kind": "property",
           "signature": "IWebEmail Email { get; set; }",
-          "status": "not-covered",
-          "reason": "set cannot convert a value to IWebEmail"
+          "status": "covered",
+          "keys": [
+            "edits.set"
+          ]
         },
         {
           "member": "From",
@@ -13395,6 +13714,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -13569,22 +13889,28 @@
           "member": "CreateOnClose",
           "kind": "method",
           "signature": "ICallback CreateOnClose()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOnReady",
           "kind": "method",
           "signature": "ICallback CreateOnReady()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOnSkip",
           "kind": "method",
           "signature": "ICallback CreateOnSkip()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOutputParameter",
@@ -13595,6 +13921,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "references (by name)",
             "restClients, restServices (by name)"
           ]
@@ -13647,6 +13974,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -13790,6 +14118,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "entities",
@@ -14130,6 +14459,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -14142,6 +14472,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
             "processes (by name)",
@@ -14160,6 +14491,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "restClients, restServices (by name)",
             "screens, blocks [Traditional Web] (by name)",
             "timers, roles, siteProperties (by name)"
@@ -14173,6 +14505,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         }
@@ -14232,6 +14565,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -14261,6 +14595,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
             "processes (by name)",
@@ -14281,8 +14616,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -14398,6 +14735,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -14493,6 +14831,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "emails, sendEmail",
@@ -14522,6 +14861,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "emails, sendEmail (by name)",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
@@ -14541,6 +14881,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "emails, sendEmail (by name)",
             "restClients, restServices (by name)",
             "screens, blocks [Traditional Web] (by name)",
@@ -14555,6 +14896,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -14628,8 +14970,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -14671,6 +15015,7 @@
           "signature": "IFolder Folder { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -14763,8 +15108,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetImageContent",
@@ -14862,6 +15209,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -14907,6 +15255,7 @@
           "signature": "ILocale Locale { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations"
           ]
         },
@@ -15063,6 +15412,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "restClients, restServices (by name)",
             "screens, blocks [Traditional Web] (by name)",
             "timers, roles, siteProperties (by name)"
@@ -15082,6 +15432,7 @@
           "status": "covered",
           "keys": [
             "edits (by name)",
+            "edits.add",
             "externalSites (by name)",
             "processes (by name)",
             "tests (by name)",
@@ -15092,8 +15443,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -15153,6 +15506,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -15282,6 +15636,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
             "processes (by name)",
@@ -15300,6 +15655,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "restClients, restServices (by name)",
             "screens, blocks [Traditional Web] (by name)",
             "timers, roles, siteProperties (by name)"
@@ -15313,6 +15669,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -15386,6 +15743,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -15427,6 +15785,7 @@
           "signature": "IFolder Folder { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -15526,8 +15885,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -15593,6 +15954,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -15673,6 +16035,7 @@
           "signature": "IFolder Folder { get; set; }",
           "status": "covered",
           "keys": [
+            "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)"
           ]
         },
@@ -15841,8 +16204,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -15980,6 +16345,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -16032,8 +16398,10 @@
           "member": "CreateBlock",
           "kind": "method",
           "signature": "IBlock CreateBlock(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateEmail",
@@ -16041,6 +16409,7 @@
           "signature": "IEmail CreateEmail(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "emails, sendEmail"
           ]
         },
@@ -16050,15 +16419,18 @@
           "signature": "IOnExceptionAction CreateOnExceptionHandler(String name)",
           "status": "covered",
           "keys": [
-            "clientVariables, sessionVariables, systemEvents, onException (by name)"
+            "clientVariables, sessionVariables, systemEvents, onException (by name)",
+            "edits.add"
           ]
         },
         {
           "member": "CreateScreen",
           "kind": "method",
           "signature": "IScreen CreateScreen(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "Instantiate",
@@ -16195,6 +16567,7 @@
           "status": "covered",
           "keys": [
             "apply (Describe.cs) (by name)",
+            "apply (ProductionRules.cs) (by name)",
             "edits.delete (by name)"
           ]
         }
@@ -16228,8 +16601,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -16311,8 +16686,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -16386,8 +16763,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -16451,8 +16830,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -16560,6 +16941,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         }
@@ -16593,8 +16975,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -16664,6 +17048,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "restClients, restServices (by name)",
             "screens, blocks [Traditional Web] (by name)",
             "timers, roles, siteProperties (by name)"
@@ -16676,6 +17061,7 @@
           "status": "covered",
           "keys": [
             "edits (by name)",
+            "edits.add",
             "externalSites (by name)",
             "processes (by name)",
             "tests (by name)",
@@ -16691,6 +17077,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "references (by name)",
             "restClients, restServices (by name)"
           ]
@@ -16728,6 +17115,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -16755,6 +17143,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
             "processes (by name)",
@@ -16844,7 +17233,8 @@
           "signature": "IDataAction CreateDataAction(String name, IKey key)",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -16854,6 +17244,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -16864,7 +17255,8 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.add"
           ]
         },
         {
@@ -16875,6 +17267,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         }
@@ -16930,7 +17323,8 @@
           "signature": "IMobileBlock CreateBlock(String name, IKey key)",
           "status": "covered",
           "keys": [
-            "actions and flows"
+            "actions and flows",
+            "edits.add"
           ]
         },
         {
@@ -16940,6 +17334,7 @@
           "status": "covered",
           "keys": [
             "edits (by name)",
+            "edits.add",
             "externalSites (by name)",
             "processes (by name)",
             "tests (by name)",
@@ -16952,7 +17347,8 @@
           "signature": "IMobileScreen CreateScreen(String name, IKey key)",
           "status": "covered",
           "keys": [
-            "actions and flows"
+            "actions and flows",
+            "edits.add"
           ]
         },
         {
@@ -17104,7 +17500,8 @@
           "signature": "IDataAction CreateDataAction(String name, IKey key)",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -17114,6 +17511,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -17124,7 +17522,8 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
-            "aggregate (by name)"
+            "aggregate (by name)",
+            "edits.add"
           ]
         },
         {
@@ -17135,6 +17534,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -17299,8 +17699,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -17352,6 +17754,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         }
@@ -17414,6 +17817,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -17505,6 +17909,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -17596,6 +18001,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         }
@@ -17713,6 +18119,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -17748,6 +18155,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -17757,7 +18165,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -17768,6 +18177,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -17881,6 +18291,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -17912,7 +18323,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -18005,8 +18417,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -18215,6 +18629,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         }
@@ -18248,8 +18663,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -18294,6 +18711,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -18400,6 +18818,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -18427,6 +18846,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
             "processes (by name)",
@@ -18546,6 +18966,7 @@
           "status": "covered",
           "keys": [
             "edits (by name)",
+            "edits.add",
             "externalSites (by name)",
             "processes (by name)",
             "tests (by name)",
@@ -18556,8 +18977,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetTranslationBehavior",
@@ -18652,6 +19075,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -18702,6 +19126,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
             "processes (by name)",
@@ -18720,6 +19145,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "restClients, restServices (by name)",
             "screens, blocks [Traditional Web] (by name)",
             "timers, roles, siteProperties (by name)"
@@ -18739,6 +19165,7 @@
           "status": "covered",
           "keys": [
             "edits (by name)",
+            "edits.add",
             "externalSites (by name)",
             "processes (by name)",
             "tests (by name)",
@@ -18749,8 +19176,10 @@
           "member": "CreateOrUpdateTranslation",
           "kind": "method",
           "signature": "Void CreateOrUpdateTranslation(Culture culture, String id, String value)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOutputParameter",
@@ -18761,6 +19190,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "references (by name)",
             "restClients, restServices (by name)"
           ]
@@ -18846,6 +19276,7 @@
           "signature": "IPreparation CreatePreparation()",
           "status": "covered",
           "keys": [
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -18856,6 +19287,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -18867,6 +19299,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         }
@@ -18968,7 +19401,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -18977,6 +19411,7 @@
           "signature": "IPreparation CreatePreparation()",
           "status": "covered",
           "keys": [
+            "edits.add",
             "emails, sendEmail",
             "screens, blocks [Traditional Web] (by name)"
           ]
@@ -18989,6 +19424,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         }
@@ -19052,6 +19488,7 @@
           "signature": "IWebBlock CreateBlock(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "screens, blocks [Traditional Web]"
           ]
         },
@@ -19061,6 +19498,7 @@
           "signature": "IWebEmail CreateEmail(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "emails, sendEmail"
           ]
         },
@@ -19071,6 +19509,7 @@
           "status": "covered",
           "keys": [
             "edits (by name)",
+            "edits.add",
             "externalSites (by name)",
             "processes (by name)",
             "tests (by name)",
@@ -19083,6 +19522,7 @@
           "signature": "IWebScreen CreateScreen(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "screens, blocks [Traditional Web]"
           ]
         },
@@ -19242,7 +19682,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -19251,6 +19692,7 @@
           "signature": "IPreparation CreatePreparation()",
           "status": "covered",
           "keys": [
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -19261,6 +19703,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -19272,6 +19715,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -19332,8 +19776,10 @@
           "member": "ExceptionHandlingFlow",
           "kind": "property",
           "signature": "IWebFlow ExceptionHandlingFlow { get; set; }",
-          "status": "not-covered",
-          "reason": "set cannot convert a value to IWebFlow"
+          "status": "covered",
+          "keys": [
+            "edits.set"
+          ]
         },
         {
           "member": "FalseImage",
@@ -19413,7 +19859,8 @@
           "signature": "IOnExceptionAction OnExceptionHandler { get; set; }",
           "status": "covered",
           "keys": [
-            "clientVariables, sessionVariables, systemEvents, onException (by name)"
+            "clientVariables, sessionVariables, systemEvents, onException (by name)",
+            "edits.set"
           ]
         },
         {
@@ -19617,6 +20064,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -19670,7 +20118,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -19820,6 +20269,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -19858,7 +20308,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -19869,6 +20320,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         }
@@ -19980,6 +20432,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -20039,7 +20492,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -20145,8 +20599,10 @@
           "member": "SourceAttribute",
           "kind": "property",
           "signature": "IEntityAttributeSignature SourceAttribute { get; set; }",
-          "status": "not-covered",
-          "reason": "set cannot convert a value to IEntityAttributeSignature"
+          "status": "covered",
+          "keys": [
+            "edits.set"
+          ]
         },
         {
           "member": "SourceEntity",
@@ -20265,6 +20721,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -20309,7 +20766,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -20320,6 +20778,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -20533,6 +20992,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -20604,7 +21064,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -20613,6 +21074,7 @@
           "signature": "IRowWidget CreateRow(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -20774,6 +21236,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -20803,7 +21266,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -20876,6 +21340,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         }
@@ -20929,6 +21394,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -21042,6 +21508,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -21089,7 +21556,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -21245,6 +21713,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -21313,7 +21782,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -21495,6 +21965,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -21584,7 +22055,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -21753,6 +22225,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -21809,15 +22282,18 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
           "member": "CreateOnClick",
           "kind": "method",
           "signature": "ILinkOnClick CreateOnClick()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateWidget",
@@ -21827,6 +22303,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -21964,6 +22441,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -22011,7 +22489,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -22022,6 +22501,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -22128,6 +22608,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         }
@@ -22239,6 +22720,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -22277,7 +22759,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -22288,6 +22771,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         }
@@ -22441,6 +22925,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -22506,7 +22991,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -22636,6 +23122,7 @@
           "signature": "ICellWidget CreateCell(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -22645,7 +23132,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         }
       ]
@@ -22795,6 +23283,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -22863,7 +23352,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -22872,6 +23362,7 @@
           "signature": "IRowWidget CreateRow(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -23127,6 +23618,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -23195,7 +23687,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -23439,6 +23932,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -23477,7 +23971,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -23486,6 +23981,7 @@
           "signature": "IRowWidget CreateRow(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         }
@@ -23590,6 +24086,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -23625,7 +24122,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         }
       ]
@@ -23690,6 +24188,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -23807,6 +24306,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -23827,8 +24327,10 @@
           "member": "CreateContent",
           "kind": "method",
           "signature": "Void CreateContent()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateEvent",
@@ -23837,6 +24339,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -23846,7 +24349,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         }
       ]
@@ -23923,6 +24427,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -23961,6 +24466,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -23970,7 +24476,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -23981,6 +24488,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -24068,6 +24576,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -24106,6 +24615,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -24115,7 +24625,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -24126,6 +24637,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -24218,6 +24730,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -24256,6 +24769,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -24265,7 +24779,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -24276,6 +24791,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -24505,6 +25021,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -24537,6 +25054,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -24546,7 +25064,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -24664,6 +25183,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -24705,6 +25225,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -24714,7 +25235,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -24725,6 +25247,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -24856,6 +25379,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -24900,6 +25424,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -24909,7 +25434,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -24920,6 +25446,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -25125,6 +25652,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -25160,6 +25688,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -25169,7 +25698,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -25256,6 +25786,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -25282,6 +25813,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -25291,7 +25823,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -25302,6 +25835,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -25367,6 +25901,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -25405,6 +25940,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -25414,7 +25950,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -25425,6 +25962,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -25538,6 +26076,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -25564,6 +26103,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -25573,7 +26113,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -25677,6 +26218,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -25712,6 +26254,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -25721,7 +26264,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -25865,6 +26409,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -25903,6 +26448,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -25912,7 +26458,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -26063,6 +26610,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -26082,7 +26630,8 @@
           "signature": "IWidgetSignature TargetWidget { get; set; }",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.set"
           ]
         },
         {
@@ -26098,6 +26647,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -26107,7 +26657,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -26118,6 +26669,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -26201,6 +26753,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -26239,6 +26792,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -26248,7 +26802,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -26259,6 +26814,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -26399,6 +26955,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -26446,6 +27003,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -26455,7 +27013,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -26466,6 +27025,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -26535,6 +27095,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -26585,6 +27146,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -26594,7 +27156,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -26633,6 +27196,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -26671,6 +27235,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -26680,7 +27245,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -26691,6 +27257,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -26892,6 +27459,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -26927,6 +27495,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -26936,7 +27505,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -27028,6 +27598,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -27060,6 +27631,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -27069,7 +27641,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -27080,6 +27653,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -27181,6 +27755,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -27219,6 +27794,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -27228,7 +27804,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -27239,6 +27816,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -27386,6 +27964,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -27424,6 +28003,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -27433,7 +28013,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -27444,6 +28025,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -27574,6 +28156,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -27600,6 +28183,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -27609,7 +28193,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -27620,6 +28205,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -27691,6 +28277,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -27723,6 +28310,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -27732,7 +28320,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -27847,6 +28436,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -27906,6 +28496,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -27915,7 +28506,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -28064,6 +28656,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -28111,6 +28704,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -28120,7 +28714,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -28298,6 +28893,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -28330,6 +28926,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "edits.add",
             "events, triggerEvent (by name)"
           ]
         },
@@ -28339,7 +28936,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -28350,6 +28948,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -28555,6 +29154,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
             "processes (by name)",
@@ -28573,6 +29173,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "references (by name)",
             "restClients, restServices (by name)"
           ]
@@ -28831,15 +29432,19 @@
           "member": "OnAfterResponseCallback",
           "kind": "property",
           "signature": "IRestCallbackActionFlow OnAfterResponseCallback { get; set; }",
-          "status": "not-covered",
-          "reason": "set cannot convert a value to IRestCallbackActionFlow"
+          "status": "covered",
+          "keys": [
+            "edits.set"
+          ]
         },
         {
           "member": "OnBeforeRequestCallback",
           "kind": "property",
           "signature": "IRestCallbackActionFlow OnBeforeRequestCallback { get; set; }",
-          "status": "not-covered",
-          "reason": "set cannot convert a value to IRestCallbackActionFlow"
+          "status": "covered",
+          "keys": [
+            "edits.set"
+          ]
         },
         {
           "member": "Password",
@@ -28889,6 +29494,7 @@
           "signature": "IRestAction CreateAction(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "restClients, restServices (by name)",
             "timers, roles, siteProperties (by name)"
           ]
@@ -28897,8 +29503,10 @@
           "member": "CreateOnAfterResponseAdvancedCallback",
           "kind": "method",
           "signature": "IRestCallbackActionFlow CreateOnAfterResponseAdvancedCallback()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOnAfterResponseCallback",
@@ -28906,6 +29514,7 @@
           "signature": "IRestCallbackActionFlow CreateOnAfterResponseCallback()",
           "status": "covered",
           "keys": [
+            "edits.add",
             "restClients, restServices (by name)"
           ]
         },
@@ -28913,8 +29522,10 @@
           "member": "CreateOnBeforeRequestAdvancedCallback",
           "kind": "method",
           "signature": "IRestCallbackActionFlow CreateOnBeforeRequestAdvancedCallback()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateOnBeforeRequestCallback",
@@ -28922,6 +29533,7 @@
           "signature": "IRestCallbackActionFlow CreateOnBeforeRequestCallback()",
           "status": "covered",
           "keys": [
+            "edits.add",
             "restClients, restServices (by name)"
           ]
         },
@@ -28929,8 +29541,10 @@
           "member": "CreateStaticEntity",
           "kind": "method",
           "signature": "IRestStaticEntity CreateStaticEntity(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateStructure",
@@ -28938,6 +29552,7 @@
           "signature": "IRestStructure CreateStructure(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "restClients, restServices (by name)"
           ]
         }
@@ -28980,8 +29595,10 @@
           "member": "CreateAttribute",
           "kind": "method",
           "signature": "IRestStaticEntityAttribute CreateAttribute(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         }
       ]
     },
@@ -29010,6 +29627,7 @@
           "signature": "IRestStructureAttribute CreateAttribute(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "restClients, restServices (by name)"
           ]
         }
@@ -29138,6 +29756,7 @@
           "signature": "IRestServiceAction CreateAction(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "restClients, restServices (by name)",
             "timers, roles, siteProperties (by name)"
           ]
@@ -29204,6 +29823,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
             "processes (by name)",
@@ -29222,6 +29842,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "references (by name)",
             "restClients, restServices (by name)"
           ]
@@ -29321,36 +29942,46 @@
           "member": "CreateRestServiceActionInput",
           "kind": "method",
           "signature": "IRestServiceActionInput CreateRestServiceActionInput(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateRestServiceActionOutput",
           "kind": "method",
           "signature": "IRestServiceActionOutput CreateRestServiceActionOutput(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateRestServiceAuthenticationFlowInput",
           "kind": "method",
           "signature": "IRestServiceAuthenticationFlowInput CreateRestServiceAuthenticationFlowInput(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateRestServiceCallbackActionFlowInput",
           "kind": "method",
           "signature": "IRestServiceCallbackActionFlowInput CreateRestServiceCallbackActionFlowInput(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateRestServiceCallbackActionFlowOutput",
           "kind": "method",
           "signature": "IRestServiceCallbackActionFlowOutput CreateRestServiceCallbackActionFlowOutput(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         }
       ]
     },
@@ -29380,36 +30011,46 @@
           "member": "CreateRestServiceActionInput",
           "kind": "method",
           "signature": "IRestServiceActionInput CreateRestServiceActionInput(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateRestServiceActionOutput",
           "kind": "method",
           "signature": "IRestServiceActionOutput CreateRestServiceActionOutput(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateRestServiceAuthenticationFlowInput",
           "kind": "method",
           "signature": "IRestServiceAuthenticationFlowInput CreateRestServiceAuthenticationFlowInput(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateRestServiceCallbackActionFlowInput",
           "kind": "method",
           "signature": "IRestServiceCallbackActionFlowInput CreateRestServiceCallbackActionFlowInput(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateRestServiceCallbackActionFlowOutput",
           "kind": "method",
           "signature": "IRestServiceCallbackActionFlowOutput CreateRestServiceCallbackActionFlowOutput(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         }
       ]
     },
@@ -29495,57 +30136,73 @@
           "member": "CreateSOAPActionInput",
           "kind": "method",
           "signature": "ISOAPActionInput CreateSOAPActionInput(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateSOAPActionInputPolymorphic",
           "kind": "method",
           "signature": "ISOAPActionInputPolymorphic CreateSOAPActionInputPolymorphic(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateSOAPActionInputWildcard",
           "kind": "method",
           "signature": "ISOAPActionInputWildcard CreateSOAPActionInputWildcard(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateSOAPActionOutput",
           "kind": "method",
           "signature": "ISOAPActionOutput CreateSOAPActionOutput(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateSOAPActionOutputPolymorphic",
           "kind": "method",
           "signature": "ISOAPActionOutputPolymorphic CreateSOAPActionOutputPolymorphic(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateSOAPActionOutputWildcard",
           "kind": "method",
           "signature": "ISOAPActionOutputWildcard CreateSOAPActionOutputWildcard(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateSOAPDynamicPasswordInput",
           "kind": "method",
           "signature": "ISOAPDynamicPasswordInput CreateSOAPDynamicPasswordInput(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateSOAPDynamicUsernameInput",
           "kind": "method",
           "signature": "ISOAPDynamicUsernameInput CreateSOAPDynamicUsernameInput(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         }
       ]
     },
@@ -30275,6 +30932,7 @@
           "signature": "ISOAPAction CreateAction(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "restClients, restServices (by name)",
             "timers, roles, siteProperties (by name)"
           ]
@@ -30283,29 +30941,37 @@
           "member": "CreateSOAPStaticEntity",
           "kind": "method",
           "signature": "ISOAPStaticEntity CreateSOAPStaticEntity(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateSOAPStaticEntityPolymorphic",
           "kind": "method",
           "signature": "ISOAPStaticEntityPolymorphic CreateSOAPStaticEntityPolymorphic(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateSOAPStructure",
           "kind": "method",
           "signature": "ISOAPStructure CreateSOAPStructure(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "CreateSOAPStructurePolymorphic",
           "kind": "method",
           "signature": "ISOAPStructurePolymorphic CreateSOAPStructurePolymorphic(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         }
       ]
     },
@@ -30394,8 +31060,10 @@
           "member": "CreateAttribute",
           "kind": "method",
           "signature": "ISOAPStaticEntityAttribute CreateAttribute(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         }
       ]
     },
@@ -30457,8 +31125,10 @@
           "member": "CreateAttribute",
           "kind": "method",
           "signature": "ISOAPStaticEntityAttributePolymorphic CreateAttribute(String name, IKey key)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         }
       ]
     },
@@ -30535,6 +31205,7 @@
           "signature": "ISOAPStructureAttribute CreateAttribute(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "restClients, restServices (by name)"
           ]
         }
@@ -30895,6 +31566,7 @@
           "signature": "ISOAPStructureAttributePolymorphic CreateAttribute(String name, IKey key)",
           "status": "covered",
           "keys": [
+            "edits.add",
             "restClients, restServices (by name)"
           ]
         }
@@ -30949,6 +31621,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -30995,7 +31668,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -31081,6 +31755,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -31100,7 +31775,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -31111,6 +31787,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         }
@@ -31232,6 +31909,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -31257,7 +31935,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -31268,6 +31947,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -31357,6 +32037,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -31370,7 +32051,8 @@
           "signature": "IWidgetSignature TargetWidget { get; set; }",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.set"
           ]
         },
         {
@@ -31397,7 +32079,8 @@
           "signature": "IExtendedProperty CreateExtendedProperty()",
           "status": "covered",
           "keys": [
-            "actions and flows (by name)"
+            "actions and flows (by name)",
+            "edits.add"
           ]
         },
         {
@@ -31858,6 +32541,7 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
+            "apply (ModelOps.cs) (by name)",
             "edits (by name)",
             "edits.set",
             "processes (by name)",
@@ -31896,6 +32580,7 @@
             "actions and flows (by name)",
             "copy (by name)",
             "edits (by name)",
+            "edits.add",
             "events, triggerEvent (by name)",
             "externalSites (by name)",
             "processes (by name)",
@@ -32342,8 +33027,10 @@
           "member": "CreateStaticRecord",
           "kind": "method",
           "signature": "IStaticRecord CreateStaticRecord(String name)",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         },
         {
           "member": "SetIdentifier",
@@ -32888,6 +33575,7 @@
           "keys": [
             "actions and flows (by name)",
             "edits (by name)",
+            "edits.add",
             "screens, blocks [Traditional Web] (by name)"
           ]
         },
@@ -33026,8 +33714,10 @@
           "member": "CreateWebScreen",
           "kind": "method",
           "signature": "IWebScreen CreateWebScreen()",
-          "status": "not-covered",
-          "reason": "no spec key calls it"
+          "status": "covered",
+          "keys": [
+            "edits.add"
+          ]
         }
       ]
     },
@@ -33400,8 +34090,10 @@
           "member": "Field",
           "kind": "property",
           "signature": "IStructureField Field { get; set; }",
-          "status": "not-covered",
-          "reason": "set cannot convert a value to IStructureField"
+          "status": "covered",
+          "keys": [
+            "edits.set"
+          ]
         },
         {
           "member": "Style",

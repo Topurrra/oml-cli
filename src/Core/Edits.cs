@@ -356,9 +356,13 @@ partial class Builder
                 Defer(node, ($"{label}.args", () => Arguments(node, args)));
                 break;
             }
+            case "add": AddOp(edit, label); break;
+            case "remove": RemoveOp(edit, label); break;
+            case "move": MoveOp(edit, label); break;
             case "set":
             {
                 var target = Find("element");
+                CheckSetType(target, edit, Required("element"));
                 foreach (var p in edit.GetProperty("properties").EnumerateObject())
                 {
                     rules.Set(target, p.Name, p.Value);
@@ -369,6 +373,11 @@ partial class Builder
                     // A widget's HTML attributes: each named attribute is added or its value replaced; others stay.
                     else if (p.Name.Equals("attributes", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.Object)
                         Attributes(target, p.Value, label);
+                    // A widget event (onClick, onChange, ...): a screen action of the same screen or block, else a screen to go to,
+                    // as when the widget is created. The old handler stays in the module.
+                    else if (target is OutSystems.Model.UI.IWidgetSignature && p.Name.StartsWith("on", StringComparison.OrdinalIgnoreCase)
+                             && p.Value.ValueKind is JsonValueKind.String or JsonValueKind.Object && Reflect.Property(target, p.Name) is not null)
+                        WidgetEventEdit(target, p.Name, p.Value, label);
                     else Queue(label, m, target, p.Name, p.Value);
                 }
                 break;
@@ -467,6 +476,9 @@ partial class Builder
             "setArgs" => $"arguments of {Text("element")}",
             "set" => $"{Text("element")}: {string.Join(", ", edit.GetProperty("properties").EnumerateObject().Select(p => p.Name))}",
             "rename" => $"{Text("element")} renamed to {Text("to")}",
+            "add" => $"{(Text("type").Length > 0 ? Text("type") : Text("factory"))} {Text("name")} added to {(Text("parent").Length > 0 ? Text("parent") : "the module")}".Replace("  ", " "),
+            "remove" => $"{Text("element")} removed",
+            "move" => $"{Text("element")} moved",
             "delete" => $"{Text("element")} deleted",
             "repoint" => $"node {Text("element")} now calls {Text("action")}",
             "rewrite" => $"{Text("element")}: {Text("from")} -> {Text("to")}",

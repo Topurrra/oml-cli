@@ -1,0 +1,14 @@
+{
+  "entities": [{ "name": "Customer", "attributes": [
+    { "name": "Name", "type": "Text", "length": 100, "mandatory": true },
+    { "name": "Email", "type": "Email" },
+    { "name": "Score", "type": "Integer" } ] }],
+  "staticEntities": [{ "name": "Status", "records": [{ "identifier": "Open", "label": "Open" }, { "identifier": "Closed", "label": "Closed" }] }],
+  "structures": [{ "name": "Row", "attributes": [{ "name": "Label", "type": "Text", "length": 50 }] }],
+  "serverActions": [{ "name": "GetCustomerName", "public": true,
+    "inputs": [{ "name": "CustomerId", "type": "Customer Identifier", "mandatory": true }],
+    "outputs": [{ "name": "Name", "type": "Text" }],
+    "flow": [{ "kind": "execute", "action": "GetCustomer", "args": { "Id": "CustomerId" } },
+             { "kind": "assign", "assign": { "Name": "GetCustomer.Record.Customer.Name" } }] },
+    { "name": "Helper", "inputs": [{ "name": "Text", "type": "Text" }], "flow": [] }]
+}

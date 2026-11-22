@@ -82,7 +82,10 @@ static class SpecShapes
         ["replaceWidgets"] = new(new[] { "at", "widgets" }, new[] { "area" }),
         ["addVariables"] = new(new[] { "action" }, new string[0], "ActionSpec"),
         ["addParts"] = new(new[] { "screen" }, new string[0], "ScreenSpec"),
-        ["set"] = new(new[] { "element", "properties" }, new string[0]),
+        ["set"] = new(new[] { "element", "properties" }, new[] { "type" }),
+        ["add"] = new(new string[0], new[] { "parent", "type", "factory", "name", "args", "properties", "before", "after", "first", "last" }),
+        ["remove"] = new(new[] { "element" }, new string[0]),
+        ["move"] = new(new[] { "element" }, new[] { "before", "after", "first", "last" }),
         ["rename"] = new(new[] { "element", "to" }, new string[0]),
         ["delete"] = new(new[] { "element" }, new[] { "allowDataLoss" }),
         ["addToAggregate"] = new(new[] { "aggregate" }, new[] { "sources", "joins", "filters", "sorts", "groupBy", "aggregates", "calculated", "groupFilters", "groupSorts", "groupCalculated" }),
@@ -96,7 +99,7 @@ static class SpecShapes
     public static readonly Dictionary<string, JsonValueKind> EditValueKinds = new()
     {
         ["flow"] = JsonValueKind.Array, ["widgets"] = JsonValueKind.Array, ["properties"] = JsonValueKind.Object,
-        ["index"] = JsonValueKind.Number, ["allowDataLoss"] = JsonValueKind.True, ["ifMissing"] = JsonValueKind.True, ["node"] = JsonValueKind.Object, ["args"] = JsonValueKind.Object,
+        ["index"] = JsonValueKind.Number, ["first"] = JsonValueKind.True, ["last"] = JsonValueKind.True, ["allowDataLoss"] = JsonValueKind.True, ["ifMissing"] = JsonValueKind.True, ["node"] = JsonValueKind.Object, ["args"] = JsonValueKind.Object,
         ["sources"] = JsonValueKind.Array, ["joins"] = JsonValueKind.Array, ["filters"] = JsonValueKind.Array, ["sorts"] = JsonValueKind.Array,
         ["groupBy"] = JsonValueKind.Array, ["aggregates"] = JsonValueKind.Array, ["calculated"] = JsonValueKind.Array,
         ["groupFilters"] = JsonValueKind.Array, ["groupSorts"] = JsonValueKind.Array, ["groupCalculated"] = JsonValueKind.Array,

@@ -16,33 +16,25 @@ element an element path reaches). A covered member is reachable from a spec; it 
 
 | Area | Types | Members | Read-only | Changes | Out of scope | Covered | With rule | Rule | Not covered | Covered % |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| UI (Reactive and Mobile) | 89 | 739 | 423 | 316 | 10 | 292 | 0 | 0 | 14 | 95.4 |
-| UI (Traditional Web) | 80 | 733 | 371 | 362 | 24 | 324 | 1 | 0 | 14 | 95.9 |
-| UI (shared) | 24 | 263 | 128 | 135 | 43 | 67 | 10 | 0 | 25 | 72.8 |
-| data | 34 | 267 | 125 | 142 | 49 | 72 | 22 | 0 | 21 | 77.4 |
-| data queries | 17 | 142 | 61 | 81 | 9 | 48 | 0 | 0 | 24 | 66.7 |
-| integrations | 46 | 237 | 20 | 217 | 0 | 187 | 0 | 0 | 30 | 86.2 |
-| logic | 57 | 365 | 130 | 235 | 57 | 153 | 8 | 0 | 25 | 86 |
-| module | 77 | 486 | 235 | 251 | 53 | 131 | 3 | 8 | 59 | 66.2 |
-| plugins | 68 | 224 | 118 | 106 | 4 | 61 | 0 | 0 | 41 | 59.8 |
-| processes | 26 | 220 | 104 | 116 | 16 | 74 | 6 | 0 | 26 | 74 |
-| **total** | 518 | 3676 | 1715 | 1961 | 265 | 1409 | 50 | 8 | 279 | 83.1 |
+| UI (Reactive and Mobile) | 89 | 739 | 423 | 316 | 10 | 298 | 0 | 0 | 8 | 97.4 |
+| UI (Traditional Web) | 80 | 733 | 371 | 362 | 24 | 331 | 1 | 0 | 7 | 97.9 |
+| UI (shared) | 24 | 263 | 128 | 135 | 43 | 76 | 10 | 0 | 16 | 82.6 |
+| data | 34 | 267 | 125 | 142 | 49 | 82 | 22 | 0 | 11 | 88.2 |
+| data queries | 17 | 142 | 61 | 81 | 9 | 63 | 0 | 0 | 9 | 87.5 |
+| integrations | 46 | 237 | 20 | 217 | 0 | 217 | 0 | 0 | 0 | 100 |
+| logic | 57 | 365 | 130 | 235 | 57 | 163 | 8 | 0 | 15 | 91.6 |
+| module | 77 | 486 | 235 | 251 | 53 | 148 | 3 | 8 | 42 | 74.7 |
+| plugins | 68 | 224 | 118 | 106 | 4 | 64 | 0 | 0 | 38 | 62.7 |
+| processes | 26 | 220 | 104 | 116 | 16 | 92 | 6 | 0 | 8 | 92 |
+| **total** | 518 | 3676 | 1715 | 1961 | 265 | 1534 | 50 | 8 | 154 | 90.4 |
 
 ## Why members are not covered
 
 | Status | Reason | Members |
 |---|---|---:|
-| not-covered | no spec key calls it | 217 |
-| not-covered | not an element: no element path reaches it | 40 |
+| not-covered | no spec key calls it | 108 |
+| not-covered | not an element: no element path reaches it | 36 |
 | not-covered | set cannot convert a value to Byte[] | 10 |
-| not-covered | set cannot convert a value to IOperation | 3 |
-| not-covered | set cannot convert a value to IRestCallbackActionFlow | 2 |
-| not-covered | set cannot convert a value to IWebEmail | 2 |
-| not-covered | set cannot convert a value to IAttributeSignature | 1 |
-| not-covered | set cannot convert a value to IConnector | 1 |
-| not-covered | set cannot convert a value to IEntityAttributeSignature | 1 |
-| not-covered | set cannot convert a value to IStructureField | 1 |
-| not-covered | set cannot convert a value to IWebFlow | 1 |
 | out-of-scope | history field: Service Studio records who changed what and when | 185 |
 | out-of-scope | metadata other tools keep on an element (managedBy), not part of the module's behavior | 55 |
 | out-of-scope | a session or file operation, not a change to the module | 10 |
@@ -69,44 +61,44 @@ element an element path reaches). A covered member is reachable from a spec; it 
 
 | Type | Area | Not covered | Examples |
 |---|---|---:|---|
-| ServiceStudio.Plugin.SOAP.ISOAPAction | integrations | 8 | CreateSOAPActionInput, CreateSOAPActionInputPolymorphic, CreateSOAPActionInputWildcard, CreateSOAPActionOutput, CreateSOAPActionOutputPolymorphic, CreateSOAPActionOutputWildcard |
-| OutSystems.Model.Processes.IProcess | processes | 7 | Icon, CreateOnActivityClose, CreateOnActivityOpen, CreateOnActivityReady, CreateOnActivitySkip, CreateOnActivityStart |
 | OutSystems.Model.Extensions.IEntity | module | 6 | ConvertDefaultValueToFromNullInDatabase, Description, LogicalDatabase, Name, TableOrViewDefaultName, CreateAttribute |
-| OutSystems.Model.UI.IUIFlow | UI (shared) | 6 | CreateBlock, CreateScreen, Instantiate |
 | OutSystems.Model.Extensions.IExtensionResource | module | 5 | Content, DeployAction, Description, Filename, Path |
-| OutSystems.Model.ISequence`1 | module | 5 | MoveAfterSibling, MoveBeforeSibling, MoveToEnd, MoveToStart, SetOrderTo |
-| ServiceStudio.Plugin.REST.IRestClient | integrations | 5 | OnAfterResponseCallback, OnBeforeRequestCallback, CreateOnAfterResponseAdvancedCallback, CreateOnBeforeRequestAdvancedCallback, CreateStaticEntity |
-| ServiceStudio.Plugin.RESTService.IRestServiceAuthenticationFlow | integrations | 5 | CreateRestServiceActionInput, CreateRestServiceActionOutput, CreateRestServiceAuthenticationFlowInput, CreateRestServiceCallbackActionFlowInput, CreateRestServiceCallbackActionFlowOutput |
-| ServiceStudio.Plugin.RESTService.IRestServiceCallbackActionFlow | integrations | 5 | CreateRestServiceActionInput, CreateRestServiceActionOutput, CreateRestServiceAuthenticationFlowInput, CreateRestServiceCallbackActionFlowInput, CreateRestServiceCallbackActionFlowOutput |
 | ServiceStudio.PluginAPI.Model.Integration.ICustomAction | plugins | 5 | CreateActionInput, CreateActionOutput |
-| OutSystems.Model.IESpace | module | 4 | CreateClientEntity, CreateIntegration, CreateUIFlow, SetTranslationBehavior |
-| OutSystems.Model.Logic.Aggregates.Full.IFullAggregate | data queries | 4 | RootOperation, CreateAddSourceOperation, CreateCombineSourcesOperation, CreateGroupByOperation |
-| OutSystems.Model.Processes.Nodes.IHumanActivityNode | processes | 4 | CreateOnClose, CreateOnOpen, CreateOnReady, CreateOnSkip |
-| OutSystems.Model.UI.IImage | UI (shared) | 4 | CreateOrUpdateTranslation, SetImageContent, SetTranslationBehavior |
-| ServiceStudio.Plugin.SOAP.ISOAPClient | integrations | 4 | CreateSOAPStaticEntity, CreateSOAPStaticEntityPolymorphic, CreateSOAPStructure, CreateSOAPStructurePolymorphic |
-| ServiceStudio.PluginAPI.Model.Integration.ICustomEntity | plugins | 4 | CreateEntityAttribute, CreateStaticRecord, SetIdentifier |
+| OutSystems.Model.UI.IUIFlow | UI (shared) | 4 | Instantiate |
 | ServiceStudio.PluginAPI.Model.UI.IWidget | plugins | 4 | BehavesAs, ChangeParent, MoveAfter, MoveBefore |
-| OutSystems.Model.Data.IRecord | data | 3 | Icon, CreateOrUpdateTranslation, SetTranslationBehavior |
 | OutSystems.Model.Extensions.IEntityAttribute | module | 3 | Description, IsIgnored, Name |
 | OutSystems.Model.Extensions.IParameter | module | 3 | DataType, Description, Name |
 | OutSystems.Model.Extensions.IStructure | module | 3 | Description, FullTypeName, IsPlainStructure |
-| OutSystems.Model.IRecordLiteralField | module | 3 | Attribute, CreateOrUpdateTranslation, SetTranslationBehavior |
-| OutSystems.Model.Logic.Aggregates.Full.IAliasedSource | data queries | 3 | SourceOperation, CreateOrUpdateTranslation, SetTranslationBehavior |
-| OutSystems.Model.Logic.Integrations.IIntegration | logic | 3 | Icon, CreateOrUpdateTranslation, SetTranslationBehavior |
-| OutSystems.Model.Processes.Nodes.IWaitNode | processes | 3 | CreateOnClose, CreateOnReady, CreateOnSkip |
+| OutSystems.Model.UI.IImage | UI (shared) | 3 | SetImageContent, SetTranslationBehavior |
 | ServiceStudio.PluginAPI.Model.ICustomObjectWithType | plugins | 3 | SetType |
 | ServiceStudio.PluginAPI.Model.Integration.ICustomActionFlow | plugins | 3 | CreateActionInput, CreateActionOutput |
+| ServiceStudio.PluginAPI.Model.Integration.ICustomEntity | plugins | 3 | CreateEntityAttribute, SetIdentifier |
 | ServiceStudio.PluginAPI.Model.Integration.ICustomEntityAttribute | plugins | 3 | SetDecimals, SetLength, SetReferenceType |
 | ServiceStudio.PluginAPI.Model.UI.Legacy.IComboBox | plugins | 3 | AddSpecialValue, SetSourceField, SetSourceRecord |
-| OutSystems.Model.Data.IClientVariable | data | 2 | CreateOrUpdateTranslation, SetTranslationBehavior |
-| OutSystems.Model.Data.IEntity | data | 2 | CreateOrUpdateTranslation, SetTranslationBehavior |
-| OutSystems.Model.Data.IEntityAttribute | data | 2 | CreateOrUpdateTranslation, SetTranslationBehavior |
-| OutSystems.Model.Data.IRecordAttributeValue | data | 2 | CreateOrUpdateTranslation, SetTranslationBehavior |
-| OutSystems.Model.Data.IResource | data | 2 | CreateOrUpdateTranslation, SetTranslationBehavior |
-| OutSystems.Model.Data.ISessionVariable | data | 2 | CreateOrUpdateTranslation, SetTranslationBehavior |
-| OutSystems.Model.Data.ISiteProperty | data | 2 | CreateOrUpdateTranslation, SetTranslationBehavior |
-| OutSystems.Model.Data.IStructure | data | 2 | CreateOrUpdateTranslation, SetTranslationBehavior |
-| OutSystems.Model.Data.IStructureAttribute | data | 2 | CreateOrUpdateTranslation, SetTranslationBehavior |
+| OutSystems.Model.Data.IRecord | data | 2 | Icon, SetTranslationBehavior |
 | OutSystems.Model.Extensions.IAction | module | 2 | Description, Icon |
 | OutSystems.Model.Extensions.IExtension | module | 2 | CreatedByTool, CreateResource |
+| OutSystems.Model.Extensions.IStructureAttribute | module | 2 | Description, Name |
+| OutSystems.Model.IObject | module | 2 | Duplicate |
+| OutSystems.Model.Logic.Integrations.IIntegration | logic | 2 | Icon, SetTranslationBehavior |
+| OutSystems.Model.Processes.IActivityTrigger | processes | 2 | SetIdFilter, SetTenantIdFilter |
+| OutSystems.Model.Processes.ITrigger | processes | 2 | Action, Entity |
+| OutSystems.Model.UI.IScreen | UI (shared) | 2 | Icon, ReplaceEntity |
+| OutSystems.Model.UI.Mobile.IMobileFlow | UI (Reactive and Mobile) | 2 | Instantiate |
+| OutSystems.Model.UI.Web.IWebFlow | UI (Traditional Web) | 2 | Instantiate |
+| ServiceStudio.PluginAPI.Model.Integration.ICustomClient | plugins | 2 | Icon, CreateCallbackFlow |
+| ServiceStudio.PluginAPI.Model.Integration.ICustomService | plugins | 2 | CreateActionFlow, CreateCallbackFlow |
+| ServiceStudio.PluginAPI.Model.Integration.ICustomStructure | plugins | 2 | CreateStructureAttribute |
+| ServiceStudio.PluginAPI.Model.UI.ICustomWidget | plugins | 2 | AddExtendedProperty, CreatePlaceholder |
+| ServiceStudio.PluginAPI.Model.UI.IEventHandler | plugins | 2 | Target, SetArgument |
+| OutSystems.Model.Applications.IModule | module | 1 | Description |
+| OutSystems.Model.Data.IClientVariable | data | 1 | SetTranslationBehavior |
+| OutSystems.Model.Data.IEntity | data | 1 | SetTranslationBehavior |
+| OutSystems.Model.Data.IEntityAttribute | data | 1 | SetTranslationBehavior |
+| OutSystems.Model.Data.IRecordAttributeValue | data | 1 | SetTranslationBehavior |
+| OutSystems.Model.Data.IResource | data | 1 | SetTranslationBehavior |
+| OutSystems.Model.Data.ISessionVariable | data | 1 | SetTranslationBehavior |
+| OutSystems.Model.Data.ISiteProperty | data | 1 | SetTranslationBehavior |
+| OutSystems.Model.Data.IStructure | data | 1 | SetTranslationBehavior |
+| OutSystems.Model.Data.IStructureAttribute | data | 1 | SetTranslationBehavior |
 

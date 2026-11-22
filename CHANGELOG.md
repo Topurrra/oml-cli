@@ -2,6 +2,20 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## Unreleased
+
+### Added
+
+- **Generic model operations in `edits`: `add`, `remove`, `move`, and `set` with `type`.** A spec reaches any Model API object by type and member name, checked against the installed Service Studio by reflection. `add` makes a child with the parent's `Create*` method (`"parent": "Customer", "type": "IEntityAttribute", "name": "Code", "first": true, "properties": {...}`); `remove` takes out only what the same spec made; `move` reorders attributes, parameters, widgets and records (`before`, `after`, `first`, `last`). `oml spec check` resolves the type and checks each key and value without a module; unknown types, members and enum values name the closest ones. The production rules hold for every operation, and after the build apply also runs the before/after check of `oml review` (rules 2 to 6 refuse the save). `oml spec add`.
+- **`set` takes more values:** decimal and long numbers, ISO date-times, and `{ "element": "<path>" }` for an element without a name of its own; and widget events (`"onClick": "<screen action or screen>"`) on existing widgets.
+- **(System) server actions a module does not reference yet** (ListAppend, ListClear, ListInsert, ListRemove, LogMessage, CommitTransaction, ...) work in server flows: oml adds them from Service Studio's tutorial module and says so in `warnings`. A client flow is refused with the steps (Service Studio adds (System) client actions).
+- **`oml model-coverage --out <folder>` (maintainers):** the Model API coverage map in tests/model-api (every member reachable from IESpace: covered by which key, read-only, rule, out of scope, or not covered and why), generated from oml's own IL and the rule tables, to diff on a new Service Studio build.
+- **The official OutSystems skill's examples as specs:** tests/model-ops/examples.md lists each example with the spec that does it; tests/model-ops-check.ps1 applies all of them. Recipe `attribute-position-reorder`.
+
+### Fixed
+
+- The Dropdown keys in `oml spec`: `labels` and `values`, written on one item of the list (`Status.Label`), not `optionsText` and `optionsValue`.
+
 ## 1.23.0
 
 Traditional Web to Reactive, prepared by code, and an interactive menu for people.

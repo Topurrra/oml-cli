@@ -59,7 +59,8 @@ function Assert-Describe($module, $element, [string[]]$patterns) {
 Push-Location $repo
 try {
   $base = New-Base RecipeConsumer
-  $null = Recipe 'entity-with-crud' $base
+  $plainCrud = Recipe 'entity-with-crud' $base
+  $null = Recipe 'attribute-position-reorder' $plainCrud
   # UI recipes need a layout block named LayoutTopMenu and a UI flow exception handler, as a real app has.
   # Build that base here so every clone runs all recipes (no exported module needed).
   $uiSpec = Join-Path $run 'ui-base.json'

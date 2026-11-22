@@ -334,7 +334,15 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         // A screen or block action calls another action of the same screen or block by its name.
         var callee = (action as IObjectSignature)?.Parent is { } owner && Reflect.Get(owner, "ScreenActions") is System.Collections.IEnumerable siblings
             ? siblings.Cast<object>().FirstOrDefault(s => !ReferenceEquals(s, action) && Model.NameOf(s) == target) : null;
-        callee ??= Refs.Find(m, target, typeof(IObjectSignature));
+        var clientFlow = action.GetType().GetInterfaces().Any(i => i.Name is "IClientActionSignature" or "IScreenActionSignature" || i.Name.Contains("ScreenAction"));
+        if (callee is null)
+            try { callee = Refs.Find(m, target, typeof(IObjectSignature)); }
+            catch (ModelError)
+            {
+                // A (System) action the module does not reference yet (ListAppend, LogMessage, ...): see SystemActions.
+                if (!SystemActions.TryImport(m, target, clientFlow, created, existing, problems, Warnings)) throw;
+                callee = Refs.Find(m, target, typeof(IObjectSignature));
+            }
         // A client flow calls the client action when a client and a server action share the name
         // (System's ListAppend, ListClear, ...): the server one is a request per call.
         if (!callee.GetType().GetInterfaces().Any(i => i.Name == "IClientActionSignature")

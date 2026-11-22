@@ -1,0 +1,13 @@
+{ "edits": [
+  { "op": "add", "parent": "Customer", "type": "IEntityAttribute", "name": "Phone", "first": true,
+    "properties": { "DataType": "Phone Number", "Length": 20, "Description": "Main phone" } },
+  { "op": "add", "parent": "Customer", "type": "IEntityAttribute", "name": "Discount", "after": "Email",
+    "properties": { "DataType": "Decimal", "Length": 37, "Decimals": 2 } },
+  { "op": "add", "parent": "Helper", "type": "IInputParameter", "name": "Temp", "properties": { "DataType": "Integer" } },
+  { "op": "remove", "element": "Helper/Temp" },
+  { "op": "move", "element": "Customer/Score", "before": "Name" },
+  { "op": "set", "element": "Customer", "type": "IEntity", "properties": { "Description": "People who buy", "LabelPlural": "Customers" } },
+  { "op": "add", "parent": "Helper", "type": "IInputParameter", "name": "Prefix", "properties": { "DataType": "Text", "IsMandatory": false } },
+  { "op": "set", "element": "Helper", "type": "IServerAction", "properties": { "CacheInMinutes": 5 } },
+  { "op": "add", "type": "ISiteProperty", "name": "MaxItems", "args": { "isReadOnly": false }, "properties": { "DataType": "Integer", "DefaultValue": "10" } }
+] }

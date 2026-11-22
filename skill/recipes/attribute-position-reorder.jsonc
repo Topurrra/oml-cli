@@ -1,0 +1,13 @@
+// Add attributes at a position in an existing entity and reorder its attributes, with the generic operations.
+// Base: entity-with-crud output (Product with Name and StatusId). Rename Product and the attribute names to match your module.
+// Related keys: edits add (type, name, properties, first/before/after), edits move, oml model-types IEntityAttribute.
+// Order is not a rename or a type change: existing attributes may move. Existing attributes keep their type, length and mandatory.
+{
+  "edits": [
+    { "op": "add", "parent": "Product", "type": "IEntityAttribute", "name": "Code", "first": true,
+      "properties": { "DataType": "Text", "Length": 20, "Description": "Short product code." } },
+    { "op": "add", "parent": "Product", "type": "IEntityAttribute", "name": "Price", "after": "Name",
+      "properties": { "DataType": "Decimal", "Length": 37, "Decimals": 2 } },
+    { "op": "move", "element": "Product/StatusId", "before": "Name" }
+  ]
+}

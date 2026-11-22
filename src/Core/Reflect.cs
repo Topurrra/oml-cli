@@ -104,6 +104,60 @@ static class Reflect
 
     public enum Stage { Reference, Expression }
 
+    /// A spec value as a value of `type`: a property value in `set` and `add`, or a factory argument of `add`.
+    /// true/false; a number (Integer, Long Integer, Decimal); text; an enum value by name; a type by its Service Studio
+    /// name ("Text", "List of Order"); a date-time as ISO 8601 text; an element by name (actions, entities, screens, roles,
+    /// ...) or, for any other element, `{ "element": "<element path>" }` (also a plain path when no name matches).
+    public static object? Convert(IESpace m, JsonElement value, Type type, string key)
+    {
+        var target = Nullable.GetUnderlyingType(type) ?? type;
+        string Expected() => ModelTypes.ValueKind(target);
+        switch (value.ValueKind)
+        {
+            case JsonValueKind.Null: return null;
+            case JsonValueKind.True or JsonValueKind.False when target == typeof(bool) || target == typeof(object): return value.GetBoolean();
+            case JsonValueKind.Number when target == typeof(int): return value.TryGetInt32(out var i) ? i : throw new ModelError($"'{key}' takes a whole number, not {value.GetRawText()}");
+            case JsonValueKind.Number when target == typeof(long): return value.TryGetInt64(out var l) ? l : throw new ModelError($"'{key}' takes a whole number, not {value.GetRawText()}");
+            case JsonValueKind.Number when target == typeof(decimal): return value.GetDecimal();
+            case JsonValueKind.Number when target == typeof(double): return value.GetDouble();
+            case JsonValueKind.Number when target == typeof(float): return value.GetSingle();
+            case JsonValueKind.String when target == typeof(string): return value.GetString();
+            case JsonValueKind.String when target == typeof(DateTime):
+                return DateTime.TryParse(value.GetString(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? d
+                    : throw new ModelError($"'{key}' takes a date-time as ISO 8601 text (\"2026-01-31T09:00:00\"), not '{value.GetString()}'");
+            case JsonValueKind.String when target.IsEnum:
+                return Enum.TryParse(target, value.GetString()!, ignoreCase: true, out var named) && !int.TryParse(value.GetString(), out _) ? named
+                    : throw new ModelError($"'{value.GetString()}' is not a {key} value{SpecHelp.Hint(value.GetString()!, Enum.GetNames(target))}; use one of: {string.Join(", ", Enum.GetNames(target).Take(40))}");
+            case JsonValueKind.String when typeof(ITypeSignature).IsAssignableFrom(target) && Model.Resolve(m, value.GetString()!) is { } resolved:
+                return resolved;
+            case JsonValueKind.String when typeof(ITypeSignature).IsAssignableFrom(target) && !typeof(IObjectSignature).IsAssignableFrom(target):
+                throw new ModelError(Model.UnknownType(value.GetString()!));
+            case JsonValueKind.String when target.IsInterface:
+            {
+                var text = value.GetString()!;
+                try { return Refs.Find(m, text, target); }
+                catch (ModelError byName)
+                {
+                    // Not a name a spec can point at: an element path, checked against the type.
+                    if (text.Contains('/') || Refs.All(m).All(c => Model.NameOf(c.element) != text))
+                        try { return ElementOf(m, text, target, key); } catch (ModelError) { }
+                    throw new ModelError(byName.Message + $" For an element that has no name of its own, write {{ \"element\": \"<path>\" }} (copy the path from oml tree).");
+                }
+            }
+            case JsonValueKind.Object when target.IsInterface && value.TryGetProperty("element", out var path) && path.ValueKind == JsonValueKind.String:
+                return ElementOf(m, path.GetString()!, target, key);
+        }
+        throw new ModelError($"'{key}' takes {Expected()}, not {ModelTypes.Describe(value)}");
+    }
+
+    // An element by path, of the type a property or argument takes.
+    static object ElementOf(IESpace m, string path, Type target, string key)
+    {
+        var found = ElementPaths.Resolve(m, path);
+        return target.IsInstanceOfType(found) ? found
+            : throw new ModelError($"'{key}' takes a {ModelTypes.Short(target)}; '{path}' is a {ElementPaths.Kind(found)}");
+    }
+
     /// Plans one property write. References (types, actions, exceptions, enums) are applied in the reference
     /// stage; expressions are applied last, after every node, variable and parameter exists (skill §9.2).
     public static (Stage stage, Action apply) Plan(IESpace m, object o, string key, JsonElement value)
@@ -132,24 +186,12 @@ static class Reflect
         var prop = Property(o, key, writable: true);
         if (prop is null && value.ValueKind == JsonValueKind.String && Setter(o, key, typeof(string), fuzzy: true) is { } near)
             return (Stage.Expression, () => Invoke(near, o, new object?[] { value.GetString() }));
-        if (prop is null) throw new ModelError($"{o.GetType().Name} has no settable '{key}' on this build{SettableHint(o.GetType().Name, key)}");
+        if (prop is null) throw new ModelError($"{o.GetType().Name} has no settable '{key}' on this build{SettableHint(o.GetType().Name, key)}{ModelTypes.SettableHint(o, key)}");
         var t = prop.PropertyType;
         var target = Nullable.GetUnderlyingType(t) ?? t;
         return (Stage.Reference, () =>
         {
-            object? converted = value.ValueKind switch
-            {
-                JsonValueKind.Null => null,
-                JsonValueKind.True or JsonValueKind.False => value.GetBoolean(),
-                JsonValueKind.Number when target == typeof(int) => value.GetInt32(),
-                JsonValueKind.String when target == typeof(string) => value.GetString(),
-                JsonValueKind.String when target.IsEnum => Enum.TryParse(target, value.GetString()!, ignoreCase: true, out var named) ? named
-                    : throw new ModelError($"'{value.GetString()}' is not a {key} value; use one of: {string.Join(", ", Enum.GetNames(target))}"),
-                JsonValueKind.String when typeof(ITypeSignature).IsAssignableFrom(target) =>
-                    Model.Resolve(m, value.GetString()!) ?? throw new ModelError(Model.UnknownType(value.GetString()!)),
-                JsonValueKind.String => Refs.Find(m, value.GetString()!, target),
-                _ => throw new ModelError($"cannot convert {value.ValueKind} for '{key}'"),
-            };
+            var converted = Convert(m, value, t, key);
             // OML_EXPR_STRICT=1 checks expression strings before they are written to an expression property. It is off
             // by default because some legacy syntax (older literals, plugin expressions) may not parse; when on, a bad
             // expression fails the apply instead of reaching the module.

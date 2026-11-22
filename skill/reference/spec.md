@@ -62,6 +62,7 @@ One row per top-level key: what it creates or changes, and the section of this f
 | `screens`, `blocks` (Traditional Web) | Web screens with `preparation` and web widgets. | Traditional Web UI |
 | `layout`, `placeholders`, `template` | Layout blocks and generated list or detail screens. | Layouts and scaffolding |
 | `edits` | Changes to existing elements. | Edits |
+| `edits` with `add`, `remove`, `move`, typed `set` | Any Model API object by type and member name: add a child with its `Create*` method, remove what the spec made, reorder a list. | Generic model operations |
 | `edits` with `delete` | Deletion of elements created earlier in the same spec. Existing elements are refused (see rules.md). | Deletion |
 | `copy` | Clipboard copy from read-only modules; explicit dependencies; IPP checks. | Copy, translations, resources, and folders |
 | `locales`, `translate`, `translations` | Locales and module resource translations; file import where the host supports it. | Copy, translations, resources, and folders |
@@ -702,7 +703,7 @@ Widgets whose keys are easy to get wrong (Reactive):
 | Expression | `value` | Reactive ignores Visible on an Expression (apply warns): put it in a Container with `visible`. |
 | BlockInstance | `sourceBlock`, `args`, `events`, `placeholders` | No Visible: wrap it in a Container with `visible`. |
 | AdvancedHtml (HTML Element) | `tag`, `attributes` | Refuses `svg`, `path`, `circle` and `dialog`. Icons: CSS `mask-image` with a data: URL (or an Icon widget). Dialogs and sheets: a div with the `popover` attribute and `popovertarget` on the opener. |
-| Dropdown | `variable`, `list`, `optionsText`, `optionsValue` | Its options must be a record list (an aggregate, or a list of a static entity or structure); a List of Text cannot name its labels and values. No key for an empty-value or special-list option: add that option to the options list in a data action. |
+| Dropdown | `variable`, `list`, `labels`, `values`: expressions on one item of the list, without the list prefix (`"list": "GetStatuses.List", "labels": "Status.Label", "values": "Status.Id"`) | Its options must be a record list (an aggregate, or a list of a static entity or structure); a List of Text cannot name its labels and values. No key for an empty-value or special-list option: add that option to the options list in a data action. |
 | Button, Link | `confirmationMessage` (expression), `isDefault` (`true` or `false`) | `confirmationMessage`: the text the user must confirm before On Click runs (describe: `confirm=`). `isDefault`: pressing Enter clicks it (describe: `[default button]`). Traditional Web takes the same keys. No key for an external URL as the target: use an HTML Element (`AdvancedHtml`) with `"tag": "a"` and `attributes.href`. |
 | Icon | `icon` (the icon name as plain text, for example `"check"`) | describe: `icon=`. |
 | Input | `inputType` (`Password`, `Email`, `Number` or another value of the model's input type, as describe prints `type=`), `prompt` (expression), `maxLength` (number), `mandatory` (expression) | The validation message is not a widget property: assign `<Input>.ValidationMessage` in a client action (see Known model behaviour). |
@@ -968,6 +969,47 @@ of the same name (`Pick/Response` is the parameter); write `Pick/Assign:Response
 Unnamed elements use `Kind[index]`, indexed from zero among siblings of that kind. An unnamed Refresh Data node also answers to `refresh <DataSource>`, as `describe` prints it (`Home/LoadAll/refresh GetOrders`); `describe` adds `[path ...]` when that form is not unique.
 For example: `Orders/Header/Button[0]/Text[0]`. Copy the emitted path; indexes can change after edits. Flow nodes and action or instance arguments have a fixed order on every load.
 Labels persist where supported. Raise Exception on Service Studio 11.55.92 needs an index path after reopening. `replaceNode` on a node of the same kind and name changes it where it is: it keeps its key, so what reads its outputs stays valid. The keys you give are set, others stay; `assign` replaces all rows; `next`, `true`, `false` and `cycle` reconnect it. Another kind or name, another called action, and aggregates and SQL nodes are built again (one connector in, one out; a Switch branch counts). `next: "End"` means the End reached from that place: the main path's, or the handler's inside a handler. The model stores no names on End nodes: after a save they are all `End`, and `insertNodes` with `ifMissing` ignores them. Every applied edit is listed in `changed`.
+
+### Generic model operations
+
+For a change no other key makes. `add`, `remove`, `move` and `set` (with `type`) reach any Model API object by type
+and member name, checked against the installed Service Studio. Look up a type's members with `oml model-types <Type>`.
+Prefer a named key when one exists (`entities`, `screens`, `addVariables`, ...): it fills in what a new element needs.
+
+| Op | Keys | What it does |
+|---|---|---|
+| `add` | `parent` (path; default the module), `type`, `name`, `properties`, `args`, `factory`, `first`/`last`/`before`/`after` | Makes a `type` with the parent's `Create*` method, names it, sets `properties`, places it. `args`: the method's other parameters by name. |
+| `set` | `element`, `type`, `properties` | As in Edits; with `type`, the element must be that type and `oml spec check` checks every key and value. |
+| `remove` | `element` | Removes an element this spec created. An existing one is refused. |
+| `move` | `element`, `first`/`last`/`before`/`after` | Changes the order in its list: attributes, parameters, widgets, records. Existing elements may move. |
+
+Values: `true`/`false`, numbers, text, an enum value by name (`"Ignore"`), a type (`"Text"`, `"Order Identifier"`),
+an element by name, or `{ "element": "<path>" }` for an element without a name of its own.
+
+```json
+{ "edits": [
+  { "op": "add", "parent": "Customer", "type": "IEntityAttribute", "name": "Code", "first": true,
+    "properties": { "DataType": "Text", "Length": 10 } },
+  { "op": "move", "element": "Customer/Email", "after": "Name" },
+  { "op": "add", "type": "IClientEntity", "name": "LocalNote" },
+  { "op": "set", "element": "Orders/NewOrderLink", "properties": { "onClick": "NewOrder" } }
+] }
+```
+
+The production rules hold for every operation: no rename or delete of existing elements, no change to an existing
+attribute's type, length, decimals or mandatory setting, no break of a public signature. After the build, apply also
+runs the before/after check of `oml review`: rules 2 to 6 refuse the save, rule 7 is a warning.
+An element made with `add` gets only what the factory gives it: a new entity has no `Id` (use `entities`), a static
+record has no values (use `staticEntities`). Validation then names what is missing.
+
+Widget events: `set` with `onClick` (or another event) points an existing widget at a screen action of its screen or
+block, or at a screen; `{ "destination": ..., "args": { ... } }` also sets arguments.
+
+(System) actions: a server flow may `execute` ListAppend, ListAppendAll, ListClear, ListInsert, ListRemove,
+ListDuplicate, LogMessage, CommitTransaction, AbortTransaction and the other (System) server actions the module does
+not reference yet; oml adds them to the (System) reference from Service Studio's tutorial module and says so in
+`warnings`. A client flow needs (System)'s client actions: add them in Service Studio (Manage Dependencies > (System)),
+or copy them from a module that has them with `references` and `"module": "(System)"`.
 
 ### Deletion
 

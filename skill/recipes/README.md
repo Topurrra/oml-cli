@@ -24,6 +24,7 @@ Use a new staged output path for each apply. Do not edit the source module.
 | [role-protected-screen.jsonc](role-protected-screen.jsonc) | Role-only screen, server role check, role-only link | UI base |
 | [block-popup-event.jsonc](block-popup-event.jsonc) | Confirm popup block with events, screen handlers, delete | UI base |
 | [send-email.jsonc](send-email.jsonc) | Reactive email, server action that loads data and sends it | Fresh CrossDevice |
+| [attribute-position-reorder.jsonc](attribute-position-reorder.jsonc) | New attributes at a position, reorder existing ones (edits add, move) | entity-with-crud output |
 | [bdd-test-screen.jsonc](bdd-test-screen.jsonc) | BDD test screen for a public server action; output of `oml test bdd`, unverified against the real BDDFramework | New CrossDevice test module, BDDFramework and producer exports |
 
 Create a blank base with `oml new tmp/base.oml --kind CrossDevice` (or `WebResponsive`).

@@ -187,11 +187,29 @@ static class Apply
         return (described, results.OfType<Describe.DescribeError>().Cast<object>().ToArray(), more);
     }
 
+    static bool UsesModelOps(Spec spec) => spec.Edits?.Any(e => e.ValueKind == System.Text.Json.JsonValueKind.Object
+        && e.TryGetProperty("op", out var op) && op.ValueKind == System.Text.Json.JsonValueKind.String
+        && (op.GetString() is "add" or "remove" or "move" || (op.GetString() == "set" && e.TryGetProperty("type", out _)))) == true;
+
+    // The before/after check of `oml review` on a change made with generic operations. Rules 2 to 6 refuse the save; a
+    // rule 7 risk or a new unique index is a warning, as everywhere else (the user decides).
+    static void ReviewCheck(ProductionRules before, IESpace after, List<string> problems, List<string> warnings)
+    {
+        foreach (var risk in before.Risks(after).Where(r => !r.Info))
+        {
+            if (risk.Rule == 7 || risk.Text.StartsWith("unique index", StringComparison.Ordinal)) warnings.Add($"rule {risk.Rule}: {risk.Text}");
+            else problems.Add($"refused (rule {risk.Rule}, before/after check): {risk.Text} Undo that part of the spec, or ask the user to make this change by hand in Service Studio.");
+        }
+    }
+
     // raw: the spec's JSON, to tell keys the spec sets on an existing element from record defaults (Reuse).
     static (int code, object report) Execute(Spec spec, System.Text.Json.Nodes.JsonNode? raw, IESpace m, string source, string output, int commentsRemoved, IReadOnlyList<string>? specs, ApplyOptions? options, List<IESpace> opened, List<string>? pathWarnings = null, bool dryRun = false, HashSet<int>? skipEdits = null)
     {
         FlowLayout.BeginApply(); // marks are per apply: this run's placed/deleted flows
         var rules = Timings.Measure("rules snapshot", () => new ProductionRules(m));
+        // Generic model operations (edits add, remove, move, set with type) reach any member: the result is also checked
+        // the way `oml review` checks a change, against the module as it was.
+        var review = UsesModelOps(spec) ? Timings.Measure("review snapshot", () => ProductionRules.ForReview(m)) : null;
         var flowLayoutBefore = Timings.Measure("flow snapshot", () => FlowLayout.Capture(m));
         // The author for what this run creates or changes (OML_AUTHOR); the module as it was, to find those elements before the save.
         var author = dryRun ? null : Authorship.Name;
@@ -419,6 +437,7 @@ static class Apply
         {
             rules.Validate(m, problems);
             changed.AddRange(rules.MadePublic.Where(c => !changed.Contains(c)));
+            if (review is not null && problems.Count == 0) ReviewCheck(review, m, problems, warnings);
             var newPublic = rules.NewPublicServerActions(m).ToList();
             // More than the 12 samples a report keeps: one message names them all, so the agent can ask about each.
             if (newPublic.Count > 12) notices.Add(("PublicServerAction", "", $"server actions {string.Join(", ", newPublic)} are public: other modules can call them (rule 7).", newPublic.Count));

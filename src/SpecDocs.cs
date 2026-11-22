@@ -37,6 +37,7 @@ static class SpecDocs
         (new[] { "preparation" }, "Traditional Web UI"),
         (new[] { "access" }, "Platform elements"),
         (new[] { "overview", "intro", "notation" }, "Spec reference"),
+        (new[] { "add", "remove", "move", "generic", "modelOps", "systemActions", "ListAppend" }, "Generic model operations"),
     };
 
     static List<SpecSection>? sections;

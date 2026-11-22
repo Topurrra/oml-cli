@@ -199,7 +199,14 @@ static class ModelCoverage
                     else if (m.kind == "method" && m.name.StartsWith("Set", StringComparison.Ordinal) && m.info is MethodInfo mi
                              && !mi.IsGenericMethodDefinition && mi.GetParameters() is [{ } p] && (p.ParameterType == typeof(string) || p.ParameterType == typeof(bool)))
                         keys.Add("edits.set");
+                    // The generic add (Builder.AddOp): a Create* factory of an element whose arguments Reflect.Convert takes
+                    // (a new key is made for an IKey); a generic Create*<T>() with T the type to make.
+                    else if (m.kind == "method" && m.name.StartsWith("Create", StringComparison.Ordinal) && m.info is MethodInfo factory
+                             && factory.GetParameters().All(x => x.ParameterType == typeof(OutSystems.Model.IKey) || SetConverts(x.ParameterType, referable) is null))
+                        keys.Add("edits.add");
                 }
+                // The generic move (Builder.Position): the order operations of an ordered list.
+                if (t.IsGenericTypeDefinition && t.Name == "ISequence`1" && m.name.StartsWith("Move", StringComparison.Ordinal)) keys.Add("edits.move");
                 var rule = rules.FirstOrDefault(r => r.member == (m.name.StartsWith("Set") && m.kind == "method" && m.name.Length > 3 ? m.name[3..] : m.name)
                     && (r.iface == "*" || t.Name == r.iface || t.Name == r.iface + "Signature" || t.GetInterfaces().Any(i => i.Name == r.iface || i.Name == r.iface + "Signature")));
                 string status;
@@ -266,9 +273,13 @@ static class ModelCoverage
     static string? SetConverts(Type type, List<Type> referable)
     {
         var t = Nullable.GetUnderlyingType(type) ?? type;
-        if (t == typeof(string) || t == typeof(bool) || t == typeof(int) || t.IsEnum) return null;
+        // What Reflect.Convert takes: see there.
+        if (t == typeof(string) || t == typeof(bool) || t == typeof(int) || t == typeof(long) || t == typeof(decimal) || t == typeof(double)
+            || t == typeof(float) || t == typeof(DateTime) || t.IsEnum) return null;
         if (typeof(OutSystems.Model.Types.ITypeSignature).IsAssignableFrom(t)) return null;
         if (referable.Any(r => t.IsAssignableFrom(r))) return null;
+        // Any other element: by name or { "element": "<path>" }.
+        if (t.IsInterface && IsApi(t)) return null;
         return $"set cannot convert a value to {Short(t)}";
     }
 
@@ -278,7 +289,7 @@ static class ModelCoverage
     // Plugin API parts that extend Service Studio itself (descriptors, drag and drop, commands), not the model.
     static readonly string[] NotModel = [".Descriptors", ".DragDrop", ".Commands"];
 
-    static List<Type> ApiTypes()
+    internal static List<Type> ApiTypes()
     {
         var context = AssemblyLoadContext.GetLoadContext(typeof(ModelCoverage).Assembly)!;
         var all = new List<Type>();

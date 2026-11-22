@@ -53,6 +53,31 @@ static class SpecCommand
         return JsonSerializer.Deserialize<List<Dictionary<string, string>>>(json)!.Select(p => (p["path"], p["message"])).ToList();
     }
 
+    // Edits `add`, or `set` with "type": their Model API types and keys are checked against the installed build.
+    static bool UsesModelTypes(string text)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(text, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+            return doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("edits", out var edits) && edits.ValueKind == JsonValueKind.Array
+                && edits.EnumerateArray().Any(e => e.ValueKind == JsonValueKind.Object && e.TryGetProperty("op", out var op)
+                    && (op.GetString() == "add" || (op.GetString() == "set" && e.TryGetProperty("type", out _))));
+        }
+        catch (JsonException) { return false; }
+    }
+
+    // The type check needs the installed Service Studio (Core); without one, the shape check alone stands and apply checks the rest.
+    static List<(string path, string message)> ModelOps(string text)
+    {
+        var ss = Locations.ServiceStudio;
+        if (Program.CoreProblem(ss) is not null) return [];
+        var cli = Program.LoadCore(ss).GetType("OmlCli.Cli", throwOnError: true)!;
+        string json;
+        try { json = (string)cli.GetMethod("SpecCheckModelOps")!.Invoke(null, [ss, text])!; }
+        catch (System.Reflection.TargetInvocationException e) when (e.InnerException is not null) { throw new InvalidOperationException(e.InnerException.Message); }
+        return JsonSerializer.Deserialize<List<Dictionary<string, string>>>(json)!.Select(p => (p["path"], p["message"])).ToList();
+    }
+
     static int Check(string file, string? module)
     {
         if (!File.Exists(file)) return Fail($"Spec file not found: {file}");
@@ -72,6 +97,7 @@ static class SpecCommand
         catch (JsonException) { } // SpecChecker reports the invalid JSON
         var problems = files.Concat(SpecChecker.Check(text)).ToList();
         if (module is not null && problems.Count == 0) problems.AddRange(ModuleNames(file, module));
+        else if (problems.Count == 0 && UsesModelTypes(text)) problems.AddRange(ModelOps(text));
         var report = new { ok = problems.Count == 0, problems = problems.Select(p => new { p.path, p.message }).ToArray() };
         TerminalOutput.PrintNode(JsonSerializer.SerializeToNode(report)!);
         return problems.Count == 0 ? 0 : 1;

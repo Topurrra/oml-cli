@@ -1,0 +1,54 @@
+{
+  "_note": "The module the official skill's examples start from: they assume an Order/Customer model, a list and a detail screen. Every examples/*.json applies to this module.",
+  "exceptions": ["InvalidOrder"],
+  "roles": [{ "name": "Manager" }],
+  "staticEntities": [{ "name": "Status", "records": [{ "identifier": "Open", "label": "Open" }, { "identifier": "Closed", "label": "Closed" }] }],
+  "entities": [
+    { "name": "Customer", "public": true, "attributes": [
+      { "name": "Name", "type": "Text", "length": 100, "mandatory": true },
+      { "name": "Email", "type": "Email" },
+      { "name": "IsActive", "type": "Boolean" } ] },
+    { "name": "Order", "attributes": [
+      { "name": "CustomerId", "type": "Customer Identifier", "mandatory": true },
+      { "name": "Total", "type": "Decimal" },
+      { "name": "PlacedOn", "type": "Date" },
+      { "name": "StatusId", "type": "Status Identifier" },
+      { "name": "Notes", "type": "Text", "length": 500 } ] }
+  ],
+  "structures": [{ "name": "OrderRow", "attributes": [{ "name": "Label", "type": "Text", "length": 50 }, { "name": "Value", "type": "Decimal" }] }],
+  "serverActions": [
+    { "name": "GetCustomerName", "public": true,
+      "inputs": [{ "name": "CustomerId", "type": "Customer Identifier", "mandatory": true }],
+      "outputs": [{ "name": "Name", "type": "Text" }],
+      "flow": [{ "kind": "execute", "action": "GetCustomer", "args": { "Id": "CustomerId" } },
+               { "kind": "assign", "assign": { "Name": "GetCustomer.Record.Customer.Name" } }] },
+    { "name": "OrderTotals", "outputs": [{ "name": "Groups", "type": "Integer" }], "flow": [
+      { "kind": "aggregate", "name": "Totals", "sources": ["Order"], "groupBy": ["Order.CustomerId"],
+        "aggregates": [{ "name": "Sum", "function": "Sum", "attribute": "Order.Total" }], "groupFilters": ["Sum > 0"] },
+      { "kind": "assign", "assign": { "Groups": "Totals.List.Length" } } ] },
+    { "name": "CloseOrder", "inputs": [{ "name": "OrderId", "type": "Order Identifier" }], "flow": [
+      { "kind": "execute", "action": "GetOrderForUpdate", "args": { "Id": "OrderId" } } ] }
+  ],
+  "clientActions": [{ "name": "Recalc", "inputs": [{ "name": "Value", "type": "Decimal" }], "outputs": [{ "name": "Result", "type": "Decimal" }],
+    "flow": [{ "kind": "assign", "assign": { "Result": "Value * 2" } }] }],
+  "screens": [
+    { "name": "Orders", "access": { "registered": true },
+      "aggregates": [{ "name": "GetOrders", "sources": ["Order", "Customer"],
+        "joins": [{ "type": "only with", "left": "Order", "right": "Customer", "condition": "Order.CustomerId = Customer.Id" }],
+        "sorts": [{ "attribute": "Order.PlacedOn", "descending": true }], "maxRecords": 50 }],
+      "widgets": [{ "type": "Container", "name": "Header", "children": [{ "type": "Text", "text": "Orders" }] },
+                  { "type": "Link", "name": "NewOrderLink", "onClick": "OrderDetail", "children": [{ "type": "Text", "text": "New order" }] }] },
+    { "name": "OrderDetail", "access": { "registered": false, "roles": ["Manager"] },
+      "inputs": [{ "name": "OrderId", "type": "Order Identifier", "mandatory": false }],
+      "aggregates": [{ "name": "GetOrderById", "sources": ["Order"], "filters": ["Order.Id = OrderId"], "maxRecords": 1 }, { "name": "GetStatuses", "sources": ["Status"] }],
+      "actions": [{ "name": "Save", "flow": [
+        { "kind": "execute", "action": "CreateOrUpdateOrder", "args": { "Source": "GetOrderById.List.Current.Order" } },
+        { "kind": "destination", "screen": "Orders" } ] }],
+      "widgets": [{ "type": "Form", "name": "OrderForm", "children": [
+        { "type": "Label", "name": "TotalLabel", "targetWidget": "TotalInput", "children": [{ "type": "Text", "text": "Total" }] },
+        { "type": "Input", "name": "TotalInput", "variable": "GetOrderById.List.Current.Order.Total", "inputType": "Number" },
+        { "type": "Label", "name": "NotesLabel", "targetWidget": "NotesInput", "children": [{ "type": "Text", "text": "Notes" }] },
+        { "type": "Input", "name": "NotesInput", "variable": "GetOrderById.List.Current.Order.Notes" },
+        { "type": "Button", "name": "SaveButton", "onClick": "Save", "children": [{ "type": "Text", "text": "Save" }] } ] }] }
+  ]
+}
