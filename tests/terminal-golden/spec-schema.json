@@ -765,6 +765,9 @@
         },
         "onResponse": {
           "$ref": "#/$defs/RestCallbackSpec"
+        },
+        "openApi": {
+          "type": "string"
         }
       },
       "additionalProperties": false,

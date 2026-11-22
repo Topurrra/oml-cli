@@ -89,7 +89,7 @@ static class CliUsage
         oml publish --in <folder> --order <order.json>   (publish many modules in that order; stops at the first failure)
         oml references <Module | file.oml>  (Refresh All references through Service Studio)
         oml lifetime environments|teams|team-apps|apps|download|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lifetime' for usage)
-        oml server modules [--app <Name>] | versions <Module>   (modules and versions on the platform server, Studio closed; OML_SERVER_HOST, _USER, _PASSWORD)
+        oml server modules [--app <Name>] | versions <Module>   (platform server modules and versions, Studio closed; OML_SERVER_HOST, _USER, _PASSWORD)
         oml server pull <Module> [--version N] --out <file.oml>   (one version to a file; default: published)
         oml browser page <url> [--headed] [--width N] [--height N] [--timeout <ms>] [--screenshot <file.png>] [--style-conflicts <class prefix>] [--snapshot <file.json>] [--engine auto|cdp|uia] [--no-session]   (look at a running app: what the screen shows, compactly: actions, inputs, tables, messages, layout, the OutSystems calls it made and the slow ones, errors, accessibility)
         oml browser run <script.json> [--save <new.json>] [--base-url <url>] [--headed] [--width N] [--height N] [--timeout <ms>] [--out <folder>] [--continue] [--engine auto|cdp|uia] [--no-session]   (run browser steps like a manual tester: open, click, fill, select, press, wait, expect; exit 1 when a step fails)
