@@ -6,20 +6,20 @@ Action types, flow nodes, exceptions, expressions and built-in functions. Spec s
 
 - Server action: runs on the server, in the request transaction. Client action (Reactive, Mobile): runs in the browser; each server call from it is a network request. Data action: server fetch for one screen or block, in parallel with its aggregates; it needs at least one output and must set every output. Service action: a remote call to another module (own transaction).
 - Traditional Web: Preparation and screen actions run on the server; there are no client actions.
-- `function: true` lets an action be used in expressions: a server function in server expressions, a client function in client expressions. It needs exactly one output. A client function cannot call the server, use local storage, run async JavaScript, or call actions that are not functions.
-- Never sign a user in inside a data action. Timer actions only have their own exception handlers; keep runs short.
+- `function: true` lets an action be used in expressions: a server function in server expressions, a client function in client expressions. It needs exactly one output. A client function cannot call the server, local storage, async JavaScript or non-function actions.
+- Never sign a user in inside a data action. Timer actions have only their own exception handlers; keep runs short.
 
 ## Flow nodes
 
 - Exactly one Start. Every node needs an incoming connector. If needs both branches. Switch needs Otherwise; the first true condition wins.
 - For Each: the last body node needs `next` back to the For Each. Read the row as `<List>.Current` and its index as `<List>.CurrentRowNumber` (from 0).
-- Assign runs its pairs top to bottom. Lists, Binary Data and Object are assigned by reference: both variables then share the data. Use `ListDuplicate()` for a copy.
+- Assign runs its pairs top to bottom. Lists, Binary Data and Object are assigned by reference (shared data); copy with `ListDuplicate()`.
 - A node's output is usable only on paths after the node (`CreateOrder.Id`).
 - Raise Exception, Destination and Download end their path. Message works only in client actions.
 - JavaScript node: data in and out only through declared inputs and outputs (`$parameters.Name`). Writing an undeclared output is an error.
-- Run JSON nodes on the server when numbers may pass 2^53: the browser loses precision.
+- Run JSON nodes on the server for numbers past 2^53: the browser loses precision.
 - Excel To Record List (server only) skips mandatory checks, and its records carry no change flags: `Update` with them changes nothing, so assign attribute by attribute.
-- List actions: `ListAppend`, `ListInsert`, `ListRemove`, `ListClear`, `ListDuplicate`, `ListFilter`, `ListIndexOf` (-1 if absent), `ListSort`.
+- List actions: `ListAppend`, `ListInsert`, `ListRemove`, `ListClear`, `ListDuplicate`, `ListFilter`, `ListIndexOf` (-1 if absent), `ListSort`. A Condition or By names element attributes (`ThreadId = Id`; `Value` in a Text list), not `<List>.Current`.
 
 ## Exceptions
 
@@ -39,7 +39,7 @@ Action types, flow nodes, exceptions, expressions and built-in functions. Spec s
 
 ## Built-in functions
 
-Aggregate = may take entity attributes inside an aggregate; other functions are computed once before the query.
+Aggregate = takes entity attributes inside an aggregate; others are computed once before the query.
 
 | Group | Functions | Aggregate | Client |
 |---|---|---|---|

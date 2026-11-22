@@ -192,6 +192,7 @@ static partial class SelfTest
             TurnsTest(blank, dir, failures);
             PackageSelfTest.Run(blank, dir, failures);
             LogicTest(blank, dir, failures);
+            ListLambdasTest(dir, failures);
             FlowLayoutTest(blank, dir, failures);
             ContentSelfTest.Run(blank, dir, failures);
             FormValidationTest(blank, dir, failures);

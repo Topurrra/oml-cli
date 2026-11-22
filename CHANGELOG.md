@@ -96,6 +96,7 @@ Traditional Web to Reactive, prepared by code, and an interactive menu for peopl
 - **`confirmationMessage` on a Traditional Web Button or Link was refused** ("no settable 'confirmationMessage'"): Traditional keeps it on the On Click event. `apply` writes it there and `describe` reads it from there.
 - **`oml inspect` left a UI flow's exception action out of `otherContent`**: it is a property of the flow, not one of its nodes.
 - **`oml --help` did not name `oml skill`.**
+- **`ListFilter`, `ListIndexOf`, `ListAny`, `ListAll` and `ListSort` written with `<List>.Current` read the wrong rows at run time.** Their Condition (By for ListSort) is a lambda over each element: Service Studio writes `ThreadId = Id` (`Value` for a list of a basic type), while `Mails.Current.ThreadId` reads the outer list's current row (`getCurrent(callContext.iterationContext)` in the JavaScript), so a filter returned neighbours of the right rows or nothing. `apply` now drops `<List>.Current.` when it names the node's own list argument, makes a bare `<List>.Current` into `Value`, and sets the list argument before the condition. Another list's `Current` stays as written.
 
 ### Removed
 

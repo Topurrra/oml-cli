@@ -363,18 +363,20 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         var values = Reflect.Get(owner, "Arguments") as System.Collections.IEnumerable
             ?? throw new ModelError("node does not accept arguments");
         var list = values.Cast<object>().ToList();
-        foreach (var a in args.EnumerateObject())
+        var given = args.EnumerateObject().Select(a => (a, arg: list.FirstOrDefault(x => Reflect.Get(x, "Parameter") is { } p && Model.NameOf(p) == a.Name)
+                      ?? throw new ModelError($"no parameter '{a.Name}'"))).ToList();
+        // A list action's Condition or By is read per element of its list (ListLambdas): the list is set first.
+        foreach (var (a, arg) in given.OrderBy(g => ListLambdas.IsLambda(g.arg)))
         {
-            var arg = list.FirstOrDefault(x => Reflect.Get(x, "Parameter") is { } p && Model.NameOf(p) == a.Name)
-                      ?? throw new ModelError($"no parameter '{a.Name}'");
-            Reflect.Call(arg, "SetValue", a.Value.ValueKind switch
+            var value = a.Value.ValueKind switch
             {
-                JsonValueKind.String => a.Value.GetString(),
+                JsonValueKind.String => a.Value.GetString()!,
                 JsonValueKind.Number => a.Value.GetRawText(), // a number is its own expression
                 JsonValueKind.True => "True",
                 JsonValueKind.False => "False",
                 _ => throw new ModelError($"argument '{a.Name}' must be an expression string, a number or true/false"),
-            });
+            };
+            Reflect.Call(arg, "SetValue", ListLambdas.IsLambda(arg) ? ListLambdas.Rewrite(value, ListLambdas.ListText(list)) : value);
         }
     }
 
