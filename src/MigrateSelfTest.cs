@@ -240,6 +240,33 @@ static partial class Migrate
             && ExportActions(JsonNode.Parse("""{ "name": "A" }"""), ["A"])["A"]["name"] is not null && ExportActions(null, ["A", "B"])["B"]["error"] is not null,
             "server functions: names from inspect; export answers by name, a missing one is an error");
 
+        // Theme CSS: :root, @import, @font-face and the selectors whose classes the translated widgets carry are kept (inside @media too); element
+        // selectors, ids and other classes are left out; a module image keeps a relative img/ path and is listed, a missing one leaves its rule out.
+        var themeCss = """
+            /* editor */ :root { --color-primary: #f00; }
+            @import url("https://fonts.example/css?family=X");
+            body, .card { margin: 0; }
+            .card .title, #x .card, table.TableRecords_Header { color: red; }
+            @media (max-width: 600px) { .card { padding: 0; } th { color: blue; } }
+            .logo { background: url(/img/Logo.png); }
+            .ghost { background: url("img/Missing.png"); }
+            @font-face { font-family: F; src: url(f.woff); }
+            """;
+        var (tKept, tLeft, tImages) = CarryTheme(themeCss, new HashSet<string>(["card", "title", "logo", "ghost"]), new HashSet<string>(["Logo"], StringComparer.OrdinalIgnoreCase));
+        Check(tKept.StartsWith(":root {") && tKept.Contains("@import url(\"https://fonts.example/css?family=X\");") && tKept.Contains(".card { margin: 0;") && !tKept.Contains("body")
+            && tKept.Contains(".card .title { color: red;") && !tKept.Contains("#x") && !tKept.Contains("TableRecords")
+            && tKept.Contains("@media (max-width: 600px) {") && tKept.Contains("    .card { padding: 0;") && !tKept.Contains("th {")
+            && tKept.Contains(".logo { background: url(img/Logo.png);") && !tKept.Contains("ghost") && tKept.Contains("@font-face") && !tKept.Contains("editor")
+            && tLeft.SequenceEqual(["body", "#x .card", "table.TableRecords_Header", "th", ".ghost (the image Missing is not in the module)"]) && tImages.SequenceEqual(["Logo"]),
+            $"theme: what applies is kept, the rest listed: {tKept} | {string.Join(" | ", tLeft)} | {string.Join(",", tImages)}");
+        Check(UsedClasses(JsonNode.Parse("""{ "screens": [ { "widgets": [ { "style": "\"card big\" + If(X, \"title\", \"\")", "attributes": { "style": "\"color: red\"" } } ] } ] }""")).Order().SequenceEqual(["big", "card", "title"]),
+            "theme: the classes are the words of a widget style's literals, not of attributes.style");
+        var themeCarry = CarryThemes(JsonNode.Parse("""
+            { "module": { "defaultTheme": "App" }, "content": { "images": [], "themes": [ { "name": "App", "baseTheme": "Base", "styleSheet": ".a { color: red; }" }, { "name": "Base", "baseTheme": "BaseTheme", "styleSheet": ":root { --x: 1; }" } ] } }
+            """)!, JsonNode.Parse("""{ "module": { "defaultTheme": "OUI" }, "content": { "themes": [ { "name": "App" } ] } }"""), JsonNode.Parse("""{ "screens": [ { "widgets": [ { "style": "\"a\"" } ] } ] }"""));
+        Check(themeCarry is { Name: "AppMigrated", BaseTheme: "OUI" } && themeCarry.Chain.SequenceEqual(["Base", "App"]) && themeCarry.Css.IndexOf(":root") < themeCarry.Css.IndexOf(".a {") && themeCarry.Css.Contains(".a {"),
+            $"theme: the default theme and its own bases, base first, into a theme named after it (renamed when the template has one), based on the template's default theme: {themeCarry}");
+
         // Blocks of producers migrated earlier: the Reactive module whose public blocks include every block used (found by name), or the one
         // --migrated names; several that fit is a note; a block the named module lacks stays a Todo.
         var pbInspect = JsonNode.Parse("""

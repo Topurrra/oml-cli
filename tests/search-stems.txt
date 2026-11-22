@@ -14,6 +14,7 @@ array: array, arrays
 ask: ask, asked, asks
 assign: assign, assigned
 attribut: attribute, attributes
+bas: base, based
 becom: become, becomes
 bind: bind, binding
 block: block, blocks

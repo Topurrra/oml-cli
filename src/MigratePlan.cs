@@ -689,8 +689,159 @@ static partial class Migrate
 
     // ---------- style sheets ----------
 
-    // css/<Element>.css for each sheet of `oml describe --css --all` (entries {element, kind, styleSheet}) and css/README.md.
-    internal static List<(string file, string text)> CssFiles(JsonNode? sheets, string oldName)
+    // The old module's theme in the new module. Its default theme and the module's own themes it is based on (base first) give the CSS;
+    // what still applies is carried (CarryTheme) into a theme of that name, based on the template's default theme, so the template's styles
+    // stay and the old ones come after them. Null when the old module has no theme CSS of its own.
+    internal sealed record ThemeCarry(string Name, string? BaseTheme, string Css, List<string> LeftOut, List<string> Chain, List<string> Images);
+    internal static ThemeCarry? CarryThemes(JsonNode inspect, JsonNode? template, JsonNode? screensSpec)
+    {
+        var own = Rows(P(inspect, "content"), "themes").Where(t => S(t, "name") is not null).GroupBy(t => S(t, "name")!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        var chain = new List<string>();
+        for (var cur = S(P(inspect, "module"), "defaultTheme"); cur is not null && own.TryGetValue(cur, out var t) && !chain.Contains(cur, StringComparer.OrdinalIgnoreCase); cur = S(t, "baseTheme"))
+            chain.Insert(0, S(t, "name")!);
+        var css = string.Join("\n", chain.Select(c => S(own[c], "styleSheet")).Where(x => !string.IsNullOrWhiteSpace(x)));
+        if (css.Length == 0) return null;
+        var images = Rows(P(inspect, "content"), "images").Select(x => S(x, "name")).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var (kept, left, usedImages) = CarryTheme(css, UsedClasses(screensSpec), images);
+        var taken = Rows(P(template, "content"), "themes").Select(x => S(x, "name")).OfType<string>().Append(S(P(template, "module"), "defaultTheme") ?? "").ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var name = chain[^1];
+        while (taken.Contains(name)) name += "Migrated";
+        return new ThemeCarry(name, S(P(template, "module"), "defaultTheme"), kept, left, chain, usedImages);
+    }
+
+    // The style classes of the translated widgets: the words of the string literals in each widget's style (not attributes.style, which is CSS).
+    internal static HashSet<string> UsedClasses(JsonNode? spec)
+    {
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        void Walk(JsonNode? n, string? key)
+        {
+            if (n is JsonObject o) foreach (var (k, v) in o)
+                {
+                    if (k == "style" && key != "attributes" && v is JsonValue sv && sv.GetValueKind() == System.Text.Json.JsonValueKind.String)
+                        foreach (Match m in Regex.Matches(sv.ToString(), "\"((?:[^\"]|\"\")*)\"")) foreach (var c in m.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries)) used.Add(c);
+                    Walk(v, k);
+                }
+            else if (n is JsonArray a) foreach (var x in a) Walk(x, key);
+        }
+        Walk(spec, null);
+        return used;
+    }
+
+    // What of a Traditional theme still applies to the translated screens: :root (the theme editor's CSS variables, which OutSystems UI reads
+    // too), @font-face, @import and @keyframes, and each selector whose classes are all classes the translated widgets carry. Left out (and
+    // returned, for css/README.md): selectors of elements only (body, table, input), with an id, or with a class no translated widget has
+    // (Traditional markup such as TableRecords_Header, RichWidgets parts). A rule keeps the selectors of its list that apply. An image of
+    // the module (url(img/X.png), also /img/) stays img/X.png and is returned to be copied; a rule with an image the module does not have is left out.
+    internal static (string kept, List<string> leftOut, List<string> images) CarryTheme(string css, IReadOnlySet<string> used, IReadOnlySet<string> moduleImages)
+    {
+        var kept = new StringBuilder();
+        var left = new List<string>();
+        var images = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        var imageUrl = new Regex(@"url\(\s*([""']?)/?img/([^""')/]+?)\.\w+\1\s*\)", RegexOptions.IgnoreCase);
+        Walk(Regex.Replace(css, @"/\*.*?\*/", "", RegexOptions.Singleline), kept, "");
+        return (Regex.Replace(kept.ToString(), @"\n[ \t]*(?=\n)", "").Trim(), left.Distinct(StringComparer.Ordinal).ToList(), images.ToList());
+
+        // The body with img/ paths made relative, or null when it shows an image the module does not have (that name is added to left).
+        string? Images(string body, string what)
+        {
+            var names = imageUrl.Matches(body).Select(m => m.Groups[2].Value).ToList();
+            if (names.FirstOrDefault(n => !moduleImages.Contains(n)) is { } missing) { left.Add($"{what} (the image {missing} is not in the module)"); return null; }
+            foreach (var n in names) images.Add(moduleImages.First(x => x.Equals(n, StringComparison.OrdinalIgnoreCase)));
+            return Regex.Replace(body, @"url\(\s*([""']?)/img/", "url($1img/", RegexOptions.IgnoreCase);
+        }
+
+        void Walk(string text, StringBuilder into, string indent)
+        {
+            foreach (var (prelude, body) in CssBlocks(text))
+            {
+                if (body is null)
+                {
+                    if (prelude.StartsWith("@import", StringComparison.OrdinalIgnoreCase)) into.Append(indent).Append(prelude).Append(";\n");
+                    else if (prelude.Length > 0 && !prelude.StartsWith("@charset", StringComparison.OrdinalIgnoreCase)) left.Add(prelude);
+                    continue;
+                }
+                if (prelude.StartsWith('@'))
+                {
+                    var at = Regex.Match(prelude, @"^@([\w-]+)").Groups[1].Value.ToLowerInvariant();
+                    if (at is "media" or "supports")
+                    {
+                        var inner = new StringBuilder();
+                        Walk(body, inner, indent + "    ");
+                        if (inner.Length > 0) into.Append(indent).Append(prelude).Append(" {\n").Append(inner).Append(indent).Append("}\n");
+                    }
+                    else if (at is "font-face" or "keyframes" or "-webkit-keyframes") { if (Images(body, prelude) is { } b) into.Append(indent).Append(prelude).Append(" {").Append(b).Append("}\n"); }
+                    else left.Add(prelude);
+                    continue;
+                }
+                var selectors = SplitSelectors(prelude);
+                var keep = selectors.Where(s => Applies(s, used)).ToList();
+                left.AddRange(selectors.Where(s => !keep.Contains(s)));
+                if (keep.Count > 0 && Images(body, string.Join(", ", keep)) is { } fixedBody)
+                    into.Append(indent).Append(string.Join(",\n" + indent, keep)).Append(" {").Append(fixedBody.TrimEnd()).Append('\n').Append(indent).Append("}\n");
+            }
+        }
+    }
+
+    static bool Applies(string selector, IReadOnlySet<string> used)
+    {
+        if (selector == ":root") return true;
+        if (selector.Contains('#')) return false;
+        var classes = Regex.Matches(selector, @"\.(-?[_a-zA-Z][\w-]*)").Select(m => m.Groups[1].Value).ToList();
+        return classes.Count > 0 && classes.All(used.Contains);
+    }
+
+    // The selectors of a selector list (commas inside parentheses or brackets stay), whitespace made single.
+    static List<string> SplitSelectors(string prelude)
+    {
+        var list = new List<string>(); var depth = 0; var start = 0;
+        for (var i = 0; i < prelude.Length; i++)
+        {
+            if (prelude[i] is '(' or '[') depth++;
+            else if (prelude[i] is ')' or ']') depth--;
+            else if (prelude[i] == ',' && depth == 0) { list.Add(prelude[start..i]); start = i + 1; }
+        }
+        list.Add(prelude[start..]);
+        return list.Select(s => Regex.Replace(s.Trim(), @"\s+", " ")).Where(s => s.Length > 0).ToList();
+    }
+
+    // The top-level statements of CSS without comments: (prelude, body) for a block, (statement, null) for one that ends with ';'.
+    static IEnumerable<(string prelude, string? body)> CssBlocks(string css)
+    {
+        var i = 0; var n = css.Length;
+        while (i < n)
+        {
+            while (i < n && char.IsWhiteSpace(css[i])) i++;
+            if (i >= n) yield break;
+            var start = i; char? q = null; var paren = 0;
+            for (; i < n; i++)
+            {
+                var c = css[i];
+                if (q is not null) { if (c == '\\') i++; else if (c == q) q = null; }
+                else if (c is '"' or '\'') q = c;
+                else if (c == '(') paren++;
+                else if (c == ')') paren--;
+                else if (paren == 0 && c is '{' or ';' or '}') break;
+            }
+            if (i >= n) { yield return (css[start..].Trim(), null); yield break; }
+            if (css[i] is ';' or '}') { yield return (css[start..i].Trim(), null); i++; continue; }
+            var prelude = css[start..i].Trim();
+            var bodyStart = ++i; var depth = 1; q = null;
+            for (; i < n && depth > 0; i++)
+            {
+                var c = css[i];
+                if (q is not null) { if (c == '\\') i++; else if (c == q) q = null; }
+                else if (c is '"' or '\'') q = c;
+                else if (c == '{') depth++;
+                else if (c == '}') depth--;
+            }
+            yield return (prelude, css[bodyStart..Math.Max(bodyStart, depth == 0 ? i - 1 : i)]);
+        }
+    }
+
+    // css/<Element>.css for each sheet of `oml describe --css --all` (entries {element, kind, styleSheet}) and css/README.md. With the theme
+    // carried (CarryThemes), its rows say so and README lists what was left out.
+    internal static List<(string file, string text)> CssFiles(JsonNode? sheets, string oldName, ThemeCarry? theme = null)
     {
         var rows = (sheets is JsonArray a ? a.ToArray() : [sheets]).OfType<JsonObject>().Where(x => S(x, "styleSheet") is { Length: > 0 }).ToArray();
         var files = new List<(string, string)>(); var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -702,10 +853,19 @@ static partial class Migrate
             while (!used.Add(file)) file = $"css/{baseName}-{n++}.css";
             var text = S(x, "styleSheet")!; var kind = S(x, "kind") ?? "?";
             files.Add((file, text));
-            table.Append($"| {file[4..]} | {element} | {kind} | {Encoding.UTF8.GetByteCount(text)} bytes | {(kind.Contains("Theme", StringComparison.OrdinalIgnoreCase) ? "theme: port by hand" : "travels with the translated element")} |\n");
+            var isTheme = kind.Contains("Theme", StringComparison.OrdinalIgnoreCase);
+            var what = !isTheme ? "travels with the translated element"
+                : theme is not null && theme.Chain.Contains(element, StringComparer.OrdinalIgnoreCase) && theme.Css.Length > 0 && theme.BaseTheme is not null ? $"theme: what still applies is in the theme {theme.Name} (4-screens.json); port the rest by hand"
+                : "theme: port by hand";
+            table.Append($"| {file[4..]} | {element} | {kind} | {Encoding.UTF8.GetByteCount(text)} bytes | {what} |\n");
         }
         if (files.Count == 0) return [];
-        files.Insert(0, ("css/README.md", $"# Style sheets of {oldName}\n\nOne file per style sheet of the old module (`oml describe --css --all`).\n\n- Screen and block sheets travel with their translated element: the translator puts them in `4-screens.json`. These copies are for reference.\n- Theme sheets are NOT added to the new module: they target Traditional markup. A person or agent ports them, selector by selector, into the theme of the new module.\n\n| File | Element | Kind | Size | What happens |\n|---|---|---|---|---|\n{table}"));
+        var carried = theme is { BaseTheme: not null } && theme.Css.Length > 0;
+        var themeLine = carried
+            ? $"- Theme sheets: `4-screens.json` creates the theme {theme!.Name}, based on the template's theme {theme.BaseTheme} and made the default theme, with what still applies: the CSS variables (`:root`), fonts, keyframes and the rules for classes the translated widgets carry. The rest targets Traditional markup or whole elements; it is listed below: port what you still need, selector by selector, into {theme.Name}."
+            : "- Theme sheets are NOT added to the new module: they target Traditional markup. A person or agent ports them, selector by selector, into the theme of the new module." + (theme is { BaseTheme: null } ? " Plan again with --template to carry what still applies." : "");
+        var leftOut = carried && theme!.LeftOut.Count > 0 ? $"\n## Left out of the theme {theme.Name}\n\n{string.Join("\n", theme.LeftOut.Select(s => "- `" + s.Replace("`", "'") + "`"))}\n" : "";
+        files.Insert(0, ("css/README.md", $"# Style sheets of {oldName}\n\nOne file per style sheet of the old module (`oml describe --css --all`).\n\n- Screen and block sheets travel with their translated element: the translator puts them in `4-screens.json`. These copies are for reference.\n{themeLine}\n\n| File | Element | Kind | Size | What happens |\n|---|---|---|---|---|\n{table}{leftOut}"));
         return files;
     }
 
@@ -891,8 +1051,29 @@ static partial class Migrate
 
         // 6. descriptions and style sheets
         var texts = Describe(run, old, r.Screens.Select(s => (s.Query, s.Name)).ToList(), r.Notes);
-        var css = CssFiles(Try(["describe", old, "--css", "--all"], null, "oml describe --css --all"), r.OldName);
-        if (css.Count > 0) r.Notes.Add($"{css.Count - 1} style sheet(s) are in css/. Screen and block sheets travel with their translated element; the theme sheets target Traditional markup and are not added to the new module: port them by hand (css/README.md).");
+        // The old theme: what still applies goes into a theme of the new module, based on the template's default theme (CarryThemes).
+        var theme = CarryThemes(inspect, ti, r.ScreensSpec);
+        if (theme is { BaseTheme: not null } && theme.Css.Length > 0)
+        {
+            r.ScreensSpec ??= new JsonObject();
+            r.ScreensSpec["themes"] = new JsonArray(new JsonObject { ["name"] = theme.Name, ["styleSheet"] = theme.Css, ["baseTheme"] = theme.BaseTheme });
+            var moduleSettings = r.ScreensSpec["module"] as JsonObject ?? new JsonObject();
+            moduleSettings["defaultTheme"] = theme.Name;
+            r.ScreensSpec["module"] = moduleSettings;
+            // The images its CSS shows: copied with the logic (3-new-module.json), like the images the widgets show.
+            if (theme.Images.Count > 0)
+            {
+                if (r.NewModule["copy"] is not JsonArray { Count: > 0 } cps)
+                    r.NewModule["copy"] = cps = new JsonArray(new JsonObject { ["from"] = r.Source is null ? r.Prepared : r.MigrateSource, ["elements"] = new JsonArray() });
+                var els = (JsonArray)((JsonObject)cps[0]!)["elements"]!;
+                foreach (var img in theme.Images) if (!els.Any(e => e?.ToString() == "Image:" + img)) els.Add("Image:" + img);
+            }
+        }
+        var css = CssFiles(Try(["describe", old, "--css", "--all"], null, "oml describe --css --all"), r.OldName, theme);
+        if (theme is { BaseTheme: not null } && theme.Css.Length > 0)
+            r.Notes.Add($"The theme {string.Join(" > ", theme.Chain)} is carried into the theme {theme.Name} of 4-screens.json (based on the template's theme {theme.BaseTheme}, and the default theme): its CSS variables, fonts and the rules for classes the translated widgets carry. {theme.LeftOut.Count} selector(s) for Traditional markup or whole elements are left out; css/README.md lists them.");
+        else if (theme is not null && theme.Css.Length > 0) r.Notes.Add($"The theme {string.Join(" > ", theme.Chain)} is not carried without --template (its theme becomes the base); plan again with --template, or port it by hand from css/.");
+        if (css.Count > 0) r.Notes.Add($"{css.Count - 1} style sheet(s) are in css/. Screen and block sheets travel with their translated element; css/README.md says what happens to the theme sheets.");
 
         // 7. the files
         var counts = StatusCounts(items);
