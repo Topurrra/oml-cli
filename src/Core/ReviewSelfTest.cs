@@ -81,7 +81,36 @@ static class ReviewSelfTest
                 deleteRule.SetValue(reference, Enum.Parse(deleteRule.PropertyType, "Delete"));
                 Model.Save(m, after);
             }
-            var document = Review.Build(before, after, null);
+            // --prepare and --import: the packet shows the changed flow and expression with their paths, the same text
+            // twice, and none of oml's findings; --import keeps only a finding whose path resolves and whose evidence is
+            // text of that element.
+            ReviewPacket.Packet? packet = null;
+            string[] packetTexts = [];
+            ReviewPacket.Imported? imported = null;
+            var reviewer = (JsonArray)JsonNode.Parse("""
+                [{ "path": "Work/Big", "severity": "high", "title": "t", "evidence": "Amount > 200", "fix": "f" },
+                 { "path": "Work/Nope", "severity": "high", "title": "t", "evidence": "Amount > 200" },
+                 { "path": "Work/Big", "severity": "high", "title": "t", "evidence": " " },
+                 { "path": "Work/Big", "severity": "high", "title": "t", "evidence": "Amount > 100" },
+                 { "path": "Work/Big", "severity": "urgent", "title": "t", "evidence": "Amount > 200" }]
+                """)!;
+            var document = Review.Build(before, after, null, (mb, ma, sa, sb) =>
+            {
+                packet = ReviewPacket.Compute(mb, ma, sa, sb);
+                packetTexts = [ReviewPacket.Changes(packet), ReviewPacket.Changes(ReviewPacket.Compute(mb, ma, ReviewModel.Read(mb), ReviewModel.Read(ma)))];
+                imported = ReviewPacket.Validate(mb, ma, sa, sb, reviewer);
+            });
+            var workFlow = packet!.Flows.FirstOrDefault(f => f.Path == "Work");
+            Check(workFlow is { Change: "changed" } && workFlow.Expressions.Any(e => e.Path == "Work/Big" && e.Property == "condition" && e.Before == "Amount > 100" && e.After == "Amount > 200")
+                && workFlow.Steps.Select(s => s.path).SequenceEqual(["Work/Second", "Work/First", "Work/Big", "Work/Third"]),
+                "packet: the changed flow Work, its steps in flow order and its changed condition: " + packetTexts[0]);
+            Check(packet.Flows.All(f => f.Path != "Shared") && packetTexts[0] == packetTexts[1] && !packetTexts[0].Contains("unused", StringComparison.OrdinalIgnoreCase),
+                "packet: only changed flows, the same text for the same modules, and no rule findings: " + packetTexts[0]);
+            var reasons = imported!.Rejected.Select(r => r["reason"]!.GetValue<string>()).ToList();
+            Check(imported.Accepted.Count == 1 && imported.Accepted[0]["element"]!.GetValue<string>() == "Work/Big" && imported.Accepted[0]["rule"]!.GetValue<string>() == ReviewPacket.Rule
+                && reasons.Count == 4 && reasons[0].StartsWith("the path is not in the new module") && reasons[1].StartsWith("no evidence")
+                && reasons[2].StartsWith("the evidence is not in Work/Big") && reasons[3].StartsWith("severity"),
+                "import: one accepted, then a bad path, no evidence, evidence from the old version and a bad severity rejected: " + string.Join(" | ", reasons));
             var changes = document["changes"]!.AsArray().Select(c => c!.AsObject()).ToList();
             JsonObject? Change(string name) => changes.FirstOrDefault(c => c["name"]!.GetValue<string>() == name);
             string Details(string name) => string.Join(" | ", Change(name)?["details"]!.AsArray().Select(d => d!.GetValue<string>()) ?? []);
@@ -119,8 +148,10 @@ static class ReviewSelfTest
             Check(diff.SequenceEqual(["  a", "- b", "+ B", "  c"]), "changed lines: " + string.Join(" | ", diff));
 
             // Same file twice: nothing changed, nothing new.
-            var same = Review.Build(before, before, null);
-            Check(same["changes"]!.AsArray().Count == 0 && same["risks"]!.AsArray().Count == 0 && same["newFindings"]!.AsArray().Count == 0,
+            ReviewPacket.Packet? samePacket = null;
+            var same = Review.Build(before, before, null, (mb, ma, sa, sb) => samePacket = ReviewPacket.Compute(mb, ma, sa, sb));
+            Check(same["changes"]!.AsArray().Count == 0 && same["risks"]!.AsArray().Count == 0 && same["newFindings"]!.AsArray().Count == 0
+                && samePacket!.Flows.Count == 0 && samePacket.Other.Count == 0,
                 "a module compared with itself must have no changes: " + same.ToJsonString());
 
             // The page escapes markup in its data.

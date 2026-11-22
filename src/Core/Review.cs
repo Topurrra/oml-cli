@@ -34,11 +34,21 @@ static class Review
     // JSON on stdout stays small for agents: the full lists go to --md, --out and --notes.
     const int MaxChanges = 30, MaxDetails = 5, MaxRisks = 25, MaxFindings = 15;
 
-    sealed record Request(string Before, string After, string? Md, string? Html, string? Notes, string? Rules, bool MdOverwritten = false);
+    sealed record Request(string Before, string After, string? Md, string? Html, string? Notes, string? Rules, bool MdOverwritten = false, string? Prepare = null, string? Import = null);
 
     public static int Run(List<string> args)
     {
         var request = Parse(args);
+        // A blind logic review by a reviewer agent: the packet out, the reviewer's findings back in (ReviewPacket.cs).
+        if (request.Prepare is { } folder) return ReviewPacket.Prepare(request.Before, request.After, folder);
+        if (request.Import is { } import)
+        {
+            var findings = ReviewPacket.ReadFindings(import);
+            ReviewPacket.Imported? imported = null;
+            var review = Build(request.Before, request.After, request.Rules, (before, after, a, b) => imported = ReviewPacket.Validate(before, after, a, b, findings));
+            TerminalOutput.PrintNode(ReviewPacket.Output(review, imported!, import));
+            return 0;
+        }
         var document = Build(request.Before, request.After, request.Rules);
         try
         {
@@ -70,12 +80,12 @@ static class Review
         var options = new Dictionary<string, string>();
         for (var i = 1; i < args.Count; i++)
         {
-            if (args[i] is "--md" or "--out" or "--notes" or "--rules" && i + 1 < args.Count && !args[i + 1].StartsWith("--"))
+            if (args[i] is "--md" or "--out" or "--notes" or "--rules" or "--prepare" or "--import" && i + 1 < args.Count && !args[i + 1].StartsWith("--"))
             {
                 if (!options.TryAdd(args[i], args[++i])) throw new CliError($"Duplicate option {args[i - 1]}.", 2);
             }
             else if (!args[i].StartsWith("--")) files.Add(args[i]);
-            else throw new CliError("review accepts <before.oml> <after.oml>, --md <file.md>, --out <file.html>, --notes <file.md> and --rules <oml-rules.json>.", 2);
+            else throw new CliError("review accepts <before.oml> <after.oml>, --md <file.md>, --out <file.html>, --notes <file.md>, --rules <oml-rules.json>, --prepare <folder> and --import <findings.json>.", 2);
         }
         if (files.Count != 2) throw new CliError("review needs two module files: <before.oml> <after.oml>.", 2);
         foreach (var f in files)
@@ -83,6 +93,12 @@ static class Review
             if (!Path.GetExtension(f).Equals(".oml", StringComparison.OrdinalIgnoreCase)) throw new CliError($"Not an .oml module file: {f}", 2);
             if (!File.Exists(f)) throw new CliError($"File not found: {Path.GetFullPath(f)}", 2);
         }
+        if (options.ContainsKey("--prepare") && options.Count > 1)
+            throw new CliError("--prepare writes only the review packet: use it without --md, --out, --notes, --rules and --import.", 2);
+        if (options.ContainsKey("--import") && options.Keys.Any(k => k is not ("--import" or "--rules")))
+            throw new CliError("--import takes only --rules: oml review <before.oml> <after.oml> --import <findings.json> [--rules <oml-rules.json>].", 2);
+        if (options.TryGetValue("--prepare", out var prepare)) return new(Path.GetFullPath(files[0]), Path.GetFullPath(files[1]), null, null, null, null, Prepare: PacketFolder(prepare));
+        if (options.TryGetValue("--import", out var import) && !File.Exists(import)) throw new CliError($"Findings file not found: {Path.GetFullPath(import)}", 2);
         var overwritten = false;
         string? Output(string key)
         {
@@ -98,11 +114,28 @@ static class Review
             throw new CliError("--md, --out and --notes need different paths.", 2);
         var rules = options.TryGetValue("--rules", out var r) ? Path.GetFullPath(r) : null;
         if (rules is not null && !File.Exists(rules)) throw new CliError($"Rules file not found: {rules}", 2);
-        return new(Path.GetFullPath(files[0]), Path.GetFullPath(files[1]), outputs[0], outputs[1], outputs[2], rules, overwritten);
+        return new(Path.GetFullPath(files[0]), Path.GetFullPath(files[1]), outputs[0], outputs[1], outputs[2], rules, overwritten,
+            Import: import is null ? null : Path.GetFullPath(import));
+    }
+
+    // The packet folder: new, empty, or an earlier packet (only its two files), so a second run replaces it.
+    static string PacketFolder(string value)
+    {
+        var full = Path.GetFullPath(value);
+        if (File.Exists(full)) throw new CliError($"--prepare needs a folder, and {full} is a file. Use a new folder path.", 2);
+        if (Directory.Exists(full))
+        {
+            var extra = Directory.EnumerateFileSystemEntries(full).Select(Path.GetFileName)
+                .Where(n => n is not (ReviewPacket.InstructionsFile or ReviewPacket.ChangesFile)).Order(StringComparer.Ordinal).FirstOrDefault();
+            if (extra is not null) throw new CliError($"Packet folder {full} holds other files ({extra}). Use a new or empty folder.", 2);
+        }
+        else if (Path.GetDirectoryName(full) is not { } parent || !Directory.Exists(parent)) throw new CliError($"Output folder does not exist: {Path.GetDirectoryName(full)}", 2);
+        return full;
     }
 
     // The whole report. The self-test and the CLI both use it.
-    internal static JsonObject Build(string beforePath, string afterPath, string? rulesPath)
+    // with: more work on the two open modules and their snapshots (--import), before the rules run.
+    internal static JsonObject Build(string beforePath, string afterPath, string? rulesPath, Action<IESpace, IESpace, Snapshot, Snapshot>? with = null)
     {
         var watch = Stopwatch.StartNew();
         CheckInput.Settings settings;
@@ -115,6 +148,7 @@ static class Review
         var b = Timings.Measure("readAfter", () => ReviewModel.Read(after));
         if (a.Key != b.Key)
             throw new CliError($"The two files are different modules ({a.Module} and {b.Module}): review compares two versions of one module.", 2);
+        with?.Invoke(before, after, a, b);
         var kinds = new Dictionary<string, int>(); // Compare counts each changed property by name, for the summary.
         var changes = Timings.Measure("compare", () => Compare(a, b, kinds));
         var risks = Timings.Measure("risks", () => ProductionRules.ForReview(before).Risks(after)
@@ -423,7 +457,7 @@ static class Review
     };
 
     // What a step does, in a few words.
-    static string What(Item n)
+    internal static string What(Item n)
     {
         string P(string key) => n.Props.GetValueOrDefault(key) ?? "";
         return n.Kind switch

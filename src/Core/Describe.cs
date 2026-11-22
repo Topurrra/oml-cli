@@ -211,6 +211,9 @@ static class Describe
 
     public static object Run(IESpace m, string path, int depth, List<string> searchIn, bool history = false) => Many(m, [path], depth, searchIn, collectErrors: false, history)[0];
 
+    // The readable text of one element without the bodies of what it calls: `oml review --prepare` and `--import` use it.
+    internal static string Text(IESpace m, string path) => ((Result)One(m, path, 0, [], false)).text.Replace("\r\n", "\n");
+
     // One load of the module and of each producer file, however many elements are described.
     // collectErrors: a name that does not resolve becomes a DescribeError entry instead of failing the call.
     public static List<object> Many(IESpace m, IReadOnlyList<string> paths, int depth, List<string> searchIn, bool collectErrors, bool history = false)
