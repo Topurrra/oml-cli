@@ -38,6 +38,7 @@ oml check --init-rules [--out <oml-rules.json>]   (writes the team rules file: e
 oml check --diff <before.oml> <after.oml> [--rules <oml-rules.json>]   (findings fixed and introduced per rule; exit 1 when one is introduced)
 oml review <before.oml> <after.oml> [--md <file.md>] [--out <file.html>] [--notes <file.md>] [--rules <oml-rules.json>]   (what changed, production-rule risks, new check findings)
 oml review <before.oml> <after.oml> --prepare <folder> | --import <findings.json>   (blind logic review: a packet for a reviewer agent; its findings checked)
+oml review --server <Module> <v1> <v2> [--keep <folder>] [review options]   (two server versions: a number, published or latest)
 oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
 oml test bdd <module.oml> <ServerAction>... --bdd <BDDFramework.oml> [--out <spec.json>] [--module-name <TestModule>] [--producer <path>]   (spec for BDD test screens in a separate test module)
 oml tree <module.oml> <ElementName> [--depth N]   (object tree of one action, screen, entity, ...; at most 250 parts)
@@ -80,7 +81,8 @@ oml publish --in <folder> --order <order.json>   (publish many modules in that o
 oml references <Module | file.oml>  (Refresh All references through Service Studio)
 oml lifetime environments|teams|team-apps|apps|download|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lifetime' for usage)
 oml server modules [--app <Name>] | versions <Module>   (modules and versions on the platform server, Studio closed; OML_SERVER_HOST, _USER, _PASSWORD)
-oml server pull <Module> [--version N] --out <file.oml>   (one version to a file; default: published)
+oml server pull <Module> [--version N] --out <file.oml> | --app <Name> --out <folder>   (one version, default published; or each module of an app)
+oml server check [--app <Name>]... [--rules <oml-rules.json>] [--out <report.html>]   (end of day: published modules checked, scores vs last run)
 oml font woff2 <input> [output.woff2] [--force]
 oml font batch <folder> [--out folder] [--force]
 oml image <input> [--to png|jpeg|webp|svg|ico] [--max-width N] [--max-height N] [--quality 1-100] [--out file] [--force] [--precision 0-10] [--strip-title] [--remove-ids] [--aggressive]   (convert, resize or optimize a raster image or SVG)
@@ -221,7 +223,7 @@ The output is compact JSON: `{"results": [{"step": 1, "args": [...], "exitCode":
 
 - **Cache.** Modules are kept by full path, file write time and file length. A file whose write time or length changed loads again. A module that `apply` wrote is new to the next step. When an earlier step left the source of `apply` open and the file did not change (same write time, length and SHA-256 of its bytes), `apply` takes that module instead of loading the file again. The module then leaves the cache, so a later step that reads the source loads the file again and does not see the change.
 - **Exit codes.** A step with exit code 2 (usage or environment) stops the run, unless you add `--continue`; the output then has `stoppedAfterStep`. A step with exit code 1 does not stop it. The exit code of `oml batch` is the highest step code. Note that `describe` with one unknown name exits 2 (with several names it exits 1), so add `--continue` when a later step does not depend on it.
-- **Allowed:** `inspect`, `describe`, `find`, `stats`, `tree`, `validate`, `apply`, `openapi`, `architecture` and `check` (not `--team`), `review`, `spec`, `doc` (also `doc --search`), `explain-warning`, `test bdd`. `spec`, `doc` and `explain-warning` run in the launcher; only `spec check --module` reads a module. They take no `--timings`.
+- **Allowed:** `inspect`, `describe`, `find`, `stats`, `tree`, `validate`, `apply`, `openapi`, `architecture` and `check` (not `--team`), `review` (not `--server`), `spec`, `doc` (also `doc --search`), `explain-warning`, `test bdd`. `spec`, `doc` and `explain-warning` run in the launcher; only `spec check --module` reads a module. They take no `--timings`.
 - **Refused with exit code 2:** `install`, `publish`, `references`, `pull`, `lifetime`, `server` and `batch` itself. They need a person's confirmation or are not model work. Run them as their own commands. Any other command is refused as not supported.
 
 #### Usage log
@@ -742,16 +744,19 @@ The API adaptation derives from OutSystems/outsystems-pipeline. Its license is `
 | `OML_SERVER_USER` | Your Service Studio user name. |
 | `OML_SERVER_PASSWORD` | Its password, from the process environment only. Never printed, logged or saved. |
 | `OML_SERVER_INSECURE_LOCALHOST=1` | Tests only: HTTP for exact `127.0.0.1` or `localhost`. |
+| `OML_SERVER_CACHE` | The folder for `server check`'s cache. Default `%LOCALAPPDATA%\oml-cli\server-cache`. |
 
 | Command | Behavior |
 |---|---|
 | `server modules [--app <Name>]` | Every module the user can see: `name`, `key`, `application`, `applicationKey`, `publishedVersionId`, `lastVersion` (number), `lastVersionId`, `uploadedBy`, `uploadedDate`. Sorted by application, then name. `--app` keeps one application (name in any case, or key). |
 | `server versions <Module>` | The module's versions, newest first: `version` (number), `versionId`, `published`, `uploadedBy`, `uploadedDate`. |
 | `server pull <Module> [--version N] --out <file.oml>` | Saves one version as an `.oml` file. `--version` is a number from `server versions`; without it, the published version. Stdout: `module`, `key`, `application`, `version`, `versionId`, `published`, `file`, `bytes`, `next`. |
+| `server pull --app <Name> --out <folder>` | Saves the published version of every module of one application as `<folder>\<Module>.oml`, with one login. Stdout: `host`, `application`, `folder`, `count`, `modules` (`name`, `version`, `versionId`, `file`, `bytes`), `skipped` and `failed` with a `reason`, and `next` (`oml check --in <folder>`, `oml architecture --in <folder>`). Exit 1 when a module was skipped or failed. |
+| `server check [--app <Name>]... [--rules <oml-rules.json>] [--out <report.html>]` | The end-of-day check of the environment. See below. |
 
 `<Module>` is a module name (any case) or its key. When two modules share a name, the error lists their keys.
 
-The calls, read from Service Studio 11.55.95's client code (not yet run against a real server):
+The calls, read from Service Studio 11.55.95's client code and confirmed on a Personal Environment:
 1. `GET /server.api/v1/environment/handshake-properties`, without login: the server's flags. 404: the server has no REST API.
 2. `POST /server.identity/connect/token`: a password login as Service Studio (`client_id=service_studio`). The token stays in memory for this one command.
 3. With the token: `GET /server.api/v1/modules?embed=application,lastVersion`, `.../modules/{key}/versions?limit=9999` and `.../modules/{key}/versions/{versionId}/source-code`.
@@ -761,6 +766,27 @@ Service Studio picks REST or SOAP per server with the flag `SoapWSRestMigration`
 Errors exit 2 with `error`: missing or bad settings; a refused login (HTTP 400 or 401: check the user and password); HTTP 403 (the user may not open that module); a redirect (set the final hostname); a connection or certificate failure. Certificates are checked, so a self-signed one is refused (Service Studio skips that check). A route that answers 404 adds `noRestRoute: true`, and the message says to open the module in Service Studio and run `oml pull`. An existing `--out` file is never overwritten, and a failed or empty download leaves no file.
 
 Check a pulled file with `oml header <file.oml>` before you change it. `tests/server-check.ps1` checks this against a local mock.
+
+**An existing file.** `pull --app` never overwrites a file. The folder gets `oml-server.json`: per file the module key, version id and hash. A file that is the same module version from the same server is listed with `unchanged: true` and not downloaded again. Any other file is listed in `skipped`. An unknown application name lists the closest names.
+
+**Change a module from the server.**
+1. `oml server pull <Module> --out <Module>.oml` (or `pull --app`).
+2. `oml apply <Module>.oml <spec.json> <Module>.staged.oml`.
+3. The person opens the staged file in Service Studio and publishes it. When Service Studio is open, `oml publish <Module>.staged.oml` does the same after a yes.
+
+oml never publishes through this REST API. If someone publishes the module in between, pull it again and apply the spec again: Service Studio refuses an older copy ("A concurrent publication was detected").
+
+**Review two server versions.** `oml review --server <Module> <v1> <v2>` pulls both versions and runs `oml review` between them (see Review).
+
+**End-of-day check: `server check`.** It pulls the published version of each module (all modules, or those of the `--app` applications) into a cache folder, `<OML_SERVER_CACHE>\<host>`. A module is downloaded again only when its published version changed. Then it runs `oml check` over the cached files, with the last run's report as the baseline, and appends one line per run to `history.jsonl` in that folder: `time`, `host`, `apps`, `total`, and per module `name`, `key`, `version`, `versionId`, `score`, `high`, `medium`, `low`.
+
+The module score is 10000 / (100 + 10 x high + 3 x medium + low), rounded: 100 with no findings, lower with more. The environment score is the average. Stdout, summary first:
+- `summary`: `modules`, `score`, `change` (since the last run with the same applications), `worse`, `better`, `same`, `new`, `versionChanged`, `downloaded`, `cached`, `high`, `medium`, `low`, `newFindings`.
+- `versionChanged`: modules published since the last run (`name`, `from`, `to`, `uploadedBy`).
+- `modules`: `name`, `score`, `change`, `status` (`worse`, `new`, `better`, `same`, in that order; at most 50, then `moreModules`).
+- `skipped` and `failed` with a `reason`; `report` (the HTML page; `--out` or a new file in `reports`), `json`, `history`, `next`.
+
+Exit 0 when the check ran, 2 when nothing could be checked. It is not scheduled: work laptops are off at night. Agents run it when the user ends the day, with `oml memory dream`, and only when `OML_SERVER_HOST` is set.
 
 ## Architecture
 
@@ -925,6 +951,8 @@ A finding is the same in both files when rule and `element` are equal. When `ele
 
 `oml review <before.oml> <after.oml> --prepare <folder> | --import <findings.json> [--rules <oml-rules.json>]`
 
+`oml review --server <Module> <v1> <v2> [--keep <folder>] [the options above]`
+
 `oml review` compares two versions of one module: for example the module and the staged file of an `apply`, or two exports from Service Studio. It says what changed in plain words, which changes are risky in production, and which `oml check` findings are new. Agents run it before they ask to `install`, and show the Markdown to the person who approves. It only reads: both inputs stay unchanged. `--md` may replace an earlier review report (an existing `.md` file that starts with "# Review: "; the output then has `overwritten`); every other output must be a new path.
 
 ```powershell
@@ -957,6 +985,8 @@ Scripts read `summary`, not the Markdown. `changes` is the number of changed top
 - `--notes <file.md>`: short release notes for testers: one line per changed element, then the risks and the new findings.
 
 Outputs refuse an existing path and a folder that does not exist, before anything is read. Exit 0 when the review ran, whatever it found; 2 for input errors.
+
+**Two versions on the server.** `--server <Module> <v1> <v2>` pulls both versions with `oml server` (same settings) and reviews them. `v1` and `v2` are version numbers from `oml server versions <Module>`, or `published` or `latest`. The files go to a temporary folder under `%TEMP%\oml-server` that is removed afterwards, or to `--keep <folder>` (a file already there is reused when it is that version, else refused). The output is the normal review with `server` after `module`: `host`, `module`, `key`, `application`, `before` and `after` (`version`, `versionId`, `published`, `uploadedBy`, `uploadedDate`, and `file` with `--keep`). It logs in, so it is not allowed in `oml batch`.
 
 **Logic review by an agent.** oml finds no logic bugs itself, and runs no model. `--prepare <folder>` writes a packet for a reviewer subagent: `instructions.md` (what to look for: wrong conditions, off by one, null and empty cases, missing error handling, the wrong variable, branches that never run; and the answer format) and `changes.md` (each changed or added flow as `describe` text, its steps with element paths, the changed lines, and each changed expression before and after). It is blind: none of oml's findings are in it. Only what changed is in it, in path order, so the same modules give the same packet. The folder must be new, empty, or an earlier packet. Give the reviewer the two files; it answers `[{"path", "severity": "high|medium|low", "title", "evidence", "fix"}]`.
 
@@ -1239,6 +1269,8 @@ A record is **live** when no later record replaced or retracted it and now is in
 - The agent follows `instructions.md` and saves a JSON array of operations: `{"op": "add", "text", "kind", "module", "elements", "why", "tags", "supersedes"}` or `{"op": "retract", "id", "why"}`. `[]` means nothing to change.
 - `dream --import <ops.json> [--module <file.oml>[,...]]` checks each operation in order and writes the accepted ones (`src` is `dream`). An operation is rejected when its id does not exist, is a retraction or is already replaced (also by an earlier operation in the file), its text is the same as a live record of the module, an element is not in its module, a field holds a secret, or a field breaks a limit of `add`. With no module file, the elements are not checked and the operation has `elementsChecked: false`. The output has `summary` (`submitted`, `accepted`, `rejected`), `accepted` (index, new id, what it replaced) and `rejected` (index and `reason`). Exit 0 also when some are rejected. Import records the dream in `.oml\memory\dream.json` (time and record count), so the next `--prepare` starts there.
 - `dream --status` prints `lastDream`, `dreamedToday`, `newSinceDream` (records written since) and the usage log lines and failures since.
+
+When `OML_SERVER_HOST` is set, the agent also runs `oml server check` at the end of the day and tells the user the score and the modules that got worse.
 
 `recall` and `handoff` print `endOfDay` once a day, when records were added since the last dream and no dream ran that day. The agent then tells the user once that saying "that's it for today" tidies the memory. `dream.json` keeps the day of the last hint.
 

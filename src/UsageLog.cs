@@ -26,7 +26,7 @@ static class UsageLog
     static readonly Dictionary<string, string[]> Verbs = new()
     {
         ["lifetime"] = ["environments", "apps", "teams", "team-apps", "download", "tag", "deploy", "status", "abort", "continue"],
-        ["server"] = ["modules", "versions", "pull"],
+        ["server"] = ["modules", "versions", "pull", "check"],
         ["app"] = ["list", "extract", "pack"], ["extension"] = ["inspect", "new"], ["font"] = ["woff2", "batch"],
         ["image"] = ["batch"], ["spec"] = ["check", "schema"], ["translations"] = ["export"], ["test"] = ["bdd"], ["memory"] = ["init", "add", "recall", "list", "show", "history", "retract", "doctor", "handoff", "traps", "dream"],
         ["learn"] = ["report", "propose", "show", "accept", "reject", "history", "undo"], ["team-rules"] = ["list", "add", "remove"], ["config"] = ["show", "init", "set"],

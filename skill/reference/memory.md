@@ -12,12 +12,12 @@ Run `init` only when the user asks for memory.
 - Start of a task: add `["memory","recall","<task words>","--module","<Module>"]` as the last step of the read call.
 - Recall returns the top 3 records, about 200 tokens.
 - Recall again when you must decide something.
-- Recall again when the user answers a question.
+- Recall again when the user answers.
 - End of a task: write 1 to 3 records, as the `write` field of recall says.
 - After a failed command: add a `trap` record with what failed, why, and the fix. Recall always shows the newest 3 traps of the module (`traps`). For a command: `oml memory traps --command "<cmd>"`.
 - Run `oml memory handoff` if another agent continues.
-- End of the day (the user says "that's it for today", "done for today" or "wrap up the day"): run `oml memory dream --prepare`, do what its `instructions.md` says, then `oml memory dream --import <ops.json>`.
-- `endOfDay` in recall or handoff: tell the user that once.
+- End of the day (the user says "that's it for today", "done for today" or "wrap up the day"): run `oml memory dream --prepare`, follow `instructions.md`, then `oml memory dream --import <ops.json>`. With `OML_SERVER_HOST` set, also `oml server check`.
+- `endOfDay` in recall or handoff: tell the user once.
 
 ## What to write
 

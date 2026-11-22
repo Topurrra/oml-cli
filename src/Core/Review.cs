@@ -80,6 +80,8 @@ static class Review
         var options = new Dictionary<string, string>();
         for (var i = 1; i < args.Count; i++)
         {
+            if (args[i] == "--server")
+                throw new CliError("review --server logs in to the platform server: run it as its own command, not in oml batch.", 2);
             if (args[i] is "--md" or "--out" or "--notes" or "--rules" or "--prepare" or "--import" && i + 1 < args.Count && !args[i + 1].StartsWith("--"))
             {
                 if (!options.TryAdd(args[i], args[++i])) throw new CliError($"Duplicate option {args[i - 1]}.", 2);

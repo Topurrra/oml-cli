@@ -40,6 +40,7 @@ static class CliUsage
         oml check --diff <before.oml> <after.oml> [--rules <oml-rules.json>]   (findings fixed and introduced per rule; exit 1 when one is introduced)
         oml review <before.oml> <after.oml> [--md <file.md>] [--out <file.html>] [--notes <file.md>] [--rules <oml-rules.json>]   (what changed, production-rule risks, new check findings)
         oml review <before.oml> <after.oml> --prepare <folder> | --import <findings.json>   (blind logic review: a packet for a reviewer agent; its findings checked)
+        oml review --server <Module> <v1> <v2> [--keep <folder>] [review options]   (two server versions: a number, published or latest)
         oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
         oml test bdd <module.oml> <ServerAction>... --bdd <BDDFramework.oml> [--out <spec.json>] [--module-name <TestModule>] [--producer <path>]   (spec for BDD test screens in a separate test module)
         oml test scenarios <source.oml> <staged.oml> [--out <folder>]   (what to test after a change: BDD per changed public action, scenarios and a browser script per screen)
@@ -91,7 +92,8 @@ static class CliUsage
         oml references <Module | file.oml>  (Refresh All references through Service Studio)
         oml lifetime environments|teams|team-apps|apps|download|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lifetime' for usage)
         oml server modules [--app <Name>] | versions <Module>   (platform server modules and versions, Studio closed; OML_SERVER_HOST, _USER, _PASSWORD)
-        oml server pull <Module> [--version N] --out <file.oml>   (one version to a file; default: published)
+        oml server pull <Module> [--version N] --out <file.oml> | --app <Name> --out <folder>   (one version, default published; or each module of an app)
+        oml server check [--app <Name>]... [--rules <oml-rules.json>] [--out <report.html>]   (end of day: published modules checked, scores vs last run)
         oml browser page <url> [--headed] [--width N] [--height N] [--timeout <ms>] [--screenshot <file.png>] [--max-width N] [--style-conflicts <class prefix>] [--snapshot <file.json>] [--engine auto|cdp|uia] [--no-session]   (look at a running app: actions, inputs, tables, messages, layout, OutSystems calls and slow ones, errors, accessibility)
         oml browser run <script.json> [--save <new.json>] [--base-url <url>] [--headed] [--width N] [--height N] [--timeout <ms>] [--out <folder>] [--continue] [--engine auto|cdp|uia] [--no-session]   (run browser steps like a manual tester: open, click, fill, select, press, wait, expect, handoff, raw; exit 1 when a step fails)
         oml browser record <url> [--out <script.jsonc>] [--engine auto|cdp|uia] [--width N] [--height N]   (write a browser script from what you click and type in a window; close it or press Ctrl+C to finish)

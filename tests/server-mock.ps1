@@ -2,8 +2,10 @@
 # shapes follow Service Studio 11.55.95's client code (see src/ServerApi.cs); no real server was recorded.
 # Four servers on four ports: $Port full, $Port+1 no server API (every route 404), $Port+2 the API without the module
 # routes (and SoapWSRestMigration without Modules), $Port+3 redirects. A request of the wrong shape answers 418 and
-# is written to $ProblemFile, so the check fails with the reason.
-param([int]$Port, [string]$ReadyFile, [string]$ProblemFile)
+# is written to $ProblemFile, so the check fails with the reason. A version's source code is the file <key>-<versionId>.oml
+# in $OmlDir when there is one (real modules for review and check), else a short text; each download is a line "<key> <id>"
+# in $DownloadLog. POST /mock/publish?key=<key>&id=<versionId> (no login) sets a module's published version.
+param([int]$Port, [string]$ReadyFile, [string]$ProblemFile, [string]$OmlDir, [string]$DownloadLog)
 $ErrorActionPreference = 'Stop'
 $listener = [System.Net.HttpListener]::new()
 foreach ($p in 0..3) { $listener.Prefixes.Add("http://127.0.0.1:$($Port + $p)/") }
@@ -23,6 +25,9 @@ $modules = @(
     (Module 'k-twin-2' 'Twin' 'Orders' 501 @((Version 501 1 'ana')))
     (Module 'k-forbidden' 'Forbidden' 'Shop' 601 @((Version 601 1 'ana')))
     (Module 'k-empty' 'Empty' 'Shop' 701 @((Version 701 1 'ana')))
+    (Module 'k-sales-core' 'SalesCore' 'Sales' 802 @((Version 801 1 'ana'), (Version 802 2 'rui'), (Version 803 3 'ana')))
+    (Module 'k-sales-ui' 'SalesUI' 'Sales' 902 @((Version 901 1 'ana'), (Version 902 2 'ana')))
+    (Module 'k-sales-data' 'SalesData' 'Sales' 1001 @((Version 1001 1 'rui')))
 )
 Set-Content -LiteralPath $ReadyFile -Value 'ready'
 try {
@@ -57,6 +62,12 @@ try {
                     $body = @{ access_token = $token; expires_in = 3600; token_type = 'Bearer'; refresh_token = "refresh-$token"; scope = $form.scope }
                 }
             }
+            elseif ($mode -eq 0 -and $request.HttpMethod -eq 'POST' -and $path -eq '/mock/publish') {
+                $q = [Web.HttpUtility]::ParseQueryString($query)
+                $m = $modules | Where-Object key -eq $q['key']
+                if (!$m -or !($m.versions | Where-Object versionId -eq ([int]$q['id']))) { throw "mock publish of an unknown version: $query" }
+                $m.publishedVersionId = [int]$q['id']
+            }
             elseif (-not $path.StartsWith('/server.api/v1/')) { throw "unexpected route $($request.HttpMethod) $path" }
             elseif ($request.Headers['Authorization'] -cne "Bearer $token") { $code = 401 }
             elseif ($mode -eq 2) { $code = 404 }
@@ -75,7 +86,11 @@ try {
                 $id = [int]$Matches[2]
                 if (!$m -or !($m.versions | Where-Object versionId -eq $id)) { $code = 404 }
                 elseif ($m.name -eq 'Empty') { $binary = [byte[]]@() }
-                else { $binary = [Text.Encoding]::UTF8.GetBytes("mock-oml $($m.key) $id") }
+                else {
+                    $real = if ($OmlDir) { Join-Path $OmlDir "$($m.key)-$id.oml" }
+                    $binary = if ($real -and (Test-Path -LiteralPath $real)) { [IO.File]::ReadAllBytes($real) } else { [Text.Encoding]::UTF8.GetBytes("mock-oml $($m.key) $id") }
+                    if ($DownloadLog) { Add-Content -LiteralPath $DownloadLog -Value "$($m.key) $id" }
+                }
             }
             else { throw "unexpected route $($request.HttpMethod) $path$query" }
         } catch {

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -9,7 +10,7 @@ namespace OmlCli;
 // version list and download, so oml can list and pull any module or version with Service Studio closed. REST only:
 // the SOAP service (ServiceStudio.asmx) needs Studio's private password protection, which oml does not copy.
 // The routes and the login were read from Service Studio 11.55.95's client code (OutSystems.Communication.dll,
-// OutSystems.Communication.Identity.dll); no real server was called:
+// OutSystems.Communication.Identity.dll) and later confirmed on a Personal Environment:
 //   GET  /server.api/v1/environment/handshake-properties   no login; [{id, value}]. 404: the server has no server API.
 //   POST /server.identity/connect/token   form: grant_type=password, client_id=service_studio,
 //        scope="offline_access server_api allow_system_users", username, password -> {access_token, expires_in, ...}
@@ -22,150 +23,316 @@ namespace OmlCli;
 // it says SOAP, and tries REST anyway: a 404 on a route is the answer "no REST route on this server".
 // The password and the token stay in memory for this one command: nothing is cached on disk, and both are removed
 // from every output. Certificates are checked (Service Studio skips that check; oml does not).
-static class ServerApi
+// oml never publishes through this API: a pulled module goes back through Service Studio (or oml publish).
+// ServerCheck.cs has `server check` (scores over time) and `review --server`.
+static partial class ServerApi
 {
-    internal const string Usage = "oml server modules [--app <Name>] | versions <Module> | pull <Module> [--version N] --out <file.oml>";
+    internal const string Usage = "oml server modules [--app <Name>] | versions <Module> | pull <Module> [--version N] --out <file.oml> | pull --app <Name> --out <folder> | check [--app <Name>]... [--rules <oml-rules.json>] [--out <report.html>]";
     const string Api = "server.api/v1/";
     const string StudioPull = "Pull through Service Studio instead: open the module in Service Studio, then run oml pull <Module> (a person approves the session there).";
+    // In a folder that oml server pull --app (or check, or review --keep) filled: which module version each file is.
+    const string ManifestName = "oml-server.json";
 
-    public static int Run(string[] args)
+    public static int Run(string[] args) => Guarded(ctx =>
     {
-        var password = Environment.GetEnvironmentVariable("OML_SERVER_PASSWORD");
-        string? token = null;
-        string? warning = null;
-        void Emit(JsonObject value)
+        var (verb, module, options) = Parse(args);
+        string? One(string option) => options.TryGetValue(option, out var values) ? values[0] : null;
+        ctx.Settings();
+        return verb switch
         {
-            if (warning is not null && value["warning"] is null) value["warning"] = warning;
-            // No output holds them by design; this is the second guard. A value under 6 characters would match ordinary words.
-            foreach (var secret in new[] { password, token })
-                if (secret is { Length: >= 6 }) LifeTime.Redact(value, secret);
-            Console.Out.WriteLine(TerminalOutput.Render(JsonOutput.Serialize(value)));
-        }
-        try
-        {
-            var (verb, module, options) = Parse(args);
-            var host = Environment.GetEnvironmentVariable("OML_SERVER_HOST");
-            var user = Environment.GetEnvironmentVariable("OML_SERVER_USER");
-            var missing = new[] { ("OML_SERVER_HOST", host), ("OML_SERVER_USER", user), ("OML_SERVER_PASSWORD", password) }
-                .Where(p => string.IsNullOrWhiteSpace(p.Item2)).Select(p => p.Item1).ToArray();
-            if (missing.Length > 0)
-                throw new ServerError($"Set {string.Join(", ", missing)} in the environment: OML_SERVER_HOST is the server's hostname (no https://), OML_SERVER_USER and OML_SERVER_PASSWORD are the login you use in Service Studio.");
-            if (user!.Any(char.IsControl) || password!.Any(char.IsControl)) throw new ServerError("OML_SERVER_USER or OML_SERVER_PASSWORD holds a control character.");
-            string? outFile = null;
-            if (verb == "pull")
-            {
-                outFile = Path.GetFullPath(options["--out"]!);
-                if (!outFile.EndsWith(".oml", StringComparison.OrdinalIgnoreCase)) throw new ServerError("--out must be an .oml file.");
-                if (File.Exists(outFile) || Directory.Exists(outFile)) throw new ServerError($"Output already exists: {outFile}. Use another --out path, or delete that file first.");
-            }
-            int? wanted = null;
-            if (options.GetValueOrDefault("--version") is { } v)
-                wanted = int.TryParse(v, out var n) && n > 0 ? n : throw new ServerError("--version takes a version number, such as 12 (oml server versions <Module> lists them).");
+            "modules" => ListModules(ctx, One("--app")),
+            "versions" => ListVersions(ctx, module!),
+            "pull" when module is null => PullApp(ctx, One("--app")!, One("--out")!),
+            "pull" => PullOne(ctx, module, One("--version"), One("--out")!),
+            _ => Check(ctx, options.GetValueOrDefault("--app") ?? [], One("--rules"), One("--out")),
+        };
+    });
 
-            var root = Endpoint(host!);
-            using var handler = new HttpClientHandler { AllowAutoRedirect = false };
-            using var http = new HttpClient(handler) { BaseAddress = root, Timeout = TimeSpan.FromSeconds(300) };
-            var client = new Client(http);
-
-            // 1. The server's flags, before the login. 404: no server API at all (an older platform server).
-            var instead = verb == "modules" ? "List the modules in Service Studio instead (oml studio lists the open ones)." : StudioPull;
-            var properties = client.HandshakeProperties(instead);
-            string Property(string id) => properties.FirstOrDefault(p => string.Equals(Text(p, "id"), id, StringComparison.OrdinalIgnoreCase)) is { } p ? Text(p, "value") : "";
-            var migration = Property("SoapWSRestMigration");
-            var feature = verb switch { "modules" => "Modules", "versions" => "ModulesVersion", _ => "Download" };
-            if (migration.Length > 0 && !migration.Split('|').Contains(feature, StringComparer.OrdinalIgnoreCase))
-                warning = $"This server's flag SoapWSRestMigration={migration} has no {feature}: Service Studio uses SOAP for this here. oml tried REST anyway.";
-
-            // 2. The password login, as Service Studio's client.
-            token = client.Login(user, password, Property("IdentityService_ServiceURL").Length > 0);
-            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-            // 3. The command.
-            var modules = client.Modules(instead);
-            if (verb == "modules")
-            {
-                var app = options.GetValueOrDefault("--app");
-                var rows = modules.Select(Row).Where(r => app is null || string.Equals(r["application"]?.GetValue<string>(), app, StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(r["applicationKey"]?.GetValue<string>(), app, StringComparison.Ordinal))
-                    .OrderBy(r => r["application"]?.GetValue<string>(), StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(r => r["name"]?.GetValue<string>(), StringComparer.OrdinalIgnoreCase).ToArray();
-                if (app is not null && rows.Length == 0)
-                    throw new ServerError($"No module of application '{app}' on this server. Run oml server modules to see the application names.");
-                Emit(new JsonObject { ["host"] = host, ["count"] = rows.Length, ["modules"] = new JsonArray(rows) });
-                return 0;
-            }
-
-            var found = FindModule(modules, module!);
-            var key = Text(found, "key");
-            var published = Int(Prop(found, "publishedVersionId"));
-            var last = Embedded(found, "lastVersion");
-            if (verb == "versions")
-            {
-                var versions = client.Versions(key)
-                    .Select(x => new JsonObject
-                    {
-                        ["version"] = Int(Prop(x, "versionNumber")), ["versionId"] = Int(Prop(x, "versionId")),
-                        ["published"] = published is not null && Int(Prop(x, "versionId")) == published,
-                        ["uploadedBy"] = Text(x, "uploaderUsername"), ["uploadedDate"] = Prop(x, "uploadedDate")?.DeepClone(),
-                    })
-                    .OrderByDescending(x => x["version"]?.GetValue<int>() ?? 0).ToArray();
-                Emit(new JsonObject
-                {
-                    ["module"] = Text(found, "name"), ["key"] = key, ["application"] = Text(Embedded(found, "application"), "name"),
-                    ["publishedVersionId"] = published, ["count"] = versions.Length, ["versions"] = new JsonArray(versions),
-                    ["next"] = $"oml server pull {Text(found, "name")} --version <version> --out <file.oml>",
-                });
-                return 0;
-            }
-
-            // pull: --version is the version number; the download takes the version id. No --version: the published version.
-            int? number = null, versionId;
-            if (wanted is not null)
-            {
-                var match = client.Versions(key).FirstOrDefault(x => Int(Prop(x, "versionNumber")) == wanted)
-                    ?? throw new ServerError($"Module '{Text(found, "name")}' has no version {wanted} on this server. Run oml server versions {Text(found, "name")}.");
-                (number, versionId) = (wanted, Int(Prop(match, "versionId")));
-            }
-            else if (published is > 0)
-            {
-                versionId = published;
-                if (Int(Prop(last, "versionId")) == published) number = Int(Prop(last, "versionNumber"));
-            }
-            else (versionId, number) = (Int(Prop(last, "versionId")), Int(Prop(last, "versionNumber")));
-            if (versionId is not > 0) throw new ServerError($"The server lists no version of module '{Text(found, "name")}' to download. Run oml server versions {Text(found, "name")}.");
-            // The published version is older than the last upload: its number is only in the version list (a nice-to-have).
-            if (number is null)
-                try { number = Int(Prop(client.Versions(key).FirstOrDefault(x => Int(Prop(x, "versionId")) == versionId), "versionNumber")); }
-                catch (ServerError) { }
-            TerminalProgress.Message($"Downloading {Text(found, "name")} from {host}...");
-            var bytes = client.SourceCode(key, versionId.Value, outFile!);
-            TerminalProgress.Message("Downloaded.");
-            Emit(new JsonObject
-            {
-                ["module"] = Text(found, "name"), ["key"] = key, ["application"] = Text(Embedded(found, "application"), "name"),
-                ["version"] = number, ["versionId"] = versionId, ["published"] = versionId == published,
-                ["file"] = outFile, ["bytes"] = bytes, ["next"] = $"oml header \"{outFile}\"",
-            });
-            return 0;
-        }
+    // One login per command; every error is one JSON object with exit 2, with the password and the token removed.
+    static int Guarded(Func<Ctx, int> body)
+    {
+        using var ctx = new Ctx();
+        try { return body(ctx); }
         catch (ServerError e)
         {
             var result = new JsonObject { ["error"] = e.Message };
             if (e.NoRestRoute) result["noRestRoute"] = true;
             if (e.Next is not null) result["next"] = e.Next;
-            Emit(result);
+            ctx.Emit(result);
             return 2;
         }
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException)
         {
-            Emit(new JsonObject { ["error"] = "Request to the server failed (connection, TLS or timeout). oml checks the certificate: a self-signed or untrusted one is refused. Check OML_SERVER_HOST." });
+            ctx.Emit(new JsonObject { ["error"] = "Request to the server failed (connection, TLS or timeout). oml checks the certificate: a self-signed or untrusted one is refused. Check OML_SERVER_HOST." });
             return 2;
         }
         catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException)
         {
-            Emit(new JsonObject { ["error"] = "The server sent an answer oml cannot read (not the JSON Service Studio expects). Check OML_SERVER_HOST." });
+            ctx.Emit(new JsonObject { ["error"] = "The server sent an answer oml cannot read (not the JSON Service Studio expects). Check OML_SERVER_HOST." });
             return 2;
         }
+    }
+
+    static int ListModules(Ctx ctx, string? app)
+    {
+        var instead = "List the modules in Service Studio instead (oml studio lists the open ones).";
+        var client = ctx.Connect("Modules", instead);
+        var modules = client.Modules(instead);
+        var rows = (app is null ? modules : AppModules(modules, app)).Select(Row)
+            .OrderBy(r => r["application"]?.GetValue<string>(), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(r => r["name"]?.GetValue<string>(), StringComparer.OrdinalIgnoreCase).ToArray();
+        ctx.Emit(new JsonObject { ["host"] = ctx.Host, ["count"] = rows.Length, ["modules"] = new JsonArray(rows) });
+        return 0;
+    }
+
+    static int ListVersions(Ctx ctx, string module)
+    {
+        var client = ctx.Connect("ModulesVersion", StudioPull);
+        var found = FindModule(client.Modules(StudioPull), module);
+        var key = Text(found, "key");
+        var published = Int(Prop(found, "publishedVersionId"));
+        var versions = client.Versions(key).Select(x => VersionRow(x, published)).OrderByDescending(x => x["version"]?.GetValue<int>() ?? 0).ToArray();
+        ctx.Emit(new JsonObject
+        {
+            ["module"] = Text(found, "name"), ["key"] = key, ["application"] = Text(Embedded(found, "application"), "name"),
+            ["publishedVersionId"] = published, ["count"] = versions.Length, ["versions"] = new JsonArray(versions),
+            ["next"] = $"oml server pull {Text(found, "name")} --version <version> --out <file.oml>",
+        });
+        return 0;
+    }
+
+    static JsonObject VersionRow(JsonNode? x, int? published) => new()
+    {
+        ["version"] = Int(Prop(x, "versionNumber")), ["versionId"] = Int(Prop(x, "versionId")),
+        ["published"] = published is not null && Int(Prop(x, "versionId")) == published,
+        ["uploadedBy"] = Text(x, "uploaderUsername"), ["uploadedDate"] = Prop(x, "uploadedDate")?.DeepClone(),
+    };
+
+    // pull <Module>: --version is the version number; the download takes the version id. No --version: the published version.
+    static int PullOne(Ctx ctx, string module, string? version, string outArg)
+    {
+        var outFile = Path.GetFullPath(outArg);
+        if (!outFile.EndsWith(".oml", StringComparison.OrdinalIgnoreCase)) throw new ServerError("--out must be an .oml file.");
+        if (File.Exists(outFile) || Directory.Exists(outFile)) throw new ServerError($"Output already exists: {outFile}. Use another --out path, or delete that file first.");
+        int? wanted = null;
+        if (version is not null)
+            wanted = int.TryParse(version, out var n) && n > 0 ? n : throw new ServerError("--version takes a version number, such as 12 (oml server versions <Module> lists them).");
+        var client = ctx.Connect("Download", StudioPull);
+        var found = FindModule(client.Modules(StudioPull), module);
+        var key = Text(found, "key");
+        var name = Text(found, "name");
+        int? number, versionId;
+        if (wanted is not null)
+        {
+            var match = client.Versions(key).FirstOrDefault(x => Int(Prop(x, "versionNumber")) == wanted)
+                ?? throw new ServerError($"Module '{name}' has no version {wanted} on this server. Run oml server versions {name}.");
+            (number, versionId) = (wanted, Int(Prop(match, "versionId")));
+        }
+        else (versionId, number) = PublishedVersion(found);
+        if (versionId is not > 0) throw new ServerError($"The server lists no version of module '{name}' to download. Run oml server versions {name}.");
+        number ??= NumberOf(client, key, versionId.Value);
+        TerminalProgress.Message($"Downloading {name} from {ctx.Host}...");
+        var bytes = client.SourceCode(key, versionId.Value, outFile);
+        TerminalProgress.Message("Downloaded.");
+        ctx.Emit(new JsonObject
+        {
+            ["module"] = name, ["key"] = key, ["application"] = Text(Embedded(found, "application"), "name"),
+            ["version"] = number, ["versionId"] = versionId, ["published"] = versionId == Int(Prop(found, "publishedVersionId")),
+            ["file"] = outFile, ["bytes"] = bytes, ["next"] = $"oml header \"{outFile}\"",
+        });
+        return 0;
+    }
+
+    // pull --app <Name> --out <folder>: the published version of every module of one application, one file per module.
+    // A file already there is never overwritten: the same module version from this server (by the folder's manifest and
+    // the file's hash) is reported unchanged and not downloaded again; anything else is skipped with the reason.
+    static int PullApp(Ctx ctx, string app, string outArg)
+    {
+        var folder = Path.GetFullPath(outArg);
+        if (File.Exists(folder) || folder.EndsWith(".oml", StringComparison.OrdinalIgnoreCase))
+            throw new ServerError("With --app, --out is a folder: each module is saved there as <Module>.oml.");
+        var client = ctx.Connect("Download", StudioPull);
+        var all = client.Modules(StudioPull);
+        var mine = AppModules(all, app);
+        CreateFolder(folder);
+        var manifest = ReadManifest(folder);
+        var modules = new JsonArray();
+        var skipped = new JsonArray();
+        var failed = new JsonArray();
+        var number = 0;
+        foreach (var m in mine)
+        {
+            var (name, key) = (Text(m, "name"), Text(m, "key"));
+            var file = Path.Combine(folder, FileName(m, mine));
+            try
+            {
+                var (versionId, version) = PublishedVersion(m);
+                if (versionId is not > 0) { skipped.Add(new JsonObject { ["name"] = name, ["reason"] = "The server lists no version of this module." }); continue; }
+                if (File.Exists(file) || Directory.Exists(file))
+                {
+                    if (Unchanged(manifest, ctx.Host!, file, key, versionId.Value) is { } same)
+                    {
+                        modules.Add(PulledRow(name, Int(same["version"]), versionId, file, new FileInfo(file).Length, unchanged: true));
+                        continue;
+                    }
+                    skipped.Add(new JsonObject { ["name"] = name, ["file"] = file, ["reason"] = "The file exists and is not this module version from this server. Delete it, or use another --out folder." });
+                    continue;
+                }
+                version ??= NumberOf(client, key, versionId.Value);
+                TerminalProgress.Message($"  {++number}/{mine.Length}: {name}");
+                var bytes = client.SourceCode(key, versionId.Value, file);
+                Remember(manifest, ctx.Host!, file, m, versionId.Value, version, bytes);
+                WriteManifest(folder, manifest);
+                modules.Add(PulledRow(name, version, versionId, file, bytes, unchanged: false));
+            }
+            catch (ServerError e) { failed.Add(new JsonObject { ["name"] = name, ["reason"] = e.Message }); }
+        }
+        var result = new JsonObject
+        {
+            ["host"] = ctx.Host, ["application"] = Text(Embedded(mine[0], "application"), "name"), ["folder"] = folder,
+            ["count"] = modules.Count, ["modules"] = modules,
+        };
+        if (skipped.Count > 0) result["skipped"] = skipped;
+        if (failed.Count > 0) result["failed"] = failed;
+        result["next"] = $"oml check --in \"{folder}\"; oml architecture --in \"{folder}\"";
+        ctx.Emit(result);
+        return skipped.Count + failed.Count > 0 ? 1 : 0;
+    }
+
+    static JsonObject PulledRow(string name, int? version, int? versionId, string file, long bytes, bool unchanged)
+    {
+        var row = new JsonObject { ["name"] = name, ["version"] = version, ["versionId"] = versionId, ["file"] = file, ["bytes"] = bytes };
+        if (unchanged) row["unchanged"] = true;
+        return row;
+    }
+
+    // The version to take when none is named: the published one, else the last upload. The number is known here only
+    // when the published version is also the last upload; NumberOf asks the version list otherwise.
+    static (int? versionId, int? number) PublishedVersion(JsonNode found)
+    {
+        var published = Int(Prop(found, "publishedVersionId"));
+        var last = Embedded(found, "lastVersion");
+        if (published is > 0) return (published, Int(Prop(last, "versionId")) == published ? Int(Prop(last, "versionNumber")) : null);
+        return (Int(Prop(last, "versionId")), Int(Prop(last, "versionNumber")));
+    }
+
+    // The number of an older published version is only in the version list (a nice-to-have: null when that call fails).
+    static int? NumberOf(Client client, string key, int versionId)
+    {
+        try { return Int(Prop(client.Versions(key).FirstOrDefault(x => Int(Prop(x, "versionId")) == versionId), "versionNumber")); }
+        catch (ServerError) { return null; }
+    }
+
+    // The modules of one application, by name in any case or by key, sorted by name. An unknown name lists the closest ones.
+    static JsonNode[] AppModules(JsonNode?[] modules, string app)
+    {
+        var mine = modules.OfType<JsonNode>().Where(m => string.Equals(Text(Embedded(m, "application"), "name"), app, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(Text(Embedded(m, "application"), "key"), app, StringComparison.Ordinal))
+            .OrderBy(m => Text(Embedded(m, "application"), "name"), StringComparer.OrdinalIgnoreCase)
+            .ThenBy(m => Text(m, "name"), StringComparer.OrdinalIgnoreCase).ToArray();
+        if (mine.Length > 0) return mine;
+        var names = modules.Select(m => Text(Embedded(m, "application"), "name")).Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var close = ClosestNames(app, names);
+        throw new ServerError($"No module of application '{app}' on this server. "
+            + (close.Length > 0 ? $"Closest: {string.Join(", ", close)}." : $"Applications: {string.Join(", ", names.Order(StringComparer.OrdinalIgnoreCase).Take(10))}{(names.Length > 10 ? ", ..." : "")}."))
+        { Next = "oml server modules" };
+    }
+
+    // Names that contain the word (or the other way round), or are a few typing errors away; at most 5, closest first.
+    internal static string[] ClosestNames(string word, IEnumerable<string> names)
+    {
+        var w = word.ToLowerInvariant();
+        return names.Select(n => (n, d: n.ToLowerInvariant() is var l && (l.Contains(w) || w.Contains(l)) ? 0 : Distance(w, l)))
+            .Where(x => x.d <= Math.Max(2, w.Length / 3)).OrderBy(x => x.d).ThenBy(x => x.n, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.n).Take(5).ToArray();
+    }
+
+    static int Distance(string a, string b)
+    {
+        var row = Enumerable.Range(0, b.Length + 1).ToArray();
+        for (var i = 1; i <= a.Length; i++)
+        {
+            var previous = row[0];
+            row[0] = i;
+            for (var j = 1; j <= b.Length; j++)
+            {
+                var current = row[j];
+                row[j] = Math.Min(Math.Min(row[j] + 1, row[j - 1] + 1), previous + (a[i - 1] == b[j - 1] ? 0 : 1));
+                previous = current;
+            }
+        }
+        return row[b.Length];
+    }
+
+    // <Module>.oml; when two modules of the list share a name, <Module>.<key>.oml for each of them.
+    static string FileName(JsonNode module, IEnumerable<JsonNode?> list)
+    {
+        var name = Text(module, "name");
+        var safe = string.Concat(name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+        var twins = list.Count(m => string.Equals(Text(m, "name"), name, StringComparison.OrdinalIgnoreCase));
+        return twins > 1 ? $"{safe}.{string.Concat(Text(module, "key").Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c))}.oml" : safe + ".oml";
+    }
+
+    static void CreateFolder(string folder)
+    {
+        try { Directory.CreateDirectory(folder); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        { throw new ServerError($"Could not create the folder {folder}. Check the path."); }
+    }
+
+    // ---- The folder manifest (oml-server.json): host, and per file the module key, version id, number, size and hash.
+
+    static JsonObject ReadManifest(string folder)
+    {
+        try
+        {
+            if (JsonNode.Parse(File.ReadAllText(Path.Combine(folder, ManifestName))) is JsonObject o && o["files"] is JsonObject) return o;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException) { }
+        return new JsonObject { ["files"] = new JsonObject() };
+    }
+
+    static void WriteManifest(string folder, JsonObject manifest)
+    {
+        var path = Path.Combine(folder, ManifestName);
+        try
+        {
+            File.WriteAllText(path + ".tmp", manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            File.Move(path + ".tmp", path, overwrite: true);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        { throw new ServerError($"Could not write {path}. Check that the folder is writable."); }
+    }
+
+    // The manifest entry when the file is that module version from this host and its bytes are the ones pulled; else null.
+    static JsonObject? Unchanged(JsonObject manifest, string host, string file, string key, int versionId)
+    {
+        if (!string.Equals(manifest["host"]?.GetValue<string>(), host, StringComparison.OrdinalIgnoreCase)) return null;
+        if (manifest["files"]?[Path.GetFileName(file)] is not JsonObject entry || !File.Exists(file)) return null;
+        if (entry["key"]?.GetValue<string>() != key || entry["versionId"]?.GetValue<int>() != versionId) return null;
+        if (entry["bytes"]?.GetValue<long>() != new FileInfo(file).Length || entry["sha256"]?.GetValue<string>() != Sha256(file)) return null;
+        return entry;
+    }
+
+    static void Remember(JsonObject manifest, string host, string file, JsonNode module, int versionId, int? version, long bytes)
+    {
+        if (!string.Equals(manifest["host"]?.GetValue<string>(), host, StringComparison.OrdinalIgnoreCase))
+        {
+            manifest["host"] = host;
+            manifest["files"] = new JsonObject();
+        }
+        manifest["files"]![Path.GetFileName(file)] = new JsonObject
+        {
+            ["name"] = Text(module, "name"), ["key"] = Text(module, "key"), ["application"] = Text(Embedded(module, "application"), "name"),
+            ["version"] = version, ["versionId"] = versionId, ["bytes"] = bytes, ["sha256"] = Sha256(file),
+            ["pulledAt"] = DateTime.UtcNow.ToString("o"),
+        };
+    }
+
+    static string Sha256(string file)
+    {
+        using var stream = File.OpenRead(file);
+        return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
     }
 
     // One module of the list, flat: name, key, application, the published version id and the last uploaded version.
@@ -210,31 +377,35 @@ static class ServerApi
         return new Uri($"{(insecure ? "http" : "https")}://{host}/");
     }
 
-    static (string verb, string? module, Dictionary<string, string?> options) Parse(string[] args)
+    static (string verb, string? module, Dictionary<string, List<string>> options) Parse(string[] args)
     {
         if (args.Length == 0) throw new ServerError(Usage);
         var verb = args[0];
+        var appPull = verb == "pull" && args.Length > 1 && args[1] == "--app";
         var allowed = verb switch
         {
-            "modules" => new[] { "--app" }, "versions" => System.Array.Empty<string>(), "pull" => new[] { "--version", "--out" },
+            "modules" => new[] { "--app" }, "versions" => System.Array.Empty<string>(),
+            "pull" => appPull ? new[] { "--app", "--out" } : new[] { "--version", "--out" },
+            "check" => new[] { "--app", "--rules", "--out" },
             _ => throw new ServerError(Usage),
         };
         int i = 1;
         string? module = null;
-        if (verb is "versions" or "pull")
+        if (verb is "versions" or "pull" && !appPull)
         {
             if (i == args.Length || string.IsNullOrWhiteSpace(args[i]) || args[i].StartsWith("--")) throw new ServerError("Name the module (name or key). " + Usage);
             module = args[i++];
         }
-        var options = new Dictionary<string, string?>();
+        var options = new Dictionary<string, List<string>>();
         while (i < args.Length)
         {
             var option = args[i++];
-            if (!allowed.Contains(option) || options.ContainsKey(option)) throw new ServerError($"Unknown or repeated option {option}. " + Usage);
+            // check takes --app more than once (several applications); every other option once.
+            if (!allowed.Contains(option) || options.ContainsKey(option) && !(verb == "check" && option == "--app")) throw new ServerError($"Unknown or repeated option {option}. " + Usage);
             if (i == args.Length || string.IsNullOrWhiteSpace(args[i]) || args[i].StartsWith("--")) throw new ServerError($"{option} needs a value. " + Usage);
-            options.Add(option, args[i++]);
+            (options.TryGetValue(option, out var list) ? list : options[option] = []).Add(args[i++]);
         }
-        if (verb == "pull" && !options.ContainsKey("--out")) throw new ServerError("pull needs --out <file.oml>. " + Usage);
+        if (verb == "pull" && !options.ContainsKey("--out")) throw new ServerError((appPull ? "pull --app needs --out <folder>. " : "pull needs --out <file.oml>. ") + Usage);
         return (verb, module, options);
     }
 
@@ -251,6 +422,60 @@ static class ServerApi
     static int? Int(JsonNode? node) => node is JsonValue value
         ? value.TryGetValue<int>(out var n) ? n : value.TryGetValue<string>(out var s) && int.TryParse(s, out var p) ? p : null
         : null;
+
+    // One command's settings, connection and secrets. Emit is the only way out to stdout.
+    sealed class Ctx : IDisposable
+    {
+        public readonly string? Password = Environment.GetEnvironmentVariable("OML_SERVER_PASSWORD");
+        public string? Host, User, Token, Warning;
+        HttpClientHandler? handler;
+        HttpClient? http;
+
+        public void Emit(JsonObject value)
+        {
+            if (Warning is not null && value["warning"] is null) value["warning"] = Warning;
+            // No output holds them by design; this is the second guard. A value under 6 characters would match ordinary words.
+            foreach (var secret in new[] { Password, Token })
+                if (secret is { Length: >= 6 }) LifeTime.Redact(value, secret);
+            Console.Out.WriteLine(TerminalOutput.Render(JsonOutput.Serialize(value)));
+        }
+
+        // The three settings, before any request and before the command's own input checks.
+        public void Settings()
+        {
+            Host = Environment.GetEnvironmentVariable("OML_SERVER_HOST");
+            User = Environment.GetEnvironmentVariable("OML_SERVER_USER");
+            var missing = new[] { ("OML_SERVER_HOST", Host), ("OML_SERVER_USER", User), ("OML_SERVER_PASSWORD", Password) }
+                .Where(p => string.IsNullOrWhiteSpace(p.Item2)).Select(p => p.Item1).ToArray();
+            if (missing.Length > 0)
+                throw new ServerError($"Set {string.Join(", ", missing)} in the environment: OML_SERVER_HOST is the server's hostname (no https://), OML_SERVER_USER and OML_SERVER_PASSWORD are the login you use in Service Studio.");
+            if (User!.Any(char.IsControl) || Password!.Any(char.IsControl)) throw new ServerError("OML_SERVER_USER or OML_SERVER_PASSWORD holds a control character.");
+        }
+
+        // The server's flags (no login), then the password login as Service Studio's client. feature: the
+        // SoapWSRestMigration name of what the command needs; instead: what to do when the server has no REST API.
+        public Client Connect(string feature, string instead)
+        {
+            var root = Endpoint(Host!);
+            handler = new HttpClientHandler { AllowAutoRedirect = false };
+            http = new HttpClient(handler) { BaseAddress = root, Timeout = TimeSpan.FromSeconds(300) };
+            var client = new Client(http);
+            var properties = client.HandshakeProperties(instead);
+            string Property(string id) => properties.FirstOrDefault(p => string.Equals(Text(p, "id"), id, StringComparison.OrdinalIgnoreCase)) is { } p ? Text(p, "value") : "";
+            var migration = Property("SoapWSRestMigration");
+            if (migration.Length > 0 && !migration.Split('|').Contains(feature, StringComparer.OrdinalIgnoreCase))
+                Warning = $"This server's flag SoapWSRestMigration={migration} has no {feature}: Service Studio uses SOAP for this here. oml tried REST anyway.";
+            Token = client.Login(User!, Password!, Property("IdentityService_ServiceURL").Length > 0);
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+            return client;
+        }
+
+        public void Dispose()
+        {
+            http?.Dispose();
+            handler?.Dispose();
+        }
+    }
 
     sealed class Client(HttpClient http)
     {

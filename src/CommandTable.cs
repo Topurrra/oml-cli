@@ -41,6 +41,8 @@ internal static class CommandTable
         new("explorer-menu", (_, f) => Setup.Run(Rest(f)), _ => OperatingSystem.IsWindows(), NoTimings: true, Help: true),
         new("architecture", TeamRun, f => f.Contains("--team")),
         new("check", TeamRun, f => f.Contains("--team")),
+        // oml review --server: pulls two versions from the platform server (a login), then Core reviews them.
+        new("review", (_, f) => ServerApi.Review(Rest(f)), f => f.Contains("--server")),
         // The launcher only prints image's help and refuses --timings; Core converts the image.
         new("image", null, NoTimings: true, Help: true),
         // Taken in Main, before the usage log wraps the call (a summary of the log is not itself logged); --help goes to Core.

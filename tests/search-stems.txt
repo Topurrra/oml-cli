@@ -38,6 +38,7 @@ color: color, colors
 column: column, columns
 command: command, commands
 comment: comment, comments
+compar: compare, compared
 component: component, components
 compress: compress, compressed
 connect: connect, connected
