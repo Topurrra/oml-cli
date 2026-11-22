@@ -1,330 +1,126 @@
 # oml
 
-`oml` is a command-line tool for OutSystems 11. It reads and changes `.oml` modules through the typed Model API of your installed Service Studio. It never edits OML XML.
+**OutSystems 11 from the command line, built for AI agents.**
 
-You describe a change in a JSON spec, apply it to a new staged file, check it, and then install it. You can use `oml` yourself, or give its skill to an AI agent.
+`oml` reads, changes, checks and reviews OutSystems 11 modules through the typed Model API of your installed Service Studio. It never edits OML XML. You use it yourself, or give its skill to any AI agent.
 
-**New here?** [INSTRUCTION.md](INSTRUCTION.md) shows in one page how to work with any agent: development, looking at the running app, browser automation, test scenarios, test data, mocks and the application map.
+Website: [topurrra.github.io/oml-cli](https://topurrra.github.io/oml-cli/) · [Releases](https://github.com/Topurrra/oml-cli/releases) · [Everything oml does](oml-full.md) · [Benchmarks](BENCHMARKS.md) · [Changelog](CHANGELOG.md)
 
-Website: [topurrra.github.io/oml-cli](https://topurrra.github.io/oml-cli/) · [Releases](https://github.com/Topurrra/oml-cli/releases) · [Changelog](CHANGELOG.md)
+## Why oml
 
-## Project settings
+Agents that change OutSystems modules need to be cheap, fast and safe. Compared with Service Studio's own MCP server and the official O11 skill:
 
-`.oml/oml-config.json` in the project says what agents do, skip and ask in this project: which steps run without a yes (`autoApprove.install`, `publish`, ...), which oml commands may run (`commands.*`), apply's flow layout, migrate's choices and more. Agents must follow it. `oml create` writes it with every default. Change it with `oml config`:
-
-```
-oml config show                      # every setting, its value and what it does
-oml config set ui.targets desktop    # no phone or tablet checks
-oml config set ui.themes light       # no dark theme checks
-oml config set checks.browser off         # no oml browser runs
-oml config set ask.testing off       # stop asking whether to test
-oml config set author "Your Name"    # the name Service Studio shows on what oml creates or changes
-oml config                           # what agents are told
-```
-
-Agents get the result at the start of a session when `oml hooks install` was run. A check that is off is refused by the command itself; `--no-profile` runs it once. Asking before install, publish, deploy and data deletion cannot be turned off. All settings: [commands.md](skill/reference/commands.md#project-profile).
-
-## Interactive menu
-
-Do not want to learn 50 commands? Type `oml` in a terminal, or `oml menu`: tasks in groups (set up, project settings, read and check a module, an application, what agents did, docs, assets), each with a one-line description. Arrows or `j`/`k` move, Enter chooses, typing filters, Esc goes back, `q` quits. Before a task runs, the menu shows the command line it will run, so you learn the commands as you go. Project settings has an editor for `.oml/oml-config.json`.
-
-It is for people only. A bare `oml` opens the menu only when a person is at a real terminal: input and output are not redirected, `OML_OUTPUT` is not `json`, and no agent or CI variable is set (`OML_SESSION`, `CLAUDE_SESSION_ID`, `CLAUDE_CODE_SESSION_ID`, `CODEX_SESSION_ID`, `CI`, `GITHUB_ACTIONS`). In every other case a bare `oml` prints the overview and every command prints the same JSON as before. `OML_MENU=0` turns the bare-`oml` menu off.
-
-## Dashboard
-
-Not a terminal person? `oml dashboard` opens a local web page with the same tools.
-
-![The oml dashboard home page: setup check, Service Studio status and links to every page](docs/dashboard.png)
-
-*Screenshot: `docs/dashboard.png`, the Home page in the dark theme.*
-
-Start it with `oml dashboard`, or double-click `oml-dashboard.cmd` next to `oml.exe`. It opens your browser; keep its window open, and press Ctrl+C there to stop it. `--port N` picks the port, `--no-open` does not open the browser, and `--module <file.oml>` opens that module in the Module explorer.
-
-What it can do: check your setup (`doctor`), get modules into a working set (copied from Service Studio, from a folder or an `.oap`, dropped, or downloaded from LifeTime), browse a module and read what each element does (`inspect`, `describe`, `find`, `find --text`, `tree`, `validate`), run `oml check` and `oml review` with their HTML reports, search the docs, spec and warnings (Ctrl+K), make a test spec for a public server action, build a clear task for an AI agent, browse the recipes, convert fonts and images, export and fill in OpenAPI files, make architecture pages, read LifeTime (also download an application's `.oap`, and team architecture and check pages), show what agents ran (usage log), and a set of small developer tools (JSON, Base64, JWT, regex, colour contrast, ...). Every action shows the CLI command, with a copy button.
-
-Security: it listens on 127.0.0.1 only, with a random key in its address that every request must send; other sites cannot call it.
-It only reads: it never installs, publishes, refreshes references, or tags or deploys in LifeTime, and the LifeTime token stays in the environment, never in the page.
-
-## Right-click in Explorer
-
-`oml explorer-menu` adds right-click entries to Windows Explorer for your user (no admin rights needed):
-
-- On a font (`.ttf`, `.otf`, `.woff`): **oml: Convert to WOFF2**.
-- On an image (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.bmp`, `.svg`): **oml: Optimize image** (WebP for raster images, a smaller SVG for SVG) and **oml: Convert to ICO** (16, 32 and 48 pixels).
-- On a raster image (not `.svg`): **oml: Trace to SVG** (vector paths, for logos and icons).
-- On an `.oml` file: **oml: OpenAPI** and **oml: Open in dashboard**.
-- On a folder: **oml: Convert all fonts to WOFF2**, **oml: Optimize all images** (into a new subfolder) and **oml: Architecture report**.
-
-On Windows 11, choose "Show more options" first. Results are written next to the file and never replace a file; Explorer then shows them. If something fails, a message box says why, and `%LOCALAPPDATA%\oml-cli\setup.log` keeps a line per run.
-`oml explorer-menu --status` lists the entries, and `oml explorer-menu --remove` removes exactly what `oml explorer-menu` added. Run `oml explorer-menu` again after you move `oml.exe`, and run `oml explorer-menu --remove` before you delete it. A console window may flash for a moment when an entry starts. Each "Open in dashboard" starts a new dashboard window. Details: [commands.md](skill/reference/commands.md#explorer-right-click-entries).
-
-An agent can explain a change in a Markdown walkthrough; `oml show-change specs/<name>.md` shows it in the dashboard with call stacks, links to the elements, the review of the staged module, and comments you copy back to the agent. The idea comes from [diffmap](https://github.com/tanishqkancharla/diffmap) (MIT), rebuilt for OutSystems. Details: [commands.md](skill/reference/commands.md#show-change-the-dif-page).
-
-
-Hooks are optional: run `oml hooks install` in the project folder once if you want them (`oml create` does not add them). The hook works in Claude Code, GitHub Copilot (VS Code, app, CLI, also with a Claude model), Cursor, Codex and Gemini CLI. It stops agents from reading the large skill references whole, from editing `.oml` files and from calling the test-data API around oml; it costs no tokens. Details: [commands.md](skill/reference/commands.md#agent-hooks).
-
-## What it covers
-
-| Area | What `oml` does |
-|---|---|
-| Build and change | One JSON spec for entities, static entities, CRUD actions, server/service/client actions, flows, aggregates with joins, SQL, REST, screens and blocks (Reactive, Mobile, Traditional Web), timers, roles, processes, translations and resources. New flows are laid out the way Service Studio does it. Existing screens, blocks, emails and themes take new CSS, and `replaceWidgets` replaces part of a screen, with no rebuild. |
-| Read cheaply | `inspect`, `describe` (what an action or screen does, in a few lines), `find` (which module owns an element). Compact JSON output keeps agent token use low. `--history` and `--changed-since` show who changed an element and when. |
-| Check UI | After you install and publish to DEV, `browser page` opens the screen in a browser, takes a screenshot and prints what it shows: actions, inputs, tables, messages, layout and errors. Before a publish there is no visual check, so the agent reports "pending visual check". |
-| Architecture | `architecture` makes one zoomable HTML page from a folder of `.oap`/`.oml` files or a LifeTime team: applications, modules, End-user/Core/Foundation layers, dependencies and findings. |
-| Check | `check` finds AI Mentor-like patterns (performance, security, maintainability, architecture) in a module, an application or a team in seconds, with a team rules file, a baseline and an HTML report. A subset of AI Mentor, not a replacement. |
-| Review | `review` compares two versions of a module (before and after a change) by the model's own keys, so a rename stays a rename. It lists what changed in plain words (data, logic steps, UI, integrations, roles, settings), the production-rule risks and the new `check` findings, as JSON, Markdown for a pull request, an HTML page or release notes for testers. |
-| Memory | `memory` is a project memory for AI agents, so you can change agent or session without explaining the project again. One plain-text file per project (`.oml/memory/memory.log`): decisions, user answers, traps and preferences, one fact per record, with a hash chain that shows edits. Agents recall the best 3 records in their first read call (the same local search as `oml doc --search`, no model, no network). Secrets are refused. Only `oml memory` writes the file. From the usage log (on by default; `OML_LOG=0` turns it off; it stays on your machine), recall learns which records help (commands after them pass), shows only the newer of two records that contradict, and leaves out facts nobody recalled for 180 days; `memory doctor` suggests trap records for failures that repeat. See `oml doc memory`. |
-| Library | `outsystems-docs fetch` downloads the OutSystems 11 docs (docs-product, docs-support, docs-howtos; Markdown only, about 15 MB) to your machine. `doc --search "<words>" --library` then answers platform questions: Service Center, LifeTime, servers, network, errors. The docs are CC BY-NC-ND 4.0 (c) OutSystems: oml does not ship them. |
-| Application map | `map build <project> --in <folder of .oap>` maps every module of a project once (rebuilds read only changed files). Agents then ask short questions without loading modules: `map overview`, `map uses <element>`, `map impact <element>`, `map data <Entity>` (who writes and reads it, which processes it launches, which API values fill it) and `map api <Api.Method>` (who calls it, where its outputs go, and the APIs that run after it, through wrapper actions, entities and BPT processes). |
-| Chained mocks | `mock --all` writes mock responses for every consumed API, to paste into a mock server such as Castlemock, with a checklist of which request value selects which answer. Values linked in the map stay the same across APIs: the CustomerId GetClient returns for a persona selects GetCreditLines' answer for that persona. Personas are synthetic, or your own test data with `--personas`. |
-| Test data | `test data module <producer.oml> --entity "Contact:Create=AddContact,Delete=RemoveContact,Get=GetContactById"` writes the spec of a separate, dev-only module with a key check and no table of its own, so an agent can see the database: `test data create`, `update`, `check` and `cleanup` work through your wrapper actions, check what was saved, and delete exactly what the run created. Agents call it only through oml (the hook refuses curl to it). |
-| Learning loop | `learn report` shows where agents lose turns, from your local usage log (on by default, never sent anywhere, `OML_LOG=0` turns it off) and project memory: failures that repeat, commands retried until they passed (and what changed), spec keys that fail, docs nobody found. `learn propose` turns it into proposals with their evidence: trap records and a draft company skill per command (`--maintainer`: diffs for oml's own docs). A person accepts each one (`learn accept <id>`), and `learn undo <id>` takes it back; the report then says whether it helped. No model, no network; secrets and injected text never reach a proposal; `rules.md` is never changed. The dashboard page "What agents learned" shows the same. |
-| Company skills | `team-rules add <file.md>` installs your team's own rules (naming, layers, Confluence pages saved as Markdown). They override oml's OutSystems best practices, never the production rules. `oml doc` lists them, and `oml doc --search` ranks them first. |
-| REST | `openapi` exports exposed REST APIs as OpenAPI 3.0.3, with `<FILL:` placeholders for contact, servers and examples. |
-| Tests | `test bdd` writes a spec for BDDFramework test screens of public server actions (Given/When/Then scenarios with TODO test values), to apply to a separate test module. Checked only against a stand-in of BDDFramework. |
-| Service Studio and deploy | `pull` saves the module open in Service Studio to a file (no manual export); 1-Click Publish and Refresh All through Service Studio's MCP server; LifeTime API v2 tags and deployments. |
-| Packages | List, extract and pack `.oap`/`.osp`; inspect and create `.xif` extensions. |
-| Assets | Fonts to WOFF2; convert, resize and shrink images; multi-size ICO files (favicons, app icons); trace a PNG logo or icon to an SVG with real vector paths; SVG optimization that checks every result against the original pixels. `apply` removes comments from CSS and JavaScript (license notices stay). Long code can come from a file: `{ "file": "code/chart.js" }`. |
-
-Full command list: [skill/reference/commands.md](skill/reference/commands.md). All spec keys: [skill/reference/spec.md](skill/reference/spec.md).
-
-## Commands by audience
-
-Developers work in Service Studio. Most commands are for AI agents, so agents can work faster and with fewer tokens.
-
-| Group | Commands | Used by |
+| | OutSystems MCP | oml |
 |---|---|---|
-| Dashboard and Explorer | `dashboard`, `explorer-menu` | Developers |
-| Converters | `font woff2`, `font batch`, `image`, `image batch` | Developers |
-| REST | `openapi` | Developers |
-| Architecture | `architecture` | Developers, architects |
-| Code check | `check`, `review` | Developers, teams, agents |
-| Read a module | `inspect`, `describe`, `find`, `stats`, `tree` | Agents |
-| Change a module | `new`, `apply`, `spec`, `batch`, `install`, `validate`, `translations export` | Agents |
-| Knowledge | `doc`, `explain-warning` | Agents |
-| UI | `browser page` | Agents, sometimes developers |
-| Tests | `test bdd` | Agents |
-| Packages | `app list`, `app extract`, `app pack`, `extension inspect`, `extension new`, `templates` | Agents, sometimes developers |
-| Service Studio and deploy | `studio`, `pull`, `publish`, `references`, `lifetime` | Agents; publish and deploy after you confirm |
-| Diagnostics | `version`, `selftest`, `doctor`, `log`, `model-types`, `widget-types` | Agents, maintainers |
+| Works on | The one module open in Service Studio | Module files: many modules, many agents, Studio may be closed for reading and checks |
+| A change | Goes into the open module | Goes into a staged copy. Production rules are enforced, you review it, then it is installed with a backup |
+| Token use | One tool call per step | Compact JSON, short `describe` answers, and `oml code`: one program runs many calls and returns only the answer |
+| Parallel agents | Share one open module | Each agent has its own file; one command merges the results |
+| Checks and review | Not included | 36 AI Mentor-like rules, a plain-words review of two versions, architecture maps |
+| Server versions | Not included | Pull, compare and check any published version of any module, with scores over time |
+| Running app | Not included | Opens screens in a browser and reports what users see, at every width |
+| More | | Traditional Web to Reactive migration, LifeTime deploys, project memory, offline OutSystems docs search, test data, mocks |
 
-## Check
-
-`oml check` reads module files and lists code patterns, like AI Mentor does, in a few seconds. Run it on your own module, application or team before you publish:
-
-```powershell
-oml check Orders_CS.oml
-oml check --in C:\Exports\Payments --out check.html --json check.json
-oml check --team Payments --rules oml-rules.json --baseline last-check.json --fail-on high
-```
-
-Each finding has a rule id, a severity, a category (Security, Performance, Maintainability, Architecture), the module and element path, what is wrong, how to fix it, and the AI Mentor pattern name when there is one. There are 36 rules. Examples: a query inside a loop, a screen query without a row limit, server calls from client loops and screen events, Expand Inline SQL fed by input, `GetUserId()` sent from the client, secret-looking site properties, public entities that are not read-only, long, deep or duplicated flows, and the `oml architecture` findings when you give several modules.
-
-- `oml check --init-rules` writes `oml-rules.json`. Turn rules on or off, set severities and thresholds so that they match your active AI Mentor rules, and list ignored elements with a reason.
-- `--baseline` marks each finding `new` or `existing`; with `--fail-on`, only new findings make the exit code 1.
-- It is a subset of AI Mentor, from the module file alone; your CI keeps using AI Mentor. Severities are oml's defaults, because the OutSystems docs publish none. Exposed REST APIs without authentication are not reported unless you turn that rule on (API gateways such as Kong often authenticate).
-
-Rules, coverage and the file formats: [commands.md](skill/reference/commands.md#check).
-
-## Review
-
-`oml review` compares two versions of one module, for example the module and an agent's staged file, and gives a one-page summary to approve:
-
-```powershell
-oml review Orders.oml Orders.staged.oml --md review.md --out review.html --notes release-notes.md
-```
-
-It matches elements by the model's own keys, so a renamed element is a rename. It says what changed in plain words ("step Audit added after PrepareOrder", "condition Total >= 0 -> Total > 0"), flags production risks with the rule they break (deletes, renames, type or length changes, broken public signatures, data-changing SQL, Anonymous access, new public server actions, unique indexes), and lists only the `check` findings that are new. Logic bugs are not covered; 0 findings does not mean the code is correct. Details: [commands.md](skill/reference/commands.md#review).
+oml uses Service Studio's MCP server too: for publish and Refresh All, after you confirm.
 
 ## Benchmarks
 
-Same task, same module, same model on both sides. The OutSystems MCP side used Service Studio's MCP server with the official OutSystems skill for O11. Each row is one run, so treat the numbers as a direction, not a guarantee.
+Same task, same module, same model:
 
-**Small task** (an entity, two CRUD actions, a list screen; model `gpt-6-luna`):
+| Task | OutSystems MCP | oml |
+|---|---|---|
+| Small: entity, CRUD actions, list screen | 611k tokens, 185 s | **207k tokens, 56 s** |
+| 24 UI components, 1 agent | $0.94, 58 turns | **$0.55, 37 turns** |
+| 24 UI components, 8 agents | 20/24 built, $3.16 | **24/24 built, $1.17** |
 
-| | OutSystems MCP + O11 skill | oml |
-|---|---:|---:|
-| Result | 0 errors | 0 errors, same content |
-| Input tokens | 611,714 | **207,210** (3.0× fewer) |
-| Output tokens | 4,474 | **2,780** |
-| Time | 185 s | **56 s** (3.3× faster) |
-| Tool calls (failed) | 19 (2) | **10 (0)** |
-
-**Large task** (24 UI components, a gallery screen, theme toggle and font picker; model Claude Haiku 5.5; cost as reported by Claude Code):
-
-| | Result | Cost | Time | Turns |
-|---|---|---:|---:|---:|
-| MCP, 1 agent | 24/24, 0 errors | $0.94 | 787 s | 58 |
-| **oml, 1 agent** | 24/24, 0 errors | **$0.55** | **706 s** | **37** |
-| MCP, 8 agents + 1 assembly | **20/24**: one agent was blocked, one block was lost in a merge | $3.16 | 968 s | 340 |
-| **oml, 8 agents + 1 assembly** | 24/24, 0 errors, 0 warnings | **$1.17** | **700 s** | 267 |
-
-Why: output is similar, because both sides write the same CSS and JavaScript. MCP needs more turns, and every turn reads the context again. Parallel MCP agents all edit the one module open in Service Studio; `oml` agents each work on their own files.
-
-**oml 1.1.0 vs 1.2.0** (the same large task, 1 agent, same module, Haiku 5.5, 3 runs each, averages):
-
-| | Cost | Time | Turns | Result |
-|---|---:|---:|---:|---|
-| oml 1.1.0 | $0.80 | 864 s | 64 | 24/24, 0 errors |
-| **oml 1.2.0** | **$0.36** | **615 s** | **37** | 24/24, 0 errors |
-
-1.2.0 gives agents a fixed loop that batches commands into fewer tool calls. One 1.2.0 run left unexplained warnings, so the skill now requires fixing or explaining every new warning; one run with that rule cost $0.81 with 0 warnings, so the cost with the rule still needs more runs. Re-run any of these with [tests/bench](tests/bench/README.md).
+Details, the new `oml code` benchmark and how to re-run them: [BENCHMARKS.md](BENCHMARKS.md).
 
 ## Install
 
-**Prerequisites:** Windows, Service Studio 11, and the .NET 10 runtime (the SDK to build from source). Service Studio 11.55.94 and later install it. Publishing and reference refresh need Service Studio 11.55.91 or later with its MCP server started (**Edit > MCP Server > Start MCP server**).
+You need Windows, Service Studio 11 and the .NET 10 runtime (Service Studio 11.55.94 and later install it). Publish and Refresh All need Service Studio 11.55.91+ with its MCP server started (**Edit > MCP Server > Start MCP server**).
 
-**Release:** download `oml-<version>-win-x64.zip` from [Releases](https://github.com/Topurrra/oml-cli/releases), unzip it, keep its folders together, and add `bin` to PATH. Unsigned executables may be blocked by company policy; then build from source.
+- **Release:** download `oml-<version>-win-x64.zip` from [Releases](https://github.com/Topurrra/oml-cli/releases), unzip it and add `bin` to PATH.
+- **From source:**
 
-**From source:**
+  ```powershell
+  dotnet build -c Release src/OmlCli.csproj
+  $env:PATH = "$PWD\src\bin\Release\net10.0;$env:PATH"
+  ```
 
-```powershell
-dotnet build -c Release src/OmlCli.csproj
-$env:PATH = "$PWD\src\bin\Release\net10.0;$env:PATH"
-oml version
-```
-
-For a Service Studio folder other than the default, set `OML_SERVICE_STUDIO` and build with `-p:SS="<that folder>"`. On a new Service Studio build, `oml` first runs a short self-test and stops if it fails.
-
-Run `oml doctor` to check your setup.
+Then run `oml doctor`: it checks your setup and says what to fix. `oml code` also needs Python 3.9+.
 
 ## Quick start
 
 ```powershell
-oml inspect App.oml --own --only entities,actions,screens
-oml apply App.oml change.json App.staged.oml
-oml validate App.staged.oml --warnings
-oml describe App.staged.oml ReviewNote
-oml install App.staged.oml App.oml
+oml create orders --in C:\Exports\Orders.oml   # a project folder: modules, skill, settings, docs
+cd orders
+oml inspect modules\Orders.oml --own --only entities,actions,screens
+oml apply modules\Orders.oml specs\change.json staged\Orders.oml
+oml review modules\Orders.oml staged\Orders.oml --out review.html
+oml install staged\Orders.oml modules\Orders.oml
 ```
 
-`apply` never changes the source file. `install` replaces it only when the staged file has zero validation errors, and keeps a backup. A minimal `change.json`:
+A minimal `specs\change.json`:
 
 ```json
 { "entities": [ { "name": "ReviewNote", "attributes": [ { "name": "Text", "length": 250, "mandatory": true } ] } ] }
 ```
 
-A command is slow on a big module? Add `--timings` to see the milliseconds per phase (load, build, save, reopen, ...). `oml batch` runs several commands in one process, so Service Studio's model starts once. See [commands.md](skill/reference/commands.md#timings---timings).
+`apply` never changes the source file. `install` replaces it only when the staged file has zero validation errors, and keeps a backup. No module file yet? Open the module in Service Studio and run `oml pull`, or get the published version with `oml server pull`.
 
-`oml --help` lists the commands by area. `oml <command> --help` prints the options of one command, and `oml help --all` prints every usage line.
+Not a terminal person? Type `oml` for a menu that shows each command it runs, or `oml dashboard` for a local web page.
 
 ## Use with AI agents
 
-The skill is the `skill/` folder: instructions, rules, recipes and references.
+Put the `skill/` folder in your project (`oml create` does it). It works with Claude Code, GitHub Copilot, Cursor, Codex, Gemini CLI and any agent that reads `AGENTS.md`. The default load is about 2.8k tokens; the rest is read only when a task needs it.
 
-Two files, one content, for any agent and model:
+The agent works in a loop: read the module, copy a recipe into a spec, `apply` to a staged file, `validate`, fix and repeat. It asks you before anything that touches a real module or environment.
 
-- `skill/AGENTS.md`: always-on instructions that point to the rules in `skill/rules.md` and `skill/SKILL.md`, loaded on every request. Short on purpose, so it costs few tokens per request.
-- `skill/SKILL.md` (with `rules.md`): the same guidance as an on-demand skill, for harnesses that load skills.
+For many calls, the agent writes one program instead of many tool calls:
 
-Keep the `skill/` folder at the project root in every case: both files point to `skill/reference/` and `skill/recipes/`.
-
-| Harness | Install | Checked |
-|---|---|---|
-| Codex, Cursor, Windsurf, Zed, VS Code (GitHub Copilot), Copilot coding agent, Jules, Aider, Junie, Amp, opencode, Warp | Copy `skill/AGENTS.md` to `AGENTS.md` at the project root, with the `skill/` folder in the project (as `oml create` does). | agents.md, 2026-10-25 |
-| GitHub Copilot (any version, also Visual Studio) | Copy `skill/AGENTS.md` to `.github/copilot-instructions.md`, with the `skill/` folder in the project (as `oml create` does). | GitHub docs |
-| Gemini CLI | Copy `skill/AGENTS.md` to `AGENTS.md` and set `"contextFileName": "AGENTS.md"` in `.gemini/settings.json` (or copy it to `GEMINI.md`), with the `skill/` folder in the project. | agents.md FAQ, 2026-10-25 |
-| Claude Code | Copy the `skill/` folder to `%USERPROFILE%\.claude\skills\outsystems-oml\` (on demand), or put `@AGENTS.md` in the project's `CLAUDE.md` (always on). | this repository uses the import |
-| Other agents | Give them `skill/AGENTS.md` (or `skill/SKILL.md`) as their instructions, with the `skill/` folder in the project. | not verified per agent |
-- **Leading cheap worker agents (optional):** the lead model also reads [skill/architect.md](skill/architect.md). It plans lanes, gives each worker a brief ([worker-brief.md](skill/reference/worker-brief.md)), checks the results and merges them with one multi-part `oml apply`. It is not part of the default load.
-
-Tell the agent where `oml` and the module file are. No file yet? Open the module in Service Studio and let the agent run `oml pull`. The agent then works in a loop: read the module (`inspect`, `describe`, `find`) → copy a recipe into a spec → `apply` to a new staged file → `validate` and `describe` → for UI, after you publish to DEV, `browser page` with a screenshot → fix and repeat. It asks you before anything that changes a real module or an environment.
-
-To keep agents from reading the whole spec reference, `oml spec <key>` prints only the section for one key (15-60 lines) and `oml spec check <spec.json>` finds typos, wrong types and bad flow targets in milliseconds, before `apply`. `oml spec schema` writes a JSON Schema for autocomplete in VS Code.
-
-**Knowledge for agents.** Short OutSystems rules, written for cheap models, live in `skill/reference/` and are built into `oml.exe`: `oml doc` lists the topics (Reactive UI, OutSystems UI patterns, data, logic, security, REST, processes and timers, architecture, validation messages, ...), `oml doc <topic>` prints one (0.7k to 2.3k tokens), and `oml doc <topic>#<section>` prints one section. `oml explain-warning <id>` prints the cause and fix of a validation message; `apply` already adds that fix as `hint` to each new error or warning it knows. Not sure which topic, key or recipe? `oml doc --search "<words>"` lists the 3 most likely sections, spec keys, recipes, warnings or commands, each with the command that opens it (about 200 tokens). It is a local ranked search (BM25F with OutSystems synonyms, typo fixes and exact-key matching), with no model and no network. `oml find <module.oml> --text "<words>"` ranks a module's own elements by name, description and the text inside them. The default skill load (`SKILL.md` and `rules.md`) is about 2.8k tokens; everything else is read only when a task needs it.
-
-**Skill checks.** Before each release, `tests/skill-scan.ps1` scans `skill/` with [NVIDIA SkillSpector](https://github.com/NVIDIA/skillspector): static rules only (`--no-llm`), offline. Last result, SkillSpector 2.12.0 on 2026-11-22: score 0/100 after 13 reviewed findings, 63/100 without them. The reviewed findings are scanner limits on two large reference files, the `autoApprove` lines that a person turns on, and the documented gateway practice for exposed REST APIs; each has its reason in `tests/skill-scan-baseline.yaml`. The verdict is CAUTION, not SAFE, because the scanner reads 45 of 47 files whole. `tests/skill-evals/` holds trigger and task evals in the format of Anthropic's skill-creator; `run-skill-evals.ps1` runs them with `claude -p`.
-
-### How to give tasks to an agent
-
-A good task says four things: **which module file**, **what to build or change**, **which elements from other modules to use** (as `Module.Element`), and **what the agent may not do**. The agent cannot guess which action or block of another module you mean, so name it.
-
-```text
-Module: C:\Work\Orders.oml. Add an entity Invoice (Number Text 20 mandatory,
-Amount Decimal, IssuedOn Date) with Invoice_CreateOrUpdate and Invoice_Delete
-server actions, and a Reactive list screen InvoiceList using the module's layout.
-Stage the result and validate it. Do not install or publish.
+```python
+# oml code run --json -f check.py
+mods = ["Orders.oml", "Orders_CS.oml", "Customers_CS.oml"]
+found = parallel([("oml.read", {"args": ["check", m]}) for m in mods])
+[helpers.oml.out(r)["summary"] for r in found]
 ```
 
-```text
-In C:\Work\Orders.oml, change the server action Order_Save: before saving,
-call Customers_CS.Customer_Validate with the order's CustomerId. The producer
-module file is C:\Work\Customers_CS.oml. Show me the changed flow with
-oml describe before you install anything.
-```
+Reads and staged writes run at once. Install, publish, server and LifeTime calls pause until a person approves. Give a good task four things: the module file, what to change, which elements of other modules to use (`Module.Element`), and what the agent may not do.
 
-```text
-Explain what the screen OrderDetail in C:\Work\Orders.oml does: data it
-loads, actions it calls, and who can open it. Do not change anything.
-```
+Setup per harness, task examples and the agent hooks: [oml-full.md](oml-full.md#ai-agents).
 
-```text
-Build a reusable block StatusBadge (input Status Text) in C:\Work\Orders.oml:
-green for "Paid", orange for "Pending", grey otherwise. Use theme variables.
-Follow the UI checklist. After I publish to DEV, check the screen
-and send me the screenshot.
-```
+## Safety
 
-```text
-The changes in C:\Work\Orders.staged.oml are ready. Compare them with
-C:\Work\Orders.oml, summarise what changed, then install after I say yes,
-and publish it through Service Studio.
-```
+Agents must assume everything in a module is already in production. `apply` refuses to:
 
-```text
-Export the exposed REST API OrdersApi of C:\Work\Orders.oml as OpenAPI.
-Then list the placeholders I must fill in.
-```
+- delete an existing entity, or rename or delete existing elements, parameters or attributes;
+- break the signature of an existing public element;
+- change an existing attribute's type, length or settings;
+- add SQL that changes data (`DELETE`, `UPDATE`, `DROP`, ...).
 
-```text
-Make an architecture report for all .oap files in C:\Exports\Payments-team
-and explain the three most important findings.
-```
+It prints the manual step instead, for you to do in Service Studio. Install, publish, deploy and data deletion always ask a person first. All 11 rules: [skill/rules.md](skill/rules.md).
 
-Tips:
-- One task per message works best. Big features: split them (data model first, then logic, then screens).
-- Say "do not install or publish" when you only want a staged result to review.
-- If the agent reports a refusal from the production rules (for example deleting an existing entity), do that step yourself in Service Studio.
+## What it covers
 
-## Production rules
-
-Agents must assume that everything already in a module also exists in production, with data and with other modules using it. [skill/rules.md](skill/rules.md) has 11 short rules. `apply` enforces five of them, prints the manual step instead, and warns on rule 7:
-
-- never delete an existing entity (regular or static);
-- never rename or delete existing elements, their parameters or attributes;
-- never break the signature of an existing public element: never make it private, no new mandatory input, no input made mandatory, no type change, no input change at all on a public Reactive or Mobile block or screen or a public client action, no new output except on server and service actions, no new event on a public block, no event made mandatory;
-- never change the type, length, decimals, mandatory or auto number setting of an existing attribute, or an existing entity's identifier and options (new attributes and indexes are fine);
-- never add SQL that changes data (`DELETE`, `UPDATE`, `TRUNCATE`, `DROP`, `ALTER`, `MERGE`);
-- a server action that becomes public (new, or private to public) gets a `PublicServerAction` warning: the agent asks you or reports it (rule 7). Other elements may become public with no warning. Service actions get no warning: other modules call them by design. Exposed REST methods have no public setting.
-
-Elements created in the same spec stay fully editable. Flow nodes, widgets and local variables in existing elements can still change.
-
-## Agents and people
-
-Agents do the work; people make the decisions that touch production.
-
-| Step | Who |
+| Area | Commands |
 |---|---|
-| Read modules, write specs, `apply`, `validate`, `browser page`, `architecture`, `check`, `review`, `openapi`, `test bdd` | Agent |
-| `memory recall`, `memory add` (only after you ran `memory init`) | Agent |
-| `install` a staged file over a module | Agent, after you confirm |
-| Publish and refresh references | Agent, after you confirm; you approve Service Studio's connection dialog once per session |
-| LifeTime tags and deployments | Agent, after you confirm; the token stays in environment variables |
-| Delete or rename existing elements, change existing attributes | You, in Service Studio (`apply` refuses) |
-| Final design touches, logic review | You |
+| Read a module | `inspect`, `describe`, `find`, `query`, `flow`, `tree`, `export` |
+| Change a module | `apply`, `validate`, `install`, `new`, `spec`, `translations` |
+| Check and review | `check`, `review`, `architecture` |
+| Platform server | `server modules`, `server pull`, `server check`, `review --server` |
+| Service Studio and LifeTime | `pull`, `publish`, `references`, `studio`, `lifetime` |
+| Migration | `migrate plan`, `migrate status`, `migrate check` |
+| Running app | `browser page`, `look`, `sweep`, `run`, `record`, `diff` |
+| Tests | `test bdd`, `test scenarios`, `test data` |
+| Whole applications | `map`, `mock` |
+| Agents | `code`, `mcp`, `batch`, `memory`, `learn`, `hooks`, `doc` |
+| For people | `menu`, `dashboard`, `explorer-menu`, `show-change` |
+| Packages and assets | `app`, `extension`, `font`, `image` |
 
-Not supported: debugging, SOAP, downloading OutSystems UI, Traditional Web screen templates, and ODC (see the roadmap in [Issues](https://github.com/Topurrra/oml-cli/issues)).
+Every feature and use case in short: [oml-full.md](oml-full.md). Every command with its options: [commands.md](skill/reference/commands.md). Every spec key: [spec.md](skill/reference/spec.md).
 
-## More
+Not supported: debugging, SOAP, and ODC (use the OutSystems MCP for ODC).
 
-- [skill/reference/commands.md](skill/reference/commands.md): every command with options and examples.
-- [skill/architect.md](skill/architect.md): how a strong model leads cheap worker agents (optional; the default load does not include it).
-- [skill/reference/spec.md](skill/reference/spec.md): every spec key.
-- [skill/reference/ui-checklist.md](skill/reference/ui-checklist.md): what agents check before UI work is done.
-- Knowledge for agents (also `oml doc <topic>`): [best-practices](skill/reference/best-practices.md), [ui-reactive](skill/reference/ui-reactive.md), [osui-patterns](skill/reference/osui-patterns.md), [data-rules](skill/reference/data-rules.md), [logic-rules](skill/reference/logic-rules.md), [security](skill/reference/security.md), [rest](skill/reference/rest.md), [processes-timers-email](skill/reference/processes-timers-email.md), [architecture-rules](skill/reference/architecture-rules.md), [warnings](skill/reference/warnings.md), [traditional-to-reactive](skill/reference/traditional-to-reactive.md), [troubleshooting](skill/reference/troubleshooting.md).
-- [skill/reference/memory.md](skill/reference/memory.md): rules for agents on project memory (`oml doc memory`); the file format and speed are in [commands.md](skill/reference/commands.md#memory).
-- [skill/reference/testing.md](skill/reference/testing.md): how to organise BDDFramework tests for a module, and how an agent builds the test screens with `oml test bdd` (needs BDDFramework from Forge, installed by you).
-- [CONTRIBUTING.md](CONTRIBUTING.md): build, tests, project layout, releasing.
+## License
 
-`oml` is released under the [MIT License](LICENSE). It uses your locally installed Service Studio assemblies and does not ship them. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Not affiliated with OutSystems. The memory design takes ideas from OptMem by Victor Taelin; the memory engine is a port of the author's own voli project.
+MIT, see [LICENSE](LICENSE). `oml` uses your installed Service Studio assemblies and does not ship them; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). Not affiliated with OutSystems. Build, tests and releases: [CONTRIBUTING.md](CONTRIBUTING.md).

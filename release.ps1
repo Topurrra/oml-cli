@@ -103,7 +103,7 @@ try {
             throw "Publish output is missing $required."
         }
     }
-    foreach ($item in @('skill', 'README.md', 'INSTRUCTION.md', 'THIRD-PARTY-NOTICES.md', 'licenses', 'CHANGELOG.md')) {
+    foreach ($item in @('skill', 'README.md', 'oml-full.md', 'BENCHMARKS.md', 'INSTRUCTION.md', 'THIRD-PARTY-NOTICES.md', 'licenses', 'CHANGELOG.md')) {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $item) -Destination $stage -Recurse
     }
     # oml code: the code-mode runtime (Python) beside bin/, without its tests and Python's caches.

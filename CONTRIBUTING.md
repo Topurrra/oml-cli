@@ -73,7 +73,7 @@ oml selftest
 
 ## Benchmarks
 
-`tests/bench/` holds the reproducible benchmark behind the README's benchmark section: the OutSystems MCP side against `oml`, run through Claude Code. A run uses real API usage and needs Service Studio for the MCP side, so it is not part of the regression suite. Read [tests/bench/README.md](tests/bench/README.md) before you run it, and use `-DryRun` first to check the plan.
+`tests/bench/` holds the reproducible benchmarks behind [BENCHMARKS.md](BENCHMARKS.md): the OutSystems MCP side against `oml`, run through Claude Code. A run uses real API usage and needs Service Studio for the MCP side, so it is not part of the regression suite. Read [tests/bench/README.md](tests/bench/README.md) before you run it, and use `-DryRun` first to check the plan.
 
 ### Memory speed
 
