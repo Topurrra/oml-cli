@@ -30,6 +30,8 @@ static class QaScript
             let m = all.filter(e => txt(e).toLowerCase() === l);
             if (!m.length) m = all.filter(e => txt(e).toLowerCase().includes(l));
             if (!m.length) m = [...document.querySelectorAll(FIELDS)].filter(e => vis(e) && labelOf(e).toLowerCase() === l);
+            // Last: any shown text, such as a message or an expression (a handoff's until, an expect visible). The innermost wins.
+            if (!m.length) m = [...document.body.querySelectorAll('*')].filter(e => !['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(e.tagName) && txt(e).toLowerCase().includes(l) && vis(e));
             return m.filter(e => !m.some(o => o !== e && e.contains(o)));
           };
           const desc = e => ({ tag: e.tagName.toLowerCase(), id: e.id || undefined, text: txt(e).slice(0, 60) || undefined });

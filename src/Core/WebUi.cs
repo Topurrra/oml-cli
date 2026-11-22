@@ -61,16 +61,31 @@ partial class Builder
         }
         widgets.Add(($"{label}.widgets", () =>
         {
+            var content = new Dictionary<string, List<JsonElement>>(s.Placeholders ?? new(), StringComparer.OrdinalIgnoreCase);
+            if (s.Widgets is not null) content.TryAdd("MainContent", s.Widgets);
+            if (s.Title is { ValueKind: JsonValueKind.Array } items) content.TryAdd("Title", items.EnumerateArray().ToList());
             if (s.Layout is null)
             {
+                // A new Traditional screen comes with the module's default layout (LayoutTopMenu with header, menu and login).
+                // Widgets go into its MainContent, as Service Studio does when you drop them on the screen; beside the layout
+                // instance they are not shown (only the header was).
+                var seeded = Elements(Reflect.Get(screen, "Widgets")).FirstOrDefault(x => Elements(Reflect.Get(x, "PlaceholdersContent")).Any());
+                if (seeded is not null && content.Count > 0)
+                {
+                    foreach (var (area, children) in content)
+                    {
+                        var slot = Elements(Reflect.Get(seeded, "PlaceholdersContent")).FirstOrDefault(x =>
+                            Reflect.Get(x, "Placeholder") is { } p && string.Equals(Model.NameOf(p), area, StringComparison.OrdinalIgnoreCase))
+                            ?? throw new ModelError($"unknown placeholder '{area}' in the screen's layout {Model.NameOf(Reflect.Get(seeded, "SourceBlock") ?? seeded)}");
+                        foreach (var child in children) WebWidget(slot, child, label, actions);
+                    }
+                    return;
+                }
                 if (s.Placeholders is { Count: > 0 } || s.Title is { ValueKind: JsonValueKind.Array })
                     throw new ModelError("placeholder content requires a layout block");
                 foreach (var w in s.Widgets ?? new()) WebWidget(screen, w, label, actions);
                 return;
             }
-            var content = new Dictionary<string, List<JsonElement>>(s.Placeholders ?? new(), StringComparer.OrdinalIgnoreCase);
-            if (s.Widgets is not null) content.TryAdd("MainContent", s.Widgets);
-            if (s.Title is { ValueKind: JsonValueKind.Array } items) content.TryAdd("Title", items.EnumerateArray().ToList());
             WebWidget(screen, JsonSerializer.SerializeToElement(new { type = "BlockInstance", sourceBlock = s.Layout, placeholders = content }), label, actions);
         }));
     }

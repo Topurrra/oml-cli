@@ -31,6 +31,24 @@ static class Locations
         var roots = new[] { Environment.GetEnvironmentVariable("ProgramFiles(x86)"), Environment.GetEnvironmentVariable("ProgramFiles"),
             Environment.GetEnvironmentVariable("LocalAppData") }.Where(r => !string.IsNullOrEmpty(r));
         var tails = new[] { @"Microsoft\Edge\Application\msedge.exe", @"Google\Chrome\Application\chrome.exe" };
-        return tails.SelectMany(t => roots.Select(r => Path.Combine(r!, t))).FirstOrDefault(File.Exists);
+        var found = tails.SelectMany(t => roots.Select(r => Path.Combine(r!, t))).Where(File.Exists).ToList();
+        // Edge first, but not one whose policy turns DevTools off when Chrome is allowed: a company PC often blocks only Edge.
+        return found.FirstOrDefault(p => DevToolsBlockedBy(p) is null) ?? found.FirstOrDefault();
+    }
+
+    // Why a browser policy turns DevTools off for this browser (RemoteDebuggingAllowed = 0, machine or user policy), or null.
+    // oml only reads the policy, never changes it.
+    public static string? DevToolsBlockedBy(string exe)
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        var (key, name) = exe.Contains("Edge", StringComparison.OrdinalIgnoreCase)
+            ? (@"SOFTWARE\Policies\Microsoft\Edge", "Edge") : (@"SOFTWARE\Policies\Google\Chrome", "Chrome");
+        foreach (var (hive, label) in new[] { (Microsoft.Win32.Registry.LocalMachine, "HKLM"), (Microsoft.Win32.Registry.CurrentUser, "HKCU") })
+        {
+            using var policies = hive.OpenSubKey(key);
+            if (policies?.GetValue("RemoteDebuggingAllowed") is 0)
+                return $"{name} remote debugging is turned off by policy ({label}\\{key}\\RemoteDebuggingAllowed = 0)";
+        }
+        return null;
     }
 }

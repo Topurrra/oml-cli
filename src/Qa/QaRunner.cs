@@ -35,7 +35,7 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
             var value = step.GetProperty(action);
             switch (action)
             {
-                case "open": await Open(value); break;
+                case "open": seq = await Open(value, seq, notes); break;
                 case "click": await Click(value, step); break;
                 case "fill": await Fill(value, notes); break;
                 case "select": await Select(value); break;
@@ -75,7 +75,8 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
         return result;
     }
 
-    async Task Open(JsonElement value)
+    // Returns the network sequence the step's problems count from: after a retry, the first 404 is not one.
+    async Task<int> Open(JsonElement value, int seq, JsonArray notes)
     {
         var text = value.GetString() ?? throw new QaUsage("open: give a screen name or URL.");
         var url = Uri.TryCreate(text, UriKind.Absolute, out var abs) && abs.Scheme.StartsWith("http") ? abs
@@ -84,7 +85,24 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
         if (baseUrl is not null && !url.Host.Equals(baseUrl.Host, StringComparison.OrdinalIgnoreCase))
             throw new QaUsage($"open: {url.Host} is not the host of baseUrl ({baseUrl.Host}). A browser script stays on one environment.");
         await browser.Navigate(url.AbsoluteUri);
+        // A Traditional Web screen's address ends in .aspx (Orders.aspx); a Reactive one has none. A bare screen name that
+        // gets a 404 is tried once more as <name>.aspx.
+        if (baseUrl is not null && BareScreen.IsMatch(text))
+        {
+            await browser.WaitReady(Math.Max(timeoutMs, 30_000));
+            var page = url.AbsoluteUri.Split('?', '#')[0];
+            if (browser.Network.FailedSince(seq).Any(r => r.Status == 404 && string.Equals(r.Url.Split('?', '#')[0], page, StringComparison.OrdinalIgnoreCase)))
+            {
+                var again = browser.Network.Seq;
+                await browser.Navigate(new Uri(baseUrl, text.TrimStart('/') + ".aspx").AbsoluteUri);
+                notes.Add($"{text} gave 404; opened {text}.aspx (Traditional Web). Write \"{text}.aspx\" to skip the first try.");
+                return again;
+            }
+        }
+        return seq;
     }
+
+    static readonly System.Text.RegularExpressions.Regex BareScreen = new(@"^/?[A-Za-z_][A-Za-z0-9_]*$");
 
     async Task Click(JsonElement value, JsonElement step)
     {
