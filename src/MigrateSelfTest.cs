@@ -240,6 +240,32 @@ static partial class Migrate
             && ExportActions(JsonNode.Parse("""{ "name": "A" }"""), ["A"])["A"]["name"] is not null && ExportActions(null, ["A", "B"])["B"]["error"] is not null,
             "server functions: names from inspect; export answers by name, a missing one is an error");
 
+        // Blocks of producers migrated earlier: the Reactive module whose public blocks include every block used (found by name), or the one
+        // --migrated names; several that fit is a note; a block the named module lacks stays a Todo.
+        var pbInspect = JsonNode.Parse("""
+        { "references": [
+          { "module": "SharedWeb", "elements": [ { "name": "InfoCard", "kind": "IWebBlockSignature" }, { "name": "Pager", "kind": "IWebBlockSignature" }, { "name": "GetX", "kind": "IServerActionSignature" } ] },
+          { "module": "MenuWeb", "elements": [ { "name": "TopMenu", "kind": "IWebBlockSignature" } ] },
+          { "module": "ToolsWeb", "elements": [ { "name": "Tip", "kind": "IWebBlockSignature" }, { "name": "Gone", "kind": "IWebBlockSignature" } ] },
+          { "module": "RichWidgets", "elements": [ { "name": "Tip", "kind": "IWebBlockSignature" } ] } ] }
+        """)!;
+        var pbFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["Shared"] = "C:/p/Shared.oml", ["MenuA"] = "C:/p/MenuA.oml", ["MenuB"] = "C:/p/MenuB.oml", ["Tools"] = "C:/p/Tools.oml" };
+        var pbBlocks = new Dictionary<string, string>
+        {
+            ["C:/p/Shared.oml"] = """{ "blocks": [ { "name": "InfoCard", "public": true, "inputs": ["Title"], "events": ["Notify"] }, { "name": "Pager", "public": true }, { "name": "Hidden", "public": false } ] }""",
+            ["C:/p/MenuA.oml"] = """{ "blocks": [ { "name": "TopMenu", "public": true } ] }""",
+            ["C:/p/MenuB.oml"] = """{ "blocks": [ { "name": "TopMenu", "public": true } ] }""",
+            ["C:/p/Tools.oml"] = """{ "blocks": [ { "name": "Tip", "public": true } ] }""",
+        };
+        var pbNotes = new List<string>();
+        var (pbMap, pbRefs) = MigratedProducerBlocks(pbInspect, pbFiles, new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["ToolsWeb"] = "Tools" }, f => JsonNode.Parse(pbBlocks[f]), pbNotes);
+        Check(pbMap["SharedWeb.InfoCard"].Target == "Shared.InfoCard" && pbMap["SharedWeb.InfoCard"].Inputs.Contains("Title") && pbMap["SharedWeb.InfoCard"].Events.Contains("Notify")
+            && pbMap["SharedWeb.Pager"].Target == "Shared.Pager" && !pbMap.ContainsKey("MenuWeb.TopMenu") && pbMap["ToolsWeb.Tip"].Target == "Tools.Tip" && !pbMap.ContainsKey("ToolsWeb.Gone") && !pbMap.ContainsKey("RichWidgets.Tip")
+            && pbRefs.Count == 2 && pbRefs[0]["elements"]!.ToJsonString() == "[\"InfoCard\",\"Pager\"]" && pbRefs[1]["elements"]!.ToJsonString() == "[\"Tip\"]"
+            && pbNotes.Any(n => n.Contains("SharedWeb") && n.Contains("found by its block names")) && pbNotes.Any(n => n.Contains("several Reactive modules") && n.Contains("--migrated MenuWeb="))
+            && pbNotes.Any(n => n.Contains("Tools has no public block Gone")),
+            $"producer blocks: found by name, --migrated, several that fit, a missing block: {string.Join(", ", pbMap.Select(kv => kv.Key + "=" + kv.Value.Target))} | {string.Join(" | ", pbNotes)}");
+
         // UI flow OnException actions: translated into the spec's onException; the template's own handler of a flow stays (a note says what the
         // old one did); one that navigates to a screen the new module will not have is a note; a flow without one is left alone.
         var onexInspect = JsonNode.Parse("""{ "uiFlows": [ { "name": "Common", "onException": "OnException" }, { "name": "MainFlow", "onException": "HandleMain" }, { "name": "Admin", "onException": "OnAdminError" }, { "name": "Plain" } ] }""");

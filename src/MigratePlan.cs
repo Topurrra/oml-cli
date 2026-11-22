@@ -288,6 +288,50 @@ static partial class Migrate
         new(r.OldName, new Dictionary<string, string>(r.WrapperMap), new HashSet<string>(r.SessionDecisions.Where(d => d.Decision == "client").Select(d => d.Name), StringComparer.OrdinalIgnoreCase),
             new HashSet<string>(r.Screens.Where(s => s.Kind == "Block").Select(s => s.Name), StringComparer.OrdinalIgnoreCase), layout, placeholders);
 
+    // The blocks the old module uses from a Traditional producer that was migrated earlier: "Old.Block" -> the public block of the same name in
+    // the Reactive module it became (its inputs and events), and the references the new module needs for them. The Reactive module is the one
+    // --migrated names, else the one Reactive module under --in whose public blocks include every block used (several: a note asks for
+    // --migrated). blocksOf(file) is `oml inspect <file> --only blocks`.
+    internal static (Dictionary<string, ScreenTranslator.ProducerBlock> map, List<JsonObject> refs) MigratedProducerBlocks(JsonNode inspect, IReadOnlyDictionary<string, string> reactive,
+        IReadOnlyDictionary<string, string> migrated, Func<string, JsonNode?> blocksOf, List<string> notes)
+    {
+        var map = new Dictionary<string, ScreenTranslator.ProducerBlock>(StringComparer.OrdinalIgnoreCase);
+        var refs = new List<JsonObject>();
+        var cache = new Dictionary<string, Dictionary<string, JsonObject>>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, JsonObject> Public(string module)
+        {
+            if (!cache.TryGetValue(module, out var b))
+                cache[module] = b = Rows(blocksOf(reactive[module]), "blocks").Where(x => B(x, "public") == true && S(x, "name") is not null)
+                    .GroupBy(x => S(x, "name")!, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            return b;
+        }
+        static HashSet<string> Names(JsonNode? n) => (n as JsonArray ?? []).Select(x => x?.ToString()).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var rf in Rows(inspect, "references"))
+        {
+            if (S(rf, "module") is not { } module || reactive.ContainsKey(module) || UiLibraryMap.IsLibrary(module + ".x")) continue;   // a UI library keeps its map
+            var used = Rows(rf, "elements").Where(e => (S(e, "kind") ?? "").Contains("Block", StringComparison.OrdinalIgnoreCase)).Select(e => S(e, "name")).OfType<string>()
+                .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal).ToList();
+            if (used.Count == 0) continue;
+            var to = migrated.GetValueOrDefault(module);
+            var how = "--migrated";
+            if (to is null)
+            {
+                var fits = reactive.Keys.Where(k => used.All(Public(k).ContainsKey)).Order(StringComparer.Ordinal).ToList();
+                if (fits.Count > 1) notes.Add($"The blocks of {module} ({string.Join(", ", used)}) are public blocks of several Reactive modules under --in ({string.Join(", ", fits)}): plan again with --migrated {module}=<the module it was migrated to>.");
+                if (fits.Count != 1) continue;
+                to = fits[0]; how = "found by its block names";
+            }
+            var have = Public(to);
+            var found = used.Where(have.ContainsKey).ToList();
+            var missing = used.Except(found, StringComparer.OrdinalIgnoreCase).ToList();
+            foreach (var b in found) map[$"{module}.{b}"] = new ScreenTranslator.ProducerBlock($"{to}.{S(have[b], "name")}", Names(have[b]["inputs"]), Names(have[b]["events"]));
+            if (found.Count > 0) refs.Add(new JsonObject { ["producer"] = Path.GetFullPath(reactive[to]), ["elements"] = Arr(found.Select(b => S(have[b], "name")!)) });
+            notes.Add((found.Count > 0 ? $"The blocks {string.Join(", ", found)} of {module} come from {to}, the Reactive module it was migrated to ({how}): 3-new-module.json references them, so {to} must be published before the new module." : "")
+                + (missing.Count > 0 ? $"{(found.Count > 0 ? " " : "")}{to} has no public block {string.Join(", ", missing)} (used from {module}): those instances stay Todos." : ""));
+        }
+        return (map, refs);
+    }
+
     // The old module's layout blocks and the blocks only they hold (Layout_Normal, its Menu, Footer, LoginInfo): the template's layout replaces
     // them in every translated screen, so a block that the old screens reached and that no translated screen or kept block reaches any more is
     // left out (with a note), instead of being built and failing on Traditional-only parts. A block no old screen used (perhaps public for
@@ -697,7 +741,7 @@ static partial class Migrate
     // the screens use -> the final decisions (wrappers, client variables) -> the translation with the full context.
     internal static Outcome Assemble(string old, string name, string outDir, JsonNode inspect, IReadOnlyDictionary<string, string> map, List<string> producerNotes,
         string? template, Func<string[], string?, JsonNode> run, Func<JsonObject, ScreenTranslator.Context, ScreenTranslator.Result>? translate = null, bool copyExposed = false,
-        bool serverStore = true, bool mergeServerCalls = true)
+        bool serverStore = true, bool mergeServerCalls = true, IReadOnlyDictionary<string, string>? reactive = null, IReadOnlyDictionary<string, string>? migrated = null)
     {
         translate ??= ScreenTranslator.Translate;
         var r = Build(inspect, old, name, outDir, map, [], Extra.None with { CopyExposed = copyExposed });
@@ -756,7 +800,16 @@ static partial class Migrate
         r = Build(inspect, old, name, outDir, map, calls, ExtraFrom(first, r.EntityNames, serverUse) with { CopyExposed = copyExposed, ServerTexts = serverTexts, ActionCalls = actionCalls, SessionWrites = sessionWrites, ServerStore = serverStore });
         r.Notes.AddRange(producerNotes); r.Notes.AddRange(notes);
         if (ti is not null) TemplateClashes(r, ti);
-        var context = MakeContext(r, layout, placeholders) with { ServerOutputs = mergeServerCalls ? ServerOutputs(inspect, r) : null, SessionInputs = r.SessionInputs,
+        // Blocks of Traditional producers migrated earlier: their instances use the same block of the Reactive module, which the new module references.
+        var (producerBlocks, producerRefs) = MigratedProducerBlocks(inspect, reactive ?? new Dictionary<string, string>(), migrated ?? new Dictionary<string, string>(),
+            file => Try(["inspect", file, "--only", "blocks"], null, $"oml inspect of {Path.GetFileName(file)}"), r.Notes);
+        if (producerRefs.Count > 0)
+        {
+            var refs = r.NewModule["references"] as JsonArray ?? new JsonArray();
+            foreach (var x in producerRefs) refs.Add(x);
+            r.NewModule["references"] = refs;
+        }
+        var context = MakeContext(r, layout, placeholders) with { ProducerBlocks = producerBlocks.Count > 0 ? producerBlocks : null, ServerOutputs = mergeServerCalls ? ServerOutputs(inspect, r) : null, SessionInputs = r.SessionInputs,
             StaticRecords = StaticRecords(inspect),
             SiteProperties = Rows(inspect, "siteProperties").Where(p => S(p, "name") is not null).GroupBy(p => S(p, "name")!, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => S(g.First(), "type") ?? "Text", StringComparer.OrdinalIgnoreCase),

@@ -43,6 +43,7 @@ static partial class Migrate
         string? old = null, name = null, outDir = null, template = null;
         var copyExposed = false; // exposed REST and SOAP stay unless the person asks for a copy
         var inputs = new List<string>();
+        var migrated = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);   // a Traditional producer -> the Reactive module it was migrated to
         for (var i = 0; i < a.Length; i++)
             switch (a[i])
             {
@@ -51,6 +52,10 @@ static partial class Migrate
                 case "--out" when i + 1 < a.Length: outDir = Path.GetFullPath(a[++i]); break;
                 case "--template" when i + 1 < a.Length: template = Path.GetFullPath(a[++i]); break;
                 case "--copy-exposed": copyExposed = true; break;
+                case "--migrated" when i + 1 < a.Length:
+                    if (a[++i].Split('=') is not [var from, var to] || !ModuleName.IsMatch(from) || !ModuleName.IsMatch(to))
+                        throw new Refusal($"--migrated {a[i]}: give <OldProducer>=<NewProducer>, two module names.", "The new producer's .oml must be under --in.");
+                    migrated[from] = to; break;
                 case var o when o.StartsWith("--"): throw new Refusal($"Unknown or incomplete option {o}.", "Usage: " + CliUsage.For("migrate").Split('\n')[0].Trim());
                 default: if (old is not null) throw new Refusal($"Unexpected argument {a[i]}: migrate plan takes one old module."); old = a[i]; break;
             }
@@ -84,12 +89,16 @@ static partial class Migrate
             if (h is JsonArray list) foreach (var e in list.ToArray()) { list.Remove(e); header.Add(e); } else header.Add(h);
         }
         var (map, producerNotes) = ProducerMap(header, S(inspect, "name") ?? "");
+        var reactive = ReactiveProducers(header);
+        foreach (var (from, to) in migrated)
+            if (!reactive.ContainsKey(to)) throw new Refusal($"--migrated {from}={to}: no Reactive module {to} was found under --in.", "Give the folder or the .oml of the migrated producer with --in.");
 
         // The whole plan is decided by pure code over what the child processes print (Assemble); only the files are written here.
         // The project configuration (.oml/oml-config.json) chooses what the plan does: migrate.serverStore, mergeServerCalls, copyExposed.
         var config = ProjectConfig.Load(null);
         var plan = Assemble(old, name, outDir, inspect, map, producerNotes, template, (args, stdin) => Child(args, tolerateFailure: true, stdin: stdin),
-            copyExposed: copyExposed || config.On("migrate.copyExposed"), serverStore: config.On("migrate.serverStore"), mergeServerCalls: config.On("migrate.mergeServerCalls"));
+            copyExposed: copyExposed || config.On("migrate.copyExposed"), serverStore: config.On("migrate.serverStore"), mergeServerCalls: config.On("migrate.mergeServerCalls"),
+            reactive: reactive, migrated: migrated);
         Directory.CreateDirectory(outDir);
         foreach (var (file, text) in plan.Files)
         {
@@ -204,6 +213,16 @@ static partial class Migrate
             else map[name] = path;
         }
         return (map, notes);
+    }
+
+    // Module name -> file of the Reactive (or Mobile) modules among the producers: a migrated producer's blocks can be used from there.
+    internal static Dictionary<string, string> ReactiveProducers(JsonNode header)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var e in header is JsonArray a ? a.ToArray() : [header])
+            if (S(e, "path") is { } path && S(P(e, "info"), "Name") is { } name && S(P(e, "info"), "ESpaceType") is { } type
+                && !type.StartsWith("Web", StringComparison.OrdinalIgnoreCase)) map.TryAdd(name, path);
+        return map;
     }
 
     // A Traditional-only UI kind: the new module cannot reference a web screen, block or theme. `kind` is the interface name

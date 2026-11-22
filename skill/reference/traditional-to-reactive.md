@@ -10,7 +10,7 @@ oml migrate status Orders.oml OrdersApp.oml --plan migrate\OrdersApp
 oml migrate check Orders.oml OrdersApp.oml
 ```
 
-`check` is the last step: the new module validates, every copied action keeps its inputs and outputs, no screen lets in someone the old one did not, and the `TODO migrate` stubs that are left are counted. Fix each failed check before you report the migration done.
+`check` is the last step: the new module validates, every copied action keeps its inputs and outputs, no screen lets in someone the old one did not, and the `TODO migrate` stubs left are counted. Fix each failed check before you report the migration done.
 
 `plan` reads the old module (it must be Traditional Web) and writes, into a new folder, files for `oml apply`. It changes no module. Its output lists `next` (the commands in order), `notes` and `coverage` (translated, partial and worklist counts). `--template` is a Reactive template module: its layout block (`LayoutTopMenu`, `LayoutSideMenu`, else the first `Layout...`) and placeholders are given to the translation. Without it the screens have no layout block.
 
@@ -32,11 +32,11 @@ What stays and what is copied:
 - Server and service actions, structures, exceptions, site properties, timers, processes and consumed REST are copied.
 - Exposed REST and SOAP services stay in the old module, so their consumers keep working. `next` starts with a question for the person: copy them too? Only on a yes, plan again with `--copy-exposed`; the person then owns moving every consumer to the new URL.
 - Entity writes: the old module gets a public wrapper (`Order_Create`, `Order_CreateOrUpdate`, `Order_Update`, `Order_Delete`) for each entity action that copied logic or a screen calls, with the same inputs and outputs. `2-source.json` re-points each call in copied logic to its wrapper before the copy. A write the translation missed needs a wrapper added to the old module the same way, and a reference.
-- Migrate producers before consumers. Producers found under `--in` are referenced by themselves; an `unresolved` one needs its producer file (`--in`) or Manage Dependencies. Traditional UI references are left out.
+- Migrate producers before consumers. Producers under `--in` are referenced by themselves; an `unresolved` one needs its file (`--in`) or Manage Dependencies. Traditional UI is not referenced, except a migrated producer's blocks (from its Reactive module, `--migrated`).
 - Session variables (Reactive has none): basic and harmless, a client variable in 4-screens.json; copied server actions that read it get it as an input, passed on by callers (`2-source.json`: `addVariables`, `rewrite`, `setArgs`). Written there, sensitive or a record: the server store, entity `SessionValue` with `GetSession_<Name>`/`SetSession_<Name>` by session key and user. Else `manual` with the reason.
 - Style: screens and blocks carry their own sheet. Theme sheets target Traditional markup and are not added: port them from `css/` selector by selector into the new module's theme.
-- Emails, SOAP, entry points: a consumed SOAP or integration element is copied (Service Center settings do not follow); an email is translated like a screen unless its Preparation loads data (then load it in the sending server action and pass inputs); an entry point is manual (use a screen URL or a redirect screen); anything else is listed by kind and name in the notes.
-- You decide: timers and processes now exist in both modules (deactivate or delete one); site property values, timer schedules and integration settings in Service Center do not follow a copy. Once its UI is gone, propose making the old module a service module (rule 3).
+- Emails, SOAP, entry points: a consumed SOAP or integration element is copied; an email is translated like a screen unless its Preparation loads data (then load it in the sending server action and pass inputs); an entry point is manual (use a screen URL or a redirect screen); anything else is listed by kind and name in the notes.
+- You decide: timers and processes exist in both modules (deactivate or delete one); site property values, timer schedules and integration settings in Service Center do not follow a copy. Once its UI is gone, propose making the old module a service module (rule 3).
 
 ## Screens worklist
 

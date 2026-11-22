@@ -206,6 +206,8 @@ static class Inspect
         foreach (var i in inputs)
             if (ShortDescription(Reflect.Get(i, "Description") as string) is { } d && Model.NameOf(i) is { } n) texts[n] = d;
         if (texts.Count > 0) row["inputDescriptions"] = texts;
+        // A block's events (a Reactive block's OnX, the Notify event oml migrate makes): an instance in another module handles them.
+        if (IsBlock(s) && Describe.List(s, "Events").Select(Model.NameOf).OfType<string>().Order(StringComparer.Ordinal).ToArray() is { Length: > 0 } events) row["events"] = events;
         row["lastModifiedBy"] = h.By(s); row["lastModifiedDate"] = h.On(s);
         return row;
     }

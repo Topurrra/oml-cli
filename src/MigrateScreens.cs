@@ -66,7 +66,12 @@ static class ScreenTranslator
         IReadOnlySet<string>? Roles = null,
         // The old module's server functions. One a screen calls in a client expression is listed in _serverFunctions; the plan copies it as a
         // client function of the same name (ClientFunctions), so the expression stays as it is.
-        IReadOnlySet<string>? ServerFunctions = null);
+        IReadOnlySet<string>? ServerFunctions = null,
+        // Blocks of Traditional producers migrated earlier ("Old.Block"): an instance uses the same block of the Reactive module (Target "New.Block").
+        IReadOnlyDictionary<string, ProducerBlock>? ProducerBlocks = null);
+
+    // A migrated producer's block: "New.Block", its inputs and its events (Notify when the block called Notify).
+    internal sealed record ProducerBlock(string Target, IReadOnlySet<string> Inputs, IReadOnlySet<string> Events);
 
     // The blocks among the exports whose actions call Notify (or Deprecated_Notify): in Reactive each gets a Notify event.
     internal static HashSet<string> NotifyingBlocks(IEnumerable<JsonObject> exports) =>
@@ -594,7 +599,7 @@ static class ScreenTranslator
             foreach (var v in Objs(el["inputs"]).Concat(Objs(el["locals"]))) if (S(v["name"]) is { } vn) varTypes[vn] = S(v["type"]) ?? "Text";
             ListPatterns();
             foreach (var w in AllWidgets(el["widgets"]))
-                if (WType(w) == "blockinstance" && w["events"] is JsonObject evs && evs["Notify"] is { } h && cx.NotifyingBlocks?.Contains(Leaf(S(w["sourceBlock"]) ?? "")) == true
+                if (WType(w) == "blockinstance" && w["events"] is JsonObject evs && evs["Notify"] is { } h && Notifies(S(w["sourceBlock"]) ?? "")
                     && S(h is JsonObject ho ? ho["action"] : h) is { } hn) notifyHandlers.Add(hn);
             // The method of a click is decided in Click (a destination means Navigate, an action means Submit), which says so when it cannot: the note is not repeated.
             foreach (var note in el["notes"] as JsonArray ?? []) if (S(note) is { Length: > 0 } text && !text.Contains("the method of its On Click")) Todo($"the export could read it only in part: {text}");
@@ -2676,7 +2681,12 @@ static class ScreenTranslator
             return result;
         }
 
-        // Rule 5 and 8: web block instances. Same name for a block of this module; a Traditional block of another module cannot be used.
+        // Whether the block an instance shows has a Notify event in Reactive: a block of this module that calls Notify, or a migrated producer's block with one.
+        bool Notifies(string source) =>
+            cx.ProducerBlocks?.TryGetValue(source, out var pb) == true ? pb!.Events.Contains("Notify") : cx.NotifyingBlocks?.Contains(Leaf(source)) == true;
+
+        // Rule 5 and 8: web block instances. Same name for a block of this module, or the same block of the Reactive module a producer was
+        // migrated to; a Traditional block of another module cannot be used.
         JsonObject? Instance(JsonObject w, HashSet<string> used)
         {
             var at = Label(w);
@@ -2684,21 +2694,30 @@ static class ScreenTranslator
             var source = S(w["sourceBlock"]) ?? viaProp ?? "";
             var dot = source.IndexOf('.');
             var local = dot > 0 && source[..dot].Equals(cx.OldModule, StringComparison.OrdinalIgnoreCase) ? source[(dot + 1)..] : source;
-            if (Regex.IsMatch(Leaf(source), @"^Popup(_Editor|_Info|_Help)?$", RegexOptions.IgnoreCase) && dot > 0 && !cx.LocalBlocks.Contains(local))
+            var producer = cx.ProducerBlocks?.GetValueOrDefault(source);
+            if (Regex.IsMatch(Leaf(source), @"^Popup(_Editor|_Info|_Help)?$", RegexOptions.IgnoreCase) && dot > 0 && !cx.LocalBlocks.Contains(local) && producer is null)
             {
                 var inner = new JsonArray();
                 if (w["placeholders"] is JsonObject ph) foreach (var (_, list) in ph) foreach (var c in Objs(list)) inner.Add(c.DeepClone());
                 return Popup(w, used, inner);
             }
-            if (ListBlock(w, used, source) is { handled: true } lb) return lb.widget;
+            if (producer is null && ListBlock(w, used, source) is { handled: true } lb) return lb.widget;
             var isLocal = !local.Contains('.') && cx.LocalBlocks.Any(b => b.Equals(local, StringComparison.OrdinalIgnoreCase));
-            if (!isLocal && UiLibraryMap.IsLibrary(source) && UiLibraryMap.Block(source) is { } mapped) return Library(w, used, source, mapped);
-            if (!isLocal)
-                return TodoBox(w, $"is an instance of {(Blank(source) ? "an unknown block" : source)}, which is not a web block of this module, and a Traditional block cannot be used in a Reactive screen; replace it with a Reactive block or widget");
+            if (!isLocal && producer is null && UiLibraryMap.IsLibrary(source) && UiLibraryMap.Block(source) is { } mapped) return Library(w, used, source, mapped);
+            if (!isLocal && producer is null)
+                return TodoBox(w, $"is an instance of {(Blank(source) ? "an unknown block" : source)}, which is not a web block of this module, and a Traditional block cannot be used in a Reactive screen; replace it with a Reactive block or widget (if its module was migrated to Reactive, plan again with that module under --in, or --migrated)");
             var o = new JsonObject { ["type"] = "BlockInstance" };
             if (!Blank(S(w["name"]))) o["name"] = S(w["name"]);
-            o["sourceBlock"] = cx.LocalBlocks.First(b => b.Equals(local, StringComparison.OrdinalIgnoreCase));
-            if (w["args"] is JsonObject args && args.Count > 0) o["args"] = RwTree(args, at);
+            o["sourceBlock"] = producer?.Target ?? cx.LocalBlocks.First(b => b.Equals(local, StringComparison.OrdinalIgnoreCase));
+            if (w["args"] is JsonObject args && args.Count > 0)
+            {
+                // A migrated producer's block keeps the Traditional inputs it was translated with; one it does not have is a Todo.
+                var keep = new JsonObject();
+                foreach (var (k, v) in args)
+                    if (producer is null || producer.Inputs.Contains(k)) keep[k] = v?.DeepClone();
+                    else Todo($"{at} passes {k} = {S(v)} to {producer.Target}, which has no input {k}; pass it another way or add the input to the block");
+                if (keep.Count > 0) o["args"] = RwTree(keep, at);
+            }
             if (w["placeholders"] is JsonObject phs && phs.Count > 0)
             {
                 var map = new JsonObject();
@@ -2708,7 +2727,7 @@ static class ScreenTranslator
             // An event handler of the instance: `events` {event: handler | {action,args}} (Export.cs 605), or a prop named after an Events entry.
             var handlers = (w["events"] as JsonObject ?? []).Select(kv => (name: kv.Key, handler: S(kv.Value is JsonObject h ? h["action"] : kv.Value))).ToList();
             if (Prop(w, used, "notify", "onNotify") is { } notify) handlers.Add(("Notify", notify));
-            var notifyBlock = cx.NotifyingBlocks?.Contains(local) == true;
+            var notifyBlock = Notifies(source);
             foreach (var (evt, handler) in handlers.Where(h => notifyBlock && h.name.Equals("Notify", StringComparison.OrdinalIgnoreCase)).ToList())
             {
                 var ev = (w["events"] as JsonObject)?["Notify"];
@@ -2717,7 +2736,7 @@ static class ScreenTranslator
                 handlers.Remove((evt, handler));
             }
             foreach (var (evt, handler) in handlers)
-                Todo($"{at} handles {(evt.StartsWith("On", StringComparison.OrdinalIgnoreCase) ? evt : "On" + evt)} with {handler}, which cannot be translated by rule; create an event on the block {local} (the spec's events key), fire it with triggerEvent where the block called Notify, and set events on this instance to call {handler}");
+                Todo($"{at} handles {(evt.StartsWith("On", StringComparison.OrdinalIgnoreCase) ? evt : "On" + evt)} with {handler}, which cannot be translated by rule; create an event on the block {(producer is null ? local : producer.Target + " in its module")} (the spec's events key), fire it with triggerEvent where the block called Notify, and set events on this instance to call {handler}");
             return Wrapped(w, used, o);
         }
 
@@ -3172,6 +3191,21 @@ static class ScreenTranslator
             && Text(i6b.Spec, "actions", 0, "inputs", 0, "name") == "Message" && Text(i6b.Spec, "actions", 0, "flow", 0, "message") == "Message",
             $"Cards: a Notify handler is the instance's Notify event and NotifyGetMessage() is its input Message: {i6b.Spec?.ToJsonString()} [{string.Join(" | ", i6b.Todo)}]");
         Check(Text(i6.Spec, "widgets", 1, "type") == "Container" && (Text(i6.Spec, "widgets", 1, "children", 0, "text") ?? "").StartsWith("TODO migrate") && Text(i6.Spec, "widgets", 1, "children", 1, "text") == "inner" && Has(i6.Todo, "Tip", "RichWidgets.Tooltip"), "Cards: an instance of a block of another module is a Todo container that keeps its content");
+        // A block of a producer migrated earlier: the same block of its Reactive module, with the inputs it has; its Notify event takes the handler.
+        var shared = Parse("""
+        { "kind": "Screen", "name": "Board", "flow": "MainFlow", "moduleKind": "Traditional", "preparation": null,
+          "actions": [ { "name": "Picked", "flow": { "complete": true, "nodes": [ { "kind": "message", "name": "Say", "message": "NotifyGetMessage()", "type": "info" } ] } } ],
+          "widgets": [ { "kind": "WebBlockInstance", "type": "BlockInstance", "name": "Card2", "sourceBlock": "SharedWeb.InfoCard", "events": { "Notify": "Picked" },
+            "args": { "Title": "\"Hi\"", "Width": "3" }, "placeholders": { "Body": [ { "kind": "WebText", "type": "Text", "props": { "text": "b" } } ] } },
+            { "kind": "WebText", "type": "Text", "props": { "text": "after" } } ] }
+        """);
+        var sh = Translate(shared, plain with { ProducerBlocks = new Dictionary<string, ProducerBlock>(StringComparer.OrdinalIgnoreCase)
+            { ["SharedWeb.InfoCard"] = new("Shared.InfoCard", new HashSet<string>(["Title"], StringComparer.OrdinalIgnoreCase), new HashSet<string>(["Notify"], StringComparer.OrdinalIgnoreCase)) } });
+        Check(Text(sh.Spec, "widgets", 0, "type") == "BlockInstance" && Text(sh.Spec, "widgets", 0, "sourceBlock") == "Shared.InfoCard" && Text(sh.Spec, "widgets", 0, "args", "Title") == "\"Hi\""
+            && At(sh.Spec, "widgets", 0, "args", "Width") is null && Has(sh.Todo, "Card2", "Width", "Shared.InfoCard", "no input")
+            && Text(sh.Spec, "widgets", 0, "placeholders", "Body", 0, "text") == "b" && Text(sh.Spec, "widgets", 0, "events", "Notify") == "Picked"
+            && Text(sh.Spec, "actions", 0, "inputs", 0, "name") == "Message" && !Has(sh.Todo, "OnNotify"),
+            $"Board: a migrated producer's block is used from its Reactive module; an input it lacks is a Todo; Notify is its event: {sh.Spec?.ToJsonString()} [{string.Join(" | ", sh.Todo)}]");
 
         // 7. Session variables, with and without a client variable; a string literal is not touched.
         var sess = Parse("""
