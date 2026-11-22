@@ -267,6 +267,23 @@ static partial class Migrate
         Check(themeCarry is { Name: "AppMigrated", BaseTheme: "OUI" } && themeCarry.Chain.SequenceEqual(["Base", "App"]) && themeCarry.Css.IndexOf(":root") < themeCarry.Css.IndexOf(".a {") && themeCarry.Css.Contains(".a {"),
             $"theme: the default theme and its own bases, base first, into a theme named after it (renamed when the template has one), based on the template's default theme: {themeCarry}");
 
+        // An image the template has already: renamed in the working copy (a 2-source.json edit, made when there was none), copied under the new
+        // name, and the widgets, style sheets and theme use it; an image the template does not have is left as it is.
+        static string? IcText(JsonNode? n, params object[] path) { foreach (var x in path) n = x is int i ? (n as JsonArray)?[i] : (n as JsonObject)?[(string)x]; return n?.ToString(); }
+        var ic = new Result { OldName = "Shop", Prepared = "P.oml", MigrateSource = "M.oml" };
+        ic.NewModule["copy"] = JsonNode.Parse("""[ { "from": "P.oml", "elements": ["ServerAction:A", "Image:Logo", "Image:Icon"] } ]""");
+        ic.ScreensSpec = JsonNode.Parse("""
+            { "screens": [ { "name": "H", "styleSheet": ".a { background: url(\"img/Logo.png\"); }", "widgets": [ { "type": "Image", "image": "Logo" }, { "type": "Image", "image": "Icon" } ] } ],
+              "themes": [ { "name": "T", "styleSheet": ".b { background: url(img/Logo.svg); } .c { background: url(img/Icon.png); }" } ] }
+            """)!.AsObject();
+        ImageClashes(ic, JsonNode.Parse("""{ "content": { "images": [ { "name": "Logo" }, { "name": "Logo_Shop" } ] } }""")!, JsonNode.Parse("""{ "content": { "images": [ { "name": "Logo" }, { "name": "Icon" } ] } }""")!);
+        Check(ic.Source?["edits"]?.ToJsonString() == """[{"op":"rename","element":"Image:Logo","to":"Logo_Shop2"}]""" && IcText(ic.NewModule, "copy", 0, "from") == "M.oml"
+            && ic.NewModule["copy"]![0]!["elements"]!.ToJsonString() == """["ServerAction:A","Image:Logo_Shop2","Image:Icon"]""" && ic.Plan["migrateSource"]?.ToString() == "M.oml"
+            && IcText(ic.ScreensSpec, "screens", 0, "widgets", 0, "image") == "Logo_Shop2" && IcText(ic.ScreensSpec, "screens", 0, "widgets", 1, "image") == "Icon"
+            && IcText(ic.ScreensSpec, "screens", 0, "styleSheet") == ".a { background: url(\"img/Logo_Shop2.png\"); }"
+            && IcText(ic.ScreensSpec, "themes", 0, "styleSheet") == ".b { background: url(img/Logo_Shop2.svg); } .c { background: url(img/Icon.png); }" && ic.Notes.Any(n => n.Contains("Logo -> Logo_Shop2")),
+            $"image clashes: renamed in the working copy and followed everywhere: {ic.Source?.ToJsonString()} {ic.NewModule.ToJsonString()} {ic.ScreensSpec?.ToJsonString()}");
+
         // Blocks of producers migrated earlier: the Reactive module whose public blocks include every block used (found by name), or the one
         // --migrated names; several that fit is a note; a block the named module lacks stays a Todo.
         var pbInspect = JsonNode.Parse("""

@@ -670,7 +670,7 @@ static partial class Migrate
         }
         else next.Add("The old module needs no preparation: its entities and roles are public and no wrapper is missing.");
         if (r.Source is not null)
-            next.Add($"oml apply {Q(r.Prepared)} {F("2-source.json")} {Q(r.MigrateSource)}   ({r.Calls.Count} repoint edit(s) so the logic calls the wrappers: a working copy to copy from; never install it)");
+            next.Add($"oml apply {Q(r.Prepared)} {F("2-source.json")} {Q(r.MigrateSource)}   ({(r.Calls.Count > 0 ? $"{r.Calls.Count} repoint edit(s) so the logic calls the wrappers" : "the edits of 2-source.json")}: a working copy to copy from; never install it)");
         var created = Q(Path.Combine(outDir, name + ".oml"));
         var staged = Q(Path.Combine(outDir, name + ".staged.oml"));
         var last = staged;

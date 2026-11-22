@@ -386,6 +386,51 @@ static partial class Migrate
         if (clashes.Count > 0) r.Notes.Insert(0, $"The template already has {string.Join(", ", clashes)}: the copy in 3-new-module.json would rename them and refuse. Before that step, rename them in the old module or delete them from the new module, as the person decides.");
     }
 
+    // Images the copy brings that the template has already (a Logo of both): the paste would refuse. Each one is renamed in the working copy
+    // (a rename edit in 2-source.json, made when there was none) to <Image>_<OldModule>, copied under that name, and the translated widgets
+    // (image), style sheets and the carried theme (url(img/<Image>.png)) use the new name; the template's image stays as it is.
+    internal static void ImageClashes(Result r, JsonNode template, JsonNode inspect)
+    {
+        if (r.NewModule["copy"] is not JsonArray { Count: > 0 } copies || copies[0] is not JsonObject copy || copy["elements"] is not JsonArray elements) return;
+        static HashSet<string> Images(JsonNode? m) => Rows(P(m, "content"), "images").Select(x => S(x, "name")).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var taken = Images(template);
+        var own = Images(inspect);
+        var renames = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < elements.Count; i++)
+        {
+            if (elements[i]?.ToString() is not { } path || !path.StartsWith("Image:", StringComparison.OrdinalIgnoreCase) || !taken.Contains(path[6..])) continue;
+            var image = path[6..];
+            var to = $"{image}_{r.OldName}";
+            for (var n = 2; taken.Contains(to) || own.Contains(to) || renames.Values.Contains(to, StringComparer.OrdinalIgnoreCase); n++) to = $"{image}_{r.OldName}{n}";
+            renames[image] = to;
+            elements[i] = "Image:" + to;
+        }
+        if (renames.Count == 0) return;
+        r.Source ??= new JsonObject();
+        var edits = r.Source["edits"] as JsonArray ?? new JsonArray();
+        foreach (var (from, to) in renames) edits.Add(new JsonObject { ["op"] = "rename", ["element"] = "Image:" + from, ["to"] = to });
+        r.Source["edits"] = edits;
+        copy["from"] = r.MigrateSource;
+        r.Plan["migrateSource"] = r.MigrateSource;
+        string Css(string css) => Regex.Replace(css, @"(url\(\s*[""']?/?img/)([^""')/]+?)(\.\w+)", m => renames.TryGetValue(m.Groups[2].Value, out var to) ? m.Groups[1].Value + to + m.Groups[3].Value : m.Value, RegexOptions.IgnoreCase);
+        void Walk(JsonNode? n)
+        {
+            if (n is JsonObject o)
+                foreach (var (k, v) in o.ToList())
+                {
+                    if (v is JsonValue sv && sv.GetValueKind() == System.Text.Json.JsonValueKind.String)
+                    {
+                        if (k == "image" && renames.TryGetValue(sv.ToString(), out var to)) o[k] = to;
+                        else if (k == "styleSheet") o[k] = Css(sv.ToString());
+                    }
+                    else Walk(v);
+                }
+            else if (n is JsonArray a) foreach (var x in a) Walk(x);
+        }
+        Walk(r.ScreensSpec);
+        r.Notes.Add($"The template has images of the same name already: 2-source.json renames the old module's in the working copy ({string.Join(", ", renames.Select(kv => kv.Key + " -> " + kv.Value))}), so they are copied under the new name, and the translated screens, blocks and theme show them by it; the template's images stay.");
+    }
+
     // The old module's static entities with their records, as inspect gives them (identifier, attribute -> value expression).
     internal static Dictionary<string, IReadOnlyList<(string Id, IReadOnlyDictionary<string, string> Values)>> StaticRecords(JsonNode? inspect) =>
         (inspect?["staticEntities"] as JsonArray ?? []).OfType<JsonObject>().Where(e => S(e, "name") is not null)
@@ -1069,6 +1114,7 @@ static partial class Migrate
                 foreach (var img in theme.Images) if (!els.Any(e => e?.ToString() == "Image:" + img)) els.Add("Image:" + img);
             }
         }
+        if (ti is not null) ImageClashes(r, ti, inspect);
         var css = CssFiles(Try(["describe", old, "--css", "--all"], null, "oml describe --css --all"), r.OldName, theme);
         if (theme is { BaseTheme: not null } && theme.Css.Length > 0)
             r.Notes.Add($"The theme {string.Join(" > ", theme.Chain)} is carried into the theme {theme.Name} of 4-screens.json (based on the template's theme {theme.BaseTheme}, and the default theme): its CSS variables, fonts and the rules for classes the translated widgets carry. {theme.LeftOut.Count} selector(s) for Traditional markup or whole elements are left out; css/README.md lists them.");
