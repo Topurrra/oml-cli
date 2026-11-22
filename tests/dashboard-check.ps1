@@ -80,6 +80,8 @@ Set-Content -LiteralPath (Join-Path $serverFolder 'history.jsonl') -Value $histo
 $codeProject = Join-Path $Tmp "dash-$id-code"
 $executions = Join-Path $codeProject '.oml\codemode\executions'
 New-Item -ItemType Directory -Force $executions | Out-Null
+# An empty .oml/codemode.json marks it as a project, even inside another project (the repo's own tmp/).
+Set-Content -LiteralPath (Join-Path $codeProject '.oml\codemode.json') -Value '{}' -Encoding utf8NoBOM
 Set-Content -LiteralPath (Join-Path $executions 'ex_20261123T091502000001_a1b2.jsonl') -Encoding UTF8 -Value @(
     '{"type":"start","id":"ex_20261123T091502000001_a1b2","agent":"claude","code":"call(\"oml.gated\", {\"args\": [\"publish\", \"C:/Work/Orders.oml\"]})","ts":"2026-11-23T09:15:02Z"}',
     '{"type":"pass_start","pass":1}',

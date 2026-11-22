@@ -54,6 +54,8 @@ try {
   & $Oml new (Join-Path $work 'M.oml') --kind CrossDevice --name M | Out-Null
   Assert ($LASTEXITCODE -eq 0) 'oml new failed'
   $own = Join-Path $work '.oml\codemode.json'
+  # An empty .oml/codemode.json marks the work folder as the project root, even inside another project (the repo's own tmp/).
+  Set-Content -LiteralPath $own -Value '{}' -Encoding utf8NoBOM
 
   # 2. doctor with oml's default config only: Python, the config, the sandbox, this oml's `oml mcp` with its three
   #    tools, the helpers.
