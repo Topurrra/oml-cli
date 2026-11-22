@@ -8,8 +8,11 @@ namespace OmlCli;
 static class UiLibraryMap
 {
     internal sealed record Row(string Traditional, string ElementKind, string? Reactive, string ReactiveKind, JsonObject Inputs,
-        JsonObject Placeholders, string Rules, string Notes, string Confidence)
+        JsonObject Placeholders, string Rules, string Notes, string Confidence, JsonObject? Values = null, JsonObject? Defaults = null, string? Replace = null)
     {
+        // Replace: what a call of this server action with one argument becomes in a client expression, {0} being the argument (DateToText({0})).
+        // Values: Traditional input -> {exact old expression -> Reactive expression} (an Orientation record that is a Boolean now).
+        // Defaults: Reactive input -> the value it gets when the old instance set none (a mandatory input the Traditional block did not have).
         // A block translated by code: a Reactive block that was checked against its signature or documented.
         public bool ByCode => ElementKind == "block" && ReactiveKind == "block" && Reactive is { Length: > 0 } && Confidence is "high" or "medium";
         // A block that Reactive does not need at all (a loader, a wait box, the message area).
@@ -29,7 +32,8 @@ static class UiLibraryMap
         {
             string S(string k) => r[k] is JsonValue v && v.TryGetValue<string>(out var s) ? s : "";
             var row = new Row(S("traditional"), S("elementKind"), S("reactive") is { Length: > 0 } re ? re : null, S("reactiveKind"),
-                r["inputs"] as JsonObject ?? [], r["placeholders"] as JsonObject ?? [], S("inputValueRules"), S("notes") is { Length: > 0 } n ? n : S("logicRewrite"), S("confidence"));
+                r["inputs"] as JsonObject ?? [], r["placeholders"] as JsonObject ?? [], S("inputValueRules"), S("notes") is { Length: > 0 } n ? n : S("logicRewrite"), S("confidence"),
+                r["values"] as JsonObject, r["defaults"] as JsonObject, S("replace") is { Length: > 0 } rp ? rp : null);
             rows.TryAdd(row.ElementKind + ":" + row.Traditional, row);
         }
         return rows;

@@ -284,6 +284,21 @@ static partial class Migrate
             && IcText(ic.ScreensSpec, "themes", 0, "styleSheet") == ".b { background: url(img/Logo_Shop2.svg); } .c { background: url(img/Icon.png); }" && ic.Notes.Any(n => n.Contains("Logo -> Logo_Shop2")),
             $"image clashes: renamed in the working copy and followed everywhere: {ic.Source?.ToJsonString()} {ic.NewModule.ToJsonString()} {ic.ScreensSpec?.ToJsonString()}");
 
+        // Screens and blocks the template has already are not built (the template's stay) and navigations to them lose the arguments its screen
+        // has no input for; LoginInfo is a layout part when the template has UserInfo; a copy left with no elements goes.
+        static Item TeItem(string name, string kind, string spec) => new(new Screen(name, kind, "Common", [], [], name + ".json"), "translated", [], JsonNode.Parse(spec)!.AsObject(), [], [], null);
+        var te = new Result { OldName = "Shop" };
+        var teItems = TemplateElements(te, [TeItem("Login", "Screen", """{ "name": "Login" }"""), TeItem("Menu", "Block", """{ "name": "Menu" }"""), TeItem("Menu", "Screen", """{ "name": "Menu" }"""),
+                TeItem("Oops", "Screen", """{ "name": "Oops", "actions": [ { "flow": [ { "kind": "destination", "screen": "Login", "args": { "OriginalURL": "\"x\"", "Next": "1" } } ] } ], "widgets": [ { "type": "Link", "onClick": { "destination": "Login", "args": { "OriginalURL": "\"y\"" } } } ] }""")],
+            JsonNode.Parse("""{ "screens": [ { "name": "Login" } ], "blocks": [ { "name": "Menu" }, { "name": "UserInfo" } ] }""")!,
+            paths => paths.ToDictionary(p => p, p => JsonNode.Parse("""{ "inputs": [ { "name": "Next" } ] }""")!.AsObject()));
+        var teCopy = JsonNode.Parse("""{ "references": [], "copy": [ { "from": "P.oml", "elements": [] } ] }""")!.AsObject();
+        DropEmptyCopy(teCopy);
+        Check(teItems.Select(i => i.S.Kind + ":" + i.S.Name).SequenceEqual(["Screen:Menu", "Screen:Oops"]) && te.Notes.Count == 2 && te.Notes[0].Contains("The template has Login, Menu already")
+            && teItems[1].Spec!.ToJsonString() == """{"name":"Oops","actions":[{"flow":[{"kind":"destination","screen":"Login","args":{"Next":"1"}}]}],"widgets":[{"type":"Link","onClick":{"destination":"Login"}}]}"""
+            && te.Notes[1].Contains("Login.OriginalURL") && LayoutParts(JsonNode.Parse("""{ "blocks": [ { "name": "UserInfo" } ] }"""))!.Contains("LoginInfo") && teCopy["copy"] is null && teCopy["references"] is not null,
+            $"template elements: the template's Login and Menu block stay, a navigation to Login loses OriginalURL, an empty copy goes: {string.Join(" ", teItems.Select(i => i.Spec?.ToJsonString()))} [{string.Join(" | ", te.Notes)}]");
+
         // Blocks of producers migrated earlier: the Reactive module whose public blocks include every block used (found by name), or the one
         // --migrated names; several that fit is a note; a block the named module lacks stays a Todo.
         var pbInspect = JsonNode.Parse("""

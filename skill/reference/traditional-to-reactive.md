@@ -1,6 +1,6 @@
 # Traditional Web to Reactive
 
-How Traditional Web parts map to Reactive, and how `oml migrate` prepares the move. oml cannot run the Service Studio converter: `oml migrate` copies logic and data definitions, references what must stay, translates screens, web blocks and emails by code where it can, and leaves a worklist for the rest.
+How Traditional Web parts map to Reactive, and how `oml migrate` prepares the move. oml cannot run the Service Studio converter: `oml migrate` copies logic and data definitions, references what must stay, translates screens, blocks and emails as far as it can, and leaves a worklist for the rest.
 
 ## The oml migrate flow
 
@@ -12,7 +12,7 @@ oml migrate check Orders.oml OrdersApp.oml
 
 `check` is the last step: the new module validates, every copied action keeps its inputs and outputs, no screen lets in someone the old one did not, and the `TODO migrate` stubs left are counted. Fix each failed check before reporting the migration done.
 
-`plan` reads the old module (it must be Traditional Web) and writes, into a new folder, files for `oml apply`. It changes no module. Its output lists `next` (the commands in order), `notes` and `coverage` (translated, partial and worklist counts). `--template` is a Reactive template module: its layout block (`LayoutTopMenu`, `LayoutSideMenu`, else the first `Layout...`) and placeholders are given to the translation. Without it the screens have no layout block.
+`plan` reads the old Traditional Web module and writes files for `oml apply` into a new folder. It changes no module. Its output lists `next` (commands in order), `notes` and `coverage` (counts by status). `--template` is a Reactive template module: its layout block (`LayoutTopMenu`, `LayoutSideMenu`, else the first `Layout...`) and placeholders are given to the translation. Without it the screens have no layout block. Screens and blocks the template has (Login, Menu) are not built; old layout placeholders with only title, menu or user info are left out.
 
 | File | What it is |
 |---|---|
@@ -24,13 +24,13 @@ oml migrate check Orders.oml OrdersApp.oml
 | `4-screens.md` | Summary table, then a section per `partial` or `worklist` element: TODO checkboxes, `screens/<Name>.json` (raw `oml export`) and `screens/<Name>.txt` (`oml describe`) |
 | `css/` | One sheet per style sheet of the old module, and `css/README.md` |
 
-Order: apply 1 to a staged copy; the person installs and publishes it; apply 2 to the prepared file; `oml new` a Reactive module from the template; apply 3, then 4; install and publish; work through 4-screens.md. `status --plan` shows what is done by name and how many of each status the new module has.
+Order: apply 1 to a staged copy; the person installs and publishes it; apply 2 to the prepared file; `oml new` a Reactive module from the template; apply 3, then 4; install and publish; work through 4-screens.md. `status --plan` shows what is done, by name, and counts per status.
 
 What stays and what is copied:
 
 - Entities, static entities and roles stay in the old module (a copied role has no users); the new module references them, read only.
 - Server and service actions, structures, exceptions, site properties, timers, processes and consumed REST are copied.
-- Exposed REST and SOAP services stay in the old module, so their consumers keep working. `next` starts with a question for the person: copy them too? On a yes, plan again with `--copy-exposed`; the person then moves every consumer to the new URL.
+- Exposed REST and SOAP services stay in the old module, so their consumers keep working. `next` starts with a question for the person: copy them too? On a yes, plan again with `--copy-exposed`; the person then moves the consumers.
 - Entity writes: the old module gets a public wrapper (`Order_Create`, `Order_CreateOrUpdate`, `Order_Update`, `Order_Delete`) for each entity action that copied logic or a screen calls, with the same inputs and outputs. `2-source.json` re-points each call in copied logic to its wrapper before the copy. A write the translation missed needs a wrapper added to the old module the same way, and a reference.
 - Migrate producers before consumers. Producers under `--in` are referenced by themselves; an `unresolved` one needs its file (`--in`) or Manage Dependencies. Traditional UI is not referenced, except a migrated producer's blocks (from its Reactive module, `--migrated`).
 - Session variables (Reactive has none): basic and harmless, a client variable in 4-screens.json; copied server actions that read it get it as an input, passed on by callers (`2-source.json`: `addVariables`, `rewrite`, `setArgs`). Written there, sensitive or a record: the server store, entity `SessionValue` with `GetSession_<Name>`/`SetSession_<Name>` by session key and user. Else `manual` with the reason.
@@ -44,7 +44,7 @@ What stays and what is copied:
 
 ## UI libraries
 
-OutSystemsUIWeb, RichWidgets and OutSystemsChartsWeb blocks are translated by a map from their real signatures and the OutSystems docs: a block with a checked Reactive counterpart becomes it (OutSystemsUI.Card, Pagination, Columns2, ...), with inputs and placeholders renamed; loaders, the Ajax wait box and the message area are dropped; RichWidgets.Icon becomes the Icon widget; `Feedback_Message` becomes a message node. Everything else is a Todo with the map's note. `ui-libraries.md` in the plan folder lists the library elements the module uses, what each becomes and what to check (renamed static entity values, default values that differ). The new module must reference the Reactive libraries it lists before step 3.
+OutSystemsUIWeb, RichWidgets and OutSystemsChartsWeb blocks are translated by a map from their real signatures and OutSystems docs: a block with a checked Reactive counterpart becomes it (OutSystemsUI.Card, Pagination, ...), with inputs and placeholders renamed; loaders, the Ajax wait box and the message area are dropped; RichWidgets.Icon becomes the Icon widget; `Feedback_Message` becomes a message node. Everything else is a Todo with the map's note. `ui-libraries.md` lists the library elements the module uses, what each becomes and what to check (renamed static entity values, other defaults). The new module must reference the Reactive libraries it lists before step 3.
 
 ## Logic
 
@@ -75,14 +75,14 @@ Every server action a screen calls is a public endpoint: check identity and role
 | Button, Link, Container, If, Label, Text, Placeholder, Upload, web block | Same widget |
 | Container Display | Visible (the translator sets it), or an If, which removes the content |
 | Layout HTML Table, Width, Align, `InWebBlockPreview`, Example | The translator: HTML elements, CSS and classes; preview and design-time parts go |
-| Combo Box | Dropdown with a list, Options Value and Options Text; a Source Entity: an aggregate of it (code) |
+| Combo Box | Dropdown with a list, Options Value and Text; a Source Entity: its aggregate (code) |
 | Radio Button | Radio Group of the variable, one Radio Button per choice (code) |
 | Edit Record, Show Record | Form; on an aggregate's whole record its inputs bind to that record, else to a local record variable |
 | Table Records, List Records | Table or List on the aggregate. List_Navigation, List_Counter and List_SortColumn are translated by code (OutSystems UI Pagination, header sort, locals, handlers) |
 | Expression with escaping off | Avoid; else an unescaped expression block (XSS risk) |
 | Editable Table, List Box | Build a Table with inputs, or a list of Checkboxes |
 | Link with Method Submit, Ajax Submit or Ajax | Button or Link with On Click and a client action |
-| Link to an External URL | HTML element `a` with `href`; a button calls `RedirectToURL` (code) |
+| Link to an External URL | HTML element `a` with `href`; a button uses `RedirectToURL` (code) |
 | Validation (Client & Server) | Built-in Validations on the button, `<Input>.Valid` in the client action, checks again on the server |
 | Screen entry and Preparation redirects | OnInitialize redirect with a `destination`; an External URL is `RedirectToURL`; `AddFaviconTag` goes |
 

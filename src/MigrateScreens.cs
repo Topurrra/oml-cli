@@ -71,7 +71,10 @@ static class ScreenTranslator
         // Blocks of Traditional producers migrated earlier ("Old.Block"): an instance uses the same block of the Reactive module (Target "New.Block").
         IReadOnlyDictionary<string, ProducerBlock>? ProducerBlocks = null,
         // The old module's entities (inspect): a Combo Box with a Source Entity becomes a Dropdown over an aggregate of it.
-        IReadOnlyDictionary<string, EntityInfo>? Entities = null);
+        IReadOnlyDictionary<string, EntityInfo>? Entities = null,
+        // Blocks the template's layout shows itself (ApplicationTitle, Menu, UserInfo, and LoginInfo for UserInfo): an old layout placeholder
+        // the template's layout lacks that holds only these is left out (_layoutParts says which), not moved into the main content.
+        IReadOnlySet<string>? LayoutParts = null);
 
     // An entity's special attributes, as inspect names them (null: not set): identifier, label, order and is-active.
     internal sealed record EntityInfo(bool Static, string Identifier, string? Label, string? Order, string? IsActive);
@@ -161,6 +164,7 @@ static class ScreenTranslator
         string? currentAction;
         const string SessionValues = "SessionValues";
         readonly SortedSet<string> images = new(StringComparer.OrdinalIgnoreCase);                             // images of the old module the widgets show                                                         // the data action that reads stored session variables
+        readonly List<string> layoutParts = [];                                                 // "Placeholder: Block, Block" left out for the template's layout (_layoutParts)
         readonly SortedSet<string> storeUsed = new(StringComparer.OrdinalIgnoreCase);                                                                                 // the table whose header cells are being built
 
         public Run(JsonObject element, Context context)
@@ -351,6 +355,29 @@ static class ScreenTranslator
                 ServerRead($"Has{role}Role", $"Check{role}Role()", "Boolean", at);
                 replacement = $"{ServerValuesName}.Has{role}Role"; end = after + call.Length; return true;
             }
+            // Traditional-only built-ins: GetExceptionURL() and GetPersonalAreaName() have no Reactive counterpart and become "" with a Todo.
+            // GetUser(GetUserId()).User.X calls an entity action, which runs on the server only: it becomes ServerValues.UserX.
+            if (Regex.IsMatch(id, "^(GetExceptionURL|GetPersonalAreaName)$", RegexOptions.IgnoreCase) && Regex.Match(text[after..], @"^\s*\(\s*\)") is { Success: true } none)
+            {
+                Todo($"{at} calls {id}(), which Reactive does not have ({(id.StartsWith("GetE", StringComparison.OrdinalIgnoreCase) ? "the address that raised the exception is not known" : "there are no personal areas")}); it is \"\" now, so check what the logic does with it");
+                replacement = "\"\""; end = after + none.Length; return true;
+            }
+            // A server function of a Traditional UI library (RichWidgets Date_PrettyFormat) that the map replaces: Reactive cannot reference the library.
+            if ((UiLibraryMap.Action("RichWidgets." + id) ?? UiLibraryMap.Action("OutSystemsUIWeb." + id)) is { Replace: { } template } lib
+                && Regex.Match(text[after..], @"^\s*\(") is { Success: true } open && OneArgument(text, after + open.Length) is { } close)
+            {
+                var arg = Rw(text[(after + open.Length)..close].Trim(), at);
+                replacement = template.Replace("{0}", arg); end = close + 1;
+                Todo($"{at} calls {lib.Traditional}, which Reactive cannot reference; it is {replacement} now, without the library's wording: write a function of your own for that, or use FormatDateTime");
+                return true;
+            }
+            if (!serverSide && id.Equals("GetUser", StringComparison.OrdinalIgnoreCase)
+                && Regex.Match(text[after..], @"^\s*\(\s*GetUserId\s*\(\s*\)\s*\)\s*\.\s*User\s*\.\s*(Name|Username|Email|MobilePhone|External_Id|Is_Active)(?!\w)", RegexOptions.IgnoreCase) is { Success: true } user)
+            {
+                var attr = user.Groups[1].Value;
+                ServerRead("User" + attr, $"GetUser(GetUserId()).User.{attr}", attr.Equals("Is_Active", StringComparison.OrdinalIgnoreCase) ? "Boolean" : "Text", at);
+                replacement = $"{ServerValuesName}.User{attr}"; end = after + user.Length; return true;
+            }
             if (id.Equals("Session", StringComparison.OrdinalIgnoreCase) && after < text.Length && text[after] == '.')
             {
                 var m = Regex.Match(text[(after + 1)..], @"^[A-Za-z_]\w*");
@@ -404,6 +431,21 @@ static class ScreenTranslator
         static readonly Regex OrderByCall = new(@"\b(?:RichWidgets\.)?List_SortColumn_GetOrderBy\s*\(\s*(\w+)\.Id\s*,\s*(""(?:[^""]|"""")*"")\s*\)", RegexOptions.CultureInvariant);
 
         // The calls of the RichWidgets list functions for a list that pages or sorts here become its locals.
+        // The index of the ")" that closes a call whose one argument starts at start, or null when there are several arguments or no close.
+        static int? OneArgument(string text, int start)
+        {
+            var depth = 0;
+            for (var i = start; i < text.Length; i++)
+            {
+                var c = text[i];
+                if (c == '"') { i++; while (i < text.Length && !(text[i] == '"' && !(i + 1 < text.Length && text[i + 1] == '"'))) i += text[i] == '"' ? 2 : 1; }
+                else if (c == '(') depth++;
+                else if (c == ')') { if (depth == 0) return i; depth--; }
+                else if (c == ',' && depth == 0) return null;
+            }
+            return null;
+        }
+
         string ListCalls(string text)
         {
             if (currentAction is not null && notifyHandlers.Contains(currentAction) && text.Contains("NotifyGetMessage", StringComparison.Ordinal))
@@ -645,6 +687,7 @@ static class ScreenTranslator
             ServerValuesAction(spec);
             if (serverActions.Count > 0) spec["_serverActions"] = new JsonArray(serverActions.Select(x => (JsonNode?)x).ToArray());
             if (images.Count > 0) spec["_images"] = new JsonArray(images.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
+            if (layoutParts.Count > 0) spec["_layoutParts"] = new JsonArray(layoutParts.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
             if (clientFunctions.Count > 0) spec["_clientActions"] = new JsonArray(clientFunctions.Select(x => (JsonNode?)x.DeepClone()).ToArray());
             if (usedFunctions.Count > 0) spec["_serverFunctions"] = new JsonArray(usedFunctions.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
             if (block && notifies)
@@ -714,7 +757,7 @@ static class ScreenTranslator
             list.Add(new JsonObject
             {
                 ["name"] = ServerValuesName,
-                ["description"] = "Site properties and role checks the screen reads, read on the server (oml migrate: Traditional screens read them there).",
+                ["description"] = "Site properties, role checks and user attributes the screen reads, read on the server (oml migrate: Traditional screens read them there).",
                 ["outputs"] = new JsonArray(used.Select(kv => (JsonNode?)new JsonObject { ["name"] = kv.Key, ["type"] = kv.Value.Type }).ToArray()),
                 ["flow"] = new JsonArray(new JsonObject { ["kind"] = "assign", ["name"] = "Read",
                     ["assign"] = new JsonObject(used.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode?)JsonValue.Create(kv.Value.Expr)))), ["next"] = "End" }),
@@ -1523,9 +1566,9 @@ static class ScreenTranslator
                 case "download":   // Reactive downloads from a client action too (the content still comes from the server: an aggregate or a call before it)
                     o["kind"] = "download"; Copy("name"); Expr("fileContent"); Expr("fileName"); Expr("mimeType"); Copy("saveToDisk"); break;
                 case "execute": Execute(n, o, at); break;
-                case "destination" when External(n):   // Reactive opens an address with the RedirectToURL client action
-                    o["kind"] = "execute"; Copy("name"); o["action"] = "RedirectToURL";
-                    o["args"] = new JsonObject { ["URL"] = Rw(S((n["args"] as JsonObject)?["URL"]) ?? "\"\"", at) }; o["next"] = "End";
+                case "destination" when External(n):   // Reactive opens an address with a Destination to the External Site (System) RedirectToURL
+                    o["kind"] = "destination"; Copy("name"); o["screen"] = "RedirectToURL";
+                    o["args"] = new JsonObject { ["URL"] = Rw(S((n["args"] as JsonObject)?["URL"]) ?? "\"\"", at) };
                     break;
                 case "destination": o["kind"] = "destination"; Copy("name"); o["screen"] = Leaf(S(n["screen"])!); Args(); break;
                 case "exceptionhandler": o["kind"] = "exceptionHandler"; Copy("name", "exception", "logError", "next"); break;   // client actions have handlers too (and Log Error); abort transaction is server only
@@ -2477,7 +2520,7 @@ static class ScreenTranslator
         {
             var at = Label(w);
             // Navigate to an External URL: a link is an HTML a element with href (the spec has no external target); a button runs a client
-            // action that calls RedirectToURL.
+            // action whose Destination is the External Site RedirectToURL.
             if ((Prop(w, "destination") ?? Prop(w, "onClick")) == "ExternalURL" && (w["args"] as JsonObject)?.FirstOrDefault(kv => kv.Key.Equals("URL", StringComparison.OrdinalIgnoreCase)).Value is { } urlNode && S(urlNode) is { } url)
             {
                 Prop(w, used, "destination", "onClick", "method");
@@ -2496,7 +2539,7 @@ static class ScreenTranslator
                 extraActions.Add(new JsonObject
                 {
                     ["name"] = handler,
-                    ["flow"] = new JsonArray(new JsonObject { ["kind"] = "execute", ["name"] = "Redirect", ["action"] = "RedirectToURL", ["args"] = new JsonObject { ["URL"] = Rw(url, at) }, ["next"] = "End" }),
+                    ["flow"] = new JsonArray(new JsonObject { ["kind"] = "destination", ["name"] = "Redirect", ["screen"] = "RedirectToURL", ["args"] = new JsonObject { ["URL"] = Rw(url, at) } }),
                 });
                 actionNames.Add(handler);
                 var b = New("Button", w, used); Visible(w, used, b);
@@ -2823,6 +2866,8 @@ static class ScreenTranslator
                 var target = map.Inputs.FirstOrDefault(kv => kv.Key.Equals(k, StringComparison.OrdinalIgnoreCase));
                 if (target.Key is null) { Todo($"{at} ({source}) passes {k} = {value}, an input the map does not know; check it against {map.Reactive}"); continue; }
                 if (S(target.Value) is not { Length: > 0 } to) { Todo($"{at} ({source}) passes {k} = {value}, which {map.Reactive} has no input for. {map.Notes}".TrimEnd()); continue; }
+                if ((map.Values?.FirstOrDefault(kv => kv.Key.Equals(k, StringComparison.OrdinalIgnoreCase)).Value as JsonObject)?.FirstOrDefault(kv => kv.Key == value!.Trim()).Value is { } mapped)
+                { args[to] = S(mapped); continue; }   // a value the map translates (Entities.Orientation.Horizontal -> True)
                 args[to] = Rw(value!, at);
                 if (!ruleSaid && map.Rules.Length > 0 && value!.Contains("Entities.", StringComparison.Ordinal))
                 {
@@ -2830,6 +2875,7 @@ static class ScreenTranslator
                     ruleSaid = true;
                 }
             }
+            foreach (var (input, value) in map.Defaults ?? []) if (!args.ContainsKey(input)) args[input] = S(value);   // a mandatory Reactive input the old instance did not set
             if (args.Count > 0) o["args"] = args;
             var outPh = new JsonObject();
             var orphans = new JsonArray();
@@ -2949,6 +2995,12 @@ static class ScreenTranslator
             foreach (var (ph, ws) in groups)
             {
                 var target = cx.LayoutPlaceholders.FirstOrDefault(p => p.Equals(ph, StringComparison.OrdinalIgnoreCase));
+                if (target is null && ph.Length > 0 && cx.LayoutParts is { Count: > 0 } parts && Objs(ws).ToList() is { Count: > 0 } header && header.Count == ws.Count
+                    && header.All(w => WType(w) == "blockinstance" && parts.Contains(Leaf(S(w["sourceBlock"]) ?? Prop(w, "sourceBlock") ?? ""))))
+                {
+                    layoutParts.Add($"{ph}: {string.Join(", ", header.Select(w => Leaf(S(w["sourceBlock"]) ?? Prop(w, "sourceBlock")!)))}");
+                    continue;
+                }
                 if (target is null)
                 {
                     target = main;
@@ -3727,6 +3779,34 @@ static class ScreenTranslator
         Check(Text(svFlows["Get"], 0, "kind") == "download" && Text(svFlows["Get"], 0, "fileName") == "\"a.txt\"" && Text(svFlows["Close"], 0, "kind") == "execute"
             && Has(sv.Todo, "Popup_Editor_Close", "Traditional UI library") && Has(sv.Todo, "CommitTransaction", "commits on its own") && Has(sv.Todo, "sets the site property Site.AppTitle"),
             $"Download is a client node; library and page-only calls and a site property set in a screen action are Todo lines: [{string.Join(" | ", sv.Todo)}]");
+
+        // 22. Template parts and Traditional-only calls: an old layout placeholder the template's layout lacks that holds only blocks the template's
+        //     layout shows is left out (one with other content still moves); an External URL Destination goes to RedirectToURL; GetExceptionURL() is
+        //     ""; GetUser(GetUserId()).User.Name is read by ServerValues; the map translates AlignCenter's Orientation, IconBadge's Number, Date_PrettyFormat.
+        var tp = Translate(Parse("""
+        { "kind": "Screen", "name": "Home", "flow": "MainFlow", "moduleKind": "Traditional", "access": {},
+          "widgets": [ { "kind": "WebBlockInstance", "props": { "sourceBlock": "LayoutTopMenu" }, "sourceBlock": "LayoutTopMenu", "placeholders": {
+            "Left": [ { "kind": "WebBlockInstance", "sourceBlock": "ApplicationTitle" } ],
+            "Right": [ { "kind": "WebBlockInstance", "sourceBlock": "LoginInfo" } ],
+            "Center": [ { "kind": "WebBlockInstance", "sourceBlock": "ApplicationTitle" }, { "kind": "Text", "props": { "text": "Hi" } } ],
+            "MainContent": [
+              { "kind": "Expression", "props": { "value": "GetUser(GetUserId()).User.Name + GetExceptionURL()" } },
+              { "kind": "Expression", "props": { "value": "Date_PrettyFormat(CurrDate())" } },
+              { "kind": "WebBlockInstance", "sourceBlock": "OutSystemsUIWeb.AlignCenter", "args": { "Orientation": "Entities.Orientation.Horizontal" },
+                "placeholders": { "Content": [ { "kind": "WebBlockInstance", "sourceBlock": "OutSystemsUIWeb.IconBadge" } ] } } ] } } ],
+          "actions": [ { "name": "Go", "flow": { "complete": true, "nodes": [ { "kind": "destination", "name": "Out", "_ref": "ExternalURL", "args": { "URL": "\"https://x\"" } } ] } } ] }
+        """), layout with { LocalBlocks = new HashSet<string> { "ApplicationTitle", "LoginInfo" }, LayoutParts = new HashSet<string> { "ApplicationTitle", "Menu", "UserInfo", "LoginInfo" } });
+        var tpm = At(tp.Spec, "placeholders", "MainContent") as JsonArray;
+        Check(At(tp.Spec, "placeholders", "Left") is null && Text(tp.Spec, "_layoutParts", 0) == "Left: ApplicationTitle" && Text(tp.Spec, "_layoutParts", 1) == "Right: LoginInfo"
+            && Text(tpm, 0, "sourceBlock") == "ApplicationTitle" && Text(tpm, 1, "text") == "Hi" && Has(tp.Todo, "Center", "MainContent") && !Has(tp.Todo, "placeholder Left"),
+            $"Template parts: a placeholder of only the template's layout parts is left out, a mixed one moves: {tp.Spec?.ToJsonString()} [{string.Join(" | ", tp.Todo)}]");
+        var tpData = (At(tp.Spec, "dataActions") as JsonArray)?.OfType<JsonObject>().FirstOrDefault(d => Text(d, "name") == "ServerValues");
+        Check(Text(tpm, 2, "value") == "ServerValues.UserName + \"\"" && Has(tp.Todo, "GetExceptionURL", "\"\"") && Text(tpData, "outputs", 0, "name") == "UserName"
+            && Text(tpData, "flow", 0, "assign", "UserName") == "GetUser(GetUserId()).User.Name" && Text(tpm, 3, "value") == "DateToText(CurrDate())" && Has(tp.Todo, "Date_PrettyFormat"),
+            $"Traditional-only calls: GetUser is read by ServerValues, GetExceptionURL() is \"\", Date_PrettyFormat is DateToText: {tpm?.ToJsonString()} [{string.Join(" | ", tp.Todo)}]");
+        Check(Text(tpm, 4, "args", "IsHorizontal") == "True" && Text(tpm, 4, "placeholders", "Content", 0, "args", "Number") == "0" && !Has(tp.Todo, "AlignCenter")
+            && Text(tp.Spec, "actions", 0, "flow", 0, "kind") == "destination" && Text(tp.Spec, "actions", 0, "flow", 0, "screen") == "RedirectToURL" && Text(tp.Spec, "actions", 0, "flow", 0, "args", "URL") == "\"https://x\"",
+            $"Map values and RedirectToURL: AlignCenter IsHorizontal True, IconBadge Number 0, an External URL is a Destination to RedirectToURL: {tp.Spec?.ToJsonString()} [{string.Join(" | ", tp.Todo)}]");
         return failures;
     }
 

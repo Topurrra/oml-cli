@@ -364,6 +364,58 @@ static partial class Migrate
         return items.Except(dropped).ToList();
     }
 
+    // Screens and blocks the Reactive template has already (its Login and InvalidPermissions, its ApplicationTitle, Menu and layouts): building
+    // one would change the template's (a refused flow, a clashing local, a block of a module the template references), so the translated one
+    // is left out with a note and the template's stays. Screens that show or go to one by name use the template's; a navigation to such a
+    // screen loses the arguments the template's screen has no input for (exportScreens gives the template's screen exports).
+    internal static List<Item> TemplateElements(Result r, List<Item> items, JsonNode template, Func<IReadOnlyList<string>, Dictionary<string, JsonObject>>? exportScreens = null)
+    {
+        HashSet<string> Names(string key) => Rows(template, key).Select(x => S(x, "name")).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var (screens, blocks) = (Names("screens"), Names("blocks"));
+        var dropped = items.Where(i => (i.S.Kind == "Screen" ? screens : i.S.Kind == "Block" ? blocks : []).Contains(i.S.Name)).ToList();
+        if (dropped.Count == 0) return items;
+        r.Notes.Add($"The template has {string.Join(", ", dropped.Select(d => d.S.Name).Order(StringComparer.Ordinal))} already, so the translated ones are not built: the template's stay. If an old one did more (screens/<Name>.txt), add that by hand.");
+        var kept = items.Except(dropped).ToList();
+        var gone = dropped.Where(d => d.S.Kind == "Screen").Select(d => d.S.Name).ToList();
+        if (gone.Count == 0 || exportScreens is null) return kept;
+        var inputs = exportScreens(gone.Select(g => "Screen:" + g).ToList()).Where(kv => kv.Value["error"] is null).ToDictionary(kv => kv.Key[(kv.Key.IndexOf(':') + 1)..],
+            kv => Rows(kv.Value, "inputs").Select(x => S(x, "name")).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+        var lost = new SortedSet<string>(StringComparer.Ordinal);
+        void Walk(JsonNode? n)
+        {
+            if (n is JsonObject o)
+            {
+                var to = S(o, "kind") == "destination" ? S(o, "screen") : S(o, "destination");
+                if (to is not null && inputs.TryGetValue(to, out var has) && o["args"] is JsonObject args)
+                {
+                    foreach (var (k, _) in args.ToList().Where(kv => !has.Contains(kv.Key))) { args.Remove(k); lost.Add($"{to}.{k}"); }
+                    if (args.Count == 0) o.Remove("args");
+                }
+                foreach (var (_, c) in o.ToList()) Walk(c);
+            }
+            else if (n is JsonArray a) foreach (var c in a.ToList()) Walk(c);
+        }
+        foreach (var i in kept) Walk(i.Spec);
+        if (lost.Count > 0) r.Notes.Add($"The template's screens have no input for {string.Join(", ", lost)}: the navigations to them no longer pass it.");
+        return kept;
+    }
+
+    // A copy left with nothing (its only elements were the template's site properties) is refused by apply: it goes.
+    internal static void DropEmptyCopy(JsonObject newModule)
+    {
+        if (newModule["copy"] is JsonArray copies && copies.OfType<JsonObject>().All(c => c["elements"] is JsonArray { Count: 0 })) newModule.Remove("copy");
+    }
+
+    // The blocks the template's layout shows itself, for ScreenTranslator.Context.LayoutParts: the template's blocks, and LoginInfo (the
+    // Traditional templates' name) when the template has UserInfo.
+    internal static HashSet<string>? LayoutParts(JsonNode? template)
+    {
+        if (template is null) return null;
+        var names = Rows(template, "blocks").Select(x => S(x, "name")).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (names.Contains("UserInfo")) names.Add("LoginInfo");
+        return names;
+    }
+
     // Names the copy brings that the Reactive template has already: the paste would rename them and refuse the step. A site property of the
     // same name (TenantId, TenantName of a template) is the template's own: it is left out of the copy. Any other clash is a note that comes
     // first in `next`, because only a person can say which one stays.
@@ -1020,7 +1072,7 @@ static partial class Migrate
             foreach (var x in producerRefs) refs.Add(x);
             r.NewModule["references"] = refs;
         }
-        var context = MakeContext(r, layout, placeholders) with { ProducerBlocks = producerBlocks.Count > 0 ? producerBlocks : null, ServerOutputs = mergeServerCalls ? ServerOutputs(inspect, r) : null, SessionInputs = r.SessionInputs,
+        var context = MakeContext(r, layout, placeholders) with { LayoutParts = LayoutParts(ti), ProducerBlocks = producerBlocks.Count > 0 ? producerBlocks : null, ServerOutputs = mergeServerCalls ? ServerOutputs(inspect, r) : null, SessionInputs = r.SessionInputs,
             StaticRecords = StaticRecords(inspect), Entities = EntityInfos(inspect),
             SiteProperties = Rows(inspect, "siteProperties").Where(p => S(p, "name") is not null).GroupBy(p => S(p, "name")!, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => S(g.First(), "type") ?? "Text", StringComparer.OrdinalIgnoreCase),
@@ -1032,6 +1084,10 @@ static partial class Migrate
         foreach (var i in items.Where(i => i.Error is not null && i.Error != "no export")) r.Notes.Add($"{i.S.Kind} {i.S.Name} was not translated: {i.Error}.");
         foreach (var a in items.SelectMany(i => i.EntityActions).Distinct().Where(a => EntityActionMap(r.EntityNames).ContainsKey(a) && !r.WrapperMap.ContainsKey(a)))
             r.Notes.Add($"A translation reported the entity action {a} without a wrapper for it: add the wrapper by hand.");
+        var parts = items.Where(i => i.Spec?["_layoutParts"] is JsonArray).SelectMany(i => ((JsonArray)i.Spec!["_layoutParts"]!).Select(x => x!.ToString())).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal).ToList();
+        foreach (var i in items) i.Spec?.Remove("_layoutParts");
+        if (parts.Count > 0) r.Notes.Add($"The template's layout {layout} shows its own title, menu and user info, so the old layout placeholders it lacks that held only those blocks are left out of the screens ({string.Join("; ", parts)}).");
+        if (ti is not null) items = TemplateElements(r, items, ti, paths => ExportActions(Try(["export", template!, .. paths], null, "oml export of the template's screens"), paths));
         items = DropReplacedLayouts(r, items, exports, layout);
         // Server functions the screens call in the browser: copied as client functions of the same name, or a Todo on each screen that calls one.
         // The UI flows' OnException actions: the spec's onException, one per flow (OnExceptionHandlers).
@@ -1136,6 +1192,7 @@ static partial class Migrate
         var files = new List<(string, string)> { ("plan.json", Json(r.Plan)) };
         if (r.Prepare is not null) files.Add(("1-prepare-old.json", Json(r.Prepare)));
         if (r.Source is not null) files.Add(("2-source.json", Json(r.Source)));
+        DropEmptyCopy(r.NewModule);
         files.Add(("3-new-module.json", Json(r.NewModule)));
         if (r.ScreensSpec?["scripts"] is JsonArray scriptList)   // the script files next to 4-screens.json, their text out of the spec
             foreach (var sc in scriptList.OfType<JsonObject>())

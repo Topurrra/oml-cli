@@ -522,6 +522,7 @@
 "ExtendedClass":"ExtendedClass"
 },
 "inputValueRules":"Orientation Entities.Orientation.Horizontal -> IsHorizontal True; Entities.Orientation.Vertical -> IsHorizontal False.",
+"values":{"Orientation":{"Entities.Orientation.Horizontal":"True","Entities.Orientation.Vertical":"False"}},
 "placeholders":{
 "Content":"Content"
 },
@@ -761,6 +762,7 @@
 "ExtendedClass":"ExtendedClass"
 },
 "inputValueRules":"Orientation Entities.Orientation.Vertical -> IsVertical True; Entities.Orientation.Horizontal -> IsVertical False.",
+"values":{"Orientation":{"Entities.Orientation.Vertical":"True","Entities.Orientation.Horizontal":"False"}},
 "placeholders":{
 "Image":"Image",
 "Title":"Title",
@@ -1042,6 +1044,7 @@
 "ExtendedClass":"ExtendedClass"
 },
 "inputValueRules":"Orientation Entities.Orientation.Horizontal -> IsVertical False; Vertical -> IsVertical True. Height stays Text in pixels (\"100\").",
+"values":{"Orientation":{"Entities.Orientation.Vertical":"True","Entities.Orientation.Horizontal":"False"}},
 "placeholders":{
 "Content":"Content"
 },
@@ -1267,6 +1270,7 @@
 "ExtendedClass":"ExtendedClass"
 },
 "inputValueRules":"Number: Integer -> Long Integer (no cast).",
+"defaults":{"Number":"0"},
 "placeholders":{
 "Icon":"Icon"
 },
@@ -2097,6 +2101,7 @@
 "ExtendedClass":"ExtendedClass"
 },
 "inputValueRules":"Orientation Entities.Orientation.Vertical -> IsVertical True; Horizontal -> False.",
+"values":{"Orientation":{"Entities.Orientation.Vertical":"True","Entities.Orientation.Horizontal":"False"}},
 "placeholders":{
 "Content":"Content"
 },
@@ -3052,6 +3057,7 @@
 "DateTime":null
 },
 "inputValueRules":"No built-in or OutSystemsUI equivalent was found.",
+"replace":"DateTimeToText({0})",
 "logicRewrite":"Options: (1) an action of the team's own that returns a friendly text; (2) an approximation with FormatDateTime. What the action prints exactly (for example 'today' or 'x days ago') is not described in the downloaded docs and the producer logic is not available (signature only).",
 "notes":"Returns FormattedText: Text from a Date Time. Do not guess the format in the translator: emit a Todo and keep the input expression.",
 "confidence":"low",
@@ -3065,6 +3071,7 @@
 "Date":null
 },
 "inputValueRules":"No built-in or OutSystemsUI equivalent was found.",
+"replace":"DateToText({0})",
 "logicRewrite":"Options: (1) an action of the team's own that returns a friendly text; (2) an approximation with FormatDateTime. What the action prints exactly (for example 'today' or 'x days ago') is not described in the downloaded docs and the producer logic is not available (signature only).",
 "notes":"Returns FormattedText: Text from a Date. Do not guess the format in the translator: emit a Todo and keep the input expression.",
 "confidence":"low",
