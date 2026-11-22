@@ -71,6 +71,8 @@ oml memory traps [--command "<command>"] [--module <Name>] [--top N]   (live tra
 oml memory dream --prepare [<folder>] | --import <ops.json> | --status   (end-of-day memory tidy: a packet, then checked add/retract ops)
 oml batch <steps.json> [--continue]   (several commands in one process, so Service Studio loads once; "-" reads the steps from stdin)
 oml mcp   (MCP server on stdio: tools read, write, gated; Service Studio loads once)
+oml code run [-f <program.py> | -] [--arg <name>=<value>]... [--detach] [--json]   (a Python program calls oml many times, in parallel, and returns only what it needs; exit 3: waits for approval)
+oml code get | wait | approve | reject | cancel <id> | doctor | init | prompt | instructions | serve | ...   (code mode; approve is for a person at a terminal)
 oml translations export <module.oml> <file> [--format Excel|xlsx|ResX]
 oml install <staged.oml> <target.oml> [--allow-existing-errors]
 oml install --batch <index.json> [--allow-existing-errors]   (items {staged,target}; checks all first, installs none if any is refused)
@@ -240,6 +242,52 @@ Three tools. Each takes `{"args": [...]}`, an oml command line such as `["inspec
 A result is `{"exit": <code>, "output": <the command's JSON, or its text>, "stderr": "<last 2000 characters>"}`. A command that fails is still a normal result. `isError` is true only when oml did not run the command: a command in the wrong tool (`output.useTool` names the right one), an unknown command or bad args. A `batch` through `read` may only have read steps, a gated step is never allowed in a batch, and `batch -` is refused.
 
 Commands run one at a time in the server's process, because they share the console and Service Studio's model. These run in a child oml process, at the same time as the others: every gated command (it may wait for a person, Service Studio or the network; `server` and `review --server` read OML_SERVER_HOST, _USER and _PASSWORD from your Windows user variables when the client did not pass them), `browser` (its session lives on, and a handoff waits for Enter) and `doctor` (it checks a fresh process, and its self-test has no time limit).
+#### Code mode
+
+`oml code run` runs one Python program that calls oml many times and returns only what it needs. Use it instead of single `oml` calls when a step needs logic between commands (filter, compare, decide), the same reads over many modules, or a few fields out of a large output. A fixed list of commands with no logic between them: `oml batch`. One command: run it directly.
+
+It needs Python 3.9 or newer, nothing else: oml looks at `OML_PYTHON`, then `py -3`, then `python` and `python3` on PATH. The runtime is the standard-library code-mode runtime in `codemode/`, next to oml's `bin` folder.
+
+```text
+oml code run --json -f .oml/code/<name>.py [--arg <name>=<value>]...   (-f: the program from a file; -: from stdin)
+oml code get <executionId> --json
+oml code prompt          (the description of the execute tool, with the oml tools)
+oml code instructions    (a block for AGENTS.md or CLAUDE.md)
+oml code doctor          (Python, the config, the sandbox, the oml server, the policy)
+```
+
+Write the program with your file tool in `.oml/code/`. Never pass it through a shell heredoc, `-c` or `echo`: shells change backslashes. Inside the program, three tools take `args`, the oml command line as a list:
+
+| Tool | Commands | Policy |
+|---|---|---|
+| `oml.read` | inspect, describe, find, query, tree, flow, stats, header, export, check, review, architecture, map, doc, spec, memory recall | runs |
+| `oml.write` | new, apply (to a staged copy), migrate, memory add and retract | runs |
+| `oml.gated` | install, publish, references, pull, lifetime, server, review --server | pauses for the user's approval |
+
+Each returns `{exit, output, stderr}`, with oml's JSON in `output` (sometimes as text). `helpers.oml` parses it and raises `ToolError` when a command failed:
+
+```python
+oml = helpers.oml
+files = ["modules/Orders.oml", "modules/Customers.oml"]
+infos = oml.many([("read", ["inspect", f, "--only", "entities", "--own"]) for f in files])   # in parallel
+{f: [e["name"] for e in i.get("entities", [])] for f, i in zip(files, infos)}               # the result
+```
+
+`oml.read("describe", "A.oml", "X")` runs one command; `oml.J(text)` parses JSON text. Without the helpers, these forms work: `tools.oml.read(args=[...])`, `call("oml.read", {"args": [...]})` and `parallel([("oml.read", {"args": [...]}), ...])` (pairs, never lambdas). The server keeps a module open after its first read. Return counts, names and the few fields you use, never a whole `inspect` or `export`.
+
+The answer is one JSON object: `status` is `completed` (read `result`), `error` (`error.type`, `message`, `hint`), `paused` (`pending`) or `running`. Exit 0 completed, 1 failed or rejected, 2 usage or config, 3 paused, 5 not found, 6 still running.
+
+**Approvals.** A gated call pauses the program before it runs (exit 3). Tell the user what is pending; they run `oml code approve <executionId>` in their own terminal, and the program goes on from its log, so nothing runs twice. `oml code reject <executionId>` refuses. An agent never approves: `approve` needs a console on stdin and refuses a pipe, a file and NUL. One approve covers every call pending at that moment: independent gated calls in one `many()` or `parallel()` are approved together; gated calls one after another pause once each. A person can also run `oml code run --interactive -f <file>` in a terminal and answer each call as it comes.
+
+**Config.** oml writes `.oml/codemode/config.json` on every run; do not edit it. The project root is the nearest folder upwards with `.oml/oml-config.json` or `.oml/codemode.json`, else the current folder; records stay in `.oml/codemode/`. oml's defaults: connector `oml` (this oml.exe's `mcp` server, started in the project root, at most 4 calls at once), policy `oml.read` and `oml.write` allowed, `oml.gated` asks, everything else asks; limits 1800 s a program, 300 s a call (1800 s a gated call); `approve` needs a terminal. The server gets oml's own variables (`OML_*` except `OML_OUTPUT`, `DOTNET_*`) as `${NAME}` references: their values are never written to the file.
+
+`.oml/codemode.json` adds to these, with the same keys as the runtime's config (`oml code init` writes one from the project's `.mcp.json`, leaving out a server called oml):
+
+- `connectors`: by name, such as a task board; a connector named like one of oml's is merged key by key (yours win), `null` removes it.
+- `policy`: `allow`, `ask` and `deny` add to oml's rules (deny beats ask, ask beats allow); `mode` and `default` replace; `"replace": true` leaves oml's three rules out.
+- `limits`, `approval`, `retention`, `executor`, `llm`: key by key. `helpers` and `agent`: replaced (your helpers folder replaces `helpers.oml`).
+
+**MCP.** `{"command": "oml", "args": ["code", "serve"]}` serves one tool, `execute`, with the same description as `oml code prompt`. There is no approve tool.
 
 #### Usage log
 

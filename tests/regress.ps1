@@ -286,6 +286,10 @@ Unit 'lifetime-check' -Group lifetime {
 Unit 'server-check' {
   try { & (Join-Path $tests "server-check.ps1") -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL server checks: $_" }
 }
+# code-check runs the code-mode runtime in codemode/ with Python 3.9+ (skips without it); its oml calls go to oml mcp.
+Unit 'code-check' {
+  try { & (Join-Path $tests 'code-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL code checks: $_" }
+}
 # qa-replay-check drives a real browser window against a local page; one browser at a time.
 Unit 'qa-replay-check' -Group browser {
   try { & (Join-Path $tests 'qa-replay-check.ps1') -Oml $oml -Tmp $tmp }

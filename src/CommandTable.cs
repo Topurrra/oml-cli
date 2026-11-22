@@ -33,6 +33,8 @@ internal static class CommandTable
         new("skill", (_, f) => CreateCommand.Skill(Rest(f))),
         new("migrate", (_, f) => Migrate.Run(Rest(f)), NoTimings: true, Help: true, Mcp: "write"),
         new("config", (_, f) => ProjectConfig.Run(Rest(f)), NoTimings: true),
+        // oml code: the code-mode runtime in codemode/ (Python); the arguments go to it as typed, --json included.
+        new("code", (a, _) => CodeMode.Run(CodeMode.AfterCommand(a)), NoTimings: true),
         // oml test data: the module spec needs the producer module (Core); the rest calls the test-data API here.
         new("test", (_, f) => TestDataCommand.Run(Rest(f, 2)), f => f.Length > 1 && f[1] == "data" && !(f.Length > 2 && f[2] == "module"), Mcp: "read"),
         new("outsystems-docs", (_, f) => Library.Run(Rest(f)), NoTimings: true, Help: true),

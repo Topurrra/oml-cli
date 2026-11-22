@@ -81,6 +81,8 @@ static class CliUsage
         oml memory dream --prepare [<folder>] | --import <ops.json> | --status   (end-of-day memory tidy: a packet, then checked add/retract ops)
         oml batch <steps.json> [--continue]   (several commands in one process, so Service Studio loads once; "-" reads the steps from stdin)
         oml mcp   (MCP server on stdio: tools read, write, gated; Service Studio loads once)
+        oml code run [-f <program.py> | -] [--arg <name>=<value>]... [--detach] [--json]   (a Python program calls oml many times, in parallel, and returns only what it needs; exit 3: waits for approval)
+        oml code get | wait | approve | reject | cancel <id> | doctor | init | prompt | instructions | serve | ...   (code mode; approve is for a person at a terminal)
         oml translations export <module.oml> <file> [--format Excel|xlsx|ResX]
         oml install <staged.oml> <target.oml> [--allow-existing-errors]
         oml install --batch <index.json> [--allow-existing-errors]   (items {staged,target}; checks all first, installs none if any is refused)
@@ -140,7 +142,7 @@ static class CliUsage
         Check and review: check, review, architecture (rules and findings; a change before and after; module map and publish order)
         Docs and search: doc, spec, explain-warning, outsystems-docs, team-rules (OutSystems rules by topic and search; spec keys; cause and fix of a warning; the OutSystems 11 docs; company rules)
         Memory and learning: memory, learn (project facts, decisions and traps for agents; lessons from where agents fail and retry)
-        Agents: batch, mcp, hooks, show-change, dashboard (several commands in one process; an MCP server; agent hooks; a change walkthrough; the local web dashboard)
+        Agents: batch, code, mcp, hooks, show-change, dashboard (several commands in one process; Python programs over many oml calls; an MCP server; agent hooks; a change walkthrough; the local web dashboard)
         Service Studio and LifeTime: studio, pull, publish, references, lifetime, server (Studio's open modules; save, publish and refresh references; the LifeTime API; any module version on the server)
         Testing: browser, test bdd, test scenarios, test data (look at and drive a running app in a browser, explain its styles, replay it; BDD specs; what to test after a change; dev test data)
         Assets: font, image (woff2 fonts; convert, resize, trace and ICO images)

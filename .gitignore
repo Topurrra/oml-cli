@@ -12,3 +12,4 @@ CLAUDE.md
 codemode.json
 .codemode/
 .codemode-work/
+__pycache__/

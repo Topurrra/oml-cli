@@ -106,6 +106,14 @@ try {
     foreach ($item in @('skill', 'README.md', 'INSTRUCTION.md', 'THIRD-PARTY-NOTICES.md', 'licenses', 'CHANGELOG.md')) {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $item) -Destination $stage -Recurse
     }
+    # oml code: the code-mode runtime (Python) beside bin/, without its tests and Python's caches.
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'codemode') -Destination $stage -Recurse
+    foreach ($extra in @(Get-ChildItem -LiteralPath (Join-Path $stage 'codemode') -Recurse -Directory -Force | Where-Object { $_.Name -in '__pycache__', 'tests' })) {
+        if (Test-Path -LiteralPath $extra.FullName) { Remove-Item -LiteralPath $extra.FullName -Recurse -Force }
+    }
+    foreach ($required in @('codemode/oml_code.py', 'codemode/codemode_runtime/cli.py', 'codemode/oml_helpers/oml.py', 'codemode/LICENSE')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $stage $required) -PathType Leaf)) { throw "Package is missing $required." }
+    }
     if (Test-Path -LiteralPath LICENSE -PathType Leaf) { Copy-Item -LiteralPath LICENSE -Destination $stage }
     else { Write-Warning 'No LICENSE file in this repository; continuing without it.' }
 
