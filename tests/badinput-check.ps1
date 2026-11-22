@@ -32,6 +32,7 @@ $skip = [ordered]@{
   'doctor'         = 'takes no path'
   'explain-warning' = 'takes no path'
   'menu'           = 'interactive: reads the keyboard; tests/menu-check.ps1 covers it'
+  'mcp'            = 'takes no path: a server on stdin; tests/mcp-check.ps1 covers bad args and refusals'
   # map build is tested below; the map queries (overview, uses, impact, data, api, list) take names, not paths.
 }
 # A template that starts with ! writes to {p}: there a missing file or a wrong extension may simply succeed (exit 0), and

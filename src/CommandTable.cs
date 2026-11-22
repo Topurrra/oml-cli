@@ -6,7 +6,9 @@ namespace OmlCli;
 // launcher takes it, whether --timings is refused and whether the launcher prints its --help. Anything not here (and
 // any entry whose condition says no) goes to Core. `oml commands` prints this table; `--check` guards it against CliUsage.Text.
 // Run takes args (what Core would get: --pretty and --json kept) and filtered (without them); null means Core runs it.
-internal sealed record Cmd(string Name, Func<string[], string[], int>? Run, Func<string[], bool>? When = null, bool NoTimings = false, bool Help = false, bool Hidden = false);
+// Mcp: the tool of `oml mcp` that runs the command ("read", "write", "gated", or "read write" for both); null: no tool
+// runs it. McpTools adds the rules per subcommand and option.
+internal sealed record Cmd(string Name, Func<string[], string[], int>? Run, Func<string[], bool>? When = null, bool NoTimings = false, bool Help = false, bool Hidden = false, string? Mcp = null);
 
 internal static class CommandTable
 {
@@ -15,43 +17,52 @@ internal static class CommandTable
     public static readonly Cmd[] All =
     [
         new("hooks", (_, f) => AgentHooks.Run(Rest(f)), NoTimings: true, Help: true),
-        new("lifetime", (_, f) => LifeTime.Run(Rest(f), Program.RunCore), NoTimings: true, Help: true),
-        new("server", (_, f) => ServerApi.Run(Rest(f)), NoTimings: true, Help: true),
+        new("lifetime", (_, f) => LifeTime.Run(Rest(f), Program.RunCore), NoTimings: true, Help: true, Mcp: "gated"),
+        new("server", (_, f) => ServerApi.Run(Rest(f)), NoTimings: true, Help: true, Mcp: "gated"),
         new("font", (_, f) => FontAssets.Run(Rest(f)), NoTimings: true, Help: true),
-        new("doctor", (_, f) => Doctor.Run(Rest(f)), NoTimings: true, Help: true),
-        new("spec", (_, f) => SpecCommand.Run(Rest(f)), NoTimings: true),
-        new("doc", (_, f) => DocCommand.Run(Rest(f)), NoTimings: true),
-        new("explain-warning", (_, f) => DocCommand.Warn(Rest(f)), NoTimings: true),
-        new("memory", (_, f) => MemoryCommand.Run(Rest(f)), NoTimings: true),
+        new("doctor", (_, f) => Doctor.Run(Rest(f)), NoTimings: true, Help: true, Mcp: "read"),
+        new("spec", (_, f) => SpecCommand.Run(Rest(f)), NoTimings: true, Mcp: "read write"),
+        new("doc", (_, f) => DocCommand.Run(Rest(f)), NoTimings: true, Mcp: "read"),
+        new("explain-warning", (_, f) => DocCommand.Warn(Rest(f)), NoTimings: true, Mcp: "read"),
+        new("memory", (_, f) => MemoryCommand.Run(Rest(f)), NoTimings: true, Mcp: "read"),
         new("learn", (_, f) => EvolveCommand.Run(Rest(f)), NoTimings: true),
         // oml map: build loads modules (Core); the queries read the stored map here, without Service Studio.
-        new("map", (_, f) => MapCommand.Run(Rest(f)), f => !(f.Length > 1 && f[1] == "build")),
+        new("map", (_, f) => MapCommand.Run(Rest(f)), f => !(f.Length > 1 && f[1] == "build"), Mcp: "read"),
         new("mock", (_, f) => MockCommand.Run(Rest(f))),
         new("create", (_, f) => CreateCommand.Run(Rest(f))),
         new("skill", (_, f) => CreateCommand.Skill(Rest(f))),
-        new("migrate", (_, f) => Migrate.Run(Rest(f)), NoTimings: true, Help: true),
+        new("migrate", (_, f) => Migrate.Run(Rest(f)), NoTimings: true, Help: true, Mcp: "write"),
         new("config", (_, f) => ProjectConfig.Run(Rest(f)), NoTimings: true),
         // oml test data: the module spec needs the producer module (Core); the rest calls the test-data API here.
-        new("test", (_, f) => TestDataCommand.Run(Rest(f, 2)), f => f.Length > 1 && f[1] == "data" && !(f.Length > 2 && f[2] == "module")),
+        new("test", (_, f) => TestDataCommand.Run(Rest(f, 2)), f => f.Length > 1 && f[1] == "data" && !(f.Length > 2 && f[2] == "module"), Mcp: "read"),
         new("outsystems-docs", (_, f) => Library.Run(Rest(f)), NoTimings: true, Help: true),
-        new("team-rules", (_, f) => CompanySkills.Run(Rest(f)), NoTimings: true),
+        new("team-rules", (_, f) => CompanySkills.Run(Rest(f)), NoTimings: true, Mcp: "read"),
         new("dashboard", (_, f) => Dashboard.Run(Rest(f)), NoTimings: true, Help: true),
-        new("browser", (_, f) => Qa.QaCommand.Run(Rest(f)), NoTimings: true, Help: true),
+        new("browser", (_, f) => Qa.QaCommand.Run(Rest(f)), NoTimings: true, Help: true, Mcp: "write"),
         new("show-change", (_, f) => Dashboard.Dif(Rest(f)), NoTimings: true, Help: true),
         new("explorer-menu", (_, f) => Setup.Run(Rest(f)), _ => OperatingSystem.IsWindows(), NoTimings: true, Help: true),
-        new("architecture", TeamRun, f => f.Contains("--team")),
-        new("check", TeamRun, f => f.Contains("--team")),
+        new("architecture", TeamRun, f => f.Contains("--team"), Mcp: "read"),
+        new("check", TeamRun, f => f.Contains("--team"), Mcp: "read"),
         // oml review --server: pulls two versions from the platform server (a login), then Core reviews them.
-        new("review", (_, f) => ServerApi.Review(Rest(f)), f => f.Contains("--server")),
+        new("review", (_, f) => ServerApi.Review(Rest(f)), f => f.Contains("--server"), Mcp: "read"),
         // The launcher only prints image's help and refuses --timings; Core converts the image.
         new("image", null, NoTimings: true, Help: true),
         // Taken in Main, before the usage log wraps the call (a summary of the log is not itself logged); --help goes to Core.
         new("log", (_, f) => UsageLog.Summary(Rest(f)), f => !f.Contains("--help") && !f.Contains("-h"), NoTimings: true),
         // Taken in Main (a person's terminal; the usage log does not copy it); --help goes to the launcher's help.
         new("menu", (_, f) => MenuApp.Run(Rest(f)), f => !f.Contains("--help") && !f.Contains("-h"), NoTimings: true, Help: true),
+        // `oml mcp`: a server on stdin and stdout. Taken in Main, before the usage log wraps it (each call is logged on its own).
+        new("mcp", (_, f) => McpServer.Run(Rest(f)), f => !f.Contains("--help") && !f.Contains("-h"), NoTimings: true, Help: true),
+        // Commands Core runs, listed here only for the tool of `oml mcp` that runs them.
+        new("version", null, Mcp: "read"), new("inspect", null, Mcp: "read"), new("describe", null, Mcp: "read"), new("find", null, Mcp: "read"),
+        new("tree", null, Mcp: "read"), new("flow", null, Mcp: "read"), new("stats", null, Mcp: "read"), new("header", null, Mcp: "read"),
+        new("expression", null, Mcp: "read"), new("openapi", null, Mcp: "read"), new("export", null, Mcp: "read"), new("studio", null, Mcp: "read"),
+        new("app", null, Mcp: "read"), new("query", null, Mcp: "read"), new("validate", null, Mcp: "read"), new("batch", null, Mcp: "read write"),
+        new("apply", null, Mcp: "write"), new("new", null, Mcp: "write"),
+        new("install", null, Mcp: "gated"), new("publish", null, Mcp: "gated"), new("references", null, Mcp: "gated"), new("pull", null, Mcp: "gated"),
         // Hidden maintainer commands: not in the usage text, not in help.
         new("terminal-test", (_, _) => { var result = TerminalRender.SelfTest(); Console.WriteLine(result); return result == "ok" ? 0 : 1; }, Hidden: true),
-        new("commands", (_, f) => Commands(f), Hidden: true),
+        new("commands", (_, f) => Commands(f), Hidden: true, Mcp: "read"),
         new("menu-test", (_, _) => { var result = MenuTest.Run(); Console.WriteLine(result); return result == "ok" ? 0 : 1; }, Hidden: true),
     ];
 
@@ -60,6 +71,24 @@ internal static class CommandTable
         filtered.FirstOrDefault() is { } name ? All.FirstOrDefault(c => c.Name == name && c.Run is not null && (c.When?.Invoke(filtered) ?? true)) : null;
 
     public static bool PrintsHelp(string name) => All.Any(c => c.Name == name && c.Help);
+
+    // The tools of `oml mcp` that may run this command line (normalized, command first); empty when no tool does. The
+    // table's Mcp field, except where a subcommand or option writes, or reaches a server or LifeTime. `batch` is read
+    // or write by its steps; McpServer checks them with this same function.
+    public static string[] McpTools(string[] a)
+    {
+        var (cmd, sub) = (a.FirstOrDefault() ?? "", a.Length > 1 ? a[1] : "");
+        if (cmd == "review" && a.Contains("--server")) return ["gated"];   // signs in to the platform server
+        if (cmd is "check" or "architecture" && a.Contains("--team")) return ["gated"];   // downloads from LifeTime
+        if (cmd == "memory" && sub is "add" or "retract" or "dream" or "init") return ["write"];
+        if (cmd == "map" && sub == "build") return ["write"];   // writes the stored map
+        if (cmd == "team-rules" && sub is "add" or "remove") return ["write"];   // installs or removes a company skill
+        if (cmd == "test" && sub == "data" && a.Length > 2 && a[2] is "allow" or "create" or "update" or "cleanup") return ["gated"];   // changes data on a server
+        return All.FirstOrDefault(c => c.Name == cmd)?.Mcp?.Split(' ') ?? [];
+    }
+
+    // Every command a tool of `oml mcp` runs, for the tool's description.
+    public static string[] McpCommands(string tool) => All.Where(c => c.Mcp?.Split(' ').Contains(tool) == true).Select(c => c.Name).ToArray();
 
     // `check --team` and `architecture --team`: refuse bad input before the team's applications are downloaded.
     static int TeamRun(string[] args, string[] filtered)
@@ -96,6 +125,7 @@ internal static class CommandTable
                 ["name"] = name,
                 ["runsIn"] = runsIn,
                 ["timings"] = cmd is null || !cmd.NoTimings,
+                ["mcp"] = cmd?.Mcp,
                 ["usage"] = new JsonArray(CliUsage.For(name).Split('\n').Select(l => (JsonNode?)l.TrimEnd('\r')).ToArray()),
             });
         }

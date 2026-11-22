@@ -156,6 +156,21 @@ public static partial class Cli
         return [code.ToString(), stdout, stderr];
     }
 
+    // `oml mcp`: called before each Core command of the server, in its one command thread. Modules a command only reads
+    // stay open for the next call (Model.Borrow: keyed by full path, write time and length, so a changed file loads
+    // again), output is always JSON, and a self-test past its limit fails the call instead of ending the server.
+    // Returns the reason to refuse the call when such a self-test may still hold the model.
+    public static string? Serve()
+    {
+        SelfTest.KeepProcess = true;
+        SelfTest.Server = "mcp";
+        TerminalOutput.InRun = true;
+        if (SelfTest.Abandoned is { } stopped) return stopped;
+        Model.ShareModules = true;
+        Model.TrimShared();
+        return null;
+    }
+
     // `oml dashboard`: the launcher refuses its own commands too once this is set, because the late self-test
     // thread may still write to Console.Out while a launcher command has it captured.
     public static string? SelfTestAbandoned() => SelfTest.Abandoned;

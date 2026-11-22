@@ -70,6 +70,7 @@ oml memory handoff [--module <Name>] [--top N]   (a brief for the next agent fro
 oml memory traps [--command "<command>"] [--module <Name>] [--top N]   (live trap records; with --command, those it may run into; read only)
 oml memory dream --prepare [<folder>] | --import <ops.json> | --status   (end-of-day memory tidy: a packet, then checked add/retract ops)
 oml batch <steps.json> [--continue]   (several commands in one process, so Service Studio loads once; "-" reads the steps from stdin)
+oml mcp   (MCP server on stdio: tools read, write, gated; Service Studio loads once)
 oml translations export <module.oml> <file> [--format Excel|xlsx|ResX]
 oml install <staged.oml> <target.oml> [--allow-existing-errors]
 oml install --batch <index.json> [--allow-existing-errors]   (items {staged,target}; checks all first, installs none if any is refused)
@@ -225,6 +226,20 @@ The output is compact JSON: `{"results": [{"step": 1, "args": [...], "exitCode":
 - **Exit codes.** A step with exit code 2 (usage or environment) stops the run, unless you add `--continue`; the output then has `stoppedAfterStep`. A step with exit code 1 does not stop it. The exit code of `oml batch` is the highest step code. Note that `describe` with one unknown name exits 2 (with several names it exits 1), so add `--continue` when a later step does not depend on it.
 - **Allowed:** `inspect`, `describe`, `find`, `stats`, `tree`, `validate`, `apply`, `openapi`, `architecture` and `check` (not `--team`), `review` (not `--server`), `spec`, `doc` (also `doc --search`), `explain-warning`, `test bdd`. `spec`, `doc` and `explain-warning` run in the launcher; only `spec check --module` reads a module. They take no `--timings`.
 - **Refused with exit code 2:** `install`, `publish`, `references`, `pull`, `lifetime`, `server` and `batch` itself. They need a person's confirmation or are not model work. Run them as their own commands. Any other command is refused as not supported.
+
+#### MCP server: oml mcp
+
+`oml mcp` is an MCP server on stdin and stdout (JSON-RPC 2.0, one message per line; protocol versions 2024-11-05 to 2025-11-25). An agent's MCP client starts it once: `{"command": "oml", "args": ["mcp"]}`. It runs oml commands in its own process, so Service Studio's model and the self-test load once, not once per call (about 2 s each). A module that a command only reads stays open for the next call, with the cache rule of `oml batch`: a file whose write time or length changed is read again. Paths are relative to the folder it started in. It ends when stdin closes.
+
+Three tools. Each takes `{"args": [...]}`, an oml command line such as `["inspect", "App.oml", "--own"]`:
+
+- `read`: commands that only read: `inspect`, `describe`, `find`, `tree`, `flow`, `stats`, `header`, `expression`, `openapi`, `export`, `check`, `architecture`, `map`, `doc`, `spec`, `explain-warning`, `version`, `doctor`, `review`, `memory` (`recall`, `list`, ...), `team-rules`, `studio`, `test`, `app`, `query`, `validate`, `batch`, `help`.
+- `write`: `apply`, `new`, `spec`, `migrate`, `browser`, `memory add`/`retract`/`dream`/`init`, `map build`, `team-rules add`/`remove`, and a `batch` with a step that writes.
+- `gated`: `install`, `publish`, `references`, `pull`, `lifetime`, `server`, `review --server`, `check` and `architecture --team`, `test data allow`/`create`/`update`/`cleanup`. The client asks a person before it calls this tool.
+
+A result is `{"exit": <code>, "output": <the command's JSON, or its text>, "stderr": "<last 2000 characters>"}`. A command that fails is still a normal result. `isError` is true only when oml did not run the command: a command in the wrong tool (`output.useTool` names the right one), an unknown command or bad args. A `batch` through `read` may only have read steps, a gated step is never allowed in a batch, and `batch -` is refused.
+
+Commands run one at a time in the server's process, because they share the console and Service Studio's model. These run in a child oml process, at the same time as the others: every gated command (it may wait for a person, Service Studio or the network; `server` and `review --server` read OML_SERVER_HOST, _USER and _PASSWORD from your Windows user variables when the client did not pass them), `browser` (its session lives on, and a handoff waits for Enter) and `doctor` (it checks a fresh process, and its self-test has no time limit).
 
 #### Usage log
 

@@ -75,6 +75,7 @@ export const cookbook = [
     ['oml apply --batch C:\\Work\\batch\\apply.json', 'Apply a spec to many modules in one run. The index lists source, spec and staged for each.'],
     ['oml new C:\\Work\\OrdersApi.oml --template TemplateService --name OrdersApi', 'Create a module from a local template. oml templates lists them.'],
     ['oml batch C:\\Work\\steps.json', 'Run several commands in one process, so Service Studio loads once.'],
+    ['oml mcp', 'Start the MCP server that an agent client runs: tools read, write and gated run oml commands, and Service Studio loads once.'],
     ['oml install C:\\Work\\Orders.staged.oml C:\\Work\\Orders.oml', 'Replace the module with the staged file. Only after you check it.'],
     ['oml install --batch C:\\Work\\batch\\install.json', 'Install many staged files. If one is refused, none is installed.'],
     ['oml translations export C:\\Work\\Orders.oml C:\\Work\\Orders-translations.xlsx', 'Export the translations to Excel.'],

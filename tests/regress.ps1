@@ -263,6 +263,10 @@ Unit 'batch-check' {
   try { & (Join-Path $tests 'batch-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL batch checks: $_" }
 }
+Unit 'mcp-check' {
+  try { & (Join-Path $tests 'mcp-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL mcp checks: $_" }
+}
 Unit 'timings-check' {
   try { & (Join-Path $tests 'timings-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL timings checks: $_" }

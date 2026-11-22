@@ -84,6 +84,7 @@ static partial class SelfTest
     // the command with Abandoned, and the dashboard refuses every later command with it, because the self-test may
     // still hold the model.
     public static bool KeepProcess;
+    public static string Server = "dashboard";   // the long-running command that set KeepProcess: dashboard or mcp
     public static string? Abandoned { get; private set; }
 
     static void Abandon(string build, TimeSpan limit)
@@ -117,8 +118,8 @@ static partial class SelfTest
         var limit = Limit;
         var task = Task.Run(Run);
         if (!task.Wait(limit))
-            throw new CliError(Abandoned = $"The self-test on Service Studio {build} did not finish in {limit.TotalSeconds:0} s. The dashboard keeps running, but it refuses "
-                + "model commands until you restart it. If Service Studio was just updated, open it once, wait until it has started, close it, and restart oml dashboard. "
+            throw new CliError(Abandoned = $"The self-test on Service Studio {build} did not finish in {limit.TotalSeconds:0} s. oml {Server} keeps running, but it refuses "
+                + $"model commands until you restart it. If Service Studio was just updated, open it once, wait until it has started, close it, and restart oml {Server}. "
                 + "If it stops again, run oml doctor --text and report the output.", 2);
         return task.GetAwaiter().GetResult();
     }

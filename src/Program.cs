@@ -26,6 +26,8 @@ public static class Program
         if (filtered.FirstOrDefault() == "log" && CommandTable.Find(filtered) is { } log) return log.Run!(args, filtered);
         // The menu is for a person at a terminal: taken here, before the usage log copies stdout, and a bare `oml` only when MenuModel.Bare says so.
         if (filtered.FirstOrDefault() == "menu" && CommandTable.Find(filtered) is { } menu) return menu.Run!(args, filtered);
+        // oml mcp: a long-running server; the usage log must not copy its protocol stream. Each call is logged on its own.
+        if (filtered.FirstOrDefault() == "mcp" && CommandTable.Find(filtered) is { } mcp) return mcp.Run!(args, filtered);
         if (args.Length == 0 && MenuModel.Bare(Console.IsInputRedirected, Console.IsOutputRedirected, Environment.GetEnvironmentVariable) == BareChoice.Menu) return MenuApp.Run([]);
         // The usage log: one line per command, written after it ends (on unless OML_LOG=0; then nothing is wrapped or written).
         return UsageLog.Enabled ? UsageLog.Measure(filtered, () => Dispatch(args, filtered)) : Dispatch(args, filtered);
@@ -125,6 +127,12 @@ public static class Program
             return (int)imageRun.Invoke(null, new object[] { filtered.Skip(1).Concat(JsonOutput.Pretty ? new[] { "--pretty" } : []).ToArray() })!;
         }
         var cli = core.GetType("OmlCli.Cli", throwOnError: true)!;
+        // oml mcp: modules stay open between calls, output is JSON, and a self-test past its limit fails the call, not the server.
+        if (McpServer.Active && cli.GetMethod("Serve")!.Invoke(null, null) is string stopped)
+        {
+            TerminalOutput.PrintObject(new { error = stopped });
+            return 2;
+        }
         // `oml batch` steps include `spec`, `doc` and `explain-warning`, which live here and need no Service Studio.
         cli.GetField("LauncherRun")!.SetValue(null, (Func<string[], int>)(step => step[0] switch
         {
@@ -148,6 +156,7 @@ public static class Program
 
     // One load context per process: `oml dashboard` calls Core many times and must not load Service Studio again each time.
     static Assembly? core;
+    internal static Assembly? LoadedCore => core;
     internal static Assembly LoadCore(string ss) => core ??=
         new ServiceStudioContext(ss, Path.Combine(AppContext.BaseDirectory, "OmlCli.Core.dll")).LoadFromAssemblyName(new AssemblyName("OmlCli.Core"));
 
