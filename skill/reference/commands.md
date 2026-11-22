@@ -78,7 +78,7 @@ oml install <staged.oml> <target.oml> [--allow-existing-errors]
 oml install --batch <index.json> [--allow-existing-errors]   (items {staged,target}; checks all first, installs none if any is refused)
 
 oml studio                          (Service Studio's MCP server: reachable? open modules)
-oml studio tabs | focus | close <Module> | open <Module> [--environment <host>]   (Studio's module tabs; bring it forward; close a saved tab; open from the server, 11.55.99+)
+oml studio tabs | focus | close <Module> | open <Module> [--environment <host>]   (module tabs; bring it forward; close a saved tab; open from the server)
 oml publish <Module | file.oml> [--close]   (1-Click Publish through Service Studio)
 oml publish --in <folder> --order <order.json>   (publish many modules in that order; stops at the first failure)
 oml references <Module | file.oml>  (Refresh All references through Service Studio)

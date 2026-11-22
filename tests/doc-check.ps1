@@ -179,8 +179,8 @@ if ($help -gt 700 * 1.15) { Fail "oml --help is $help tokens; budget 700 (+15%)"
 # (oml --help), not this.
 $helpAll = [math]::Ceiling((Run 'help', '--all').Text.Length / 4)
 # 3350 for oml browser look, sweep and diff; 3450 for oml browser try and oml migrate check; 3500 for oml server; 3550 for oml browser raw and --attach;
-# 3600 for oml server pull --app, oml server check and oml review --server; 3620 for oml mcp; 3690 for the two oml code lines.
-if ($helpAll -gt 3690 * 1.15) { Fail "oml help --all is $helpAll tokens; budget 3690 (+15%)" }
+# 3600 for oml server pull --app, oml server check and oml review --server; 3620 for oml mcp; 3690 for the two oml code lines; 3700 for oml studio open.
+if ($helpAll -gt 3700 * 1.15) { Fail "oml help --all is $helpAll tokens; budget 3700 (+15%)" }
 # every command word of the full usage is named in the overview (a word is whole: `test` is not `testing`)
 $fullUsage = (Run 'help', '--all').Text
 $overview = (Run '--help').Text
