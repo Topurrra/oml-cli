@@ -213,6 +213,7 @@ static partial class SelfTest
             ReadersTest(blank, failures);
             NewParsersTest(failures);
             TestScaffoldTest(dir, failures);
+            ScreenshotSizeTest(failures);
 
             // A clash with a generated CRUD action must be refused, not renamed.
             File.WriteAllText(spec, """{ "entities": [ { "name": "Order", "attributes": [{ "name": "Name" }] } ], "serverActions": [ { "name": "GetOrder" } ] }""");

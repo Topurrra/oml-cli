@@ -9,7 +9,7 @@ namespace OmlCli.Qa;
 // the step's expectations (retried until they hold or the timeout passes), then the checks every step gets for free:
 // no JavaScript exception, no failed request, no server exception from an OutSystems call, no error feedback message.
 // capture: also report the screen each step ended on, for `browser run --save`.
-sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string shotDir, bool capture = false)
+sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string shotDir, bool capture = false, QaShot.Limit shots = default)
 {
     static readonly string[] Actions = ["open", "click", "fill", "select", "press", "wait", "screenshot", "expect"];
     // Words that make a click destructive. Such a click needs "allowDestructive": true in its step.
@@ -39,7 +39,7 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
                 case "select": await Select(value); break;
                 case "press": await browser.Press(value.GetString() ?? throw new QaUsage("press: give a key such as \"Enter\".")); break;
                 case "wait": await Wait(value); break;
-                case "screenshot": result["screenshot"] = await browser.Screenshot(Path.Combine(shotDir, $"step-{n}-{Safe(value.GetString() ?? "shot")}.png")); break;
+                case "screenshot": await QaShot.Take(browser, Path.Combine(shotDir, $"step-{n}-{Safe(value.GetString() ?? "shot")}.png"), shots, result); break;
             }
             // Opening also covers the browser's cold start and the app's first load: at least 30 seconds.
             if (action is "open" or "click" or "fill" or "select" or "press") result["readyMs"] = await browser.WaitReady(action == "open" ? Math.Max(timeoutMs, 30_000) : timeoutMs);
@@ -61,7 +61,7 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
         {
             result["ok"] = false;
             result["error"] = e is QaFailure ? e.Message : $"{e.GetType().Name}: {e.Message}";
-            try { result["screenshot"] = await browser.Screenshot(Path.Combine(shotDir, $"step-{n}-failed.png")); } catch (Exception x) when (x is not QaUsage) { }
+            try { await QaShot.Take(browser, Path.Combine(shotDir, $"step-{n}-failed.png"), shots, result); } catch (Exception x) when (x is not QaUsage) { }
             try { result["url"] = await browser.Url(); } catch (Exception x) when (x is not QaUsage) { }
         }
         if (notes.Count > 0) result["notes"] = notes;

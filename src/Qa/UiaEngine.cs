@@ -255,12 +255,10 @@ sealed class UiaEngine : IQaEngine
     public Task Press(string key) =>
         throw new QaFailure($"press {key}: key presses need the DevTools engine (UI Automation has no keyboard without taking the focus). Click the button instead.");
 
-    public async Task<string> Screenshot(string file)
+    public async Task<QaShot.Shot> Screenshot(string file, QaShot.Limit limit)
     {
         var png = Win32.CapturePng(window) ?? throw new QaFailure("Could not capture the browser window.");
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(file))!);
-        await File.WriteAllBytesAsync(file, png);
-        return Path.GetFullPath(file);
+        return await QaShot.Write(file, png, limit);
     }
 
     public Task<string> Url() => Task.FromResult(Uia.Current(Document(), Uia.ValueValue) as string ?? "");

@@ -22,7 +22,8 @@ interface IQaEngine : IDisposable
     // Replace the text of the field the last locate found.
     Task Type(string text);
     Task Press(string key);
-    Task<string> Screenshot(string file);
+    // A PNG of the page, shrunk to fit the limit (QaShot).
+    Task<QaShot.Shot> Screenshot(string file, QaShot.Limit limit);
     Task<string> Url();
     Task<QaNetwork.CallResult> ReadCall(QaNetwork.Request request);
     (List<string> Exceptions, List<string> Console) ErrorsSince(int exceptionCount, int consoleCount);

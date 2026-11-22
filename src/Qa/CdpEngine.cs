@@ -224,12 +224,17 @@ sealed class CdpEngine : IQaEngine
         await Cdp.Send("Input.dispatchKeyEvent", new { type = "keyUp", key = name, code = k.Code, windowsVirtualKeyCode = k.Vk });
     }
 
-    public async Task<string> Screenshot(string file)
+    public Task<QaShot.Shot> Screenshot(string file, QaShot.Limit limit) => Capture(file, limit, null);
+
+    // The window, or an area of the page in CSS pixels (look's element), shrunk to the limit after capture. (A clip scale would
+    // skip the shrink, but its result depends on the device pixel ratio and on the zoom a phone emulation applies.)
+    public async Task<QaShot.Shot> Capture(string file, QaShot.Limit limit, (double X, double Y, double Width, double Height)? area)
     {
-        var r = await Cdp.Send("Page.captureScreenshot", new { format = "png" }, 20_000);
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(file))!);
-        await File.WriteAllBytesAsync(file, Convert.FromBase64String(r.GetProperty("data").GetString()!));
-        return Path.GetFullPath(file);
+        object request = area is { } a
+            ? new { format = "png", captureBeyondViewport = true, clip = new { x = a.X, y = a.Y, width = a.Width, height = a.Height, scale = 1 } }
+            : new { format = "png" };
+        var r = await Cdp.Send("Page.captureScreenshot", request, 20_000);
+        return await QaShot.Write(file, Convert.FromBase64String(r.GetProperty("data").GetString()!), limit);
     }
 
     public async Task<string> Url() => (await Eval("location.href")).GetString() ?? "";

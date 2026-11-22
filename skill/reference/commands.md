@@ -1052,6 +1052,7 @@ oml apply Orders_Tests.oml Orders_Tests.bdd-spec.json Orders_Tests.staged.oml
 `oml browser sweep <url> [--widths 390,768,1366] [--out <folder>]`
 `oml browser try <url> [--css <file.css>] [--html <target>=<file.html>] [--append <target>=<file.html>] [--js <file.js>] [--screenshot <file.png>]`
 `oml browser page <url> --snapshot <file.json>`, then `oml browser diff <before.json> <after.json | url>`
+Every command that writes a screenshot also takes `[--max-width N] [--max-height N]` (see Screenshot size).
 
 The agent's browser and computer use for the published app: it looks at and drives the real app, with real data and server actions, like a manual tester. (`oml qa` is the old name and still works.) It opens Edge or Chrome with a new, empty profile, never yours. The profile is deleted at the end.
 
@@ -1117,13 +1118,19 @@ Two engines. `--engine auto` (default) picks one:
 
 `auto` reads the Edge or Chrome policy and uses `uia` when remote debugging is off. `oml doctor` shows which engine `oml browser` uses. oml reads the policy only; it never changes it.
 
-Output: `{ ok, passed, failed, skipped, ms, engine, engineNote, steps: [ { n, do, ok, ms, readyMs, calls, error, notes, screenshot, url } ] }`. With `--out`, also `browser-report.json` and the screenshots in that folder; without it, screenshots go to `%TEMP%\oml-browser\<time>`.
+Output: `{ ok, passed, failed, skipped, ms, engine, engineNote, steps: [ { n, do, ok, ms, readyMs, calls, error, notes, screenshot, screenshotSize, url } ] }`. With `--out`, also `browser-report.json` and the screenshots in that folder; without it, screenshots go to `%TEMP%\oml-browser\<time>`.
+
+### Screenshot size
+
+`page`, `look`, `try`, `sweep --out` and `run` (the `screenshot` step and a failed step's picture) take `--max-width N` and `--max-height N`: the PNG is shrunk to fit, keeping its aspect ratio, and never enlarged. An agent pays for a picture by its pixels, about width x height / 750 tokens, not by its file size, so JPEG or WebP would not help; a smaller picture does. Next to each `screenshot` the output has `screenshotSize`: `width`, `height`, `tokens` and, when it was shrunk, `scaledFrom` (the size captured).
+
+There is no default limit: a 1366 x 900 window is about 1,600 tokens, and pictures for people (a DIF) keep their size. For an agent, set `OML_SCREENSHOT_MAX_WIDTH` (and `OML_SCREENSHOT_MAX_HEIGHT`) in its environment; 800 still shows a layout and costs about 560 tokens. The option wins over the variable, and `0` means no limit. A running session uses the caller's variables.
 
 The UI Automation window cannot be narrower than the browser allows (about 500 px for Edge). Check `viewport` in `browser page`; test phone widths with the DevTools engine.
 
 ### Session
 
-`oml browser start` keeps one browser open in a background process. Later `browser run`, `page`, `look`, `sweep` and `diff` use it: no browser start (6 to 8 seconds), and the app's login stays. Their output has `"session": true`. `--no-session` runs one command in a browser of its own. The session uses the engine and window size it started with.
+`oml browser start` keeps one browser open in a background process. Later `browser run`, `page`, `look`, `try`, `sweep` and `diff` use it, screenshots included (`sweep` takes every width in that one browser): no browser start (6 to 8 seconds), and the app's login stays. Their output has `"session": true`. `--no-session` runs one command in a browser of its own. The session uses the engine and window size it started with.
 
 The session listens on a named pipe that only the same Windows user can open. It does one request at a time; a second one gets "busy". It stops on `oml browser stop`, after 30 minutes without a request, or when its browser is closed. Its state is in `%LOCALAPPDATA%\oml-cli\browser-session.json`.
 

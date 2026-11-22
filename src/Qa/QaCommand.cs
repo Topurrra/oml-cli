@@ -35,6 +35,7 @@ static class QaCommand
                     return 0;
                 case "look" or "diff" when args.Length >= 3:
                 case "run" or "page" or "sweep" or "try" when args.Length >= 2:
+                    args = QaShot.WithVariables(args);
                     var options = Options(args[0] is "look" or "diff" ? args[3..] : args[2..]);
                     if (!options.Has("--no-session") && QaSession.Forward(args) is { } forwarded)
                     {
@@ -103,7 +104,7 @@ static class QaCommand
     }
 
     public static readonly string[] Valued = ["--base-url", "--width", "--height", "--timeout", "--out", "--screenshot", "--engine", "--save", "--style-conflicts",
-        "--state", "--theme", "--widths", "--snapshot", "--css", "--html", "--append", "--js"];
+        "--state", "--theme", "--widths", "--snapshot", "--css", "--html", "--append", "--js", "--max-width", "--max-height"];
     static readonly string[] Flags = ["--headed", "--continue", "--no-session"];
 
     public static Settings Options(string[] args)
@@ -166,7 +167,7 @@ static class QaCommand
             var save = o.Get("--save") is { } s ? Path.GetFullPath(s) : null;
             if (save is not null && (File.Exists(save) || string.Equals(save, Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase)))
                 throw new QaUsage($"--save: {save} exists. Save to a new file; the file you ran stays as it is.");
-            var runner = new QaRunner(browser, baseUrl, timeout, outDir, capture: save is not null);
+            var runner = new QaRunner(browser, baseUrl, timeout, outDir, capture: save is not null, shots: QaShot.From(o));
             var results = new JsonArray();
             int passed = 0, failed = 0, n = 0;
             foreach (var step in steps.EnumerateArray())
@@ -243,7 +244,7 @@ static class QaCommand
             page["errors"] = new JsonArray([.. exceptions.Select(e => (JsonNode)("JavaScript error: " + e)),
                 .. browser.Network.FailedSince(seq).Select(r => (JsonNode)$"request failed: {r.Call ?? QaNetwork.Short(r.Url)} {r.Failed ?? "HTTP " + r.Status}")]);
             if (console.Count > 0) page["console"] = new JsonArray([.. console.Take(10).Select(c => (JsonNode)c)]);
-            if (o.Get("--screenshot") is { } shot) page["screenshot"] = await browser.Screenshot(shot);
+            if (o.Get("--screenshot") is { } shot) await QaShot.Take(browser, shot, QaShot.From(o), page);
             if (o.Get("--style-conflicts") is { } prefix)
                 page["styleConflicts"] = browser is CdpEngine cdp ? await QaStyle.Conflicts(cdp.Cdp, prefix)
                     : new JsonObject { ["error"] = "--style-conflicts needs DevTools; this browser runs under UI Automation (a policy blocks DevTools)." };

@@ -69,16 +69,7 @@ static class BrowserTools
             var matched = await cdp.Send("CSS.getMatchedStylesForNode", new { nodeId });
             look["rules"] = Rules(matched, sheets);
             if (o.Get("--screenshot") is { } file && look["clip"] is JsonObject clip)
-            {
-                var shot = await cdp.Send("Page.captureScreenshot", new
-                {
-                    format = "png", captureBeyondViewport = true,
-                    clip = new { x = clip["x"]!.GetValue<double>(), y = clip["y"]!.GetValue<double>(), width = clip["width"]!.GetValue<double>(), height = clip["height"]!.GetValue<double>(), scale = 1 },
-                }, 20_000);
-                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(file))!);
-                await File.WriteAllBytesAsync(file, Convert.FromBase64String(shot.GetProperty("data").GetString()!));
-                look["screenshot"] = Path.GetFullPath(file);
-            }
+                QaShot.Add(await engine.Capture(file, QaShot.From(o), (clip["x"]!.GetValue<double>(), clip["y"]!.GetValue<double>(), clip["width"]!.GetValue<double>(), clip["height"]!.GetValue<double>())), look);
             look.Remove("clip");
             if (state is not null) look["state"] = state;
             if (o.Get("--theme") is { } t) look["theme"] = t + " (prefers-color-scheme; a theme that switches with a class needs that class on the page)";
@@ -220,7 +211,7 @@ static class BrowserTools
             ["a11y"] = await A11y(browser),
             ["note"] = "A preview only: nothing is saved and a reload removes it. Show it to the user; build with oml apply after a yes, matching this preview.",
         };
-        if (o.Get("--screenshot") is { } shot) result["screenshot"] = await browser.Screenshot(shot);
+        if (o.Get("--screenshot") is { } shot) await QaShot.Take(browser, shot, QaShot.From(o), result);
         return QaCommand.Prune(result);
     }
 
@@ -260,7 +251,7 @@ static class BrowserTools
                     row["layout"]!.AsArray().Insert(0, $"overflow: the page is {pageWidth:0} px wide at {width} px (horizontal scroll)");
                 row["overflowBy"] = JsonNode.Parse((await browser.Helper("overflowing", width)).GetRawText());
             }
-            if (outDir is not null) row["screenshot"] = await browser.Screenshot(Path.Combine(outDir, $"sweep-{width}.png"));
+            if (outDir is not null) await QaShot.Take(browser, Path.Combine(outDir, $"sweep-{width}.png"), QaShot.From(o), row);
             rows.Add(row);
         }
         // Widgets that show at a narrower width and not at the widest, and the other way round: often a responsive mistake, sometimes the design.
