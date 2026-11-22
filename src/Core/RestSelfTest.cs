@@ -104,5 +104,81 @@ static class RestSelfTest
             var (invalidCode, _) = Apply.Execute(output, spec, rejected);
             if (invalidCode == 0 || File.Exists(rejected)) failures.Add("REST invalid spec was saved: " + invalid);
         }
+        Import(blank, dir, failures);
+    }
+
+    // "openapi": Service Studio's own importer, for OpenAPI 3 and Swagger 2.0 JSON next to the spec.
+    static void Import(string blank, string dir, List<string> failures)
+    {
+        void Fail(string detail) => failures.Add("REST openapi: " + detail);
+        File.WriteAllText(Path.Combine(dir, "pets3.json"), """
+            { "openapi": "3.0.3", "info": { "title": "Pet Store", "version": "1" }, "servers": [{ "url": "https://pets.example.test/v1" }],
+              "components": { "schemas": {
+                "Pet": { "type": "object", "properties": { "id": { "type": "integer", "format": "int64" }, "name": { "type": "string" },
+                  "status": { "type": "string", "enum": ["available", "sold"] },
+                  "owner": { "type": "object", "properties": { "phones": { "type": "array", "items": { "type": "object", "properties": { "number": { "type": "string" } } } } } } } } } },
+              "paths": {
+                "/pets": { "get": { "operationId": "listPets",
+                    "parameters": [{ "name": "limit", "in": "query", "schema": { "type": "integer" } }, { "name": "X-Trace", "in": "header", "schema": { "type": "string" } }],
+                    "responses": { "200": { "description": "ok", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Pet" } } } } } } },
+                  "post": { "operationId": "createPet", "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Pet" } } } },
+                    "responses": { "201": { "description": "made", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Pet" } } } } } } },
+                "/pets/{petId}": { "delete": { "operationId": "deletePet", "parameters": [{ "name": "petId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }],
+                    "responses": { "204": { "description": "gone" } } } } } }
+            """);
+        File.WriteAllText(Path.Combine(dir, "orders2.json"), """
+            { "swagger": "2.0", "info": { "title": "Orders", "version": "1" }, "host": "orders.example.test", "basePath": "/api", "schemes": ["https"],
+              "securityDefinitions": { "key": { "type": "apiKey", "in": "header", "name": "X-Key" } }, "security": [{ "key": [] }],
+              "definitions": { "Order": { "type": "object", "properties": { "id": { "type": "string" }, "lines": { "type": "array", "items": { "type": "string" } } } } },
+              "paths": { "/orders/{id}": { "put": { "operationId": "UpdateOrder", "consumes": ["application/json"], "produces": ["application/json"], "parameters": [
+                { "name": "id", "in": "path", "required": true, "type": "string" }, { "name": "body", "in": "body", "schema": { "$ref": "#/definitions/Order" } }],
+                "responses": { "200": { "description": "ok", "schema": { "$ref": "#/definitions/Order" } } } } } } }
+            """);
+        var spec = Path.Combine(dir, "rest-import.json");
+        var output = Path.Combine(dir, "rest-import.oml");
+        File.WriteAllText(spec, """
+            { "restClients": [{ "name": "Pets", "openapi": "pets3.json" }, { "name": "Shop", "openapi": "orders2.json", "baseUrl": "https://test.example.test/api" }] }
+            """);
+        var (code, report) = Apply.Execute(blank, spec, output);
+        if (code != 0) { Fail(JsonSerializer.Serialize(report)); return; }
+        var text = JsonSerializer.Serialize(report);
+        if (!text.Contains("Swagger 2.0 import")) Fail("the unsupported apiKey scheme is not in the warnings: " + text);
+        using (var built = Model.Load(output))
+        {
+            var pets = RestModel.Integrations(built, false).SingleOrDefault(i => Model.NameOf(i) == "Pets");
+            var shop = RestModel.Integrations(built, false).SingleOrDefault(i => Model.NameOf(i) == "Shop");
+            if (pets is null || shop is null) { Fail("the clients do not have the spec's names"); return; }
+            object Method(object client, string name) => RestModel.Actions(client).Single(a => Model.NameOf(a) == name);
+            List<object> Inputs(object method) => ((System.Collections.IEnumerable)Reflect.Get(method, "InputParameters")!).Cast<object>().ToList();
+            if ((string?)Reflect.Get(pets, "BaseURL") != "https://pets.example.test/v1") Fail("the server URL is not the base URL");
+            if ((string?)Reflect.Get(shop, "BaseURL") != "https://test.example.test/api") Fail("the spec's baseUrl does not win over the document's");
+            if (RestModel.Actions(pets).Count() != 3 || RestModel.Actions(shop).Count() != 1) Fail("methods missing");
+            var list = Method(pets, "listPets");
+            if ((string?)Reflect.Get(list, "URLPath") != "/pets?limit={limit}") Fail("query input not in the URL: " + Reflect.Get(list, "URLPath"));
+            if (!Inputs(list).Any(p => Reflect.Get(p, "InputPlacement")?.ToString() == "HeaderPlacement" && (string?)Reflect.Get(p, "OriginalName") == "X-Trace")) Fail("header input lost");
+            if (Reflect.Get(Method(pets, "deletePet"), "HTTPMethod")?.ToString() != "DELETE") Fail("verb lost");
+            var structures = ((System.Collections.IEnumerable)Reflect.Get(pets, "Structures")!).Cast<IStructureSignature>().ToList();
+            var pet = structures.SingleOrDefault(s => s.Name == "Pet");
+            if (pet is null || pet.Attributes.Single(a => a.Name == "owner").DataType is not IStructureSignature owner
+                || owner.Attributes.Single(a => a.Name == "phones").DataType is not IListType { ElementType: IStructureSignature })
+                Fail("nested object or array of objects lost");
+            var update = Method(shop, "UpdateOrder");
+            if (!Inputs(update).Any(p => Reflect.Get(p, "InputPlacement")?.ToString() == "BodyPlacement")) Fail("body input lost");
+        }
+        foreach (var (invalid, file, content) in new[] {
+            ("""{ "restServices": [{ "name": "Bad", "openapi": "pets3.json" }] }""", "", ""),
+            ("""{ "restClients": [{ "name": "Bad", "openapi": "missing.json" }] }""", "", ""),
+            ("""{ "restClients": [{ "name": "Bad", "openapi": "bad.yaml" }] }""", "bad.yaml", "openapi: 3.0.0\ninfo: {}\n"),
+            ("""{ "restClients": [{ "name": "Bad", "openapi": "bad.json" }] }""", "bad.json", """{ "title": "not a document" }"""),
+            ("""{ "restClients": [{ "name": "Bad", "openapi": "ext.json" }] }""", "ext.json",
+             """{ "swagger": "2.0", "info": { "title": "x", "version": "1" }, "paths": { "/a": { "get": { "responses": { "200": { "description": "ok", "schema": { "$ref": "other.json#/definitions/A" } } } } } } }"""),
+        })
+        {
+            if (file.Length > 0) File.WriteAllText(Path.Combine(dir, file), content);
+            File.WriteAllText(spec, invalid);
+            var rejected = Path.Combine(dir, "rest-import-rejected.oml");
+            var (invalidCode, _) = Apply.Execute(blank, spec, rejected);
+            if (invalidCode == 0 || File.Exists(rejected)) Fail("invalid spec was saved: " + invalid);
+        }
     }
 }

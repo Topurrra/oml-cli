@@ -303,6 +303,7 @@ partial class Builder
     // with another verb or URL is a problem; its flow (exposed methods) is compared like an action's.
     void ReuseRest(object integration, RestSpec s, bool service, string label)
     {
+        // "openapi" was imported when the API was made; a later apply does not import it again (Refresh is in Service Studio).
         if (s.BaseUrl is not null && (Reflect.Get(integration, "BaseURL")?.ToString() ?? "") != s.BaseUrl)
             problems.Add(Reuse.Changed(label, ["baseUrl"], "Change it with an edits \"set\" op, or by hand in Service Studio."));
         foreach (var a in s.Actions ?? new())

@@ -8,7 +8,7 @@ namespace OmlCli;
 
 record RestSpec(string Name, string? BaseUrl = null, List<RestActionSpec>? Actions = null,
     string? Authentication = null, bool? InternalAccessOnly = null, RestCallbackSpec? OnAuthentication = null,
-    RestCallbackSpec? OnBeforeRequest = null, RestCallbackSpec? OnAfterResponse = null, RestCallbackSpec? OnRequest = null, RestCallbackSpec? OnResponse = null);
+    RestCallbackSpec? OnBeforeRequest = null, RestCallbackSpec? OnAfterResponse = null, RestCallbackSpec? OnRequest = null, RestCallbackSpec? OnResponse = null, string? OpenApi = null);
 record RestActionSpec(string Name, string Method = "GET", string Url = "",
     List<RestParamSpec>? Inputs = null, List<RestParamSpec>? Outputs = null, List<JsonElement>? Flow = null, List<VarSpec>? Locals = null);
 // The flow of a REST callback: consumed OnBeforeRequest and OnAfterResponse, exposed OnAuthentication. Their inputs and
@@ -72,6 +72,7 @@ partial class Builder
     void RestIntegration(RestSpec s, bool service)
     {
         var label = $"{(service ? "restService" : "restClient")} {s.Name}";
+        if (service && s.OpenApi is not null) throw new ModelError("openapi imports a consumed REST API: put it in restClients. An exposed API is built from its actions.");
         var same = m.Integrations.Where(i => Model.NameOf(i) == s.Name).ToList();
         if (same.Count > 0)
         {
@@ -94,8 +95,9 @@ partial class Builder
             ?? throw new ModelError($"{concrete.Name}.Kind has no Instance on this build");
         var integration = Reflect.Call(kind, "CreateInstanceInParent", m, s.Name, descriptor)!;
         if (!Fresh(integration, s.Name, label)) return;
-        if (s.BaseUrl is not null) RestSet(integration, "BaseURL", s.BaseUrl);
         created.Add(label);
+        if (s.OpenApi is not null) RestImport(integration, s, label);
+        if (s.BaseUrl is not null) RestSet(integration, "BaseURL", s.BaseUrl);
         foreach (var a in s.Actions ?? new()) Try($"{label}.{a.Name}", () => RestAction(integration, a, service, label));
         if (service) Try($"{label}.authentication", () => RestSecurity(integration, s, label));
         else Try($"{label}.callbacks", () => RestCallbacks(integration, s, label));

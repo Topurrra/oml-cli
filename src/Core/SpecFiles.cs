@@ -26,7 +26,7 @@ static class SpecFiles
     static string Folder(string specFile) => Path.GetDirectoryName(Path.GetFullPath(specFile))!;
 
     // Older path keys (images, scripts, resources "file", a theme's styleSheet path, module icon, copy "from",
-    // translations "import") were relative to the working folder. A relative path that names a file in the spec's
+    // translations "import", restClients "openapi") were relative to the working folder. A relative path that names a file in the spec's
     // folder now means that file; any other value stays as it is, so it still works from the working folder.
     // Returns a warning for each path that names a different file in both folders.
     public static List<string> Rebase(JsonNode? spec, string specFile)
@@ -53,6 +53,7 @@ static class SpecFiles
             }
         if (root["themes"] is JsonArray themes) foreach (var theme in themes) Fix(theme as JsonObject, "styleSheet");
         if (root["copy"] is JsonArray copies) foreach (var copy in copies) Fix(copy as JsonObject, "from");
+        if (root["restClients"] is JsonArray clients) foreach (var client in clients) Fix(client as JsonObject, "openapi");
         Fix(root["module"] as JsonObject, "icon");
         Fix(root["translations"] as JsonObject, "import");
         return warnings;

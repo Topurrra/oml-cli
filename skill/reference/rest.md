@@ -31,16 +31,17 @@ Exposed and consumed REST APIs: URLs, errors, status codes, authentication, type
 
 ## Consumed APIs
 
+- Swagger or OpenAPI JSON: import it with `openapi`; `warnings` lists what was skipped.
 - Polymorphic JSON (file parts, tool calls): send a Text body with a `Content-Type` header input, and build it with JSON Serialize and JSON-escaped strings. Put fields the caller must not override last.
 - A consumed method is called like a server action: `execute` with `Client.Method`.
-- Every response with status 400 or higher raises an exception. Put an AllExceptions handler around the call and read the message.
+- Every status 400 or higher raises an exception. Put an AllExceptions handler around the call and read the message.
 - OnAfterResponse can read the status and body before the exception, and can change them.
-- Built-in authentication: Basic and OAuth 2.0 client credentials. For other schemes, add the header in OnBeforeRequest. A hand-made Authorization header is replaced when built-in auth is set. Authentication, OAuth, OnBeforeRequest and OnAfterResponse are Service Studio only: tell the user to set them.
+- Built-in authentication: Basic and OAuth 2.0 client credentials. For other schemes, add the header in OnBeforeRequest. A hand-made Authorization header is replaced when built-in auth is set. Authentication and OAuth are Service Studio only: tell the user to set them.
 - Keep tokens in one module: get, cache with expiry, refresh; retry once at most after 401.
 - Read secrets from secret site properties. Never write them in the spec.
 - Query parameters only as `key={value}`.
 - Without a charset in Content-Type, the response is read as ISO-8859-1. The Service Studio test button uses UTF-8, so a test can pass and runtime fail.
-- Define your own structures for the data you pass on. Do not expose the API's generated structures to other modules.
+- Pass your own structures to other modules, not the API's generated ones.
 
 ## JSON types
 
