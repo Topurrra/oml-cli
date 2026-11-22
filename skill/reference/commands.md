@@ -36,6 +36,7 @@ oml check [<module.oml>] [--in <folder|file.oml|file.oap>]... [--app <Name>]... 
 oml check --init-rules [--out <oml-rules.json>]   (writes the team rules file: every rule, on/off, severity, options)
 oml check --diff <before.oml> <after.oml> [--rules <oml-rules.json>]   (findings fixed and introduced per rule; exit 1 when one is introduced)
 oml review <before.oml> <after.oml> [--md <file.md>] [--out <file.html>] [--notes <file.md>] [--rules <oml-rules.json>]   (what changed, production-rule risks, new check findings)
+oml review <before.oml> <after.oml> --prepare <folder> | --import <findings.json>   (blind logic review: a packet for a reviewer agent; its findings checked)
 oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
 oml test bdd <module.oml> <ServerAction>... --bdd <BDDFramework.oml> [--out <spec.json>] [--module-name <TestModule>] [--producer <path>]   (spec for BDD test screens in a separate test module)
 oml tree <module.oml> <ElementName> [--depth N]   (object tree of one action, screen, entity, ...; at most 250 parts)
@@ -870,6 +871,8 @@ A finding is the same in both files when rule and `element` are equal. When `ele
 
 `oml review <before.oml> <after.oml> [--md <file.md>] [--out <file.html>] [--notes <file.md>] [--rules <oml-rules.json>]`
 
+`oml review <before.oml> <after.oml> --prepare <folder> | --import <findings.json> [--rules <oml-rules.json>]`
+
 `oml review` compares two versions of one module: for example the module and the staged file of an `apply`, or two exports from Service Studio. It says what changed in plain words, which changes are risky in production, and which `oml check` findings are new. Agents run it before they ask to `install`, and show the Markdown to the person who approves. It only reads: both inputs stay unchanged. `--md` may replace an earlier review report (an existing `.md` file that starts with "# Review: "; the output then has `overwritten`); every other output must be a new path.
 
 ```powershell
@@ -902,6 +905,15 @@ Scripts read `summary`, not the Markdown. `changes` is the number of changed top
 - `--notes <file.md>`: short release notes for testers: one line per changed element, then the risks and the new findings.
 
 Outputs refuse an existing path and a folder that does not exist, before anything is read. Exit 0 when the review ran, whatever it found; 2 for input errors.
+
+**Logic review by an agent.** oml finds no logic bugs itself, and runs no model. `--prepare <folder>` writes a packet for a reviewer subagent: `instructions.md` (what to look for: wrong conditions, off by one, null and empty cases, missing error handling, the wrong variable, branches that never run; and the answer format) and `changes.md` (each changed or added flow as `describe` text, its steps with element paths, the changed lines, and each changed expression before and after). It is blind: none of oml's findings are in it. Only what changed is in it, in path order, so the same modules give the same packet. The folder must be new, empty, or an earlier packet. Give the reviewer the two files; it answers `[{"path", "severity": "high|medium|low", "title", "evidence", "fix"}]`.
+
+```powershell
+oml review App.oml App.staged.oml --prepare review-packet
+oml review App.oml App.staged.oml --import findings.json
+```
+
+`--import` (with `--rules` only) checks each finding: the path must resolve to one element of the after module, and the evidence (whitespace aside) must be text of that element. Stdout: `summary` (`submitted`, `accepted`, `rejected`, `score`, `outsideChange`, `omlFindings`), `findings` (accepted ones as rule `logic-review`, category `logic`, with `detail` = the evidence, merged with oml's new findings; `source` is `reviewer` or `oml`; `outsideChange: true` when the element was not in the packet), and `rejected` (`index`, `path`, `title`, `reason`). Accepted means the path and evidence check out, not that the bug is real.
 
 **Speed.** An example on a typical laptop: a 2.2 MB module and its staged copy took about 3.5 seconds in total; Service Studio's start was about half of it.
 

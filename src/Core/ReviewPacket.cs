@@ -31,7 +31,7 @@ static class ReviewPacket
 
     // ---- The packet ----
 
-    internal static Packet Compute(IESpace before, IESpace after, Snapshot a, Snapshot b)
+    internal static Packet Compute(IESpace before, IESpace after, Snapshot a, Snapshot b, bool texts = true)
     {
         var (objectsA, objectsB) = (Objects(before), Objects(after));
         var (kidsA, kidsB) = (a.Items.Values.Where(i => i.Parent is not null).ToLookup(i => i.Parent!), b.Items.Values.Where(i => i.Parent is not null).ToLookup(i => i.Parent!));
@@ -65,8 +65,8 @@ static class ReviewPacket
             keys.Add(key);
             keys.UnionWith(inB.Select(i => i.Key));
             var path = PathOf(key);
-            var text = Text(after, path);
-            var diff = old is null ? [] : Review.Diff(objectsA.TryGetValue(key, out var o) ? Text(before, Path(before, objectsA, a, key, new())) : "", text, MaxDiff);
+            var text = texts ? Text(after, path) : "";
+            var diff = old is null || !texts ? [] : Review.Diff(objectsA.TryGetValue(key, out var o) ? Text(before, Path(before, objectsA, a, key, new())) : "", text, MaxDiff);
             var steps = InFlowOrder(inB.Where(i => i.IsNode && i.Parent == key).ToList(), PathOf)
                 .Where(i => i.Kind is not ("StartNode" or "EndNode")).Select(i => (PathOf(i.Key), Review.What(i))).ToList();
             flows.Add(new(path, Review.Human(now.Kind), change, text, diff, steps, Sorted(expressions)));
@@ -307,7 +307,7 @@ static class ReviewPacket
     // that element (whitespace and backticks aside). Accepted findings take the shape of oml review's own findings.
     internal static Imported Validate(IESpace before, IESpace after, Snapshot a, Snapshot b, JsonArray findings)
     {
-        var packet = Compute(before, after, a, b);
+        var packet = Compute(before, after, a, b, texts: false); // only which elements it shows
         var kids = b.Items.Values.Where(i => i.Parent is not null).ToLookup(i => i.Parent!);
         var (accepted, rejected) = (new List<JsonObject>(), new List<JsonObject>());
         for (var index = 0; index < findings.Count; index++)
