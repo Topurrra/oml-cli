@@ -280,7 +280,8 @@ static class Export
         // listed: a connector to one is "End". A node without a name gets one (Kind1, Kind2, ...) for the connectors.
         JsonObject Flow(IObjectSignature owner, string ownerPath)
         {
-            var nodes = Describe.List(owner, "Nodes").ToArray();
+            // Sorted by key (the model's order changes between runs), so comments and stray nodes are listed the same way each time.
+            var nodes = Describe.Nodes(owner);
             var unsupported = new JsonArray();
             // Default equality, as describe's walker compares nodes.
             var names = new Dictionary<object, string>();
@@ -302,8 +303,6 @@ static class Export
                 }
                 return names[node] = name;
             }
-            foreach (var node in nodes) NodeName(node);
-            var repeated = names.Values.Where(n => n is not ("Start" or "End")).GroupBy(n => n, StringComparer.Ordinal).Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet(StringComparer.Ordinal);
 
             var order = new List<object>();
             var seen = new HashSet<object>();
@@ -329,6 +328,10 @@ static class Export
             // Nodes no path reaches (the model warns about them): listed with the main path, so their End is the main End.
             var stray = nodes.Where(n => !seen.Contains(n) && Describe.Kind(n) is not ("StartNode" or "EndNode")).ToList();
             order.InsertRange(mainCount, stray);
+            // Unnamed nodes are numbered in the order they are listed (If1 is the first If from Start, its true branch
+            // before its false one), not in the model's order.
+            foreach (var node in order.Concat(nodes)) NodeName(node);
+            var repeated = names.Values.Where(n => n is not ("Start" or "End")).GroupBy(n => n, StringComparer.Ordinal).Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet(StringComparer.Ordinal);
 
             string? TargetName(object? target) => target is null ? null : NodeName(target);
             var list = new JsonArray();

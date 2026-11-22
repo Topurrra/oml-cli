@@ -15,6 +15,10 @@ static class Describe
         if (key == "OutputParameters" && o is OutSystems.Model.UI.Mobile.IScreenAction) return [];
         return Reflect.Get(o, key) is IEnumerable xs ? Unreadable.Try(() => key + " of " + Unreadable.Where(o), () => xs.Cast<object>().ToArray(), []) : [];
     }
+    // The nodes of a flow. The model lists them in hash order, which changes from one run to the next: sorted by key,
+    // so what is read from them (comments, generated node names) comes out the same on every run.
+    internal static object[] Nodes(object flow) =>
+        List(flow, "Nodes").OrderBy(n => (n as IObjectSignature)?.GlobalKey.ToString(), StringComparer.Ordinal).ToArray();
     // The edits path of a refresh node when it differs from "refresh <data source>" (which works when it is unique).
     static string RefreshHandle(object node)
     {
@@ -185,10 +189,13 @@ static class Describe
         foreach (var key in new[] { "MobileThemes", "WebThemes" })
             if (Reflect.Get(m, key) is System.Collections.IEnumerable themes) owners.AddRange(themes.Cast<object>());
         owners.AddRange(Inspect.Screens(m).Select(s => (object)s.screen));
+        // The model's collections are in hash order: themes first, then by element, so the list is the same on every run.
         return owners.Distinct()
             .Select(o => (o, css: Reflect.Get(o, "StyleSheet") as string ?? ""))
             .Where(x => x.css.Trim().Length > 0)
-            .Select(x => (object)new { element = (x.o is IObjectSignature s ? ElementPaths.PathTo(m, s) : null) ?? Name(x.o), kind = Kind(x.o), styleSheet = x.css })
+            .Select(x => (element: (x.o is IObjectSignature s ? ElementPaths.PathTo(m, s) : null) ?? Name(x.o), kind: Kind(x.o), x.css))
+            .OrderBy(x => x.kind.Contains("Theme", StringComparison.Ordinal) ? 0 : 1).ThenBy(x => x.element, StringComparer.Ordinal)
+            .Select(x => (object)new { x.element, x.kind, styleSheet = x.css })
             .ToList();
     }
 
@@ -325,7 +332,7 @@ static class Describe
             }
             else
             {
-                var nodes = List(root, "Nodes").ToArray();
+                var nodes = Nodes(root);
                 var visited = new HashSet<object>();
                 var start = nodes.FirstOrDefault(n => Kind(n) == "StartNode");
                 if (start is not null) Flow(start, indent + 1, visited);

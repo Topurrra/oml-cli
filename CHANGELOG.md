@@ -78,6 +78,7 @@ Traditional Web to Reactive, prepared by code, and an interactive menu for peopl
 
 ### Fixed
 
+- `oml export` named unnamed flow nodes (If1, Destination2, ...) in the model's hash order, which changes between runs, so two `oml migrate plan` runs on the same module gave `4-screens.json` files with swapped names; unnamed nodes are now numbered in the order the flow lists them (from Start, an If's true branch before its false one). `oml describe` lists a flow's comments, and `describe --css --all` its sheets (themes first, then by element), in the same order on every run, so `screens/*.txt` and `css/README.md` of a plan no longer change either.
 - Re-applying a process whose Decision goes to two named End nodes swapped the Ends and failed ("Cannot change the target node to End"); each End is now found from the node that goes to it.
 
 - **`oml migrate plan` wrote Traditional Style Classes and inline styles unquoted**, so every translated style was an invalid expression in Reactive; they are text in quotes now. `oml export` no longer notes "header and row could not be told apart" for every table cell, and an Ajax Refresh no longer counts its next node as a target.

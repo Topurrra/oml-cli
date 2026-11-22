@@ -87,7 +87,11 @@ static class ExportSelfTest
                     { "kind": "if", "name": "HasName", "condition": "ItemName <> \"\"", "true": "SetName", "false": "End" },
                     { "kind": "assign", "name": "SetName", "assign": { "Rec.Name": "ItemName" } },
                     { "kind": "execute", "action": "CreateOrUpdateItem", "args": { "Source": "Rec" } },
-                    { "kind": "destination", "screen": "Detail", "args": { "ItemId": "Rec.Id" } } ] }],
+                    { "kind": "destination", "screen": "Detail", "args": { "ItemId": "Rec.Id" } } ] },
+                    { "name": "Route", "flow": [
+                    { "kind": "if", "name": "ToDetail", "condition": "ItemName <> \"\"", "true": "GoDetail", "false": "GoItems" },
+                    { "kind": "destination", "name": "GoDetail", "screen": "Detail", "args": { "ItemId": "Rec.Id" } },
+                    { "kind": "destination", "name": "GoItems", "screen": "Items" } ] }],
                   "widgets": [
                     { "type": "Container", "name": "Editor", "style": "\"editor\"", "children": [
                       { "type": "Expression", "name": "Hint", "value": "\"Name: \" + ItemName" },
@@ -130,6 +134,11 @@ static class ExportSelfTest
         // The nodes go into a spec as they are: every connector names a listed node or End.
         var listed = nodes.Select(n => S(n["name"])).ToHashSet();
         Require(nodes.SelectMany(n => new[] { "next", "true", "false" }.Select(k => S(n[k]))).OfType<string>().All(t => t == "End" || listed.Contains(t)), "connectors name listed nodes");
+        // Destinations have no name in the model: they are numbered in flow order (the If's true branch first), not in
+        // the model's hash order, which changes between runs.
+        var route = Objects(Named(Objects(e["actions"]), "Route")?["flow"]?["nodes"]).ToList();
+        Require(route.Select(n => S(n["name"]) + ":" + (S(n["true"]) is { } t ? t + "/" + S(n["false"]) : S(n["screen"]))).SequenceEqual(new[] { "ToDetail:Destination1/Destination2", "Destination1:Detail", "Destination2:Items" }),
+            "unnamed nodes numbered in flow order");
 
         var widgets = AllWidgets(e["widgets"]).ToList();
         var editor = Named(widgets, "Editor");
