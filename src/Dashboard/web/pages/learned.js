@@ -8,7 +8,7 @@ const pct = n => Math.round((n || 0) * 100) + '%';
 const quote = s => /[\s"]/.test(s) ? '"' + String(s).replace(/"/g, '\\"') + '"' : s;
 
 export default {
-  id: 'learned', group: 'Team', title: 'What agents learned', icon: 'learned',
+  id: 'learned', group: 'Agents', title: 'What agents learned', icon: 'learned',
   description: 'Proposals oml learn made from the local usage log and memory: evidence, diff, and the command to accept or reject each one.',
   async render(main) {
     const out = h('div', { class: 'stack' });

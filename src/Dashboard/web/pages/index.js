@@ -9,6 +9,7 @@ import check from './check.js';
 import review from './review.js';
 import agents from './agents.js';
 import lifetime from './lifetime.js';
+import server from './server.js';
 import activity from './activity.js';
 import learned from './learned.js';
 import tools from './tools.js';
@@ -18,7 +19,7 @@ import dif from './dif.js';
 
 export const PAGES = [
   home, modules, explorer, agents, assets, openapi, architecture, check, review,
-  lifetime, activity, learned, tools,
+  server, lifetime, activity, learned, tools,
   // Not in the sidebar (nav.js lists only agents); still reachable by URL: #/prompt, #/recipes, #/dif.
   prompt, recipes, dif,
 ];

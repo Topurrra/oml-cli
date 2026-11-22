@@ -9,7 +9,8 @@ deeper than one folder level. CSP is `script-src 'self'`: no inline scripts, no 
 - `main.js`: the shell: starts the router, the sidebar (from `nav.js`) and the global controls.
 - `nav.js`: the sidebar: ordered groups and page ids. The only place to change it; remove an id to hide a page.
 - `core/`: shared machinery, no page logic: `dom.js` (h/add/icon), `api.js`, `store.js`, `state.js`,
-  `router.js`, `workset.js`, `ui.js` (shared widgets), `viewer.js`, `markdown.js`, `lifecycle.js`.
+  `router.js`, `workset.js`, `ui.js` (shared widgets), `viewer.js`, `markdown.js`, `lifecycle.js`,
+  `chart.js` (the score chart and sparklines, SVG built with the DOM; colours from CSS classes).
 - `pages/<id>.js`: one file per page, each exports `{ id, group, title, description, icon, render(main, ctx) }`.
   Pages are registered in `pages/index.js`. The sidebar lists `agents` ("Work with agents"), which shows the
   `prompt`, `recipes` and `dif` pages as sections; those three stay registered and reachable by URL (`#/prompt`,

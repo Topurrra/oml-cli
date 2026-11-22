@@ -220,8 +220,10 @@ static partial class Dashboard
     {
         var text = body.ToJsonString(new JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
         // Last line of defence: the LifeTime token never leaves this process, even inside an error message.
-        if (Environment.GetEnvironmentVariable("OML_LIFETIME_TOKEN") is { Length: >= 4 } token)
-            text = text.Replace(token, "[removed]", StringComparison.Ordinal).Replace(JsonEncodedText.Encode(token).ToString(), "[removed]", StringComparison.Ordinal);
+        // The same for the platform server password (oml server removes it too; this is the second guard).
+        foreach (var (secret, shortest) in new[] { (Environment.GetEnvironmentVariable("OML_LIFETIME_TOKEN"), 4), (Environment.GetEnvironmentVariable("OML_SERVER_PASSWORD"), 6) })
+            if (secret is not null && secret.Length >= shortest)
+                text = text.Replace(secret, "[removed]", StringComparison.Ordinal).Replace(JsonEncodedText.Encode(secret, System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping).ToString(), "[removed]", StringComparison.Ordinal);
         response.StatusCode = status;
         response.ContentType = "application/json; charset=utf-8";
         await response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(text));
@@ -329,7 +331,7 @@ static partial class Dashboard
 
     internal sealed record Result(int Code, JsonNode? Output, string Stderr, string Cli);
 
-    static readonly string[] LauncherCommands = ["doctor", "spec", "doc", "explain-warning", "font", "lifetime", "log", "learn"];
+    static readonly string[] LauncherCommands = ["doctor", "spec", "doc", "explain-warning", "font", "lifetime", "log", "learn", "server"];
 
     // The only way the dashboard runs oml. The arguments are built by DashboardApi.cs, never taken from the page as they are.
     internal static Task<Result> Oml(params string[] args)
@@ -372,7 +374,10 @@ static partial class Dashboard
             return new Result(2, new JsonObject { ["error"] = stopped }, "", CliText(args));
         // `architecture --team` and `check --team` download through LifeTime in the launcher first, as on the command line.
         var team = args[0] is "architecture" or "check" && args.Contains("--team");
-        if (LauncherCommands.Contains(args[0]) || team)
+        // `review --server` pulls two versions from the platform server first, as on the command line.
+        var serverReview = args[0] == "review" && args.Contains("--server");
+        if (args[0] == "server" || serverReview) FillServerVariables();
+        if (LauncherCommands.Contains(args[0]) || team || serverReview)
         {
             var (previousOut, previousError) = (Console.Out, Console.Error);
             var (output, error) = (new StringWriter(), new StringWriter());
@@ -396,6 +401,8 @@ static partial class Dashboard
                     "architecture" or "check" => LifeTime.Architecture(args, CoreRun),
                     "learn" when EvolveCommand.ReadSubcommands.Contains(args[1]) => EvolveCommand.Run(rest),
                     "learn" => Refuse("The dashboard only reads: run oml learn accept, reject and undo yourself."),
+                    "server" => ServerApi.Run(rest),
+                    "review" => ServerApi.Review(rest),
                     _ => UsageLog.Summary(rest),
                 };
             }

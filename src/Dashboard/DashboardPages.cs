@@ -90,13 +90,19 @@ static partial class Dashboard
         var args = new List<string> { "review", before, after, "--md", md, "--out", html, "--notes", notes };
         if (JsonFile(body, "rules", "The rules file") is { } rules) args.AddRange(["--rules", rules]);
         var r = await Oml([.. Timed(body, args)]);
+        return Wrap(r, await ReviewFiles(folder, md, html, notes));
+    }
+
+    // The files of a review (this page and the Platform server page's compare).
+    static async Task<JsonObject> ReviewFiles(string folder, string md, string html, string notes)
+    {
         var extra = Report(html, null);
         // The Markdown and the notes stay in the answer for Copy; Download takes the Markdown file from /download/<id>.
         extra["markdown"] = File.Exists(md) ? await File.ReadAllTextAsync(md) : null;
         if (File.Exists(md)) extra["markdownDownload"] = AddDownload("review.md", "text/markdown; charset=utf-8", md);
         extra["notes"] = File.Exists(notes) ? await File.ReadAllTextAsync(notes) : null;
         extra["folder"] = folder;
-        return Wrap(r, extra);
+        return extra;
     }
 
     // ---- Search and Docs (launcher commands: no Service Studio) ----

@@ -60,10 +60,44 @@ $tokensBefore = Token-State
 # doctor sends an MCP initialize; a closed port keeps it away from a real Service Studio.
 $studioPort = $env:OML_STUDIO_PORT; $env:OML_STUDIO_PORT = '9'
 $savedTemp = $env:TEMP, $env:TMP; $env:TEMP = $dashTemp; $env:TMP = $dashTemp
+# Platform server page: a check history in its own cache (OML_SERVER_CACHE), three runs over one application, the
+# last with a report. The page reads it with no login. The server variables point at a closed port, so no endpoint
+# here can reach a real server even when the Windows user variables are set (they fill only missing values).
+$serverCache = Join-Path $Tmp "dash-$id-server-cache"
+$serverFolder = Join-Path $serverCache 'dev.example.com'
+New-Item -ItemType Directory -Force (Join-Path $serverFolder 'reports') | Out-Null
+$serverReport = Join-Path $serverFolder 'reports\check-3.html'
+Set-Content -LiteralPath $serverReport -Value '<!doctype html><title>Check</title><h1>Server check report</h1>' -Encoding UTF8
+$historyLines = foreach ($n in 1..3) {
+    $modules = @(@{ name = 'OrdersCore'; key = 'k-core'; application = 'Orders'; version = $n; versionId = 100 + $n; score = 80 + $n; high = 1; medium = 3 - $n; low = 4 },
+        @{ name = 'OrdersUI'; key = 'k-ui'; application = 'Orders'; version = $n; versionId = 200 + $n; score = 95 - $n; high = 0; medium = $n; low = 1 })
+    @{ time = "2026-11-0$($n)T18:00:00+00:00"; host = 'dev.example.com'; apps = @('Orders'); rules = $null; json = $null
+       html = $(if ($n -eq 3) { $serverReport } else { Join-Path $serverFolder 'reports\gone.html' })
+       total = @{ score = 88; modules = 2; high = 1; medium = 3; low = 5 }; modules = $modules } | ConvertTo-Json -Depth 5 -Compress
+}
+Set-Content -LiteralPath (Join-Path $serverFolder 'history.jsonl') -Value $historyLines -Encoding UTF8
+# Code mode: a project with one finished program and one that waits for an approval of `oml publish`.
+$codeProject = Join-Path $Tmp "dash-$id-code"
+$executions = Join-Path $codeProject '.oml\codemode\executions'
+New-Item -ItemType Directory -Force $executions | Out-Null
+Set-Content -LiteralPath (Join-Path $executions 'ex_20261123T091502000001_a1b2.jsonl') -Encoding UTF8 -Value @(
+    '{"type":"start","id":"ex_20261123T091502000001_a1b2","agent":"claude","code":"call(\"oml.gated\", {\"args\": [\"publish\", \"C:/Work/Orders.oml\"]})","ts":"2026-11-23T09:15:02Z"}',
+    '{"type":"pass_start","pass":1}',
+    '{"type":"call","seq":1,"kind":"tool","name":"oml.read","args":{"args":["stats","C:/Work/Orders.oml"]},"state":"applied"}',
+    '{"type":"call","seq":2,"kind":"tool","name":"oml.gated","args":{"args":["publish","C:/Work/Orders.oml"]},"state":"pending"}',
+    '{"type":"pass_end","pass":1,"status":"paused"}')
+Set-Content -LiteralPath (Join-Path $executions 'ex_20261123T083010000001_c3d4.jsonl') -Encoding UTF8 -Value @(
+    '{"type":"start","id":"ex_20261123T083010000001_c3d4","agent":"claude","code":"print(1)","ts":"2026-11-23T08:30:10Z"}',
+    '{"type":"call","seq":1,"kind":"tool","name":"oml.read","args":{"args":["version"]},"state":"error"}',
+    '{"type":"end","status":"completed"}')
+$serverSaved = @{}; foreach ($name in 'OML_SERVER_CACHE', 'OML_SERVER_HOST', 'OML_SERVER_USER', 'OML_SERVER_PASSWORD', 'OML_SERVER_INSECURE_LOCALHOST') { $serverSaved[$name] = [Environment]::GetEnvironmentVariable($name) }
+$serverPassword = 'pw-' + [guid]::NewGuid().ToString('N')
+$env:OML_SERVER_CACHE = $serverCache; $env:OML_SERVER_HOST = '127.0.0.1:9'; $env:OML_SERVER_USER = 'dash.user'; $env:OML_SERVER_PASSWORD = $serverPassword; $env:OML_SERVER_INSECURE_LOCALHOST = '1'
 # --module (used by the Explorer entry "oml: Open in dashboard") adds #/explorer?module=<path> to the address.
 $process = Start-Process -FilePath $Oml -ArgumentList 'dashboard', '--no-open', '--module', "`"$module`"" -RedirectStandardOutput $out -RedirectStandardError "$out.err" -PassThru -WindowStyle Hidden
 $null = $process.Handle # without this, ExitCode stays empty after the process ends
 $env:OML_DASHBOARD_DOWNLOAD_SECONDS = $null; $env:TEMP, $env:TMP = $savedTemp
+foreach ($name in $serverSaved.Keys) { [Environment]::SetEnvironmentVariable($name, $serverSaved[$name]) }
 try {
     $first = $null
     for ($i = 0; $i -lt 100 -and -not $first; $i++) {
@@ -127,6 +161,34 @@ try {
     Require ((Api 'doc/best-practices').markdown -match '^# ') 'best practices endpoint'
     $lt = Api 'lt/environments'
     Require ($lt.configured -eq $false) 'LifeTime must report not configured'
+
+    # Platform server page: the history from the cache (no login), one run's report, the login refused at a closed
+    # port, and the password in no answer. Home's overview and the code-mode programs.
+    $info = Api 'info'
+    Require ($info.server.configured -eq $true -and $info.server.host -eq '127.0.0.1:9') "info.server: $($info.server | ConvertTo-Json -Compress)"
+    $history = Api 'server/history'
+    Require ($history.host -eq 'dev.example.com' -and @($history.runs).Count -eq 3 -and $history.runs[2].report -eq $true -and $history.runs[0].report -eq $false -and
+        @($history.runs[2].modules).Count -eq 2 -and $history.runs[2].modules[0].score -eq 83 -and -not $history.runs[2].html) "server/history: $($history | ConvertTo-Json -Depth 6 -Compress)"
+    $serverView = Api 'server/report' @{ host = 'dev.example.com'; index = 2 }
+    Require ($serverView.view -and $serverView.download -and (Invoke-WebRequest "$base/view/$($serverView.view)" -UseBasicParsing).Content -match 'Server check report') 'server/report of the last run'
+    foreach ($bad in @(@{ host = 'dev.example.com'; index = 0 }, @{ host = 'dev.example.com'; index = 9 }, @{ host = 'other.example.com'; index = 2 }, @{ host = 'dev.example.com' })) {
+        try { Api 'server/report' $bad | Out-Null; throw "server/report accepted $($bad | ConvertTo-Json -Compress)" }
+        catch { Require ($_.Exception.Response.StatusCode.value__ -eq 400) "server/report must refuse $($bad | ConvertTo-Json -Compress): $_" }
+    }
+    $refused = Invoke-WebRequest "$base/api/server/modules" -Headers $headers -UseBasicParsing
+    $refusedBody = $refused.Content | ConvertFrom-Json
+    Require ($refusedBody.code -eq 2 -and $refusedBody.output.error -match 'Request to the server failed' -and $refusedBody.cli -eq 'oml server modules' -and !$refused.Content.Contains($serverPassword)) "server/modules at a closed port: $($refused.Content)"
+    foreach ($bad in @(@('server/review', @{ module = 'Orders'; from = '2'; to = '2' }), @('server/review', @{ module = 'Orders'; from = '1'; to = '-x' }), @('server/review', @{ module = '--help'; from = '1'; to = '2' }),
+            @('server/pull', @{ module = 'a b' }), @('server/pull', @{ module = 'Orders'; version = 0 }), @('server/check', @{ apps = @('-x') }))) {
+        try { Api $bad[0] $bad[1] | Out-Null; throw "$($bad[0]) accepted $($bad[1] | ConvertTo-Json -Compress)" }
+        catch { Require ($_.Exception.Response.StatusCode.value__ -eq 400) "$($bad[0]) must refuse $($bad[1] | ConvertTo-Json -Compress): $_" }
+    }
+    $code = Api "code?dir=$([uri]::EscapeDataString($codeProject))"
+    Require ($code.folder -eq $codeProject -and @($code.programs).Count -eq 2 -and $code.programs[0].status -eq 'paused' -and $code.programs[0].pending[0].command -eq 'oml publish C:/Work/Orders.oml' -and
+        $code.programs[0].calls -eq 2 -and $code.programs[1].status -eq 'completed' -and $code.programs[1].failed -eq 1) "code endpoint: $($code | ConvertTo-Json -Depth 5 -Compress)"
+    $overview = Api 'overview'
+    Require ($overview.score.score -eq 88 -and $overview.score.change -eq 0 -and $overview.score.host -eq 'dev.example.com' -and $overview.log.enabled -eq $false -and $overview.server.configured) "overview: $($overview | ConvertTo-Json -Depth 4 -Compress)"
+    Write-Host 'ok   dashboard: platform server history, report, refusals and redaction; code-mode programs; Home overview'
 
     # Bad input is refused with a clear message, not run.
     try { Api 'inspect' @{ path = '--help' } | Out-Null; throw 'option-like path accepted' }
@@ -460,7 +522,8 @@ try {
             @{ page = 'check'; hash = "#/check?module=$m"; expect = 'missing-description' },
             @{ page = 'review'; hash = "#/review?before=$([uri]::EscapeDataString($blank))&after=$m"; expect = 'PvCard' },
             @{ page = 'dif'; hash = "#/dif?file=$([uri]::EscapeDataString($difFile))&selftest=1"; expect = 'ShowCard' },
-            @{ page = 'modules'; hash = '#/modules' }, @{ page = 'prompt'; hash = '#/prompt?selftest=1' }, @{ page = 'architecture'; hash = '#/architecture' }, @{ page = 'lifetime'; hash = '#/lifetime' }) +
+            @{ page = 'modules'; hash = '#/modules' }, @{ page = 'prompt'; hash = '#/prompt?selftest=1' }, @{ page = 'architecture'; hash = '#/architecture' }, @{ page = 'lifetime'; hash = '#/lifetime' },
+            @{ page = 'server'; hash = '#/server'; expect = 'OrdersCore' }) +
             @('agents', 'recipes', 'assets', 'openapi', 'activity', 'learned' | ForEach-Object { @{ page = $_; hash = "#/$_"; themes = @('light') } })
         foreach ($target in $targets) {
             foreach ($theme in $(if ($target.themes) { $target.themes } else { 'light', 'dark' })) {
@@ -517,7 +580,7 @@ try {
             Require ($promptDom -match 'data-selftest="ok"') "Prompt self-test (working set API and prompt text) did not pass ($theme): $([regex]::Match($promptDom, 'Prompt self-test[^<]*').Value)"
             Require ((Get-Content (Join-Path $Tmp "dashboard-modules-$theme.html") -Raw) -match 'Working set') "Get modules page ($theme)"
         }
-        Write-Host "ok   dashboard pages (home, explorer, tools, check, review, agents, dif, modules, prompt, architecture, lifetime; the rest in light): no JavaScript errors, screenshots $($shots -join ', ')"
+        Write-Host "ok   dashboard pages (home, explorer, tools, check, review, agents, dif, modules, prompt, architecture, lifetime, server; the rest in light): no JavaScript errors, screenshots $($shots -join ', ')"
     } else { Write-Host 'skip dashboard screenshots: no Edge or Chrome' }
 
     Require ((Token-State) -eq $tokensBefore) 'The dashboard created or changed a Service Studio session token without a click'

@@ -225,6 +225,50 @@ try {
     $r = Invoke-Server @('check')
     Assert ($r.apps -eq 'all' -and $r.summary.modules -eq 3 -and ($r.failed.name -contains 'Empty') -and ($r.skipped.name -contains 'Twin') -and ($r.skipped.name -contains 'OrdersCore')) "check every module: $($r | ConvertTo-Json -Depth 4 -Compress)"
 
+    # 5e. The dashboard's Platform server page runs the same commands: history from the Sales cache, modules,
+    #     versions, a pull into a new file of the work folder, a compare of two versions, and a check run that adds
+    #     to the history. No answer holds the password or the token (the mock echoes both as an uploader name).
+    $env:OML_SERVER_CACHE = Join-Path $Tmp 'cache'
+    $dashOut = Join-Path $Tmp 'dashboard.out'
+    $dash = Start-Process -FilePath $Oml -ArgumentList 'dashboard', '--no-open' -RedirectStandardOutput $dashOut -RedirectStandardError "$dashOut.err" -PassThru -WindowStyle Hidden
+    try {
+        $first = $null
+        for ($i = 0; $i -lt 100 -and -not $first; $i++) {
+            Start-Sleep -Milliseconds 200
+            if (Test-Path $dashOut) { $line = Get-Content $dashOut -TotalCount 1 -ErrorAction SilentlyContinue; if ($line) { $first = $line | ConvertFrom-Json } }
+        }
+        Assert $first 'the dashboard printed no address'
+        $dashUrl = [uri]$first.url
+        $dashBase = "http://127.0.0.1:$($dashUrl.Port)"
+        $dashHeaders = @{ 'X-Oml-Key' = [Web.HttpUtility]::ParseQueryString($dashUrl.Query)['key'] }
+        $secrets = @($env:OML_SERVER_PASSWORD.Substring(0, 35), $env:OML_TEST_SERVER_TOKEN)
+        function Dash([string]$Path, $Body) {
+            $response = if ($null -eq $Body) { Invoke-WebRequest "$dashBase/api/$Path" -Headers $dashHeaders -UseBasicParsing }
+                else { Invoke-WebRequest "$dashBase/api/$Path" -Method Post -Headers $dashHeaders -ContentType 'application/json' -Body ($Body | ConvertTo-Json -Depth 5 -Compress) -UseBasicParsing }
+            foreach ($secret in $secrets) { Assert (!$response.Content.Contains($secret)) "dashboard ${Path}: a secret in the answer" }
+            return $response.Content | ConvertFrom-Json
+        }
+        $h = Dash 'server/history'
+        Assert ($h.host -eq "127.0.0.1_$port" -and @($h.runs).Count -eq 4 -and $h.runs[3].report -and @($h.runs[3].modules).Count -eq 3 -and $h.server.configured) "dashboard history: $($h | ConvertTo-Json -Depth 3 -Compress)"
+        $m = Dash 'server/modules'
+        Assert ($m.code -eq 0 -and $m.output.count -eq 10 -and $m.cli -eq 'oml server modules') "dashboard modules: $($m | ConvertTo-Json -Depth 3 -Compress)"
+        $v = Dash 'server/versions?module=SalesCore'
+        Assert ($v.code -eq 0 -and @($v.output.versions).Count -eq 3 -and $v.cli -eq 'oml server versions SalesCore') "dashboard versions: $($v | ConvertTo-Json -Depth 3 -Compress)"
+        $p = Dash 'server/pull' @{ module = 'SalesCore'; version = 2 }
+        Assert ($p.code -eq 0 -and (Test-Path -LiteralPath $p.path) -and $p.path.StartsWith($first.workFolder, [StringComparison]::OrdinalIgnoreCase) -and $p.path.EndsWith('SalesCore-v2.oml') -and
+            (Get-FileHash $p.path).Hash -eq (Get-FileHash (Join-Path $omls 'k-sales-core-802.oml')).Hash -and $p.cli -like 'oml server pull SalesCore --version 2 --out *') "dashboard pull: $($p | ConvertTo-Json -Depth 3 -Compress)"
+        Remove-Item -LiteralPath (Split-Path $p.path) -Recurse -Force
+        $rv = Dash 'server/review' @{ module = 'SalesCore'; from = '1'; to = '2' }
+        Assert ($rv.code -eq 0 -and $rv.output.server -and $rv.markdown -and $rv.view -and $rv.cli -like 'oml review --server SalesCore 1 2 --md *') "dashboard review: $($rv | ConvertTo-Json -Depth 3 -Compress)"
+        Remove-Item -LiteralPath $rv.folder -Recurse -Force
+        $c = Dash 'server/check' @{ apps = @('Sales') }
+        Assert ($c.code -eq 0 -and $c.output.summary.modules -eq 3 -and $c.cli -eq 'oml server check --app Sales' -and @((Dash 'server/history').runs).Count -eq 5) "dashboard check: $($c | ConvertTo-Json -Depth 3 -Compress)"
+        $o = Dash 'overview'
+        Assert ($o.score.host -eq "127.0.0.1_$port" -and $o.score.runs -eq 5 -and $null -ne $o.score.change) "dashboard overview: $($o | ConvertTo-Json -Depth 3 -Compress)"
+        Dash 'shutdown' @{} | Out-Null
+        Assert ($dash.WaitForExit(15000)) 'the dashboard did not stop'
+    } finally { if (-not $dash.HasExited) { Stop-Process -Id $dash.Id -Force -ErrorAction SilentlyContinue } }
+
     # 6. Login refused: wrong password; the error never repeats it (the mock echoes it in its answer).
     $good = $env:OML_SERVER_PASSWORD
     $env:OML_SERVER_PASSWORD = 'wrong-' + [guid]::NewGuid().ToString('N')

@@ -194,12 +194,17 @@ static partial class ServerApi
     // %LOCALAPPDATA%\oml-cli\server-cache\<host> (OML_SERVER_CACHE replaces the server-cache folder).
     static string CacheFolder(string host)
     {
-        var root = Environment.GetEnvironmentVariable("OML_SERVER_CACHE") is { Length: > 0 } r ? Path.GetFullPath(r)
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "oml-cli", "server-cache");
-        var folder = Path.Combine(root, string.Concat(host.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) || c is '.' or '-' ? c : '_')));
+        var folder = HostCacheFolder(host);
         CreateFolder(folder);
         return folder;
     }
+
+    // The cache root and one host's folder in it, without creating them (the dashboard reads history.jsonl from here).
+    internal static string CacheRoot() => Environment.GetEnvironmentVariable("OML_SERVER_CACHE") is { Length: > 0 } r ? Path.GetFullPath(r)
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "oml-cli", "server-cache");
+
+    internal static string HostCacheFolder(string host) =>
+        Path.Combine(CacheRoot(), string.Concat(host.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) || c is '.' or '-' ? c : '_')));
 
     static List<JsonObject> ReadHistory(string file)
     {
