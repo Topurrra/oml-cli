@@ -1,6 +1,6 @@
 # Benchmarks
 
-Same task, same module and same model on both sides. The OutSystems MCP side uses Service Studio's MCP server with the official OutSystems skill for O11. Each row is one run unless it says otherwise, so read the numbers as a direction, not a guarantee.
+Same task, same module and same model on both sides. The OutSystems MCP side uses Service Studio's MCP server with the official OutSystems skill for O11. The small and large tasks ran in October 2026 with the skill of that time (before its commits `2fafeda` and `be8e730`); the OUI run uses the skill of 2026-11-20 (`8cdd94f`). Each row is one run unless it says otherwise, so read the numbers as a direction, not a guarantee.
 
 Re-run any of them with [tests/bench](tests/bench/README.md). Every run uses real model calls and costs money.
 
@@ -48,7 +48,7 @@ Why the gap:
 
 - Output is similar, because both sides write the same CSS and JavaScript.
 - MCP needs more turns, and every turn reads the context again.
-- Parallel MCP agents all edit the one module open in Service Studio. oml agents each work on their own files.
+- Parallel MCP agents share one edit session per module: a second agent is refused until the first ends. oml agents each work on their own files.
 
 ## oml 1.1.0 vs 1.2.0
 

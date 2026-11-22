@@ -8,20 +8,20 @@ Website: [topurrra.github.io/oml-cli](https://topurrra.github.io/oml-cli/) · [R
 
 ## Why oml
 
-Agents that change OutSystems modules need to be cheap, fast and safe. Compared with Service Studio's own MCP server and the official O11 skill:
+Agents that change OutSystems modules need to be cheap, fast and safe. Compared with Service Studio's own MCP server and the official O11 skill (as of November 2026):
 
 | | OutSystems MCP | oml |
 |---|---|---|
-| Works on | The one module open in Service Studio | Module files: many modules, many agents, Studio may be closed for reading and checks |
-| A change | Goes into the open module | Goes into a staged copy. Production rules are enforced, you review it, then it is installed with a backup |
-| Token use | One tool call per step | Compact JSON, short `describe` answers, and `oml code`: one program runs many calls and returns only the answer |
-| Parallel agents | Share one open module | Each agent has its own file; one command merges the results |
-| Checks and review | Not included | 36 AI Mentor-like rules, a plain-words review of two versions, architecture maps |
-| Server versions | Not included | Pull, compare and check any published version of any module, with scores over time |
+| Works on | Modules open in Service Studio (newer builds can find and open them) | Module files: many modules, many agents, Studio may be closed for reading and checks |
+| A change | Goes into a working copy that Studio's Compare-and-Merge shows. No production rules | Goes into a staged copy. Production rules are enforced, you review it, then it is installed with a backup |
+| Token use | A 70 KB skill to read first, then one call per read or C# change | A 2.8k-token skill, compact JSON, short `describe` answers, and `oml code`: one program runs many calls and returns only the answer |
+| Parallel agents | One edit session per module: a second agent waits | Each agent has its own file; one command merges the results |
+| Checks and review | Studio's TrueChange messages and Compare-and-Merge | 36 AI Mentor-like rules, a plain-words review of two versions, architecture maps |
+| Server versions | The latest version only (Studio 11.55.98+) | Pull, compare and check any version of any module, with scores over time |
 | Running app | Not included | Opens screens in a browser and reports what users see, at every width |
-| More | | Traditional Web to Reactive migration, LifeTime deploys, project memory, offline OutSystems docs search, test data, mocks |
+| More | Any Model API change through C# code | Traditional Web to Reactive migration, LifeTime deploys, project memory, offline OutSystems docs search, test data, mocks |
 
-oml uses Service Studio's MCP server too: for publish and Refresh All, after you confirm.
+oml uses Service Studio's MCP server too: for pull, publish, Refresh All and live queries; the ones that change something after you confirm.
 
 ## Benchmarks
 
@@ -119,7 +119,7 @@ It prints the manual step instead, for you to do in Service Studio. Install, pub
 
 Every feature and use case in short: [oml-full.md](oml-full.md). Every command with its options: [commands.md](skill/reference/commands.md). Every spec key: [spec.md](skill/reference/spec.md).
 
-Not supported: debugging, SOAP, and ODC (use the OutSystems MCP for ODC).
+Not supported: debugging, SOAP, and ODC (use OutSystems' ODC MCP server for ODC).
 
 ## License
 

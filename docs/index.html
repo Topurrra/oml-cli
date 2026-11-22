@@ -102,33 +102,33 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
             <tbody>
               <tr>
                 <th scope="row">Works on</th>
-                <td data-label="OutSystems MCP">The one module open in Service Studio</td>
+                <td data-label="OutSystems MCP">Modules open in Service Studio (newer builds can find and open them)</td>
                 <td data-label="oml">Module files: many modules, many agents. Service Studio may be closed for reading and checks.</td>
               </tr>
               <tr>
                 <th scope="row">A change</th>
-                <td data-label="OutSystems MCP">Goes into the open module</td>
+                <td data-label="OutSystems MCP">Goes into a working copy that Studio's Compare-and-Merge shows. No production rules.</td>
                 <td data-label="oml">Goes into a staged copy. Production rules are enforced, you review it, then it is installed with a backup.</td>
               </tr>
               <tr>
                 <th scope="row">Token use</th>
-                <td data-label="OutSystems MCP">One tool call per step</td>
-                <td data-label="oml">Compact JSON, short <code>describe</code> answers, and <code>oml code</code>: one program runs many calls and returns only the answer.</td>
+                <td data-label="OutSystems MCP">A 70 KB skill to read first, then one call per read or C# change</td>
+                <td data-label="oml">A 2.8k-token skill, compact JSON, short <code>describe</code> answers, and <code>oml code</code>: one program runs many calls and returns only the answer.</td>
               </tr>
               <tr>
                 <th scope="row">Parallel agents</th>
-                <td data-label="OutSystems MCP">Share one open module</td>
+                <td data-label="OutSystems MCP">One edit session per module: a second agent waits</td>
                 <td data-label="oml">Each agent has its own file; one command merges the results.</td>
               </tr>
               <tr>
                 <th scope="row">Checks and review</th>
-                <td data-label="OutSystems MCP" class="none">Not included</td>
+                <td data-label="OutSystems MCP">Studio's TrueChange messages and Compare-and-Merge</td>
                 <td data-label="oml">36 AI Mentor-like rules, a plain-words review of two versions, architecture maps.</td>
               </tr>
               <tr>
                 <th scope="row">Server versions</th>
-                <td data-label="OutSystems MCP" class="none">Not included</td>
-                <td data-label="oml">Pull, compare and check any published version of any module, with scores over time.</td>
+                <td data-label="OutSystems MCP">The latest version only (Studio 11.55.98+)</td>
+                <td data-label="oml">Pull, compare and check any version of any module, with scores over time.</td>
               </tr>
               <tr>
                 <th scope="row">Running app</th>
@@ -137,13 +137,13 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
               </tr>
               <tr>
                 <th scope="row">More</th>
-                <td data-label="OutSystems MCP" class="none"><span aria-hidden="true">–</span><span class="sr-only">Nothing listed</span></td>
+                <td data-label="OutSystems MCP">Any Model API change through C# code</td>
                 <td data-label="oml">Traditional Web to Reactive migration, LifeTime deploys, project memory, offline OutSystems docs search, test data, mocks.</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p class="note">oml uses Service Studio's MCP server too: for publish and Refresh All, after you confirm. For ODC, use the OutSystems MCP.</p>
+        <p class="note">oml uses Service Studio's MCP server too: for pull, publish, Refresh All and live queries; the ones that change something after you confirm. Compared with the official skill as of November 2026. For ODC, use OutSystems' ODC MCP server.</p>
       </div>
     </section>
 

@@ -290,4 +290,4 @@ A server action that becomes public gets a warning, and the agent asks you. Elem
 
 ## Not supported
 
-Debugging, SOAP, downloading OutSystems UI, Traditional Web screen templates, and ODC (use the OutSystems MCP for ODC).
+Debugging, SOAP, downloading OutSystems UI, Traditional Web screen templates, and ODC (use OutSystems' ODC MCP server for ODC).
