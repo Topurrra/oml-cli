@@ -168,7 +168,7 @@ main > * + * { margin-top: 16px; }
 .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
 table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
-thead th { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; background: var(--panel); font-weight: 600; }
+thead th { overflow-wrap: normal; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; background: var(--panel); font-weight: 600; }
 tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
@@ -407,3 +407,62 @@ td > .button:last-child { margin-top: 8px; }
 .evolve-proposal:first-of-type { border-top: 0; }
 .evolve-proposal ul { margin: 6px 0; padding-left: 20px; }
 .evolve-proposal pre.code { max-height: 360px; overflow: auto; }
+
+/* Home: the Today tiles */
+.section-title { font: 600 11px/1.5 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tiles > div { display: flex; min-width: 0; }
+.tile { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); color: var(--text); text-decoration: none; text-align: left; font: inherit; }
+a.tile:hover, button.tile:hover { border-color: var(--accent); }
+.tile-label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.tile-label svg { width: 16px; height: 16px; flex: none; stroke: var(--accent); }
+.tile-value { font-size: 28px; font-weight: 700; letter-spacing: -.03em; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.tile-value.ok { color: var(--ok); }
+.tile-value.warn { color: var(--warn); }
+.tile-value.fail { color: var(--fail); }
+.tile-note { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* Platform server: the score, its chart, the module sparklines, versions */
+.score-head { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
+.score-head p { margin: 0; flex: 1 1 260px; }
+.score-head .grow { display: none; }
+.score-big { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.score-number { font-size: 44px; font-weight: 700; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+.chart { position: relative; }
+.chart-plot { width: 100%; border-radius: var(--radius-sm); cursor: crosshair; touch-action: pan-y; }
+.chart-plot:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+.chart-svg { display: block; overflow: visible; }
+.chart-grid line { stroke: var(--line); stroke-width: 1; }
+.chart-grid text, .chart-axis { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; stroke: none; }
+.chart-line { fill: none; stroke: var(--accent); stroke-width: 2; }
+.chart-dot { fill: var(--accent); stroke: var(--card); stroke-width: 2; }
+.chart-focus { fill: var(--card); stroke: var(--accent); stroke-width: 2.5; }
+.chart-cross { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart-value { fill: var(--text); font-size: 12px; font-weight: 700; stroke: none; }
+.chart-tip { position: absolute; top: 6px; z-index: 5; min-width: 180px; max-width: 280px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--card); box-shadow: 0 4px 16px rgba(0, 0, 0, .12); font-size: 13px; line-height: 1.5; pointer-events: none; }
+.chart-tip strong { display: block; }
+.spark { display: block; }
+.spark polyline { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.spark circle { fill: var(--accent); stroke: none; }
+.spark-cell { width: 96px; vertical-align: middle; }
+tr.detail-row > td { background: var(--panel); }
+/* A table with many columns keeps its words whole and scrolls sideways in its .table-wrap on a phone. */
+.table-wrap table.wide { min-width: 680px; }
+.table-wrap table.wide th, .table-wrap table.wide td { overflow-wrap: normal; }
+/* A table with a detail row (versions, a program): fixed columns, so a long command line in the detail row scrolls
+   in its own box instead of widening the table. */
+.table-wrap table.fixed { table-layout: fixed; min-width: 560px; }
+table.cols-modules th:nth-child(1) { width: 30%; } table.cols-modules th:nth-child(2) { width: 24%; } table.cols-modules th:nth-child(3) { width: 30%; } table.cols-modules th:nth-child(4) { width: 16%; }
+table.cols-code th:nth-child(1) { width: 26%; } table.cols-code th:nth-child(2) { width: 20%; } table.cols-code th:nth-child(3) { width: 12%; } table.cols-code th:nth-child(4) { width: 42%; }
+.compare { border-top: 1px solid var(--line); padding-top: 12px; }
+.compare h3 { margin: 0 0 10px; }
+.compare-row { align-items: flex-end; }
+.compare-row .field { margin: 0; min-width: 160px; }
+.compare-row .field select { width: 100%; }
+@media (max-width: 1100px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) {
+  .tiles { grid-template-columns: minmax(0, 1fr); }
+  .tile-value { font-size: 24px; }
+  .score-number { font-size: 36px; }
+  .compare-row .field { flex: 1 1 100%; }
+}

@@ -14,7 +14,8 @@ import { task, cli, toast, fileName, pullWarning, CONNECT_NOTE } from './ui.js';
 //   changes(), reads()      the modules by role
 // role:   'change' (the agent may change it) or 'read' (read only: a producer, passed with --in).
 // source: { kind, at, ... } with kind 'studio' { module } (a copy saved by oml pull), 'folder' { folder },
-//         'package' { file } (extracted from an .oap), 'drop' { file } (uploaded), 'lifetime' { app, env }, 'path' {}.
+//         'package' { file } (extracted from an .oap), 'drop' { file } (uploaded), 'lifetime' { app, env },
+//         'server' { module, version } (oml server pull), 'path' {}.
 // Paths compare without case, as Windows does.
 export const workset = (() => {
   const listeners = new Set();
@@ -47,6 +48,7 @@ export const workset = (() => {
         case 'package': return `extracted from the application package ${s.file}.`;
         case 'drop': return `uploaded from this computer (${s.file || fileName(m.path)}).`;
         case 'lifetime': return `downloaded from LifeTime: application ${s.app}, as it runs in ${s.env} (oml lifetime download).`;
+        case 'server': return `saved from the platform server: module ${s.module || m.name}${s.version ? ', version ' + s.version : ''} (oml server pull).`;
         default: return 'a file chosen by path.';
       }
     },

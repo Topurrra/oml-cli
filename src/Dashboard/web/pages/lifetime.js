@@ -4,7 +4,7 @@ import { task, cli, errorBox, ltDownload, reportView } from '../core/ui.js';
 import { state } from '../core/state.js';
 
 export default {
-  id: 'lifetime', group: 'Team', title: 'LifeTime', icon: 'lifetime',
+  id: 'lifetime', group: 'Environment', title: 'LifeTime', icon: 'lifetime',
   description: 'Environments, applications and deployments, read only. Tagging and deploying stay in the CLI, where you confirm each step.',
   async render(main) {
     const lt = state.info && state.info.lifeTime;

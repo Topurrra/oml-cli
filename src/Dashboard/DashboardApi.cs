@@ -10,7 +10,7 @@ namespace OmlCli;
 
 // The dashboard's API: one handler per action of the page. Each builds the arguments of a normal oml command from checked
 // input and runs it through Dashboard.Oml. Read-only by design: no install, publish, references, apply, or LifeTime write
-// (tag, deploy, abort, continue) is reachable from here. To add an endpoint, add a case to Api and a handler below.
+// (tag, deploy, abort, continue) is reachable from here. The platform server endpoints (DashboardServer.cs) only read. To add an endpoint, add a case to Api and a handler below.
 static partial class Dashboard
 {
     internal sealed record Reply(int Status, JsonNode Body);
@@ -70,6 +70,15 @@ static partial class Dashboard
                 (false, "lt/report") => await LifeTimeTeamReport(Body()),
                 (true, "log") => UsageLines(),
                 (true, "log/summary") => Wrap(await Oml("log", "summary")),
+                (true, "overview") => Overview(),
+                (true, "server/history") => ServerHistory(request.QueryString["host"]),
+                (false, "server/report") => ServerReport(Body()),
+                (false, "server/check") => await ServerCheckRun(Body()),
+                (true, "server/modules") => await ServerModules(request.QueryString["app"] is { Length: > 0 } app ? app : null),
+                (true, "server/versions") => await ServerVersions(request.QueryString["module"]),
+                (false, "server/pull") => await ServerPull(Body()),
+                (false, "server/review") => await ServerReview(Body()),
+                (true, "code") => CodePrograms(request.QueryString["dir"] is { Length: > 0 } dir ? dir : null),
                 (true, "evolve") => await Evolve("show", request.QueryString["dir"]),
                 (true, "evolve/report") => await Evolve("report", request.QueryString["dir"]),
                 (false, "shutdown") => Shutdown(),
@@ -179,6 +188,7 @@ static partial class Dashboard
             ["lifeTime"] = new JsonObject { ["configured"] = !string.IsNullOrWhiteSpace(host) && hasToken, ["host"] = string.IsNullOrWhiteSpace(host) ? null : host },
             ["log"] = new JsonObject { ["enabled"] = UsageLog.Enabled, ["file"] = UsageLog.FilePath ?? UsageLog.DefaultPath },
             ["browser"] = Locations.BrowserPath() is not null,
+            ["server"] = ServerState(),
         });
     }
 

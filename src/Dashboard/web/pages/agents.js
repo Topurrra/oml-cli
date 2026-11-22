@@ -6,7 +6,7 @@ import recipes from './recipes.js';
 import dif from './dif.js';
 
 export default {
-  id: 'agents', group: 'Work with agents', title: 'Work with agents', icon: 'prompt',
+  id: 'agents', group: 'Agents', title: 'Work with agents', icon: 'prompt',
   description: 'Write a task for an agent, copy a ready prompt, and read the change walkthrough it made.',
   async render(main, ctx) {
     for (const [section, page] of [['Write a task', prompt], ['Ready prompts', recipes], ['Change walkthroughs', dif]]) {

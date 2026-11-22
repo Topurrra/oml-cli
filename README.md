@@ -34,16 +34,16 @@ It is for people only. A bare `oml` opens the menu only when a person is at a re
 
 Not a terminal person? `oml dashboard` opens a local web page with the same tools.
 
-![The oml dashboard home page: setup check, Service Studio status and links to every page](docs/dashboard.png)
+![The oml dashboard home page: today's setup, environment score, oml commands and waiting programs, then the setup check](docs/dashboard.png)
 
 *Screenshot: `docs/dashboard.png`, the Home page in the dark theme.*
 
 Start it with `oml dashboard`, or double-click `oml-dashboard.cmd` next to `oml.exe`. It opens your browser; keep its window open, and press Ctrl+C there to stop it. `--port N` picks the port, `--no-open` does not open the browser, and `--module <file.oml>` opens that module in the Module explorer.
 
-What it can do: check your setup (`doctor`), get modules into a working set (copied from Service Studio, from a folder or an `.oap`, dropped, or downloaded from LifeTime), browse a module and read what each element does (`inspect`, `describe`, `find`, `find --text`, `tree`, `validate`), run `oml check` and `oml review` with their HTML reports, search the docs, spec and warnings (Ctrl+K), make a test spec for a public server action, build a clear task for an AI agent, browse the recipes, convert fonts and images, export and fill in OpenAPI files, make architecture pages, read LifeTime (also download an application's `.oap`, and team architecture and check pages), show what agents ran (usage log), and a set of small developer tools (JSON, Base64, JWT, regex, colour contrast, ...). Every action shows the CLI command, with a copy button.
+What it can do: show today at a glance (setup, environment score, oml commands, programs that wait for you), check your setup (`doctor`), get modules into a working set (copied from Service Studio, from a folder or an `.oap`, dropped, or downloaded from LifeTime), browse a module and read what each element does (`inspect`, `describe`, `find`, `find --text`, `tree`, `validate`), run `oml check` and `oml review` with their HTML reports, make a test spec for a public server action, build a clear task for an AI agent and read its change walkthrough, follow the platform server's check score day by day and list, save or compare any module version there (`oml server`), convert fonts and images, export and fill in OpenAPI files, make architecture pages, read LifeTime (also download an application's `.oap`, and team architecture and check pages), show what agents ran (usage log) and the code-mode programs that wait for your approval, and a set of small developer tools (JSON, Base64, JWT, regex, colour contrast, ...). Every action shows the CLI command, with a copy button.
 
 Security: it listens on 127.0.0.1 only, with a random key in its address that every request must send; other sites cannot call it.
-It only reads: it never installs, publishes, refreshes references, or tags or deploys in LifeTime, and the LifeTime token stays in the environment, never in the page.
+It only reads: it never installs, publishes, refreshes references, or tags or deploys in LifeTime, never approves a code-mode program, and only reads the platform server. The LifeTime token and the server password stay in the environment, never in the page.
 
 ## Right-click in Explorer
 

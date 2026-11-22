@@ -19,7 +19,7 @@ export async function route(pages, ctx) {
   document.querySelectorAll('.nav-link').forEach(a => { if (a.dataset.id === p.id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   document.getElementById('page-group').textContent = ctx.title(p.group);
   document.getElementById('page-title').textContent = p.title;
-  document.getElementById('page-desc').textContent = p.desc;
+  document.getElementById('page-desc').textContent = p.description || '';
   document.title = p.title + ' · oml dashboard';
   const main = document.getElementById('page');
   main.replaceChildren();
