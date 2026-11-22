@@ -316,6 +316,7 @@ static class DocSearch
         ["install"] = "copy staged module over the original target replace overwrite backup",
         ["expression"] = "expression valid parse syntax formula check",
         ["header"] = "module header version upgrade level key without loading",
+        ["query"] = "modelql graphql model graph query fields all elements of a type filter",
         ["outsystems-docs"] = "download outsystems documentation docs offline local copy",
         ["log"] = "usage log slow slowest commands failures statistics",
         ["check"] = "code smells ai mentor quality lint technical debt",

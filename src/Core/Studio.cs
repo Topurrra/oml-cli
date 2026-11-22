@@ -35,6 +35,19 @@ static class Studio
             .Where(a => a?["isOpen"]?.GetValue<bool>() == true).Select(a => a!["name"]!.GetValue<string>()).ToList();
     });
 
+    // `oml query <Module> "<ModelQL>" --live`: the read-only runQuery tool on the open module. A refused query comes back
+    // as {"error": {"message"}}, so oml query prints the tool's message with its hint; the answer as {"result": ...}.
+    public static JsonNode Query(string module, string query) => Guard("Querying the open module in Service Studio", "Run the query without --live on the module's .oml file.", () =>
+    {
+        Connect();
+        if (!IsOpen(module)) throw new CliError($"Module '{module}' is not open in Service Studio. Open it, or run the query without --live on its .oml file.", 2);
+        try { return (JsonNode)new JsonObject { ["result"] = Call("runQuery", new JsonObject { ["eSpaceName"] = module, ["query"] = query }).DeepClone() }; }
+        catch (CliError e) when (e.Message.StartsWith("runQuery: ", StringComparison.Ordinal))
+        {
+            return new JsonObject { ["error"] = new JsonObject { ["message"] = e.Message["runQuery: ".Length..] } };
+        }
+    });
+
     public static int Publish(string target, bool close = false)
     {
         var r = PublishOne(target, close);

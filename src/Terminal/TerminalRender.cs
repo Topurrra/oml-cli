@@ -405,7 +405,7 @@ internal static class TerminalRender
 
     static readonly (string area, string[] commands)[] HelpAreas =
     [
-        ("Read", ["inspect", "describe", "find", "stats", "header", "expression", "tree", "openapi", "validate"]),
+        ("Read", ["inspect", "describe", "find", "stats", "header", "expression", "tree", "openapi", "query", "validate"]),
         ("Change", ["new", "apply", "install", "test"]),
         ("Review", ["architecture", "check", "review"]),
         ("Service Studio", ["studio", "pull", "publish", "references"]),

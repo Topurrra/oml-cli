@@ -15,7 +15,7 @@ public static partial class Cli
     {
         // Commands.Read.cs
         ["version"] = CmdVersion, ["selftest"] = CmdSelfTest, ["model-types"] = CmdApi, ["widget-types"] = CmdWidgets,
-        ["find"] = CmdFind, ["inspect"] = CmdInspect, ["describe"] = CmdDescribe, ["export"] = CmdExport, ["tree"] = CmdTree, ["flow"] = CmdFlow, ["map"] = CmdMap,
+        ["find"] = CmdFind, ["inspect"] = CmdInspect, ["describe"] = CmdDescribe, ["export"] = CmdExport, ["query"] = ModelQuery.Run,["tree"] = CmdTree, ["flow"] = CmdFlow, ["map"] = CmdMap,
         ["stats"] = CmdCensus, ["validate"] = CmdValidate, ["openapi"] = CmdOpenApi,
         ["header"] = CmdMeta, ["expression"] = CmdExpr,
         ["architecture"] = CmdArchitecture, ["architecture-render"] = CmdArchitectureRender, ["check"] = CmdCheck, ["review"] = CmdReview,

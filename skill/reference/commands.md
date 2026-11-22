@@ -24,6 +24,7 @@ oml inspect <module.oml> [--own] [--only entities,structures,actions,screens,blo
 oml inspect --in <folder> [--recursive] [--own] [--only ...]   (every .oml in the folder in one process: {modules:[{file,...}]}, a broken file gives an error entry)
 oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [--history] [--css] [--sql [--out <file.sql>]]
 oml export <module.oml> <Element>...   (a screen, web block, email, server action or OnException action as JSON for tools; read with describe)
+oml query <module.oml> "<ModelQL>" [--limit N] [--max-chars N] [--live] | --fields <Type>   (read-only questions on the model graph, such as "Root { Entities { Name } }"; offline through Service Studio's oml-tool)
 oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
 oml find <module.oml> --text "<words>" [--top N]  (this module's elements ranked by name, description, expressions, SQL, labels)
 oml stats <module.oml>
@@ -150,6 +151,23 @@ Queries show named groups (`group by Year = Year(Order.PlacedOn)`), `having`, `[
 ```
 
 Flow nodes are written as the spec `flow` list takes them; facts a spec does not take start with `_`. A node kind a spec cannot express keeps its real kind name and is listed in `unsupported` (then `complete` is false); a property that cannot be read is named in `notes`. `oml inspect` also has `otherContent`: `{ kind, name }` for every module element no other section lists (consumed SOAP references, emails, entry points, web services).
+
+#### Model queries: oml query
+
+`oml query <module.oml> "<ModelQL>"` answers read-only questions on a module's model graph, for example `oml query App.oml "Root { Entities { Name Attributes { Name } } }"`. It runs Service Studio's own query engine (ModelQL) through `oml-tool.exe` in `runtimes\win-x64` of the Service Studio folder; Service Studio may be closed. Each query starts one oml-tool process (about 4 s). The module file is only read. Use `describe` or `inspect` for the usual questions; `query` is for a question they do not answer, or for one field across many elements. It is a step of `oml batch`.
+
+ModelQL is GraphQL over the Model API, without the outer braces:
+- `Root` is the module (type `ESpace`). Field names are the Model API names: `Entities`, `Structures`, `ServerActions`, `ClientActions`, `ServiceActions`, `MobileFlows` (Reactive and Mobile UI flows; screens and blocks are their `Nodes`), `WebFlows` (Traditional), `Roles`, `SiteProperties`, `References`, `Timers`, `Name`, `Description`, `Kind`.
+- A list takes `(name: "Order")`, `(globalKey: "...")` and `(limit: 5)`.
+- `AllDescendants(ofType: "IMobileScreen")` lists every element of one Model API type in the module (`IWebScreen` for Traditional screens, `IEntityAttribute`, ...).
+- `@filter(condition: "...")` on a list keeps the items for which a C# condition over `_` (the item) is true: `Entities @filter(condition: "_.Name.StartsWith(\"Order\")") { Name }`. oml allows only `_` and its properties, literals, `== != < > <= >= && || !` and the methods StartsWith, EndsWith, Contains, Equals, ToLower, ToUpper, Trim and ToString, because the engine compiles the condition as code; anything else is refused before the query runs (exit 2).
+- `__typename` names an object's type; `... on MobileScreen { Name }` selects fields of one type in a mixed list such as `Nodes`.
+- A bare object with no `{ }` returns all its plain fields; name only the fields you need. `ModelAPICode` returns the element as Model API code.
+- `oml query <module.oml> --fields <Type>` lists a type's fields as `Name: Type (arguments)`, for example `--fields ESpace` or `--fields IEntity`. An interface type also lists its `implementations`.
+
+Output: `{ "module", "data": { "Root": ... }, "chars" }`, with nulls and empty lists kept. Every list is cut to `--limit` items (default 50); when the result is still over `--max-chars` (default 20000 characters), the limit halves down to 1 per list. A cut adds `limit`, `cut` (`path` and `total` of up to 10 lists) and `next`. A result over the cap even then is exit 2 with what to change. A query the engine refuses is exit 2 with its message after `ModelQL:` and a `next`: for a field the type lacks, the `--fields` command for that type. A missing oml-tool is exit 2: set `OML_SERVICE_STUDIO` to the Service Studio folder or `OML_TOOL` to `oml-tool.exe`.
+
+`--live` runs the query through Service Studio's MCP tool `runQuery` on the module open there (give the module name, or its `.oml` file to take the name from its header). It needs the MCP server, as `oml studio` does, and is not allowed inside `oml batch`. Not yet tested against a running Service Studio.
 
 #### Element paths
 

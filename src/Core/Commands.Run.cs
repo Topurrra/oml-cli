@@ -18,7 +18,7 @@ public static partial class Cli
     static readonly string[] MemoryReads = ["recall", "list", "show", "history", "handoff", "traps"];
 
     static readonly string[] RunAllowed =
-        ["apply", "architecture", "check", "describe", "doc", "explain-warning", "export", "find", "flow", "inspect", "memory", "openapi", "review", "spec", "stats", "test", "tree", "validate"];
+        ["apply", "architecture", "check", "describe", "doc", "explain-warning", "export", "find", "flow", "inspect", "memory", "openapi", "query", "review", "spec", "stats", "test", "tree", "validate"];
 
     static readonly Dictionary<string, string> RunRefused = new()
     {
@@ -167,6 +167,8 @@ public static partial class Cli
             return Refuse($"'{command}' is not allowed inside 'oml batch': {reason}. Run it as its own command.");
         if (!RunAllowed.Contains(command))
             return Refuse($"'{command}' is not supported inside 'oml batch'. Use one of: {string.Join(", ", RunAllowed)}.");
+        if (command == "query" && step.Contains("--live"))
+            return Refuse("'query --live' is not allowed inside 'oml batch': it reaches Service Studio. Run it as its own command, or drop --live to query the .oml file.");
         if (command is "architecture" or "check" && step.Contains("--team"))
             return Refuse($"'{command} --team' is not allowed inside 'oml batch': it reads LifeTime and needs a person's confirmation. Run it as its own command.");
         if (command == "memory" && (step.Length < 2 || !MemoryReads.Contains(step[1])))

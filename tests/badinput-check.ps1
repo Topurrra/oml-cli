@@ -58,6 +58,7 @@ $shapes = [ordered]@{
   'check'                  = @('check {p}', 'check --in {p}', 'check --diff {p} {p}', '!check --init-rules --out {p}')
   'review'                 = @('review {p} {p}')
   'openapi'                = @('openapi {p}')
+  'query'                  = @('query {p} Root{Name}', 'query {p} --fields ESpace')
   'test bdd'               = @('test bdd {p} Foo --bdd {p}')
   'test scenarios'         = @('test scenarios {p} {p}', 'test scenarios {p} {o}')
 

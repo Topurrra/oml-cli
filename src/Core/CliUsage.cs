@@ -26,6 +26,7 @@ static class CliUsage
         oml inspect --in <folder> [--recursive] [--own] [--only ...]   (every .oml in the folder in one process: {modules:[{file,...}]}, a broken file gives an error entry)
         oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [--history] [--css] [--sql [--out <file.sql>]]
         oml export <module.oml> <Element>...   (a screen, web block, email, server action or OnException action as JSON for tools; read with describe)
+        oml query <module.oml> "<ModelQL>" [--limit N] [--max-chars N] [--live] | --fields <Type>   (read-only questions on the model graph, such as "Root { Entities { Name } }"; offline through Service Studio's oml-tool)
         oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
         oml find <module.oml> --text "<words>" [--top N]  (this module's elements ranked by name, description, expressions, SQL, labels)
         oml stats <module.oml>
@@ -127,7 +128,7 @@ static class CliUsage
     // (tests/doc-check.ps1 checks it). `oml help --all` prints Text instead.
     public const string Overview = """
         Commands by area (OutSystems 11 modules; compact JSON out, a readable view in a console):
-        Read a module: inspect, describe, export, find, tree, flow, stats, header, expression, openapi (what a module holds, one element, search, counts, the header, an expression, OpenAPI)
+        Read a module: inspect, describe, export, query, find, tree, flow, stats, header, expression, openapi (what a module holds, one element, model questions, search, counts, the header, an expression, OpenAPI)
         Start a project: create, config, skill (a folder ready to work in; the project profile: what agents do, skip and ask; refresh skill/ to this oml)
         Change a module: new, migrate, apply, install, validate, spec, translations (new module; Traditional to Reactive plan; edit by spec into a staged copy; install after checks; spec keys; translation files)
         Application map: map, mock (every app of a project: who calls what, which APIs feed which; mocks chained across APIs)

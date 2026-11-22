@@ -204,6 +204,7 @@ static partial class SelfTest
             FieldMappingSelfTest.Run(blank, dir, failures);
             StudioCompareSelfTest.Run(blank, failures);
             StudioUiSelfTest.Run(failures);
+            ModelQuerySelfTest.Run(failures);
             PublishOrderSelfTest.Run(failures);
             HistoryTest(Path.Combine(dir, "built.oml"), dir, failures);
             AuthorTest(Path.Combine(dir, "built.oml"), dir, failures);
