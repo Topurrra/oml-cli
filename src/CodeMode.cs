@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 namespace OmlCli;
 
 // oml code: code mode for oml. A thin launcher for the code-mode runtime that ships in codemode/ (a copy of the
-// standalone project, see codemode/VENDORED.md). It finds Python 3.9+, writes the config (oml's own connector and
+// author's standalone code-mode project). It finds Python 3.9+, writes the config (oml's own connector and
 // policy, with the project's .oml/codemode.json merged over it) and runs
 //   python -I -X utf8 <codemode>/oml_code.py --config <project>/.oml/codemode/config.json --home <project>/.oml/codemode <args>
 // with stdin, stdout and stderr inherited, so `oml code serve` is a plain stdio MCP server, and the exit code passed back.

@@ -12,7 +12,7 @@ records a call. It only adds what is oml's:
 - `oml code init` writes `.oml/codemode.json` (the project's additions: other MCP servers, rules, limits), not
   `codemode.json`, and adds `.oml/codemode/` and `.oml/code/` to .gitignore.
 
-The runtime itself (codemode_runtime/) is a copy of the standalone project; see VENDORED.md.
+The runtime itself (codemode_runtime/) is a copy of the author's standalone code-mode project.
 """
 
 import io
