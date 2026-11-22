@@ -12,7 +12,7 @@ You plan, brief, check and report. A worker is a subagent. Workers write spec pa
 ## 1. Plan
 
 1. Read each module once, with one `oml batch` file. Use `oml inspect --own`. Add `oml describe` for each element that you change or call.
-   - If `oml memory` exists, run `oml memory recall` first. Do not ask the user what it already answers.
+   - If `oml memory` exists, run `oml memory recall` first. Ask the user only what it does not answer.
    - For each producer element, run `oml find <Name> <module> --in <producer>`. Show the candidates. Ask the user. Write the chosen `Module.Name` into the brief.
 2. For new entities, screens and flows, read `oml doc best-practices`.
 3. Split the work into lanes. One lane = one worker = one spec part file = one set of elements.

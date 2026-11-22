@@ -90,6 +90,8 @@ try {
         throw "The full suite has not passed on this commit ($($head.Substring(0, 7))). Run: pwsh -NoProfile -File tests/regress.ps1 (about 12 minutes), or release.ps1 -FullSuite."
     }
     Write-Host "Full suite passed on $($head.Substring(0, 7)) ($record)."
+    # The skill ships in the zip: scan it offline with SkillSpector. Skips with a message when it is not installed.
+    Invoke-Checked pwsh @('-NoProfile', '-File', 'tests/skill-scan.ps1')
     Invoke-Checked dotnet (@('clean', 'src') + $buildArgs)
     # The quick tier on a fresh build: the real applications, the map, a few apply fixtures, the text tooling.
     Invoke-Checked pwsh @('-NoProfile', '-File', 'tests/regress.ps1', '-Smoke')

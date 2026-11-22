@@ -864,7 +864,7 @@ The last seven rules come from `oml architecture`, with its layer guess from mod
 Not covered:
 - Patterns that need data outside the module file: module classification in Discovery, team coupling, image and resource file sizes, finding counts and technical debt.
 - Traditional Web only patterns (ViewState, inline JavaScript, JavaScript or HTML injection) and Mobile offline and local storage patterns.
-- Missing index on a foreign key: not checked yet. The typed Model API has no index list (only the concrete entity class has one), and Service Studio has no warning for it.
+- Missing index on a foreign key: not checked yet. The typed Model API has no index list (only the concrete entity class has one), and Service Studio does not warn about it.
 - Library and Service module content and dependency rules (for example a Library that uses a non-library module): Service Studio already reports them as errors.
 - Other patterns in the AI Mentor list, such as inline CSS, inefficient empty list tests, visible disabled buttons, system entities in screen aggregates, deprecated elements and reminder comments.
 

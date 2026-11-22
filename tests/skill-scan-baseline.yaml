@@ -1,0 +1,44 @@
+# Reviewed SkillSpector findings on skill/ (tests/skill-scan.ps1 passes this file with --baseline).
+# Each rule is scoped to one rule id, one file and the matched words, so a new finding of the same kind elsewhere still counts.
+# Reviewed with SkillSpector 2.12.0 --no-llm on 2026-11-22. Review again when a rule here stops matching or a new finding appears.
+version: 2
+rules:
+  # AE1: the scanner reached its own limits on two large reference files. Nothing is hidden in them.
+  - id: "AE1"
+    path: "SKILL.md"
+    message: "*reference/spec.md*"
+    reason: "Scanner limit: the JSON key \"timeout\" in a spec example is parsed as the shell timeout command and its end is not found."
+  - id: "AE1"
+    path: "SKILL.md"
+    message: "*reference/commands.md*"
+    reason: "Scanner limit: commands.md (about 240 KB) has many 'remove/delete ... `name`' phrases and reaches the marker and runtime limits."
+  # EA2: approval lines. The project profile is set by a person (oml config set autoApprove.<step> true); it is off by default for install, publish, references and LifeTime.
+  - id: "EA2"
+    path: "SKILL.md"
+    message: "*Do not ask before*"
+    reason: "Intended: quotes the line oml config prints when a person turned on autoApprove for a step; the default is to ask."
+  - id: "EA2"
+    path: "AGENTS.md"
+    message: "*Do not ask before*"
+    reason: "Intended: quotes the line oml config prints when a person turned on autoApprove for a step; the default is to ask."
+  - id: "EA2"
+    path: "SKILL.md"
+    message: "*autoApprove*"
+    reason: "Intended: names the person-set profile key; the rule above it says to confirm by default."
+  - id: "EA2"
+    path: "reference/commands.md"
+    message: "*autoApprove*"
+    reason: "Intended: documents the autoApprove profile keys that a person sets."
+  - id: "EA2"
+    path: "reference/commands.md"
+    message: "*without asking*"
+    reason: "Documents autoApprove, and the dashboard prompt line 'do not install over the open module without asking' (a negated safety line)."
+  # TM3: team practice, not a tool default.
+  - id: "TM3"
+    path: "reference/security.md"
+    message: "*Authentication = None*"
+    reason: "Intended: an exposed REST API behind a gateway (for example Kong) is normal in these teams; the agent must not add authentication unasked."
+  - id: "TM3"
+    path: "reference/commands.md"
+    message: "*Authentication = None*"
+    reason: "Documents the check rule rest-exposed-no-auth, which reports this case when a team turns it on."

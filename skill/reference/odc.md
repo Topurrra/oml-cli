@@ -45,7 +45,7 @@ Give the user one short update per pause.
 ### Confirmation, identifiers, and retries
 
 Confirm before creating an ODC app, publishing, deploying, rolling back, or uploading/deleting an external library.
-Restate the operation and wait for approval. Mentor editing turns and reads need no confirmation.
+Restate the operation and wait for approval. Mentor editing turns and reads do not need it.
 For O11, follow the confirmation rules in rule 10 of `skill/rules.md`: never install, publish, refresh references, deploy, tag, abort, or continue without a clear yes from the user for that exact action.
 
 Never guess `app_key`, `env_key`, session handles, or file paths. Ask for missing values.

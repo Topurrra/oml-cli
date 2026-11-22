@@ -92,7 +92,9 @@ pwsh -NoProfile -File ./release.ps1
 
 The script requires a clean working tree on a branch, a pass of the full suite recorded for that exact commit (run
 `tests/regress.ps1` after committing; `-FullSuite` runs it here instead) and real applications listed in an ignored
-`corpus.txt` or `OML_CORPUS` (`-NoCorpus` releases without them). It cleans, runs the quick tier with the real
+`corpus.txt` or `OML_CORPUS` (`-NoCorpus` releases without them). It scans `skill/` with `tests/skill-scan.ps1`
+(NVIDIA SkillSpector, `--no-llm`, offline; set `OML_SKILLSPECTOR` to its `skillspector.exe`, else the step is skipped; it fails
+above score 20 after the reviewed findings in `tests/skill-scan-baseline.yaml`). It cleans, runs the quick tier with the real
 applications on a fresh build (about 3 minutes), publishes a framework-dependent win-x64 CLI, checks that
 no Service Studio files are included, and smoke-tests the extracted archive.
 It writes the zip, SHA-256 checksum, and `release-notes.md` to ignored `dist/` and prints
