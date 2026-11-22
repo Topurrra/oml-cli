@@ -16,3 +16,4 @@ codemode.json
 .oml/code/
 codemode/VENDORED.md
 __pycache__/
+tools/oml-watch.ps1

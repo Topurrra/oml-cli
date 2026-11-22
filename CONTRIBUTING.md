@@ -79,24 +79,6 @@ oml selftest
 
 `oml memory bench <new folder> --records 100000` writes a synthetic store and prints recall times without the index cache, with a rebuild of it, and with it. `tests/memory-check.ps1` runs it at 1k, 10k and 100k records and prints the numbers; the table in `skill/reference/commands.md` ("Memory", "Speed") comes from such a run. When you change the record layout, the hash or the search fields, update the format table there and the layout constants at the top of `memory-check.ps1`, which recomputes the hash chain outside the C# code.
 
-## Watch for OutSystems changes
-
-`tools/oml-watch.ps1` checks once a week for changes that can affect oml, with no agents and no model calls:
-
-| Source | What it compares |
-|---|---|
-| Service Studio on this PC | Its build, and every type and member of its Model API, plugin API and MCP server assemblies (`oml model-types "*"`) |
-| Service Studio's MCP server, when running | Its tool list and contract line (`initialize` and `tools/list` only: no token, no dialog) |
-| [OutSystems/outsystems11-mcp](https://github.com/OutSystems/outsystems11-mcp) | New commits, and the Service Studio builds its `contracts.md` names (a newer build than yours shows up here first) |
-| [outsystems.com/product-updates](https://www.outsystems.com/product-updates) | New announcements about OutSystems 11, Service Studio, MCP, LifeTime or OutSystems UI |
-
-```powershell
-pwsh -NoProfile -File tools\oml-watch.ps1                                   # one run: report, exit 1 when something changed
-pwsh -NoProfile -File tools\oml-watch.ps1 -Register -Day Monday -At 09:00   # a weekly scheduled task for your user
-```
-
-Data and reports are in `%LOCALAPPDATA%\oml-cli\watch` (`reports\<date>.md`, one API surface file per Service Studio build). The first run only records. A change shows a Windows notification. When Service Studio's API changed, run `oml selftest` and the regression tests first. `-Offline` skips the two internet sources; `-NoNotify` shows no notification.
-
 ## Releasing
 
 Build releases locally on Windows with PowerShell 7, Service Studio 11, and the .NET SDK.
