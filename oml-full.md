@@ -243,7 +243,7 @@ Before each release, `tests/skill-scan.ps1` scans `skill/` with [NVIDIA SkillSpe
 | Command | What it does |
 |---|---|
 | `menu` | Type `oml` in a terminal: everyday tasks in groups, each showing the command it runs, so you learn as you go. Agents never see it. |
-| `dashboard` | A local web page with the same tools: setup check, module explorer, check and review reports, docs search (Ctrl+K), LifeTime, what agents ran, developer tools. Listens on 127.0.0.1 with a random key; it never installs, publishes or deploys. |
+| `dashboard` | A local web page with the same tools: today at a glance (setup, environment score, commands run, programs waiting for approval), module explorer, check and review reports, platform server scores over time with module versions to save or compare, code-mode programs, LifeTime, what agents ran and learned, developer tools. Listens on 127.0.0.1 with a random key; it never installs, publishes, deploys or approves. |
 | `show-change` | An agent's change walkthrough on the dashboard: call stacks, flows, element links, the review, and comments to send back. Idea from [diffmap](https://github.com/tanishqkancharla/diffmap) (MIT). |
 | `explorer-menu` | Right-click entries in Windows Explorer: fonts to WOFF2, optimize images, convert to ICO, trace to SVG, OpenAPI and dashboard for `.oml` files, architecture report for folders. No admin rights. |
 
