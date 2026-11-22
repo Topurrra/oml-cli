@@ -188,7 +188,7 @@ The default load (`SKILL.md` and `rules.md`) is about 2.8k tokens. Optional: a s
 
 | Command | What it does |
 |---|---|
-| `code` | Code mode: one Python program runs many oml calls in parallel and returns only the answer. Reads and staged writes run at once; install, publish, server and LifeTime calls pause until a person runs `oml code approve <id>`. Needs Python 3.9+. `.oml/codemode.json` adds other MCP servers, such as a task board. |
+| `code` | Code mode: one Python program runs many oml calls in parallel and returns only the answer. Reads and staged writes run at once; install, publish, references, pull, server and LifeTime calls pause until a person runs `oml code approve <id>`. Needs Python 3.9+. `.oml/codemode.json` adds other MCP servers, such as a task board. |
 | `mcp` | An MCP server on stdio with three tools: `read`, `write` and `gated`. Service Studio's model loads once: 5 inspects take 13 ms instead of 9.4 s. |
 | `batch` | Several commands in one process. |
 | `--timings` | Milliseconds per phase on any command that loads a module. |

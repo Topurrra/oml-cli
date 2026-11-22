@@ -29,7 +29,7 @@ Same task, same module, same model:
 
 | Task | OutSystems MCP | oml |
 |---|---|---|
-| Small: entity, CRUD actions, list screen | 611k tokens, 185 s | **207k tokens, 56 s** |
+| Small: entity, CRUD actions, list screen | 611k input tokens, 185 s | **207k input tokens, 56 s** |
 | 24 UI components, 1 agent | $0.94, 58 turns | **$0.55, 37 turns** |
 | 24 UI components, 8 agents | 20/24 built, $3.16 | **24/24 built, $1.17** |
 
@@ -39,7 +39,7 @@ Details, the new `oml code` benchmark and how to re-run them: [BENCHMARKS.md](BE
 
 You need Windows, Service Studio 11 and the .NET 10 runtime (Service Studio 11.55.94 and later install it). Publish and Refresh All need Service Studio 11.55.91+ with its MCP server started (**Edit > MCP Server > Start MCP server**).
 
-- **Release:** download `oml-<version>-win-x64.zip` from [Releases](https://github.com/Topurrra/oml-cli/releases), unzip it and add `bin` to PATH.
+- **Release:** download `oml-<version>-win-x64.zip` from [Releases](https://github.com/Topurrra/oml-cli/releases), unzip it and add `bin` to PATH. The newest features (`oml code`, `oml mcp`, `oml server`) come with the next release; until then, build from source.
 - **From source:**
 
   ```powershell
@@ -85,7 +85,7 @@ found = parallel([("oml.read", {"args": ["check", m]}) for m in mods])
 [helpers.oml.out(r)["summary"] for r in found]
 ```
 
-Reads and staged writes run at once. Install, publish, server and LifeTime calls pause until a person approves. Give a good task four things: the module file, what to change, which elements of other modules to use (`Module.Element`), and what the agent may not do.
+Reads and staged writes run at once. Install, publish, references, pull, server and LifeTime calls pause until a person approves. Give a good task four things: the module file, what to change, which elements of other modules to use (`Module.Element`), and what the agent may not do.
 
 Setup per harness, task examples and the agent hooks: [oml-full.md](oml-full.md#ai-agents).
 
