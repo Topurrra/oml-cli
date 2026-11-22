@@ -16,6 +16,7 @@ internal static class CommandTable
     [
         new("hooks", (_, f) => AgentHooks.Run(Rest(f)), NoTimings: true, Help: true),
         new("lifetime", (_, f) => LifeTime.Run(Rest(f), Program.RunCore), NoTimings: true, Help: true),
+        new("server", (_, f) => ServerApi.Run(Rest(f)), NoTimings: true, Help: true),
         new("font", (_, f) => FontAssets.Run(Rest(f)), NoTimings: true, Help: true),
         new("doctor", (_, f) => Doctor.Run(Rest(f)), NoTimings: true, Help: true),
         new("spec", (_, f) => SpecCommand.Run(Rest(f)), NoTimings: true),

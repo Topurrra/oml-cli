@@ -51,6 +51,8 @@ static class MemorySecrets
 
     // The value of OML_LIFETIME_TOKEN, when it is set and long enough to be a token (a short value would match words).
     static string? EnvToken => Environment.GetEnvironmentVariable("OML_LIFETIME_TOKEN") is { Length: >= 8 } t ? t : null;
+    // The value of OML_SERVER_PASSWORD (oml server), when it is long enough not to match ordinary words.
+    static string? EnvPassword => Environment.GetEnvironmentVariable("OML_SERVER_PASSWORD") is { Length: >= 6 } p ? p : null;
 
     static List<Finding> Scan(string text)
     {
@@ -76,6 +78,9 @@ static class MemorySecrets
         if (EnvToken is { } token)
             for (var at = text.IndexOf(token, StringComparison.Ordinal); at >= 0; at = text.IndexOf(token, at + token.Length, StringComparison.Ordinal))
                 found.Add(new Finding("LifeTime token", at, at + token.Length));
+        if (EnvPassword is { } password)
+            for (var at = text.IndexOf(password, StringComparison.Ordinal); at >= 0; at = text.IndexOf(password, at + password.Length, StringComparison.Ordinal))
+                found.Add(new Finding("server password", at, at + password.Length));
         return found;
     }
 

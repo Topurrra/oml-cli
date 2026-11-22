@@ -15,6 +15,7 @@ $skip = [ordered]@{
   'show-change'    = 'starts a web server'
   'explorer-menu'  = 'writes Explorer registry entries'
   'lifetime'       = 'reaches the LifeTime server'
+  'server'         = 'reaches the platform server; tests/server-check.ps1 covers its bad inputs against a local mock'
   'publish'        = 'publishes through Service Studio'
   'references'     = 'refreshes references through Service Studio'
   'pull'           = 'reads a module from Service Studio'

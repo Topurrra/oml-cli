@@ -27,6 +27,7 @@ public static partial class Cli
         ["references"] = "it changes the module in Service Studio and needs a person's confirmation",
         ["pull"] = "it needs a person to approve it in Service Studio",
         ["lifetime"] = "it changes or reads LifeTime and needs a person's confirmation",
+        ["server"] = "it signs in to the platform server with the user's password; run it as its own command",
         ["batch"] = "batches cannot be nested",
     };
 

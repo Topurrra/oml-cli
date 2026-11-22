@@ -26,6 +26,7 @@ static class UsageLog
     static readonly Dictionary<string, string[]> Verbs = new()
     {
         ["lifetime"] = ["environments", "apps", "teams", "team-apps", "download", "tag", "deploy", "status", "abort", "continue"],
+        ["server"] = ["modules", "versions", "pull"],
         ["app"] = ["list", "extract", "pack"], ["extension"] = ["inspect", "new"], ["font"] = ["woff2", "batch"],
         ["image"] = ["batch"], ["spec"] = ["check", "schema"], ["translations"] = ["export"], ["test"] = ["bdd"], ["memory"] = ["init", "add", "recall", "list", "show", "history", "retract", "doctor", "handoff", "traps"],
         ["learn"] = ["report", "propose", "show", "accept", "reject", "history", "undo"], ["team-rules"] = ["list", "add", "remove"], ["config"] = ["show", "init", "set"],
@@ -34,7 +35,7 @@ static class UsageLog
     internal static readonly string[] SessionVariables = ["OML_SESSION", "CLAUDE_SESSION_ID", "CLAUDE_CODE_SESSION_ID", "CODEX_SESSION_ID"];
     static readonly Regex OptionName = new(@"^--[a-z][a-z0-9-]{0,30}$", RegexOptions.CultureInvariant);
     // Environment values that must never reach the file, even inside an error message.
-    static readonly string[] Secrets = ["OML_LIFETIME_TOKEN", "OML_LIFETIME_HOST"];
+    static readonly string[] Secrets = ["OML_LIFETIME_TOKEN", "OML_LIFETIME_HOST", "OML_SERVER_PASSWORD", "OML_SERVER_USER", "OML_SERVER_HOST"];
 
     public static string DefaultPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "oml-cli", "usage.jsonl");

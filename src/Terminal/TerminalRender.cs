@@ -409,7 +409,7 @@ internal static class TerminalRender
         ("Change", ["new", "apply", "install", "test"]),
         ("Review", ["architecture", "check", "review"]),
         ("Service Studio", ["studio", "pull", "publish", "references"]),
-        ("LifeTime", ["lifetime"]),
+        ("LifeTime and server", ["lifetime", "server"]),
         ("Knowledge", ["spec", "doc", "explain-warning", "memory", "outsystems-docs", "team-rules"]),
         ("Assets", ["app", "extension", "templates", "translations", "font", "image"]),
         ("Maintenance", ["version", "model-types", "widget-types", "selftest", "doctor", "dashboard", "explorer-menu", "log", "batch"]),

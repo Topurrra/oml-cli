@@ -360,7 +360,7 @@ static class LifeTime
     }
     static bool Failed(JsonNode? status) => Text(status, "DeploymentStatus").ToLowerInvariant() is "aborted" or "finished_with_errors";
 
-    static void Redact(JsonNode? node, string token)
+    internal static void Redact(JsonNode? node, string token)
     {
         if (node is JsonObject obj)
             foreach (var pair in obj.ToArray())

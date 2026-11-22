@@ -304,6 +304,7 @@ static class DocSearch
         ["publish"] = "publish 1-click deploy module to the server",
         ["references"] = "refresh update references dependencies producers",
         ["lifetime"] = "lifetime deploy deployment environments production staging tag version application release promote",
+        ["server"] = "list all modules versions history older version on the server without service studio closed",
         ["review"] = "what changed difference compare two versions before after code review diff",
         ["find"] = "which module defines owns where is defined producer consumer search elements by words",
         ["inspect"] = "overview list entities screens actions blocks contents summary of a module",

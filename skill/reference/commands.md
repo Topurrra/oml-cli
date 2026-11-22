@@ -77,6 +77,8 @@ oml publish <Module | file.oml> [--close]   (1-Click Publish through Service Stu
 oml publish --in <folder> --order <order.json>   (publish many modules in that order; stops at the first failure)
 oml references <Module | file.oml>  (Refresh All references through Service Studio)
 oml lifetime environments|teams|team-apps|apps|download|tag|deploy|status|abort|continue (LifeTime API v2; run 'oml lifetime' for usage)
+oml server modules [--app <Name>] | versions <Module>   (modules and versions on the platform server, Studio closed; OML_SERVER_HOST, _USER, _PASSWORD)
+oml server pull <Module> [--version N] --out <file.oml>   (one version to a file; default: published)
 oml font woff2 <input> [output.woff2] [--force]
 oml font batch <folder> [--out folder] [--force]
 oml image <input> [--to png|jpeg|webp|svg|ico] [--max-width N] [--max-height N] [--quality 1-100] [--out file] [--force] [--precision 0-10] [--strip-title] [--remove-ids] [--aggressive]   (convert, resize or optimize a raster image or SVG)
@@ -201,7 +203,7 @@ The output is compact JSON: `{"results": [{"step": 1, "args": [...], "exitCode":
 - **Cache.** Modules are kept by full path, file write time and file length. A file whose write time or length changed loads again. A module that `apply` wrote is new to the next step. When an earlier step left the source of `apply` open and the file did not change (same write time, length and SHA-256 of its bytes), `apply` takes that module instead of loading the file again. The module then leaves the cache, so a later step that reads the source loads the file again and does not see the change.
 - **Exit codes.** A step with exit code 2 (usage or environment) stops the run, unless you add `--continue`; the output then has `stoppedAfterStep`. A step with exit code 1 does not stop it. The exit code of `oml batch` is the highest step code. Note that `describe` with one unknown name exits 2 (with several names it exits 1), so add `--continue` when a later step does not depend on it.
 - **Allowed:** `inspect`, `describe`, `find`, `stats`, `tree`, `validate`, `apply`, `openapi`, `architecture` and `check` (not `--team`), `review`, `spec`, `doc` (also `doc --search`), `explain-warning`, `test bdd`. `spec`, `doc` and `explain-warning` run in the launcher; only `spec check --module` reads a module. They take no `--timings`.
-- **Refused with exit code 2:** `install`, `publish`, `references`, `pull`, `lifetime` and `batch` itself. They need a person's confirmation or are not model work. Run them as their own commands. Any other command is refused as not supported.
+- **Refused with exit code 2:** `install`, `publish`, `references`, `pull`, `lifetime`, `server` and `batch` itself. They need a person's confirmation or are not model work. Run them as their own commands. Any other command is refused as not supported.
 
 #### Usage log
 
@@ -436,7 +438,7 @@ On 47 real SVGs (icons, logos, illustrations, a Doxygen file with a DOCTYPE) the
 Add `--timings` to see which phase of a command is slow: `oml apply App.oml spec.json App.staged.oml --timings`. The report gets a `timings` object with whole milliseconds per phase, in the order the phases ran. Without the option the output does not change.
 
 - A phase counts only its own time: the load inside `reopen` counts as `reopen`, and the start of Service Studio's model inside the first load counts as `serviceStudioInit`. A phase that runs more than once is summed. `other` is the time no phase covers; `total` is the whole command.
-- It works on the commands that run in Service Studio's model (`apply`, `inspect`, `describe`, `validate`, `install`, `new`, `stats`, `tree`, `find`, `openapi`, `architecture`, `check`, ...). The commands that run without it (`spec`, `doc`, `explain-warning`, `lifetime`, `font`, `image`, `doctor`, `explorer-menu`, `dashboard`, `log`) refuse it with exit 2: `--timings is not available for <command>.`
+- It works on the commands that run in Service Studio's model (`apply`, `inspect`, `describe`, `validate`, `install`, `new`, `stats`, `tree`, `find`, `openapi`, `architecture`, `check`, ...). The commands that run without it (`spec`, `doc`, `explain-warning`, `lifetime`, `server`, `font`, `image`, `doctor`, `explorer-menu`, `dashboard`, `log`) refuse it with exit 2: `--timings is not available for <command>.`
 - When the output is a list (`describe` with several names), the list keeps its shape and the timings go to stderr as `{"timings": {...}}`.
 - In `oml batch`, add it to a step, or to `oml batch` itself to add it to every step except `spec`. Steps have no `startup`, and only the first step that loads a module has `serviceStudioInit`.
 
@@ -636,7 +638,7 @@ Publish exits `0` only when `published` is true.
 
 **Tabs.** `oml studio tabs` lists the module tabs with their labels, from the window that has module tabs (Service Studio can have several windows). `oml studio focus` brings that window to the front. `oml studio close <Module>` closes one tab, by exact label, and checks `listApps` afterwards. It refuses when no tab or several tabs have the label, and when the tab is marked `* ` (unsaved): the save prompt cannot be answered from outside, so save or publish first. `oml publish <file> --close` closes the tab only when the file cannot be pushed as texts. Do not use computer use's `open_application` for a running Service Studio: it opens a second, empty window; use `oml studio focus`.
 
-**Opening a module from the server is not available.** The MCP server has no open tool. The environment page's Recent modules list and the application page's Add Module work by clicks only.
+**Opening a module from the server is not available.** The MCP server has no open tool. The environment page's Recent modules list and the application page's Add Module work by clicks only. To get a module from the server as a file instead, use `oml server pull` (below).
 
 **Batch publish.** `oml publish --in <folder> --order <order.json>` publishes many modules, one after the other, in the order of the file (the output of `oml architecture --publish-order`; only `order[].module` and `order[].file` are read). Each module goes through the same single publish as `oml publish <file.oml>`, including the version 0 `warning`. Before anything is published, oml finds the file of every module in the folder (subfolders included): it looks for the file name in `file`, else `<module>.oml`, and checks that the file holds that module. A module that is missing, a file name used twice, a file with another module, a module from a package (`.oap`), or a module that is already open in Service Studio gives exit 2 and nothing is published. **Batch publish stops at the first failure.** The modules after it are not tried. Stdout: `total`, `published` (the number that went through), `stoppedAt` (null when all went through), `results` (module, file, `published`, and `warning`, `error` or `result` when there is one), `notRun` (the modules not tried, in order) and, after a failure, `manualStep`. Exit `0`: all published. Exit `1`: it stopped on a failure. Exit `2`: bad input, or a missing folder or file. oml leaves the modules it opened open in Service Studio. To run the batch again, close them first: the open-module check refuses them. A manual 1-Click Publish in Service Studio is the fallback: publish the module in `stoppedAt`, then open each module in `notRun` and publish it, in that order. `oml batch` and the dashboard refuse `publish`, as before. Service Studio opens each file; the first real run needs the user's yes.
 Compare `status` without case sensitivity: `success`, `blocked`, `failure`, or `timeout`.
@@ -709,6 +711,36 @@ oml lifetime status Key
 LifeTime is mock verified only. Run a real LifeTime smoke test before relying on deployments.
 `tests/lifetime-check.ps1` checks contracts, polling, intervention, failures, and credential redaction using a local HTTP mock.
 The API adaptation derives from OutSystems/outsystems-pipeline. Its license is `licenses/outsystems-pipeline-LICENSE.txt`.
+
+#### Platform server: oml server
+
+`oml server` lists and downloads modules through the platform server's REST API (`server.api/v1`): the API that Service Studio uses for its module list, version history and download. Service Studio does not need to be open. `oml pull` saves only a module open in Service Studio, after a person approves the session; `oml server pull` takes any module and any version.
+
+| Setting | Meaning |
+|---|---|
+| `OML_SERVER_HOST` | The environment's hostname, as you connect to it in Service Studio, with an optional port. No `https://` or path. |
+| `OML_SERVER_USER` | Your Service Studio user name. |
+| `OML_SERVER_PASSWORD` | Its password, from the process environment only. Never printed, logged or saved. |
+| `OML_SERVER_INSECURE_LOCALHOST=1` | Tests only: HTTP for exact `127.0.0.1` or `localhost`. |
+
+| Command | Behavior |
+|---|---|
+| `server modules [--app <Name>]` | Every module the user can see: `name`, `key`, `application`, `applicationKey`, `publishedVersionId`, `lastVersion` (number), `lastVersionId`, `uploadedBy`, `uploadedDate`. Sorted by application, then name. `--app` keeps one application (name in any case, or key). |
+| `server versions <Module>` | The module's versions, newest first: `version` (number), `versionId`, `published`, `uploadedBy`, `uploadedDate`. |
+| `server pull <Module> [--version N] --out <file.oml>` | Saves one version as an `.oml` file. `--version` is a number from `server versions`; without it, the published version. Stdout: `module`, `key`, `application`, `version`, `versionId`, `published`, `file`, `bytes`, `next`. |
+
+`<Module>` is a module name (any case) or its key. When two modules share a name, the error lists their keys.
+
+The calls, read from Service Studio 11.55.95's client code (not yet run against a real server):
+1. `GET /server.api/v1/environment/handshake-properties`, without login: the server's flags. 404: the server has no REST API.
+2. `POST /server.identity/connect/token`: a password login as Service Studio (`client_id=service_studio`). The token stays in memory for this one command.
+3. With the token: `GET /server.api/v1/modules?embed=application,lastVersion`, `.../modules/{key}/versions?limit=9999` and `.../modules/{key}/versions/{versionId}/source-code`.
+
+Service Studio picks REST or SOAP per server with the flag `SoapWSRestMigration`. When the flags list it without what a command needs, the result has a `warning` and oml tries REST anyway. oml never calls SOAP.
+
+Errors exit 2 with `error`: missing or bad settings; a refused login (HTTP 400 or 401: check the user and password); HTTP 403 (the user may not open that module); a redirect (set the final hostname); a connection or certificate failure. Certificates are checked, so a self-signed one is refused (Service Studio skips that check). A route that answers 404 adds `noRestRoute: true`, and the message says to open the module in Service Studio and run `oml pull`. An existing `--out` file is never overwritten, and a failed or empty download leaves no file.
+
+Check a pulled file with `oml header <file.oml>` before you change it. `tests/server-check.ps1` checks this against a local mock.
 
 ## Architecture
 

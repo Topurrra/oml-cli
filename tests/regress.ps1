@@ -57,7 +57,7 @@ foreach ($fixture in 'r0.oml', 's0.oml', 'w0.oml', 'references-producer-blank.om
 }
 & $oml --help | Out-Null; if ($LASTEXITCODE -ne 0) { $fail++; Write-Host "FAIL --help exit $LASTEXITCODE" } else { Write-Host "ok   --help" }
 # `oml <command> --help` prints that command's usage, not the whole list.
-$helpBad = @(foreach ($c in 'check', 'doc', 'explain-warning', 'apply', 'lifetime', 'font', 'doctor', 'explorer-menu', 'image', 'dashboard') { $h = (& $oml $c --help) -join "`n"; if ($LASTEXITCODE -ne 0 -or $h -notmatch "oml $c" -or $h -match 'oml new ') { $c } })
+$helpBad = @(foreach ($c in 'check', 'doc', 'explain-warning', 'apply', 'lifetime', 'server', 'font', 'doctor', 'explorer-menu', 'image', 'dashboard') { $h = (& $oml $c --help) -join "`n"; if ($LASTEXITCODE -ne 0 -or $h -notmatch "oml $c" -or $h -match 'oml new ') { $c } })
 if ($helpBad) { $fail++; Write-Host "FAIL command --help prints the global usage: $($helpBad -join ', ')" } else { Write-Host "ok   command --help" }
 # A known command with missing arguments prints its own usage on stderr, with exit 2.
 $usageBad = @(foreach ($c in 'describe', 'tree', 'apply', 'install', 'find') { $h = (& $oml $c 2>&1) -join "`n"; if ($LASTEXITCODE -ne 2 -or $h -notmatch "oml $c" -or $h -match 'oml new ') { $c } })
@@ -273,6 +273,10 @@ Unit 'content-check' {
 }
 Unit 'lifetime-check' -Group lifetime {
   try { & (Join-Path $tests "lifetime-check.ps1") -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL LifeTime checks: $_" }
+}
+# server-check starts its own mock of the platform server's REST API on free loopback ports; no Service Studio needed.
+Unit 'server-check' {
+  try { & (Join-Path $tests "server-check.ps1") -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL server checks: $_" }
 }
 # qa-replay-check drives a real browser window against a local page; one browser at a time.
 Unit 'qa-replay-check' -Group browser {
