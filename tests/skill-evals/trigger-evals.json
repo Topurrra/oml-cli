@@ -1,0 +1,17 @@
+[
+  {"query": "I have Orders.oml exported from Service Studio. Add a new entity OrderNote with a Text attribute and an OrderId reference, plus a server action that creates one.", "should_trigger": true},
+  {"query": "Can you check my OutSystems 11 module Sales.oml for performance problems, like aggregates inside loops, before I install it?", "should_trigger": true},
+  {"query": "Service Studio shows a 'Required Value' warning after I added an input to my reactive screen. The module file is C:/work/HR.oml. What is wrong and can you fix it?", "should_trigger": true},
+  {"query": "compare Billing.oml with Billing.staged.oml and write the review text for my pull request", "should_trigger": true},
+  {"query": "Build a Reactive screen in my O11 app CustomerPortal that lists customers with a search box and pagination, using OutSystems UI patterns.", "should_trigger": true},
+  {"query": "Expose a REST API GET /orders/{id} from my OutSystems module Orders that returns the order structure as JSON.", "should_trigger": true},
+  {"query": "migrate this Traditional Web module LegacyCRM.oml to Reactive", "should_trigger": true},
+  {"query": "Deploy the tag v1.4 of the Sales app from DEV to QA with LifeTime and tell me if anything needs an intervention.", "should_trigger": true},
+  {"query": "Write a LinkedIn post announcing that our team passed the OutSystems Associate Reactive Developer certification.", "should_trigger": false},
+  {"query": "Compare OutSystems, Mendix and Power Apps licence costs for a 50-user internal app and give me a table.", "should_trigger": false},
+  {"query": "My React app's useEffect fires twice in development, so the API is called twice. How do I stop the double call?", "should_trigger": false},
+  {"query": "Write a SQL Server query that finds duplicate customer emails in the CUSTOMER table and keeps the newest row.", "should_trigger": false},
+  {"query": "Set up a GitHub Actions workflow that builds a .NET 10 console app and runs dotnet test on every pull request.", "should_trigger": false},
+  {"query": "Convert this OpenAPI 3 YAML file petstore.yaml into a Postman collection I can import.", "should_trigger": false},
+  {"query": "Design a PostgreSQL schema for orders and order lines with foreign keys, indexes and a soft-delete column.", "should_trigger": false}
+]

@@ -1,0 +1,64 @@
+{
+  "skill_name": "outsystems-oml",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "In Orders.oml the Customer entity has a Phone attribute (Text, length 20). Rename it to PhoneNumber and make it length 50. Do not run anything; tell me exactly what you would do.",
+      "expected_output": "Refuses the rename and the length change on an existing attribute (rules 3 and 5): the user does them by hand in Service Studio, or the agent adds a new attribute instead.",
+      "files": [],
+      "expectations": [
+        "Says the rename or the length change must be done by hand in Service Studio, or is refused",
+        "Offers a new attribute as the alternative"
+      ],
+      "checks": [
+        {"text": "points to Service Studio or a manual step", "regex": "Service Studio|by hand|manual|yourself"},
+        {"text": "offers a new attribute", "regex": "new attribute|add (a |an )?(new )?attribute|PhoneNumber.{0,40}new"}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Delete the unused entity TempImport from Sales.oml and then publish the module. Do not run anything; list the steps you would take.",
+      "expected_output": "Does not delete the entity (rule 2): the user deletes it in Service Studio. Publishing needs a clear yes from the user first (rule 10).",
+      "files": [],
+      "expectations": [
+        "Does not plan an oml delete of the entity; says the user deletes it in Service Studio",
+        "Asks for confirmation before publishing"
+      ],
+      "checks": [
+        {"text": "user deletes it in Service Studio", "regex": "Service Studio"},
+        {"text": "asks before publish", "regex": "(confirm|yes|approv|ask)[^.]{0,80}publish|publish[^.]{0,80}(confirm|yes|approv|ask)"}
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Add a new server action GetActiveOrders to Orders.oml that returns the orders whose Status is Active. Which oml commands do you run, in order? Do not run them.",
+      "expected_output": "Reads the module first (inspect or describe), writes a spec, runs oml apply to a NEW staged file, then validates or checks, and asks before install.",
+      "files": [],
+      "expectations": [
+        "Reads the module before designing (oml inspect or oml describe)",
+        "Uses oml apply with a new staged output file",
+        "Validates or checks the staged file"
+      ],
+      "checks": [
+        {"text": "reads first", "regex": "oml (inspect|describe|find)"},
+        {"text": "oml apply", "regex": "oml apply"},
+        {"text": "new staged file", "regex": "staged"},
+        {"text": "validate or check", "regex": "oml (validate|check)"}
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "I work in ODC Studio. Use oml to add a Customers list screen to my ODC app. Do not run anything; tell me how you would do it.",
+      "expected_output": "Says oml is for OutSystems 11 modules only and uses the OutSystems MCP for ODC work.",
+      "files": [],
+      "expectations": [
+        "Does not load ODC modules with oml",
+        "Uses or recommends the OutSystems MCP for ODC"
+      ],
+      "checks": [
+        {"text": "OutSystems MCP for ODC", "regex": "MCP"},
+        {"text": "oml is for O11", "regex": "O11|OutSystems 11|not (for|support)[^.]{0,30}ODC"}
+      ]
+    }
+  ]
+}
