@@ -1582,7 +1582,10 @@ static class ScreenTranslator
         // and outputs of calls that ran before (<Node>_<Output>); its outputs are what later nodes read: <Node>_<Output> of a call, <Query>_List
         // (List of the query's one entity or structure: List.Current.<Entity>.X becomes .Current.X) and <Query>_Count. It starts with the screen's
         // access check, because a server action that a screen calls is a public endpoint. A run of calls that reads anything else (a widget, an
-        // aggregate of the screen, a client variable) stays as it is. Returns null, or why a query could not be moved (the caller makes a stub).
+        // aggregate of the screen, a client variable) stays as it is. The Assigns and Ifs (and Switches) between the server nodes go in too, as the
+        // converter keeps a Traditional action's server logic in one place: the run is a part of the flow with one way in and one way out, and a
+        // variable it assigns comes back as the output <Var>Value, which the client action copies into the variable after the call.
+        // Returns null, or why a query could not be moved (the caller makes a stub).
         string? Merge(JsonObject action)
         {
             if (action["flow"] is not JsonArray flow) return null;
@@ -1604,44 +1607,77 @@ static class ScreenTranslator
             }
             bool IsServer(JsonObject n) => IsQuery(n) || S(n["kind"]) == "execute" && S(n["name"]) is not null && S(n["action"]) is { } a && outs.ContainsKey(a);
             if (!real.Any(IsServer)) return null;
-            var preds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            foreach (var n in real) foreach (var t in Targets(n)) preds[t] = preds.GetValueOrDefault(t) + 1;
+            var preds = new Dictionary<string, List<JsonObject>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var n in real) foreach (var t in Targets(n)) { if (!preds.TryGetValue(t, out var l)) preds[t] = l = []; l.Add(n); }
             var byName = real.Where(n => S(n["name"]) is not null).GroupBy(n => S(n["name"])!, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
             var inputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var v in Objs(action["inputs"]).Concat(Objs(action["locals"]))) if (S(v["name"]) is { } vn) inputs[vn] = S(v["type"]) ?? "Text";
+            foreach (var v in Objs(action["inputs"]).Concat(Objs(action["outputs"])).Concat(Objs(action["locals"]))) if (S(v["name"]) is { } vn) inputs[vn] = S(v["type"]) ?? "Text";
             var made = new Dictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.OrdinalIgnoreCase);   // call -> outputs of the server actions made here
             var used = new HashSet<JsonObject>(ReferenceEqualityComparer.Instance);
             var count = 0;
             string? why = null;
+            // An Assign joins when every target is a variable of the action or the screen; an If or a Switch always (its reads are checked like any node's).
+            bool IsLogic(JsonObject n) => S(n["kind"]) switch
+            {
+                "if" or "switch" => true,
+                "assign" => n["assign"] is JsonObject m && m.Count > 0 && m.All(kv => AssignRoot(kv.Key) is { } r && (inputs.ContainsKey(r) || varTypes.ContainsKey(r))),
+                _ => false,
+            };
+            HashSet<string> NamesOf(IEnumerable<JsonObject> ns) => ns.Select(x => S(x["name"])!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            int Exits(List<JsonObject> part) { var names = NamesOf(part); return part.SelectMany(Targets).Where(t => !names.Contains(t)).Distinct(StringComparer.OrdinalIgnoreCase).Count(); }
             foreach (var start in real.ToList())
             {
-                if (used.Contains(start) || !IsServer(start)) continue;
+                if (used.Contains(start) || S(start["name"]) is not { } startName || !(IsServer(start) || S(start["kind"]) is "if" or "switch")) continue;
+                if (!IsServer(start) && NodeReads(start, [], NamesOf([start]), real, inputs, outs, made, new RunReads()) is not null) continue;
+                // Grow: a node joins when the run reaches it, every node that leads to it is in the run, and the server can read what it reads.
                 var run = new List<JsonObject> { start };
-                for (var cur = start; ;)
+                for (var grew = true; grew;)
                 {
-                    var nx = NextOf(cur);
-                    if (nx == "End" || !byName.TryGetValue(nx, out var nn) || !IsServer(nn) || preds.GetValueOrDefault(nx) != 1 || used.Contains(nn)) break;
-                    run.Add(nn); cur = nn;
+                    grew = false;
+                    foreach (var t in run.SelectMany(Targets).ToList())
+                    {
+                        if (t == "End" || !byName.TryGetValue(t, out var nn) || run.Contains(nn) || used.Contains(nn) || !(IsServer(nn) || IsLogic(nn))) continue;
+                        if (preds.GetValueOrDefault(t)?.All(run.Contains) != true) continue;
+                        if (NodeReads(nn, run, NamesOf(run.Append(nn)), real, inputs, outs, made, new RunReads()) is not null) continue;
+                        run.Add(nn); grew = true;
+                    }
                 }
+                // The longest part with one way out, without the logic after its last server node.
+                while (run.Count > 1 && Exits(run) != 1) run.RemoveAt(run.Count - 1);
+                while (run.Count > 1 && !IsServer(run[^1]) && Exits(run[..^1]) == 1) run.RemoveAt(run.Count - 1);
+                if (run.Count(IsServer) < 2 && !run.Any(IsQuery)) continue;
+                var after = run.SelectMany(Targets).First(t => !NamesOf(run).Contains(t));
                 foreach (var n in run) used.Add(n);
-                if (run.Count < 2 && !run.Any(IsQuery)) continue;
-                if (MergeRun(an, flow, real, run, inputs, outs, made, NextOf(run[^1]), ++count) is { } no) { count--; if (run.Any(IsQuery)) why ??= no; }
+                if (MergeRun(an, flow, real, run, inputs, outs, made, NextOf, after, ++count) is { } no) { count--; if (run.Any(IsQuery)) why ??= no; }
             }
             return why;
         }
 
         static bool IsQuery(JsonObject n) => S(n["kind"]) is "aggregate" or "sql" && S(n["name"]) is not null;
 
-        // One run: returns why not (and changes nothing) when the nodes read something a server action cannot get as an input, or later nodes
-        // read something of them an output cannot give.
-        string? MergeRun(string an, JsonArray flow, List<JsonObject> real, List<JsonObject> run, Dictionary<string, string> actionVars,
-            IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> outs, Dictionary<string, IReadOnlyDictionary<string, string>> made, string after, int index)
+        // The name from -> to in an expression, outside its string literals ("Left: " + Left -> "Left: " + LeftValue) and not after a dot.
+        static string RenameOutsideStrings(string text, string from, string to) =>
+            string.Concat(Regex.Split(text, "(\"(?:[^\"]|\"\")*\")").Select(part => part.StartsWith('"') ? part
+                : Regex.Replace(part, @"(?<![\w.])" + Regex.Escape(from) + @"(?!\w)", to, RegexOptions.IgnoreCase)));
+
+        // The variable an assignment target writes: Total, or Order of Order.Total; null for anything else (an indexed list, a call).
+        static string? AssignRoot(string target) => Regex.Match(target, @"^\s*(\w+)(?:\.\w+)*\s*$") is { Success: true } m ? m.Groups[1].Value : null;
+
+        // What a merged server action needs for its nodes: its inputs, the argument that fills each one, the client variables among them, and
+        // the outputs of calls before the run that it reads (<Node>_<Output>).
+        sealed class RunReads
         {
-            var runNames = run.Select(n => S(n["name"])!).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var inputs = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var args = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);   // input -> the argument that fills it
-            var clientInputs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var nodeInputs = new List<(string node, string output, string input)>();
+            public readonly SortedDictionary<string, string> Inputs = new(StringComparer.OrdinalIgnoreCase);
+            public readonly Dictionary<string, string> Args = new(StringComparer.OrdinalIgnoreCase);
+            public readonly HashSet<string> ClientInputs = new(StringComparer.OrdinalIgnoreCase);
+            public readonly List<(string node, string output, string input)> NodeInputs = [];
+        }
+
+        // Whether a server action can read what one node reads, given the run's nodes before it (before) and all of its nodes (runNames):
+        // null when it can (and what it needs is added to r), else why not.
+        string? NodeReads(JsonObject n, IReadOnlyList<JsonObject> before, IReadOnlySet<string> runNames, List<JsonObject> real, Dictionary<string, string> actionVars,
+            IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> outs, Dictionary<string, IReadOnlyDictionary<string, string>> made, RunReads r)
+        {
             var serverRoots = new[] { "Entities", "Site", "Roles", "Resources", "True", "False" };
             // The output of a call before the run: one of a server action's (known types) or of a server action made here.
             (string Name, string Type)? Earlier(string node, string output)
@@ -1650,38 +1686,58 @@ static class ScreenTranslator
                 if (sig is null && real.FirstOrDefault(x => S(x["kind"]) == "execute" && string.Equals(S(x["name"]), node, StringComparison.OrdinalIgnoreCase)) is { } ex && S(ex["action"]) is { } act) sig = outs.GetValueOrDefault(act);
                 return sig?.FirstOrDefault(kv => kv.Key.Equals(output, StringComparison.OrdinalIgnoreCase)) is { Key: { } k, Value: { } t } ? (k, t) : null;
             }
-            foreach (var n in run)
-            {
-                var own = IsQuery(n) ? QueryNames(n) : null;
-                foreach (var text in own is not null ? Texts(n) : Strings(n))
-                    foreach (var chain in Chains(text))
+            var own = IsQuery(n) ? QueryNames(n) : null;
+            foreach (var text in own is not null ? Texts(n) : Strings(n))
+                foreach (var chain in Chains(text))
+                {
+                    var root = chain.Split('.')[0];
+                    if (Regex.IsMatch(text, @"(?<![\w.])" + Regex.Escape(chain) + @"\s*\(")) continue;   // a function call
+                    if (serverRoots.Contains(root, StringComparer.OrdinalIgnoreCase) || own?.Contains(root) == true) continue;
+                    if (runNames.Contains(root))
                     {
-                        var root = chain.Split('.')[0];
-                        if (Regex.IsMatch(text, @"(?<![\w.])" + Regex.Escape(chain) + @"\s*\(")) continue;   // a function call
-                        if (serverRoots.Contains(root, StringComparer.OrdinalIgnoreCase) || own?.Contains(root) == true) continue;
-                        if (runNames.Contains(root))
-                        {
-                            if (run.FindIndex(x => S(x["name"])!.Equals(root, StringComparison.OrdinalIgnoreCase)) >= run.IndexOf(n)) return $"{S(n["name"])} reads {root}, which runs after it";
-                            continue;
-                        }
-                        if (actionVars.TryGetValue(root, out var t) || varTypes.TryGetValue(root, out t)) { inputs[root] = t; args[root] = root; continue; }
-                        // A client variable reaches the server action as an input of its name (Client.X -> X).
-                        if (root.Equals("Client", StringComparison.OrdinalIgnoreCase) && chain.Split('.') is [_, var cv, ..] && cx.ClientTypes?.TryGetValue(cv, out var ct) == true
-                            && !actionVars.ContainsKey(cv) && !varTypes.ContainsKey(cv))
-                        { inputs[cv] = ct!; args[cv] = "Client." + cv; clientInputs.Add(cv); continue; }
-                        if (root.Equals(ServerValuesName, StringComparison.OrdinalIgnoreCase) && chain.Split('.') is [_, var sv, ..] && serverValues.ContainsKey(sv)) continue;   // read on the server again
-                        if (chain.Split('.') is [_, var o, ..] && Earlier(root, o) is { } eo)
-                        {
-                            var input = $"{root}_{eo.Name}";
-                            inputs[input] = eo.Type; args[input] = $"{root}.{eo.Name}";
-                            if (!nodeInputs.Any(x => x.input.Equals(input, StringComparison.OrdinalIgnoreCase))) nodeInputs.Add((root, eo.Name, input));
-                            continue;
-                        }
-                        var what = aggregates.Contains(root) || root.Equals(prepName, StringComparison.OrdinalIgnoreCase) || root.Equals(SessionValues, StringComparison.OrdinalIgnoreCase) ? $"the screen's data {root}"
-                            : widgetByName.ContainsKey(root) || forms.ContainsKey(root) || tables.ContainsKey(root) ? $"the widget {root}" : chain;
-                        return $"{S(n["name"])} reads {what}, which a server action cannot get as an input";
+                        if (!before.Any(x => string.Equals(S(x["name"]), root, StringComparison.OrdinalIgnoreCase))) return $"{S(n["name"])} reads {root}, which runs after it";
+                        continue;
                     }
-            }
+                    if (actionVars.TryGetValue(root, out var t) || varTypes.TryGetValue(root, out t)) { r.Inputs[root] = t; r.Args[root] = root; continue; }
+                    // A client variable reaches the server action as an input of its name (Client.X -> X).
+                    if (root.Equals("Client", StringComparison.OrdinalIgnoreCase) && chain.Split('.') is [_, var cv, ..] && cx.ClientTypes?.TryGetValue(cv, out var ct) == true
+                        && !actionVars.ContainsKey(cv) && !varTypes.ContainsKey(cv))
+                    { r.Inputs[cv] = ct!; r.Args[cv] = "Client." + cv; r.ClientInputs.Add(cv); continue; }
+                    if (root.Equals(ServerValuesName, StringComparison.OrdinalIgnoreCase) && chain.Split('.') is [_, var sv, ..] && serverValues.ContainsKey(sv)) continue;   // read on the server again
+                    if (chain.Split('.') is [_, var o, ..] && Earlier(root, o) is { } eo)
+                    {
+                        var input = $"{root}_{eo.Name}";
+                        r.Inputs[input] = eo.Type; r.Args[input] = $"{root}.{eo.Name}";
+                        if (!r.NodeInputs.Any(x => x.input.Equals(input, StringComparison.OrdinalIgnoreCase))) r.NodeInputs.Add((root, eo.Name, input));
+                        continue;
+                    }
+                    var what = aggregates.Contains(root) || root.Equals(prepName, StringComparison.OrdinalIgnoreCase) || root.Equals(SessionValues, StringComparison.OrdinalIgnoreCase) ? $"the screen's data {root}"
+                        : widgetByName.ContainsKey(root) || forms.ContainsKey(root) || tables.ContainsKey(root) ? $"the widget {root}" : chain;
+                    return $"{S(n["name"])} reads {what}, which a server action cannot get as an input";
+                }
+            return null;
+        }
+
+        // One run: returns why not (and changes nothing) when the nodes read something a server action cannot get as an input, or later nodes
+        // read something of them an output cannot give.
+        string? MergeRun(string an, JsonArray flow, List<JsonObject> real, List<JsonObject> run, Dictionary<string, string> actionVars,
+            IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> outs, Dictionary<string, IReadOnlyDictionary<string, string>> made, Func<JsonObject, string> nextOf, string after, int index)
+        {
+            var runNames = run.Select(n => S(n["name"])!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var rr = new RunReads();
+            for (var i = 0; i < run.Count; i++)
+                if (NodeReads(run[i], run.Take(i).ToList(), runNames, real, actionVars, outs, made, rr) is { } no) return no;
+            var (inputs, args, clientInputs, nodeInputs) = (rr.Inputs, rr.Args, rr.ClientInputs, rr.NodeInputs);
+            // The variables its Assigns write: each one is an input (a branch may leave it as it was) and comes back as the output <Var>Value.
+            var written = new SortedDictionary<string, (string type, string output)>(StringComparer.OrdinalIgnoreCase);
+            foreach (var n in run.Where(x => S(x["kind"]) == "assign"))
+                foreach (var (k, _) in (JsonObject)n["assign"]!)
+                    if (AssignRoot(k) is { } w && !written.ContainsKey(w))
+                    {
+                        var type = actionVars.TryGetValue(w, out var vt) ? vt : varTypes[w];
+                        inputs[w] = type; args[w] = w;
+                        written[w] = (type, w + "Value");
+                    }
             // What later nodes read of the run: Node.Output of a call, Query.List and Query.Count, each one an output of the server action.
             var outputs = new SortedDictionary<string, (string node, string output, string type)>(StringComparer.OrdinalIgnoreCase);
             var queries = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);   // query -> its record ("" when only Count is read)
@@ -1705,44 +1761,84 @@ static class ScreenTranslator
                             else return $"a later node reads {chain}, which a server action output does not give";
                             continue;
                         }
+                        if (S(node["kind"]) != "execute") continue;   // an Assign or an If has no outputs
                         if (!outs.TryGetValue(S(node["action"])!, out var sig) || sig.FirstOrDefault(kv => kv.Key.Equals(parts[1], StringComparison.OrdinalIgnoreCase)) is not { Key: { } ok, Value: { } type })
                             return $"a later node reads {chain}, an output whose type is not known here";
                         outputs[$"{nn}_{ok}"] = (nn, ok, type);
                     }
             var hasQuery = run.Any(IsQuery);
+            var hasLogic = run.Any(x => !IsQuery(x) && S(x["kind"]) != "execute");
+            foreach (var w in written.Keys.ToList())
+            {
+                var o = written[w].output;
+                for (var i = 2; inputs.ContainsKey(o) || outputs.ContainsKey(o) || written.Any(x => x.Key != w && x.Value.output.Equals(o, StringComparison.OrdinalIgnoreCase)); i++) o = w + "Value" + i;
+                written[w] = (written[w].type, o);
+            }
             var serverName = UniqueServer($"{name}_{an}" + (index > 1 ? index.ToString() : ""));
             var callName = an + "OnServer" + (index > 1 ? index.ToString() : "");
-            // The server action: the access check, the nodes (their names kept), the outputs.
+            string FreeName(string wanted, IEnumerable<string> taken) { var nm = wanted; for (var i = 2; taken.Contains(nm, StringComparer.OrdinalIgnoreCase); i++) nm = wanted + i; return nm; }
+            // The server action: the access check, the written variables taken from the inputs, the nodes (their names and connectors kept; a
+            // connector out of the run goes to the outputs), the outputs.
+            var exit = outputs.Count > 0 ? "SetOutputs" : "End";
+            string Map(string? t) => t is not null && runNames.Contains(t) ? t : exit;
+            var initName = written.Count > 0 ? FreeName("TakeInputs", runNames) : null;
             var body = new JsonArray();
-            foreach (var check in AccessCheck(S(run[0]["name"])!)) body.Add(check);
+            foreach (var check in AccessCheck(initName ?? S(run[0]["name"])!)) body.Add(check);
+            if (initName is not null)
+                body.Add(new JsonObject { ["kind"] = "assign", ["name"] = initName, ["assign"] = new JsonObject(written.Select(kv => KeyValuePair.Create(kv.Value.output, (JsonNode?)JsonValue.Create(kv.Key)))), ["next"] = S(run[0]["name"]) });
             for (var i = 0; i < run.Count; i++)
             {
                 var c = (JsonObject)run[i].DeepClone();
+                if (written.Count > 0)
+                {
+                    // In the server action a written variable is its output (an input cannot be assigned); the names of a call's parameters stay.
+                    var argKeys = (c["args"] as JsonObject)?.Select(kv => kv.Key).ToList();
+                    foreach (var (w, (_, o)) in written) ReplaceText(c, text => RenameOutsideStrings(text, w, o));
+                    if (argKeys is not null && c["args"] is JsonObject na) c["args"] = new JsonObject(na.Select((kv, j) => KeyValuePair.Create(argKeys[j], kv.Value?.DeepClone())));
+                }
                 foreach (var cv in clientInputs) ReplaceClient(c, cv);
                 foreach (var (node, output, input) in nodeInputs)
                     ReplaceText(c, text => Regex.Replace(text, @"(?<![\w.])" + Regex.Escape(node) + @"\." + Regex.Escape(output) + @"(?!\w)", input, RegexOptions.IgnoreCase));
                 ReplaceServerValues(c);
-                c["next"] = i + 1 < run.Count ? S(run[i + 1]["name"]) : outputs.Count > 0 ? "SetOutputs" : "End";
+                switch (S(c["kind"]))
+                {
+                    case "if": c["true"] = Map(S(run[i]["true"]) ?? "End"); c["false"] = Map(S(run[i]["false"]) ?? "End"); break;
+                    case "switch":
+                        foreach (var cse in Objs(c["cases"])) cse["next"] = Map(S(cse["next"]) ?? "End");
+                        c["otherwise"] = Map(S(run[i]["otherwise"]) ?? "End"); break;
+                    default: c["next"] = Map(nextOf(run[i])); break;
+                }
                 body.Add(c);
             }
             if (outputs.Count > 0)
                 body.Add(new JsonObject { ["kind"] = "assign", ["name"] = "SetOutputs", ["assign"] = new JsonObject(outputs.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode?)JsonValue.Create($"{kv.Value.node}.{kv.Value.output}")))), ["next"] = "End" });
-            var sa = new JsonObject { ["name"] = serverName, ["description"] = $"The {(hasQuery ? "queries and server calls" : "server calls")} of the screen action {an} of {name}, in one request (oml migrate)." };
+            var what = (hasQuery ? "queries and server calls" : "server calls") + (hasLogic ? " and the logic between them" : "");
+            var sa = new JsonObject { ["name"] = serverName, ["description"] = $"The {what} of the screen action {an} of {name}, in one request (oml migrate)." };
             if (inputs.Count > 0) sa["inputs"] = new JsonArray(inputs.Select(kv => (JsonNode?)new JsonObject { ["name"] = kv.Key, ["type"] = kv.Value, ["mandatory"] = false }).ToArray());
-            if (outputs.Count > 0) sa["outputs"] = new JsonArray(outputs.Select(kv => (JsonNode?)new JsonObject { ["name"] = kv.Key, ["type"] = kv.Value.type }).ToArray());
+            var allOutputs = outputs.Select(kv => (kv.Key, kv.Value.type)).Concat(written.Values.Select(v => (Key: v.output, v.type))).ToList();
+            if (allOutputs.Count > 0) sa["outputs"] = new JsonArray(allOutputs.Select(o => (JsonNode?)new JsonObject { ["name"] = o.Key, ["type"] = o.type }).ToArray());
             sa["flow"] = body;
             serverActions.Add(sa);
-            made[callName] = outputs.ToDictionary(kv => kv.Key, kv => kv.Value.type, StringComparer.OrdinalIgnoreCase);
-            // The client action: one call where the run was; connectors to the run's first node and reads of its outputs follow.
+            made[callName] = allOutputs.ToDictionary(o => o.Key, o => o.type, StringComparer.OrdinalIgnoreCase);
+            // The client action: one call where the run was (then the written variables copied back); connectors to the run's first node and
+            // reads of its outputs follow.
             var call = new JsonObject { ["kind"] = "execute", ["name"] = callName, ["action"] = serverName };
             if (inputs.Count > 0) call["args"] = new JsonObject(inputs.Keys.Select(k => KeyValuePair.Create(k, (JsonNode?)JsonValue.Create(args[k]))));
-            call["next"] = after;
+            JsonObject? back = null;
+            if (written.Count > 0)
+            {
+                var backName = FreeName(callName + "Values", flow.OfType<JsonObject>().Where(x => !run.Contains(x)).Select(x => S(x["name"]) ?? "").Append(callName));
+                back = new JsonObject { ["kind"] = "assign", ["name"] = backName, ["assign"] = new JsonObject(written.Select(kv => KeyValuePair.Create(kv.Key, (JsonNode?)JsonValue.Create($"{callName}.{kv.Value.output}")))), ["next"] = after };
+                call["next"] = backName;
+            }
+            else call["next"] = after;
             var at = flow.IndexOf(run[0]);
             foreach (var n in run) flow.Remove(n);
             flow.Insert(at, call);
+            if (back is not null) flow.Insert(at + 1, back);
             var startName = S(run[0]["name"])!;
             var callReads = outputs.Values.Where(o => !queries.ContainsKey(o.node)).Select(o => (o.node, o.output)).ToList();
-            foreach (var n in flow.OfType<JsonObject>().Where(x => !ReferenceEquals(x, call)))
+            foreach (var n in flow.OfType<JsonObject>().Where(x => !ReferenceEquals(x, call) && !ReferenceEquals(x, back)))
             {
                 foreach (var key in Connectors) if (S(n[key]) is { } t && t.Equals(startName, StringComparison.OrdinalIgnoreCase)) n[key] = callName;
                 foreach (var cse in Objs(n["cases"])) if (S(cse["next"]) is { } t2 && t2.Equals(startName, StringComparison.OrdinalIgnoreCase)) cse["next"] = callName;
@@ -2995,6 +3091,43 @@ static class ScreenTranslator
             $"Report: a query that reads a widget, or whose records of several entities are read later, makes a stub and the Todo says why: [{string.Join(" | ", st.Todo)}]");
         Check(Text(st.Spec, "widgets", 0, "onClick") == "Calc" && (Text(Act("Odd"), "flow", 0, "text") ?? "").StartsWith("TODO migrate:") && Has(st.Todo, "Odd", "CommitTransaction"),
             "Report: the button still calls the action; an unsupported node makes a stub with one TODO comment");
+
+        // 4a. The Assigns and Ifs between server calls go into the merged server action (one way in, one way out); a variable they write is
+        //     an input taken into the output <Var>Value, which the client action copies back. An If that reads a widget stops the run.
+        var book = Parse("""
+        { "kind": "Screen", "name": "Book", "flow": "MainFlow", "moduleKind": "Traditional", "locals": [ { "name": "Total", "type": "Integer", "default": "" } ],
+          "preparation": null,
+          "actions": [
+            { "name": "Save", "inputs": [ { "name": "Qty", "type": "Integer", "mandatory": true } ], "locals": [ { "name": "Left", "type": "Integer", "default": "0" } ], "flow": { "complete": true, "nodes": [
+              { "kind": "execute", "name": "Check", "action": "CheckStock", "args": { "Qty": "Qty" }, "next": "Count" },
+              { "kind": "assign", "name": "Count", "assign": { "Left": "Check.Left - Qty" }, "next": "Enough" },
+              { "kind": "if", "name": "Enough", "condition": "Left >= 0", "true": "Reserve", "false": "Skip" },
+              { "kind": "execute", "name": "Reserve", "action": "ReserveStock", "args": { "Qty": "Qty", "Left": "Left", "Note": "\"Left: \" + Left" }, "next": "Show" },
+              { "kind": "assign", "name": "Skip", "assign": { "Total": "0" }, "next": "Show" },
+              { "kind": "execute", "name": "Show", "action": "Feedback_Message", "args": { "Message": "\"Left: \" + Left" }, "next": "End" } ] } },
+            { "name": "Peek", "flow": { "complete": true, "nodes": [
+              { "kind": "execute", "name": "Check", "action": "CheckStock", "args": { "Qty": "1" }, "next": "Ask" },
+              { "kind": "if", "name": "Ask", "condition": "QtyInput.Value > Check.Left", "true": "Reserve", "false": "End" },
+              { "kind": "execute", "name": "Reserve", "action": "ReserveStock", "args": { "Qty": "1" }, "next": "End" } ] } } ],
+          "widgets": [ { "kind": "Input", "name": "QtyInput", "props": { "variable": "Total" } } ] }
+        """);
+        var bookCx = plain with { ServerOutputs = new Dictionary<string, IReadOnlyDictionary<string, string>> { ["CheckStock"] = new Dictionary<string, string> { ["Left"] = "Integer" }, ["ReserveStock"] = new Dictionary<string, string>() } };
+        var bk = Translate(book, bookCx);
+        JsonObject? BAct(string nm) => (At(bk.Spec, "actions") as JsonArray)?.OfType<JsonObject>().FirstOrDefault(x => Text(x, "name") == nm);
+        var save = BAct("Save"); var saveSrv = (At(bk.Spec, "_serverActions") as JsonArray)?.OfType<JsonObject>().FirstOrDefault(x => Text(x, "name") == "Book_Save");
+        Check(Text(save, "flow", 0, "action") == "Book_Save" && Text(save, "flow", 0, "args", "Left") == "Left" && Text(save, "flow", 0, "args", "Qty") == "Qty" && Text(save, "flow", 0, "args", "Total") == "Total"
+            && Text(save, "flow", 0, "next") == "SaveOnServerValues" && Text(save, "flow", 1, "assign", "Left") == "SaveOnServer.LeftValue" && Text(save, "flow", 1, "assign", "Total") == "SaveOnServer.TotalValue"
+            && Text(save, "flow", 1, "next") == "Show" && Text(save, "flow", 2, "kind") == "message" && At(save, "flow", 3) is null
+            && Text(saveSrv, "flow", 0, "assign", "LeftValue") == "Left" && Text(saveSrv, "flow", 0, "assign", "TotalValue") == "Total" && Text(saveSrv, "flow", 0, "next") == "Check"
+            && Text(saveSrv, "flow", 2, "assign", "LeftValue") == "Check.Left - Qty" && Text(saveSrv, "flow", 3, "condition") == "LeftValue >= 0"
+            && Text(saveSrv, "flow", 3, "true") == "Reserve" && Text(saveSrv, "flow", 3, "false") == "Skip"
+            && Text(saveSrv, "flow", 4, "args", "Left") == "LeftValue" && Text(saveSrv, "flow", 4, "args", "Qty") == "Qty" && Text(saveSrv, "flow", 4, "args", "Note") == "\"Left: \" + LeftValue" && Text(saveSrv, "flow", 4, "next") == "End"
+            && Text(saveSrv, "flow", 5, "assign", "TotalValue") == "0" && Text(saveSrv, "flow", 5, "next") == "End"
+            && Text(saveSrv, "outputs", 0, "name") == "LeftValue" && Text(saveSrv, "outputs", 1, "name") == "TotalValue" && At(saveSrv, "outputs", 2) is null
+            && (Text(saveSrv, "description") ?? "").Contains("and the logic between them"),
+            $"Book: the Assign and the If between the calls are in one server action; written variables come back as outputs: {save?.ToJsonString()} {saveSrv?.ToJsonString()}");
+        Check(Text(BAct("Peek"), "flow", 0, "action") == "CheckStock" && Text(BAct("Peek"), "flow", 1, "condition") == "QtyInput.Value > Check.Left" && At(bk.Spec, "_serverActions", 1) is null,
+            $"Book: an If that reads a widget stops the run, so two calls on either side are not merged: {BAct("Peek")?.ToJsonString()}");
 
         // 4b. A server function called in the browser is listed for the plan (which copies it as a client function) and the call stays as it is;
         //     one called in an aggregate filter runs on the server and is not listed.

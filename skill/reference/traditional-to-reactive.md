@@ -52,7 +52,7 @@ OutSystemsUIWeb, RichWidgets and OutSystemsChartsWeb blocks are translated by a 
 |---|---|
 | Preparation | Aggregates stay screen aggregates. Logic with SQL or server calls becomes the data action `Preparation` (Traditional order, one request) with the aggregates it reads; assigned locals return as `<Local>Value` in `onAfterFetch`, queries the screen reads as `Preparation.<Query>List`. Other logic: `onInitialize` and an aggregate's `onAfterFetch` if provable, else the data action. Navigating: a Todo (code) |
 | Aggregate or SQL in a screen action | Joins the server action below; later nodes read `<Query>_List` (`.Current.X`) and `<Query>_Count` (code). Reading a widget or multi-entity records: a stub |
-| Screen action (server) | Client action; two or more server calls in a row become one server action `<Screen>_<Action>` that starts with the screen's access check (`AccessDenied`) (code) |
+| Screen action (server) | Client action; two or more server calls and the Assigns and Ifs between them become one server action `<Screen>_<Action>` with the screen's access check (`AccessDenied`) (code) |
 | Session variable | A client variable when harmless (the user can read it), else read on the server (above) |
 | Site property read in the screen | `ServerValues.X`, an output of the data action `ServerValues`; aggregates keep `Site.X`; a secret one is a Todo (code) |
 | Server function in a screen | A client copy, same name (code); with a query, server call, `Site`, `Session` or role check: a Todo |
@@ -73,8 +73,8 @@ Every server action a screen calls is a public endpoint: check identity and role
 | Traditional | Reactive |
 |---|---|
 | Button, Link, Container, If, Label, Text, Placeholder, Upload, web block | Same widget |
-| Container Display | Visible, or an If (an If removes the content). The translator sets Visible |
-| Layout HTML Table, Width, Align, `InWebBlockPreview`, Example | Handled by the translator: HTML elements, CSS and classes; preview and design-time parts dropped |
+| Container Display | Visible (the translator sets it), or an If, which removes the content |
+| Layout HTML Table, Width, Align, `InWebBlockPreview`, Example | The translator: HTML elements, CSS and classes; preview and design-time parts go |
 | Combo Box | Dropdown with a list, Options Value and Options Text |
 | Radio Button | Radio Group of the variable, one Radio Button per choice (code) |
 | Edit Record, Show Record | Form; on an aggregate's whole record its inputs bind to that record, else to a local record variable |
