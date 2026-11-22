@@ -21,6 +21,6 @@ foreach ($t in $old.types) { foreach ($m in $t.members) { if ($m.status -eq 'cov
 $lost = @()
 foreach ($t in $new.types) { foreach ($m in $t.members) { $k = "$($t.type).$($m.signature)"; if ($was.ContainsKey($k) -and $m.status -ne 'covered') { $lost += $k } } }
 Require ($lost.Count -eq 0) "covered before, not now: $($lost -join '; ')"
-$same = (Get-Content -Raw (Join-Path $out 'coverage.json')) -eq (Get-Content -Raw $committed)
+$same = ((Get-Content -Raw (Join-Path $out 'coverage.json')) -replace "`r", '') -eq ((Get-Content -Raw $committed) -replace "`r", '')
 if (-not $same) { Write-Host "note model-coverage: the map changed (nothing lost); regenerate tests/model-api with oml model-coverage --out tests/model-api" }
 Write-Host "ok   model-coverage: $($new.total.covered) of $($new.total.changes - $new.total.'out-of-scope') changes covered ($($new.total.coveredPercent)%), nothing lost"
