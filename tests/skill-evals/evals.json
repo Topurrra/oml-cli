@@ -40,7 +40,7 @@
         "Validates or checks the staged file"
       ],
       "checks": [
-        {"text": "reads first", "regex": "oml (inspect|describe|find)"},
+        {"text": "reads first", "regex": "oml (inspect|describe|find|batch|export)"},
         {"text": "oml apply", "regex": "oml apply"},
         {"text": "new staged file", "regex": "staged"},
         {"text": "validate or check", "regex": "oml (validate|check)"}
@@ -57,7 +57,7 @@
       ],
       "checks": [
         {"text": "OutSystems MCP for ODC", "regex": "MCP"},
-        {"text": "oml is for O11", "regex": "O11|OutSystems 11|not (for|support)[^.]{0,30}ODC"}
+        {"text": "oml is for O11", "regex": "O11|OutSystems 11|(not|never|n't)[^.]{0,40}ODC|can'?t use oml|cannot use oml"}
       ]
     }
   ]

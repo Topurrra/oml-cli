@@ -33,6 +33,7 @@ Traditional Web to Reactive, prepared by code, and an interactive menu for peopl
 
 ### Changed
 
+- **The skill description names the jobs oml does** (inspect or change a module, check before install, compare or review two versions, fix Service Studio errors, migrate Traditional Web to Reactive, publish and deploy with LifeTime). With Haiku, skill-creator's trigger evals went from 12 of 15 to 15 and 14 of 15 in two runs (no near miss triggered). Two task-eval checks accept more right answers (reading with `oml batch`; "oml never loads ODC modules").
 - **`oml migrate plan`: exposed REST and SOAP services stay in the old module**, so their consumers keep working. The plan's `next` starts with a question for the person; `--copy-exposed` copies them on a yes, and the person then moves the consumers.
 - **`oml migrate plan` names the references to add by hand** (Manage Dependencies) before the copy step, which fails without them, and warns about copied server logic that calls page-only platform actions such as `RunJavaScript`.
 - **Hooks are opt-in.** `oml create` no longer writes agent hooks (`.claude/settings.local.json`, `.codex/hooks.json`, `.gemini/settings.json`). Run `oml hooks install` in a project to add them; `optional` in the output names it. `--no-hooks` is still accepted and does nothing.

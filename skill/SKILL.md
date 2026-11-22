@@ -1,6 +1,6 @@
 ---
 name: outsystems-oml
-description: Use oml to inspect, change, and validate OutSystems 11 modules through the installed Service Studio. Use the OutSystems MCP for ODC tasks.
+description: Use oml for OutSystems 11 modules and .oml files through the installed Service Studio - inspect or change a module (rename, add entities, actions, screens, REST APIs); check performance, security and architecture before install; compare or review two module versions; fix Service Studio errors; migrate Traditional Web to Reactive; publish and deploy with LifeTime. Use the OutSystems MCP for ODC tasks.
 ---
 
 # OutSystems module work
