@@ -1525,12 +1525,95 @@
             },
             "properties": {
               "type": "object"
+            },
+            "type": {
+              "type": "string"
             }
           },
           "required": [
             "op",
             "element",
             "properties"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "add"
+            },
+            "parent": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "factory": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "args": {
+              "type": "object"
+            },
+            "properties": {
+              "type": "object"
+            },
+            "before": {
+              "type": "string"
+            },
+            "after": {
+              "type": "string"
+            },
+            "first": {
+              "type": "boolean"
+            },
+            "last": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "op"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "remove"
+            },
+            "element": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "element"
+          ]
+        },
+        {
+          "properties": {
+            "op": {
+              "const": "move"
+            },
+            "element": {
+              "type": "string"
+            },
+            "before": {
+              "type": "string"
+            },
+            "after": {
+              "type": "string"
+            },
+            "first": {
+              "type": "boolean"
+            },
+            "last": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "op",
+            "element"
           ]
         },
         {

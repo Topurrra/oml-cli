@@ -416,6 +416,11 @@ oml model-types "OutSystems.Model.Logic.Nodes.I*Node"
 Start and End are created when needed. An End named `End` reuses the implicit End.
 On Service Studio 11.55.92, switch otherwise must differ from case targets. Use a separate End or branch node.
 Assignment pairs are applied in object order. Execute selects client/server node types for ordinary, service, CRUD, or referenced actions.
+(System) actions: a server flow may `execute` ListAppend, ListAppendAll, ListClear, ListInsert, ListRemove,
+ListDuplicate, LogMessage, CommitTransaction, AbortTransaction and the other (System) server actions the module does
+not reference yet; oml adds them to the (System) reference from Service Studio's tutorial module and says so in
+`warnings`. A client flow needs (System)'s client actions: add them in Service Studio (Manage Dependencies > (System)),
+or copy them from a module that has them with `references` and `"module": "(System)"`.
 For Each expressions use the source list's `.Current` and `.CurrentRowNumber`, never the loop label.
 All action signatures exist before flows. Generated CRUD actions can be called within the same apply run.
 The model can rename GetOrders to `GetOrdersByCustomerId` after source/filter assignment.
@@ -703,7 +708,7 @@ Widgets whose keys are easy to get wrong (Reactive):
 | Expression | `value` | Reactive ignores Visible on an Expression (apply warns): put it in a Container with `visible`. |
 | BlockInstance | `sourceBlock`, `args`, `events`, `placeholders` | No Visible: wrap it in a Container with `visible`. |
 | AdvancedHtml (HTML Element) | `tag`, `attributes` | Refuses `svg`, `path`, `circle` and `dialog`. Icons: CSS `mask-image` with a data: URL (or an Icon widget). Dialogs and sheets: a div with the `popover` attribute and `popovertarget` on the opener. |
-| Dropdown | `variable`, `list`, `labels`, `values`: expressions on one item of the list, without the list prefix (`"list": "GetStatuses.List", "labels": "Status.Label", "values": "Status.Id"`) | Its options must be a record list (an aggregate, or a list of a static entity or structure); a List of Text cannot name its labels and values. No key for an empty-value or special-list option: add that option to the options list in a data action. |
+| Dropdown | `variable`, `list`, `labels`, `values`: `labels` and `values` name the option record, with no aggregate prefix (`"list": "GetStatuses.List", "labels": "Status.Label", "values": "Status.Id"`) | Its options must be a record list (an aggregate, or a list of a static entity or structure); a List of Text cannot name its labels and values. No key for an empty-value or special-list option: add that option to the options list in a data action. |
 | Button, Link | `confirmationMessage` (expression), `isDefault` (`true` or `false`) | `confirmationMessage`: the text the user must confirm before On Click runs (describe: `confirm=`). `isDefault`: pressing Enter clicks it (describe: `[default button]`). Traditional Web takes the same keys. No key for an external URL as the target: use an HTML Element (`AdvancedHtml`) with `"tag": "a"` and `attributes.href`. |
 | Icon | `icon` (the icon name as plain text, for example `"check"`) | describe: `icon=`. |
 | Input | `inputType` (`Password`, `Email`, `Number` or another value of the model's input type, as describe prints `type=`), `prompt` (expression), `maxLength` (number), `mandatory` (expression) | The validation message is not a widget property: assign `<Input>.ValidationMessage` in a client action (see Known model behaviour). |
@@ -981,7 +986,7 @@ Prefer a named key when one exists (`entities`, `screens`, `addVariables`, ...):
 | `add` | `parent` (path; default the module), `type`, `name`, `properties`, `args`, `factory`, `first`/`last`/`before`/`after` | Makes a `type` with the parent's `Create*` method, names it, sets `properties`, places it. `args`: the method's other parameters by name. |
 | `set` | `element`, `type`, `properties` | As in Edits; with `type`, the element must be that type and `oml spec check` checks every key and value. |
 | `remove` | `element` | Removes an element this spec created. An existing one is refused. |
-| `move` | `element`, `first`/`last`/`before`/`after` | Changes the order in its list: attributes, parameters, widgets, records. Existing elements may move. |
+| `move` | `element`, `first`/`last`/`before`/`after` | Changes the order of attributes, parameters, widgets or records. Existing elements may move. |
 
 Values: `true`/`false`, numbers, text, an enum value by name (`"Ignore"`), a type (`"Text"`, `"Order Identifier"`),
 an element by name, or `{ "element": "<path>" }` for an element without a name of its own.
@@ -1004,12 +1009,6 @@ record has no values (use `staticEntities`). Validation then names what is missi
 
 Widget events: `set` with `onClick` (or another event) points an existing widget at a screen action of its screen or
 block, or at a screen; `{ "destination": ..., "args": { ... } }` also sets arguments.
-
-(System) actions: a server flow may `execute` ListAppend, ListAppendAll, ListClear, ListInsert, ListRemove,
-ListDuplicate, LogMessage, CommitTransaction, AbortTransaction and the other (System) server actions the module does
-not reference yet; oml adds them to the (System) reference from Service Studio's tutorial module and says so in
-`warnings`. A client flow needs (System)'s client actions: add them in Service Studio (Manage Dependencies > (System)),
-or copy them from a module that has them with `references` and `"module": "(System)"`.
 
 ### Deletion
 

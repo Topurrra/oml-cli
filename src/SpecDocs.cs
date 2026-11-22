@@ -22,7 +22,7 @@ static class SpecDocs
     {
         (new[] { "flow", "nodes", "node", "nodeKinds", "actions", "serverActions", "serviceActions", "clientActions",
                  "assign", "if", "forEach", "switch", "execute", "refreshData", "destination", "raiseException", "end",
-                 "jsonDeserialize", "jsonSerialize", "javaScript" }, "Actions and flow nodes"),
+                 "jsonDeserialize", "jsonSerialize", "javaScript", "systemActions", "ListAppend" }, "Actions and flow nodes"),
         (new[] { "comment", "message", "download", "excelToRecordList", "recordListToExcel" }, "Additional flow nodes"),
         (new[] { "events", "triggerEvent", "onParametersChanged", "blockEvents" }, "Block events"),
         (new[] { "emails", "email", "sendEmail" }, "Emails"),
@@ -37,7 +37,7 @@ static class SpecDocs
         (new[] { "preparation" }, "Traditional Web UI"),
         (new[] { "access" }, "Platform elements"),
         (new[] { "overview", "intro", "notation" }, "Spec reference"),
-        (new[] { "add", "remove", "move", "generic", "modelOps", "systemActions", "ListAppend" }, "Generic model operations"),
+        (new[] { "add", "remove", "move", "generic", "modelOps" }, "Generic model operations"),
     };
 
     static List<SpecSection>? sections;
