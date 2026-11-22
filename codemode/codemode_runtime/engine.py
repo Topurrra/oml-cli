@@ -148,7 +148,10 @@ class Pass:
         call_timeout: Optional[Callable[[str, str, str], float]] = None,
         reuse: Optional[Dict[int, Dict[str, Any]]] = None,
         reuse_id: str = "",
+        standing_ttl_s: float = 0.0,
     ) -> None:
+        # How long an approval given in advance stays good (0: no limit).
+        self.standing_ttl_s = float(standing_ttl_s)
         self.store = store
         self.exec_id = exec_id
         self.view = view
@@ -462,13 +465,19 @@ class Pass:
             # with no limit replays against a log that recorded the default.
             limit = default_limit(query)
 
+        namespace = frame.get("namespace")
+        namespace = str(namespace) if namespace is not None else None
+
         def find() -> Dict[str, Any]:
             # The total travels with the hits: a list that stops at the limit
             # and does not say so reads as "this is everything".
-            hits, total = self.catalog.search_with_total(query, limit)
+            hits, total = self.catalog.search_with_total(query, limit, namespace)
             return {"hits": hits, "total": total}
 
-        return self._simple("search", query, {"limit": limit}, find)
+        # The namespace is part of the request only when one was given, so a
+        # search without one has the fingerprint it always had.
+        args = {"limit": limit} if namespace is None else {"limit": limit, "namespace": namespace}
+        return self._simple("search", query, args, find)
 
     def _on_describe(self, frame: Dict[str, Any]) -> Dict[str, Any]:
         target = str(frame.get("target", ""))
@@ -641,6 +650,18 @@ class Pass:
         if approved:
             return {"entry": entry, "info": dict(info, approved=True)}
         if decision.effective == "ask":
+            grant = self.view.standing_for(entry.path, self.standing_ttl_s)
+            if grant is not None:
+                # A person at a terminal approved calls to this tool in
+                # advance, for this execution only. The call still gets an
+                # approval entry of its own, written before it runs, that
+                # says whose approval it runs under: the log has to answer
+                # "who allowed this call" for every call, one by one.
+                self.store.append(self.exec_id, {
+                    "type": "approval", "seqs": [seq], "by": grant.get("by"), "via": "standing", "granted": grant.get("ts"),
+                })
+                self.view.approved.add(seq)
+                return {"entry": entry, "info": dict(info, approved=True, standing=True)}
             verdict = None
             if self.approver is not None:
                 asked = time.monotonic()

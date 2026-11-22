@@ -400,18 +400,27 @@ class Catalog:
             % (tool, connector, (" Did you mean: %s?" % ", ".join("%s.%s" % (connector, c) for c in close)) if close else ""),
         )
 
-    def search(self, query: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        return self.search_with_total(query, limit)[0]
+    def search(self, query: str, limit: Optional[int] = None, namespace: Optional[str] = None) -> List[Dict[str, Any]]:
+        return self.search_with_total(query, limit, namespace)[0]
 
-    def search_with_total(self, query: str, limit: Optional[int] = None) -> Tuple[List[Dict[str, Any]], int]:
+    def search_with_total(
+        self, query: str, limit: Optional[int] = None, namespace: Optional[str] = None
+    ) -> Tuple[List[Dict[str, Any]], int]:
         """Rank tools and snippets by word overlap. Deliberately simple: the
         ranking is easy to predict and needs no index or model.
 
         Returns the hits and the number of matches there are in all, so the
         caller can say when the list stops short.
+
+        ``namespace`` keeps the search to one connector's tools, or to the
+        project's helper functions for ``helpers``. With an empty query that
+        is the list of what one server offers, each with its description and
+        its policy, in the server's own order.
         """
         limit = max(1, min(int(default_limit(query) if limit is None else limit), MAX_SEARCH_RESULTS))
         wanted = _tokens(str(query))
+        if namespace is not None:
+            return self._search_namespace(str(namespace), wanted, limit)
         scored = []
         for entry in self._all():
             score = _score(wanted, set(_tokens(entry.path)), set(_tokens(entry.description)))
@@ -431,18 +440,47 @@ class Catalog:
                     "description": _summary(snippet.get("description", "")),
                     "policy": "allow",
                 }))
+        scored.extend((-score, "~~" + hit["path"], hit) for score, hit in self._helper_hits(wanted))
+        scored.sort(key=lambda item: (item[0], item[1]))
+        return [item[2] for item in scored[:limit]], len(scored)
+
+    def _helper_hits(self, wanted: List[str]) -> List[Tuple[int, Dict[str, Any]]]:
+        """The project's helper functions that match, each with its score. A
+        helper runs in the sandbox; what the policy decides is each tool call
+        it makes, so there is no decision to show for it."""
+        hits = []
         for module in self._list_helpers():
-            # A helper runs in the sandbox; what the policy decides is each
-            # tool call it makes, so there is no decision to show for it.
             rows = [(f["signature"].partition("(")[0], f["signature"], f["doc"]) for f in module["functions"]]
             if module.get("error"):
                 rows = [("helpers." + module["module"], "helpers." + module["module"], "This helper file does not parse: " + module["error"])]
             for path, shown, doc in rows:
                 score = _score(wanted, set(_tokens(path)), set(_tokens(doc + " " + module.get("doc", ""))))
                 if score or not wanted:
-                    scored.append((-score, "~~" + path, {"path": path, "signature": shown, "description": _summary(doc), "policy": "helper"}))
-        scored.sort(key=lambda item: (item[0], item[1]))
-        return [item[2] for item in scored[:limit]], len(scored)
+                    hits.append((score, {"path": path, "signature": shown, "description": _summary(doc), "policy": "helper"}))
+        return hits
+
+    def _search_namespace(self, namespace: str, wanted: List[str], limit: int) -> Tuple[List[Dict[str, Any]], int]:
+        helpers = namespace == "helpers" and "helpers" not in self._connectors
+        if not helpers and namespace not in self._connectors:
+            raise ToolFailure(
+                "UnknownTool",
+                "no namespace %r. Namespaces: %s." % (namespace, ", ".join(sorted(self._connectors)) or "none"),
+            )
+        rows: List[Tuple[int, int, Dict[str, Any]]] = []
+        if helpers:
+            rows = [(-score, index, hit) for index, (score, hit) in enumerate(self._helper_hits(wanted))]
+        else:
+            for entry in self._load(namespace).values():
+                score = _score(wanted, set(_tokens(entry.path)), set(_tokens(entry.description)))
+                if score or not wanted:
+                    rows.append((-score, len(rows), {
+                        "path": entry.path,
+                        "signature": entry.signature(max_params=8),
+                        "description": _summary(entry.description),
+                        "policy": self._policy.decide(entry.path, None, entry.original_path).action,
+                    }))
+        rows.sort(key=lambda item: (item[0], item[1]))  # best match first; without a query, the server's own order
+        return [item[2] for item in rows[:limit]], len(rows)
 
     def _describe_helper(self, target: str) -> Dict[str, Any]:
         modules = {module["module"]: module for module in self._list_helpers()}

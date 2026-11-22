@@ -133,7 +133,7 @@ internal static class CodeMode
     internal static bool McpAvailable() =>
         CommandTable.All.Any(c => c.Name == "mcp") || CliUsage.Text.Split('\n').Select(l => l.Trim()).Any(l => l == "oml mcp" || l.StartsWith("oml mcp "));
 
-    static readonly string[] TopKeys = ["connectors", "policy", "approval", "limits", "executor", "llm", "agent", "helpers", "retention"];
+    static readonly string[] TopKeys = ["connectors", "policy", "approval", "limits", "executor", "llm", "agent", "helpers", "retention", "work_dir", "guidance"];
     static readonly string[] HostVariables = ["ProgramFiles(x86)", "CommonProgramFiles", "CommonProgramFiles(x86)", "ProgramW6432", "ALLUSERSPROFILE",
         "PUBLIC", "HOMEDRIVE", "HOMEPATH", "COMPUTERNAME", "OS", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS"];
     static readonly Regex SecretName = new("TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH|COOKIE|BEARER|API[_-]?KEY|PRIVATE[_-]?KEY|ACCESS[_-]?KEY", RegexOptions.IgnoreCase);
@@ -205,6 +205,7 @@ internal static class CodeMode
             ["policy"] = new JsonObject { ["mode"] = "enforce", ["default"] = "ask", ["allow"] = new JsonArray(), ["ask"] = new JsonArray(), ["deny"] = new JsonArray() },
             ["limits"] = new JsonObject { ["timeout_s"] = 1800, ["call_timeout_s"] = 300, ["call_timeouts"] = new JsonObject { ["oml.gated"] = 1800 }, ["startup_timeout_s"] = 60 },
             ["helpers"] = Slash(Path.Combine(folder, "oml_helpers")),
+            ["work_dir"] = ".oml/code",
         };
     }
 
@@ -222,7 +223,7 @@ internal static class CodeMode
 
     // connectors: by name; a connector of the same name is merged key by key (yours win), null removes it.
     // policy: allow, ask and deny add to oml's rules; mode and default replace; "replace": true drops oml's rules.
-    // limits, approval, retention, executor, llm: key by key. helpers and agent: replaced.
+    // limits, approval, retention, executor, llm: key by key. helpers, agent, work_dir and guidance: replaced.
     internal static void Merge(JsonObject config, JsonObject own)
     {
         foreach (var (key, value) in own.ToList())

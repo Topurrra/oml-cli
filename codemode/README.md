@@ -117,7 +117,7 @@ The program is ordinary Python. These names are defined for it:
 | `call("namespace.tool", {...})` | The same, by name. `on_error="return"` gives a failure back as a value. |
 | `parallel([("namespace.tool", {...}), ...])` | Run independent calls at the same time. Results come back in order. |
 | `repeat("namespace.tool", {...}, n=10)` | Run one call n times; get back only the failures. |
-| `search("words")` | Find tools, snippets and helpers. One-line signatures; `.more` says how many were left out. |
+| `search("words")` | Find tools, snippets and helpers. One-line signatures; `.more` says how many were left out. `search(namespace="name")` lists what one namespace offers. |
 | `describe("namespace.tool")` | Signature, description, schema and policy for one tool. |
 | `shape(value)` | The keys and types of a value, without its content. |
 | `grep(text, pattern)`, `tail(text, n)`, `head(text, n)`, `summarize(text)` | Cut long text output down. |
@@ -188,6 +188,13 @@ codemode cancel <executionId>
 `codemode prompt` prints the tool description, for a harness that registers
 the tool itself.
 
+A project that starts the runtime through a command of its own (a wrapper
+script, a task runner, a tool that ships a copy) sets `CODEMODE_COMMAND` to
+what people type, and every hint prints that. A project that keeps the
+config and the data folders somewhere of its own says so at `init`
+(`--out`, `--home`, `--work-dir`). Both are in
+[`docs/ADOPTING.md`](docs/ADOPTING.md).
+
 ### With the built-in loop (any OpenAI-compatible endpoint)
 
 ```text
@@ -229,22 +236,31 @@ are errors. See [`codemode.example.json`](codemode.example.json);
   turns declared command lines into tools; `demo` is the notes store; `chaos`
   is a fault-injection fixture for tests. `${NAME}` in `env` and `headers` is
   read from the host environment when the server starts, so secrets stay out
-  of the file and out of the sandbox.
+  of the file and out of the sandbox. A server or a command starts with a
+  short list of host variables, not the whole environment; `inherit_env` on
+  the connector names the others it needs.
 - **`policy`**: rules over `namespace.tool`, as globs or as objects that also
   constrain arguments. Deny wins over ask, ask over allow. `default` applies
   when nothing matches and is `ask` if you leave it out. `"mode": "observe"`
   logs what would have been asked or denied and lets the call through: use it
   to find false positives before you enforce.
 - **`approval`**: `require_terminal` (default `true`: `approve` needs a
-  person at a terminal) and `ttl_s` (a pause older than a day needs
-  `approve --stale`).
+  person at a terminal), `ttl_s` (a pause older than a day needs
+  `approve --stale`) and `standing` (how wide an approval in advance a
+  person may give for one execution: `all`, `same-tool` or `off`).
 - **`limits`**: `timeout_s` (one pass), `call_timeout_s` (one tool call),
   `call_timeouts` (per tool), `startup_timeout_s`, `max_calls`,
   `max_value_bytes` (one argument object or tool result), `max_result_chars`
   and `max_log_chars` (what is returned), `max_state_bytes`,
-  `catalog_cache_s` (how long a server's tool list is used from disk).
+  `catalog_cache_s` (how long a server's tool list is used from disk),
+  `max_guidance_chars`.
 - **`helpers`**: a folder of Python files that programs call as
   `helpers.<file>.<function>()`. They run in the sandbox, under the policy.
+- **`guidance`**: the project's own words for its agents, a text or
+  `{"file": "path"}`. Added to the description of the `execute` tool and to
+  what `codemode instructions` prints.
+- **`work_dir`**: the folder agents are told to write their program files
+  into (default `.codemode-work`).
 - **`retention`**: `max_age_days` and `max_executions` for the records.
 - **`executor`**: `command` wraps the sandbox in something else (see below);
   `env_passthrough` names host variables the sandbox may see.
@@ -272,6 +288,17 @@ What the runtime enforces:
 - A call the policy asks about does not run until a human approves it from
   the CLI, at a terminal. Neither the sandbox API nor the MCP server can
   approve, edit policy or touch the log. A deny rule beats an approval.
+  "At a terminal" stops an agent's shell tool (a pipe, a file, the null
+  device); it does not stop a tool that types into a real terminal. See
+  "Approving" in [docs/ADOPTING.md](docs/ADOPTING.md).
+- A person may approve in advance, for one execution: later calls to the
+  tools they are approving (`approve --same-tool`) or every later call the
+  policy asks about (`approve --all-remaining`). Those calls then run
+  without a pause, so this is the one place where a call the policy asks
+  about runs without having been shown to anyone. It is the person's
+  choice, made at a terminal; it ends with the execution or with
+  `approval.ttl_s`; a deny rule still wins; every such call is logged with
+  who approved it; and `approval.standing` narrows it or turns it off.
 - A project's helper code runs in the same sandbox as the program and gets
   nothing a program does not have.
 - Every execution has a wall-clock limit, a call limit and size limits.

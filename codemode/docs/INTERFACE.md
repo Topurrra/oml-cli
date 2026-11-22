@@ -28,6 +28,7 @@ Every surface returns the same object.
 | `warnings` | any | A list of texts: a null result from a value inside a block, state that did not fit, a policy that changed before an approval, a call cut off by the program's time limit. |
 | `verification` | completed | `none`, `replay-ok` or `replay-failed`. |
 | `pending` | paused | The calls waiting for approval: `seq`, `tool`, `args` (cut to 2000 characters, then `argsTruncated`), `rule`. |
+| `standingApprovals` | any, once a person approved in advance | A list of `{tools, by, given, expires, calls}`: the tools covered (`["*"]` is every tool), who approved, when, until when (`null`: no limit), and how many calls have run under it. |
 | `error.type` | error, rejected | A stable name. See below. |
 | `error.message` | error, rejected | What happened. |
 | `error.hint` | when there is one | What to do next. |
@@ -98,14 +99,14 @@ stdout, a usage error included.
 | `get ID` | The current outcome. `--full`: do not cut the result. `--select PATH`: one part. |
 | `wait ID [--timeout S]` | Wait for a running execution, then its outcome. Exit 6 if still running. |
 | `cancel ID` | Stop a running execution; reject a paused one. |
-| `approve ID` | Approve the pending calls and continue. Needs a terminal. `--stale`, `--by NAME`. |
+| `approve ID` | Approve the pending calls and continue. Needs a terminal on stdin: a pipe, a file and the null device are refused with `TerminalRequired`. `--stale`, `--by NAME`. `--same-tool` also approves, in advance, later calls of this execution to the tools approved now; `--all-remaining` every later call the policy asks about. Either is refused with `StateError` where `approval.standing` does not allow it. |
 | `reject ID` | Refuse a paused execution. `--reason`, `--by`. |
 | `verify ID` | Replay a completed execution from its log and compare. Exit 4 on a mismatch. |
 | `executions [--limit N]` | Recent executions. |
 | `show ID` | The audit log of one execution. |
-| `search [QUERY] [--limit N]` | Find tools, as `search()` does in a program. |
+| `search [QUERY] [--limit N] [--namespace NAME]` | Find tools, as `search()` does in a program. With `--json`, a list of `{path, signature, description, policy}`. `--namespace` keeps it to one namespace (or `helpers`); with no query that is everything the server offers, in its order. An unknown namespace exits 5. |
 | `describe TARGET` | One tool, a namespace, `snippet:NAME`, `helpers`, `helpers.MODULE`. |
-| `init [--from FILE] [--force]` | Write `codemode.json` for the project in the current folder. |
+| `init [--from FILE] [--force] [--out FILE] [--work-dir DIR]` | Write `codemode.json` for the project in the current folder, or the file `--out` names. `--work-dir` sets the config's `work_dir`. `.gitignore` gets the data folder and the work folder as this project has them. |
 | `doctor [--refresh]` | Check the setup. Exit 1 if a check failed. |
 | `prune [--older-than DAYS] [--max-executions N] [--dry-run]` | Remove old records. |
 | `instructions [--mcp]` | Print the agent instructions for this project. |
@@ -144,6 +145,7 @@ or `status: error` with `SyntaxError` or `UnknownTool`.
 | `CODEMODE_CONFIG` | The config file, when `--config` is not given. |
 | `CODEMODE_HOME` | The data directory, when `--home` is not given. |
 | `CODEMODE_AGENT` | The caller's name, when `--agent` is not given. |
+| `CODEMODE_COMMAND` | The command line people type to start the runtime in this project, when it is not the runtime's own (a wrapper, a task runner, an embedding tool). Hints, `--help` and `instructions` print it, followed by the subcommand. `{options}` in it is replaced by `--config` and `--home`; without it nothing is added. |
 | `CODEMODE_BASE_URL`, `CODEMODE_MODEL`, `CODEMODE_API_KEY` | The model endpoint for `agent`. |
 
 ## The `execute` MCP tool
@@ -178,7 +180,7 @@ the policy or writes the log.
 | `call` | `call(path, args=None, on_error="raise", **kwargs)` |
 | `parallel` | `parallel([(path, args), ...], return_errors=False)` |
 | `repeat` | `repeat(path, args=None, n=5, ok=None, until_fail=False, concurrency=1, keep=5)` returns `{runs, passed, failed, failures, failures_omitted, stopped_early}` |
-| `search` | `search(query="", limit=None)` returns a list with `.total` and `.more` |
+| `search` | `search(query="", limit=None, namespace=None)` returns a list of `{path, signature, description, policy}` with `.total` and `.more` |
 | `describe` | `describe(target)` returns a dict; `str()` of it is a short text |
 | `shape` | `shape(value, depth=3, keys=12)` |
 | `grep` | `grep(text, pattern, context=0, limit=50, ignore_case=False, invert=False)` returns a list with `.total` and `.more` |

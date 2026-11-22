@@ -25,26 +25,71 @@ import re
 import shutil
 import subprocess
 import threading
+from fnmatch import fnmatchcase
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 from ..config import expand_env
-from ..errors import CodemodeError, ToolFailure
+from ..errors import CodemodeError, ConfigError, ToolFailure
 from ..jsonutil import dumps_line
-from ..procutil import child_options, kill_tree
+from ..procutil import IS_WINDOWS, child_options, kill_tree
 from . import looks_secret
 from .mcp_common import MAX_MESSAGE_BYTES, Mailbox, McpConnector, Progress, unwrap_result  # noqa: F401  (unwrap_result: public here since 0.1)
 
 # The server starts with a short allowlist from the host environment plus what
 # the config names. Passing the whole environment would hand every secret the
-# host has to every server.
+# host has to every server. The list is what a program needs to find its
+# own folders and to know the machine it is on: who the user is, where
+# programs, settings, caches and temporary files live, the locale and the
+# time zone. None of it is a credential.
 BASE_ENV = (
-    "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "TERM", "TMPDIR",
-    "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "PROGRAMFILES", "SYSTEMROOT",
-    "SYSTEMDRIVE", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP", "USERNAME",
+    "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TERM", "TMPDIR",
+    "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME", "XDG_RUNTIME_DIR",
+    "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "ALLUSERSPROFILE", "PUBLIC",
+    "PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMW6432", "COMMONPROGRAMFILES", "COMMONPROGRAMFILES(X86)", "COMMONPROGRAMW6432",
+    "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP", "USERNAME",
+    "OS", "PROCESSOR_ARCHITECTURE", "NUMBER_OF_PROCESSORS",
 )
 _STDERR_TAIL = 4000
 _REFERENCE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+
+def check_inherit_env(value: Any, where: str) -> None:
+    """Validate a connector's ``inherit_env`` at config load."""
+    if value is not True and value is not False and not (isinstance(value, list) and all(isinstance(v, str) and v for v in value)):
+        raise ConfigError(
+            "%s must be true, false or a list of variable names (globs are allowed)" % where,
+            hint='Example: {"inherit_env": ["JAVA_HOME", "MYTOOL_*"]}. true passes the whole host environment, credentials included.',
+        )
+
+
+def host_env(inherit: Any = None, environ: Optional[Mapping[str, str]] = None) -> "tuple[Dict[str, str], List[str]]":
+    """What a child process gets from the host environment: the base list,
+    plus what the connector's ``inherit_env`` names. ``True`` is everything;
+    a list holds names and globs.
+
+    Returns the variables, and the values of the inherited ones whose names
+    say they hold a credential (TOKEN, KEY, SECRET, ...): the child was
+    handed them, so what it prints back has to be cleaned of them.
+
+    Names are compared the way the platform compares them: without regard
+    to case on Windows, exactly elsewhere.
+    """
+    environ = os.environ if environ is None else environ
+    fold = (lambda text: text.upper()) if IS_WINDOWS else (lambda text: text)
+    base = {fold(name) for name in BASE_ENV}
+    patterns = [fold(pattern) for pattern in inherit] if isinstance(inherit, list) else []
+    env: Dict[str, str] = {}
+    secrets: List[str] = []
+    for key, value in environ.items():
+        name = fold(key)
+        if name in base:
+            env[key] = value
+        elif inherit is True or any(fnmatchcase(name, pattern) for pattern in patterns):
+            env[key] = value
+            if looks_secret(key):
+                secrets.append(value)
+    return env, secrets
 
 
 def resolve_env(name: str, spec: Dict[str, Any], section: str = "env") -> "tuple[Dict[str, str], List[str]]":
@@ -130,8 +175,9 @@ class McpStdioConnector(McpConnector):
 
     def _start(self) -> None:
         command = list(self._spec["command"])
-        env = {k: os.environ[k] for k in BASE_ENV if k in os.environ}
-        extra, self._secrets = resolve_env(self.name, self._spec)
+        env, inherited = host_env(self._spec.get("inherit_env"))
+        extra, named = resolve_env(self.name, self._spec)
+        self._secrets = named + inherited
         env.update(extra)
         cwd = self._cwd()
         # shutil.which honours PATHEXT, so "npx" finds npx.cmd on Windows.

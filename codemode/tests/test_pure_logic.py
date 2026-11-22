@@ -29,16 +29,18 @@ from codemode_runtime.connectors.commands import (  # noqa: E402
 )
 from codemode_runtime.connectors.mcp_common import Mailbox, progress_text, unwrap_result  # noqa: E402
 from codemode_runtime.connectors.mcp_http import iter_sse  # noqa: E402
-from codemode_runtime.connectors.mcp_stdio import resolve_env  # noqa: E402
+from codemode_runtime.connectors.mcp_stdio import host_env, resolve_env  # noqa: E402
 from codemode_runtime.errors import ConfigError, ToolFailure  # noqa: E402
 from codemode_runtime.helpers import describe_helpers  # noqa: E402
 from codemode_runtime.instructions import instructions  # noqa: E402
 from codemode_runtime.project import (  # noqa: E402
-    connector_name, connectors_from_servers, dead_rules, gitignore_lines, read_server_list, starting_policy,
+    connector_name, connectors_from_servers, dead_rules, gitignore_lines, ignore_entries, read_server_list, starting_policy,
 )
 from codemode_runtime.jsonutil import canonical, fingerprint  # noqa: E402
 from codemode_runtime.policy import Policy, arg_text, lookup, policy_from_dict  # noqa: E402
+from codemode_runtime.records import ExecutionView, parse_ts  # noqa: E402
 from codemode_runtime.schema_sig import signature, type_of  # noqa: E402
+from codemode_runtime import launcher  # noqa: E402
 from codemode_runtime import sandbox_runner as sandbox  # noqa: E402
 from codemode_runtime.textio import decode_text  # noqa: E402
 from codemode_runtime.truncate import BoundedLog, budget_result, shape_of, truncate_text  # noqa: E402
@@ -332,6 +334,52 @@ class PolicyRules(unittest.TestCase):
         for bad in ({"require_terminal": "no"}, {"require_terminal": 0}, {"ttl_s": -1}, {"ttl_s": "1h"}, {"ttl_s": True}, {"tty": False}, []):
             with self.assertRaises(ConfigError, msg=repr(bad)):
                 config_from_dict(dict(base, approval=bad), "t", {})
+
+    def test_L17_how_wide_an_approval_in_advance_a_project_allows(self):
+        base = {"connectors": {"demo": {"type": "demo"}}}
+        self.assertEqual(config_from_dict(base, "t", {}).standing, "all")
+        self.assertEqual(config_from_dict(dict(base, approval={"ttl_s": 5}), "t", {}).standing, "all")
+        for scope in ("off", "same-tool", "all"):
+            config = config_from_dict(dict(base, approval={"standing": scope}), "t", {})
+            self.assertEqual(config.standing, scope)
+            self.assertEqual(config.describe()["approval"]["standing"], scope)
+        for bad in ("", "ALL", "same_tool", "yes", True, False, None, 1, ["all"]):
+            with self.assertRaises(ConfigError, msg=repr(bad)):
+                config_from_dict(dict(base, approval={"standing": bad}), "t", {})
+
+    def test_L17_which_calls_an_approval_in_advance_covers(self):
+        at = "2026-01-01T00:00:00Z"
+        later = "2026-01-01T00:01:40Z"
+        base = parse_ts(at)
+
+        def view(*entries):
+            return ExecutionView([{"type": "start", "id": "ex_1"}] + list(entries))
+
+        plain = view({"type": "approval", "seqs": [1], "by": "pat", "ts": at})
+        self.assertIsNone(plain.standing_for("a.b", 0, base))                              # an ordinary approval: what was pending, no more
+        same = view({"type": "approval", "seqs": [1], "by": "pat", "standing": ["a.b"], "ts": at})
+        self.assertEqual(same.standing_for("a.b", 60, base + 59)["by"], "pat")
+        for other in ("a.c", "a.b_c", "a", "b.b", "*", ""):
+            self.assertIsNone(same.standing_for(other, 60, base + 1), other)               # the tool by its name: no prefix, no pattern
+        self.assertIsNotNone(same.standing_for("a.b", 60, base + 60))                      # at the limit
+        self.assertIsNone(same.standing_for("a.b", 60, base + 61))                         # past it
+        self.assertIsNotNone(same.standing_for("a.b", 0, base + 10 ** 9))                  # 0: approvals do not expire here
+        every = view({"type": "approval", "seqs": [1], "by": "pat", "standing": ["*"], "ts": at})
+        self.assertIsNotNone(every.standing_for("x.y", 60, base + 1))
+        undated = view({"type": "approval", "seqs": [1], "by": "pat", "standing": ["*"]})
+        self.assertIsNone(undated.standing_for("x.y", 60, base))                           # no readable time: too old, not for ever
+        two = view({"type": "approval", "seqs": [1], "by": "pat", "standing": ["a.b"], "ts": at},
+                   {"type": "approval", "seqs": [4], "by": "sam", "standing": ["a.b"], "ts": later})
+        self.assertEqual(two.standing_for("a.b", 60, base + 120)["by"], "sam")             # the first has expired, the second holds
+        self.assertIsNone(two.standing_for("a.b", 60, base + 200))
+        for not_one in ({"standing": []}, {"standing": "a.b"}, {"standing": None}, {"standing": True}, {"via": "standing", "granted": at}):
+            self.assertEqual(view(dict({"type": "approval", "seqs": [2], "by": "x", "ts": at}, **not_one)).standing, [], repr(not_one))
+        used = view({"type": "approval", "seqs": [1], "by": "pat", "standing": ["a.b"], "ts": at},
+                    {"type": "approval", "seqs": [2], "by": "pat", "via": "standing", "granted": at},
+                    {"type": "approval", "seqs": [3], "by": "pat", "via": "standing", "granted": at},
+                    {"type": "approval", "seqs": [3], "by": "pat", "via": "standing", "granted": at})
+        self.assertEqual(used.standing[0]["seqs"], {2, 3})                                 # a call let through twice is one call
+        self.assertEqual(used.approved, {1, 2, 3})
 
 
 class OutputBudgets(unittest.TestCase):
@@ -668,6 +716,36 @@ class McpPieces(unittest.TestCase):
         self.assertEqual(caught.exception.kind, "ConnectorUnavailable")
         self.assertIn("CODEMODE_TEST_UNSET_VARIABLE", caught.exception.message)
 
+    def test_M17_what_a_child_process_gets_from_the_host(self):
+        host = {"PATH": "/bin", "HOME": "/home/me", "XDG_CONFIG_HOME": "/home/me/.config", "JAVA_HOME": "/opt/java",
+                "MYTOOL_ROOT": "/srv/tool", "MYTOOL_MODE": "fast", "UNRELATED": "x", "GH_TOKEN": "tok_abcdefghijkl"}
+        base = {"PATH": "/bin", "HOME": "/home/me", "XDG_CONFIG_HOME": "/home/me/.config"}
+        for inherit in (None, False, []):
+            self.assertEqual(host_env(inherit, host), (base, []), repr(inherit))       # nothing asked for: the base list and no more
+        self.assertEqual(host_env(["JAVA_HOME"], host)[0], dict(base, JAVA_HOME="/opt/java"))
+        self.assertEqual(host_env(["MYTOOL_*"], host)[0], dict(base, MYTOOL_ROOT="/srv/tool", MYTOOL_MODE="fast"))
+        self.assertEqual(host_env(["MYTOOL_?OOT", "NOT_SET"], host)[0], dict(base, MYTOOL_ROOT="/srv/tool"))
+        self.assertEqual(host_env(True, host)[0], host)
+        # Another case: one name on Windows, another variable everywhere else.
+        folded = host_env(["mytool_*", "Java_Home"], host)[0]
+        self.assertEqual(folded, dict(base, JAVA_HOME="/opt/java", MYTOOL_ROOT="/srv/tool", MYTOOL_MODE="fast") if os.name == "nt" else base)
+        lower = host_env(None, {"Path": "/bin", "home": "/home/me", "other": "x"})[0]
+        self.assertEqual(lower, {"Path": "/bin", "home": "/home/me"} if os.name == "nt" else {})
+        for bad in ("JAVA_HOME", ["A", ""], ["A", 5], 1, {"A": "B"}, None):
+            with self.assertRaises(ConfigError, msg=repr(bad)):
+                config_from_dict({"connectors": {"x": {"type": "mcp-stdio", "command": ["x"], "inherit_env": bad}}}, "t", {})
+        for good in (True, False, [], ["JAVA_HOME", "MYTOOL_*"]):
+            config_from_dict({"connectors": {"x": {"type": "mcp-stdio", "command": ["x"], "inherit_env": good}}}, "t", {})
+
+    def test_M18_which_inherited_values_are_credentials(self):
+        host = {"PATH": "/bin", "GH_TOKEN": "tok_abcdefghijkl", "MYTOOL_API_KEY": "key_mnopqrstuv", "MYTOOL_ROOT": "/srv/tool",
+                "SSH_AUTH_SOCK": "/tmp/agent.sock"}
+        self.assertEqual(host_env(None, host)[1], [])                                  # not inherited: nothing to clean
+        self.assertEqual(host_env(["MYTOOL_*"], host)[1], ["key_mnopqrstuv"])          # by its name; a path next to it is not one
+        self.assertEqual(sorted(host_env(True, host)[1]), ["/tmp/agent.sock", "key_mnopqrstuv", "tok_abcdefghijkl"])
+        named_like_one = host_env(True, {"PATH": "/bin", "TMP": "/tmp", "USERNAME": "me"})
+        self.assertEqual(named_like_one[1], [])                                        # the base list is never a credential
+
     def test_M15_where_the_search_for_a_config_stops(self):
         import tempfile
         from pathlib import Path
@@ -971,6 +1049,59 @@ class ProjectSetup(unittest.TestCase):
             self.assertIn("Never approve it yourself", text)
             self.assertLess(len(text), 7000)
 
+    def test_U12_the_folders_a_project_keeps_out_of_version_control(self):
+        from pathlib import Path
+
+        root = Path(os.path.abspath("some-project"))
+        outside = Path(os.path.abspath("another-place"))
+        self.assertEqual(ignore_entries(root), [".codemode/", ".codemode-work/"])                    # nothing set: as it always was
+        self.assertEqual(ignore_entries(root, root / ".codemode", ".codemode-work"), [".codemode/", ".codemode-work/"])
+        self.assertEqual(ignore_entries(root, root / "tools" / "data", "tools/programs"), ["tools/data/", "tools/programs/"])
+        self.assertEqual(ignore_entries(root, root / "tools" / ".." / "var" / "data", "tmp/../scratch"), ["var/data/", "scratch/"])
+        self.assertEqual(ignore_entries(root, outside / "data", "scratch"), ["scratch/"])           # a folder that is not in the project needs no entry
+        self.assertEqual(ignore_entries(root, outside / "data", str(outside / "programs")), [])
+        self.assertEqual(ignore_entries(root, root / "x", "../programs"), ["x/"])                   # above the root is outside it
+        self.assertEqual(ignore_entries(root, root / "one", "one"), ["one/"])                       # the same folder for both: one entry
+        self.assertEqual(ignore_entries(root, root, "."), [])                                       # the root itself is never ignored
+        self.assertEqual(gitignore_lines("tools/data\n", ["tools/data/", "tools/programs/"]), ["tools/programs/"])
+
+    def test_U12_where_agents_are_told_to_write_programs(self):
+        base = {"connectors": {"demo": {"type": "demo"}}}
+        self.assertEqual(config_from_dict(base, "t", {}).work_dir, ".codemode-work")
+        for written, read in (("build/agent", "build/agent"), ("build\\agent\\", "build/agent"), (" scratch/ ", "scratch")):
+            self.assertEqual(config_from_dict(dict(base, work_dir=written), "t", {}).work_dir, read)
+        for bad in ("", "   ", "/", 5, None, ["a"], "a\nb"):
+            with self.assertRaises(ConfigError, msg=repr(bad)):
+                config_from_dict(dict(base, work_dir=bad), "t", {})
+        usual = instructions("codemode", "cli")
+        self.assertEqual(usual, instructions("codemode", "cli", ".codemode-work", ".codemode"))
+        own = instructions("codemode", "cli", "build/agent/", "var/codemode")
+        self.assertIn("-f build/agent/<name>.py", own)
+        self.assertIn("`var/codemode/` folder", own)
+        self.assertNotIn(".codemode-work", own)
+        self.assertNotIn("{work}", own + usual)
+        self.assertNotIn("{data}", own + usual + instructions("codemode", "mcp", "x", "var/codemode"))
+        self.assertIn("`var/codemode/` folder", instructions("codemode", "mcp", "x", "var/codemode"))
+
+    def test_U13_a_projects_own_text_for_its_agents(self):
+        base = {"connectors": {"demo": {"type": "demo"}}}
+        self.assertIsNone(config_from_dict(base, "t", {}).guidance)
+        for good in ("Run the linter before a commit.", {"file": "docs/agents.md"}):
+            self.assertEqual(config_from_dict(dict(base, guidance=good), "t", {}).guidance, good)
+        for bad in ("", "   ", 5, True, ["a line"], {}, {"file": ""}, {"file": 5}, {"file": "a.md", "text": "both"}, {"text": "x"}):
+            with self.assertRaises(ConfigError, msg=repr(bad)):
+                config_from_dict(dict(base, guidance=bad), "t", {})
+        self.assertEqual(config_from_dict(base, "t", {}).limits["max_guidance_chars"], 4000)
+        for surface in ("cli", "mcp"):
+            usual = instructions("codemode", surface)
+            for nothing in ("", "  \n "):
+                self.assertEqual(instructions("codemode", surface, guidance=nothing), usual)             # no text: the block is as it was
+            own = instructions("codemode", surface, guidance="\nRun the linter before a commit.\n\n")
+            self.assertTrue(own.startswith(usual))
+            self.assertEqual(own[len(usual):], "\n### In this project\n\nRun the linter before a commit.\n")  # last, under its own heading
+            braces = instructions("codemode", surface, guidance='Pass {"dry_run": true} first; {cmd} is not a placeholder here.')
+            self.assertIn('Pass {"dry_run": true} first; {cmd} is not a placeholder here.', braces)       # the text is not a template
+
 
 class SandboxHelpers(unittest.TestCase):
     """The helpers a program gets that need no host. The module is the file
@@ -1133,6 +1264,58 @@ class TextDecoding(unittest.TestCase):
         for data in (b"\xff\xfe\x00", b"\x80abc", b"\xef\xbb\xbf\xff"):
             with self.assertRaises(ValueError, msg=repr(data)):
                 decode_text(data)
+
+
+class CommandHints(unittest.TestCase):
+    def setUp(self):
+        self.saved = (os.environ.get(launcher.COMMAND_VARIABLE), list(launcher._GLOBAL))
+
+    def tearDown(self):
+        os.environ.pop(launcher.COMMAND_VARIABLE, None)
+        if self.saved[0] is not None:
+            os.environ[launcher.COMMAND_VARIABLE] = self.saved[0]
+        launcher._GLOBAL[:] = self.saved[1]
+
+    def hint(self, value, options=()):
+        if value is None:
+            os.environ.pop(launcher.COMMAND_VARIABLE, None)
+        else:
+            os.environ[launcher.COMMAND_VARIABLE] = value
+        launcher._GLOBAL[:] = list(options)
+        return launcher.command("approve", "ex_1"), launcher.program_name()
+
+    def test_E8_the_projects_own_command_in_hints(self):
+        options = ["--config", "/p/codemode.json", "--home", "/p/a folder"]
+        shown = '--config /p/codemode.json --home "/p/a folder"'
+        self.assertEqual(self.hint("mytool code"), ("mytool code approve ex_1", "mytool code"))
+        self.assertEqual(self.hint("mytool code", options)[0], "mytool code approve ex_1")              # no place for them: nothing is added
+        self.assertEqual(self.hint("run-it {options}", options), ("run-it %s approve ex_1" % shown, "run-it"))
+        self.assertEqual(self.hint("run-it {options} --", options)[0], "run-it %s -- approve ex_1" % shown)
+        self.assertEqual(self.hint("run-it {options} --")[0], "run-it -- approve ex_1")                 # none were given: no gap is left
+        self.assertEqual(self.hint('  "C:/Program Files/t/tool.exe"   code  ')[0], '"C:/Program Files/t/tool.exe" code approve ex_1')
+        for unset in (None, "", "   ", "\t\n"):
+            command, name = self.hint(unset, options)
+            self.assertTrue(command.endswith(" %s approve ex_1" % shown), repr(unset))                  # as it always was
+            self.assertNotIn("{options}", command + name)
+
+    def test_E8_U3_the_runtimes_own_server_under_the_projects_command(self):
+        def left_out(raw):
+            connectors, _, notes = connectors_from_servers({"cm": raw})
+            return connectors == {} and "own MCP server" in " ".join(notes)
+
+        wrapped = {"command": "mytool", "args": ["code", "serve"]}
+        self.hint(None)
+        self.assertFalse(left_out(wrapped))                                       # nothing says that mytool is this runtime
+        self.hint("mytool code")
+        for raw in (wrapped, {"command": "C:\\Tools\\MyTool.exe", "args": ["code", "serve"]}, {"command": "/opt/bin/mytool", "args": ["code", "serve", "--x"]}):
+            self.assertTrue(left_out(raw), raw)                                   # wherever it is installed, whatever its extension
+        for raw in ({"command": "mytool", "args": ["serve"]}, {"command": "mytool", "args": ["code", "list"]},
+                    {"command": "othertool", "args": ["code", "serve"]}, {"command": "mytool-helper", "args": ["code", "serve"]}):
+            self.assertFalse(left_out(raw), raw)                                  # another command, or not the server
+        self.hint('"C:/Program Files/t/tool.exe" {options} code')
+        self.assertTrue(left_out({"command": "C:/Program Files/t/tool.exe", "args": ["code", "serve"]}))
+        self.hint("mytool code")
+        self.assertTrue(left_out({"command": "codemode", "args": ["serve"]}))     # its own name is still recognised
 
 
 if __name__ == "__main__":

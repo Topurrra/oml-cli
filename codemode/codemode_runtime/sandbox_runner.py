@@ -388,17 +388,23 @@ def _info_text(info):
     return json.dumps(dict(info), indent=1, sort_keys=True)
 
 
-def search(query="", limit=None):
+def search(query="", limit=None, namespace=None):
     """Find tools, snippets and helpers. Returns a list of one-line entries.
 
     With no ``limit`` a query returns its 10 best matches and an empty query
     lists up to 50 entries. The list has ``.total`` (all matches) and
     ``.more`` (matches left out); when something was left out a note goes to
     the logs as well.
+
+    ``namespace`` keeps the search to one server's tools:
+    ``search(namespace="files")`` lists what that server offers, each with
+    its description and its policy.
     """
     frame = {"op": "search", "query": str(query)}
     if limit is not None:
         frame["limit"] = int(limit)
+    if namespace is not None:
+        frame["namespace"] = str(namespace)
     value = _channel.request(frame)["value"]
     if isinstance(value, dict):
         hits = _Listing(value.get("hits") or [])

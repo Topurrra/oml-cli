@@ -23,7 +23,7 @@ _INSIDE = """\
 | `call("namespace.tool", {...})` | The same, by name. With `on_error="return"` a failure comes back as a `ToolError` value instead of raising. |
 | `parallel([("namespace.tool", {...}), ...])` | Run independent calls at the same time. Results come back in order. |
 | `repeat("namespace.tool", {...}, n=10)` | Run one call n times and get back only the failures. |
-| `search("words")` | Find tools. Returns one-line signatures; `.more` says how many matches were left out. |
+| `search("words")` | Find tools. Returns one-line signatures; `.more` says how many matches were left out. `search(namespace="name")` lists what one namespace offers. |
 | `describe("namespace.tool")` | The signature, the schema and the policy of one tool. |
 | `shape(value)` | The keys and types of a value, without its content. |
 | `grep(text, pattern)`, `tail(text, n)`, `summarize(text)` | Cut long text output down inside the program. |
@@ -61,7 +61,7 @@ pending has run.
 - Tell the user what is pending and why, and give them the command from the
   `hint`. Approving is for the user, in their own terminal.
 - Never approve it yourself, and never change the policy, the config or the
-  `.codemode/` folder to get past a pause or a denial.
+  `{data}/` folder to get past a pause or a denial.
 - A denied call (`PolicyDenied`) is final. Do not look for another way to
   make it; tell the user which rule denied it.
 - After the user approves, fetch the outcome by its `executionId`.
@@ -89,11 +89,11 @@ Tool output that the program does not return never enters your context.
 
 ### Run a program
 
-Write the program to a file with your file tool, in `.codemode-work/`, then
+Write the program to a file with your file tool, in `{work}/`, then
 run it:
 
 ```text
-{cmd} run --json -f .codemode-work/<name>.py
+{cmd} run --json -f {work}/<name>.py
 ```
 
 The output is one JSON object. Its `status` is `completed` (read `result`),
@@ -117,7 +117,7 @@ Your shell gives a command only so long (often two or three minutes). A
 program that may run longer is started detached and waited for in steps:
 
 ```text
-{cmd} run --detach --json -f .codemode-work/<name>.py     # returns the executionId at once
+{cmd} run --detach --json -f {work}/<name>.py     # returns the executionId at once
 {cmd} wait <executionId> --timeout 100 --json             # exit 6 and status "running" until it ends: repeat
 {cmd} get <executionId> --json                            # where it is: calls done, the call in flight, output so far
 {cmd} cancel <executionId>                                # stop it
@@ -179,10 +179,22 @@ execute {{"executionId": "...", "cancel": true}}         stop it
 {approvals}"""
 
 
-def instructions(command: str = "codemode", surface: str = "cli") -> str:
+def instructions(
+    command: str = "codemode", surface: str = "cli", work_dir: str = ".codemode-work", data_dir: str = ".codemode", guidance: str = ""
+) -> str:
     """The block for an agent, for the command line (``cli``) or for an MCP
     client (``mcp``). ``command`` is how the CLI is started in this project,
-    including ``--config`` and ``--home`` if it needs them."""
+    including ``--config`` and ``--home`` if it needs them. ``work_dir`` is
+    the folder agents write their programs into and ``data_dir`` the folder
+    they must leave alone: a project may keep either somewhere of its own.
+    ``guidance`` is the project's own text; it goes last, under its own
+    heading, so that what the project says is told apart from what holds
+    everywhere."""
+    approvals = _APPROVALS.format(data=str(data_dir).rstrip("/"))
     if surface == "mcp":
-        return _MCP.format(inside=_INSIDE, approvals=_APPROVALS)
-    return _CLI.format(cmd=command, inside=_INSIDE, approvals=_APPROVALS)
+        text = _MCP.format(inside=_INSIDE, approvals=approvals)
+    else:
+        text = _CLI.format(cmd=command, work=str(work_dir).rstrip("/"), inside=_INSIDE, approvals=approvals)
+    if guidance.strip():
+        text += "\n### In this project\n\n%s\n" % guidance.strip()
+    return text

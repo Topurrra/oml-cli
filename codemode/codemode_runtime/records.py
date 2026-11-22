@@ -40,6 +40,11 @@ def parse_ts(text: Any) -> Optional[float]:
         return None
 
 
+def format_ts(seconds: float) -> str:
+    """Seconds since the epoch as the ``ts`` a log entry carries."""
+    return time.strftime(_TS_FORMAT, time.gmtime(seconds))
+
+
 class ExecutionView:
     """What a log means right now."""
 
@@ -48,6 +53,9 @@ class ExecutionView:
         self.start: Dict[str, Any] = {}
         self.calls: Dict[int, Dict[str, Any]] = {}
         self.approved: Set[int] = set()
+        # Approvals a person gave in advance, for calls this execution makes
+        # later: which tools ("*" is every tool), who gave it, and when.
+        self.standing: List[Dict[str, Any]] = []
         self.passes = 0
         self.end: Optional[Dict[str, Any]] = None
         self.verify: Optional[Dict[str, Any]] = None
@@ -70,6 +78,16 @@ class ExecutionView:
             elif kind == "approval":
                 self.approved.update(int(s) for s in entry.get("seqs", []))
                 self.policy_changed = self.policy_changed or bool(entry.get("policy_changed"))
+                if isinstance(entry.get("standing"), list) and entry["standing"]:
+                    self.standing.append({"tools": [str(tool) for tool in entry["standing"]], "by": entry.get("by"), "ts": entry.get("ts"), "seqs": set()})
+                elif entry.get("via") == "standing":
+                    # A call that was let through under one of them. A set:
+                    # a call in a batch that paused is let through again on
+                    # the next pass, and is still one call.
+                    for grant in reversed(self.standing):
+                        if grant["ts"] == entry.get("granted"):
+                            grant["seqs"].update(int(s) for s in entry.get("seqs", []))
+                            break
             elif kind == "pass_start":
                 self.passes += 1
                 self.pass_pid = entry.get("pid")
@@ -102,6 +120,21 @@ class ExecutionView:
             for seq, entry in sorted(self.calls.items())
             if entry.get("state") == "pending" and seq not in self.approved
         ]
+
+    def standing_for(self, path: str, ttl_s: float, now: Optional[float] = None) -> Optional[Dict[str, Any]]:
+        """The approval given in advance that covers a call to ``path`` now,
+        or None. One that is older than ``ttl_s`` no longer counts (0: no
+        limit): like any approval it answered a question asked at one
+        moment. One with no readable time counts as too old."""
+        now = time.time() if now is None else now
+        for grant in reversed(self.standing):
+            if path not in grant["tools"] and "*" not in grant["tools"]:
+                continue
+            given = parse_ts(grant.get("ts"))
+            if ttl_s > 0 and (given is None or now - given > ttl_s):
+                continue
+            return grant
+        return None
 
     def paused_for(self, now: Optional[float] = None) -> float:
         """Seconds since the execution paused; 0 if that cannot be told."""

@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: MIT
 """Processes, on every platform the runtime supports.
 
-Three things differ between Windows and POSIX and are easy to get subtly
+Four things differ between Windows and POSIX and are easy to get subtly
 wrong: stopping a process together with everything it started, asking
-whether a process is still running, and starting one that outlives its
-parent. They are written once, here.
+whether a process is still running, starting one that outlives its parent,
+and telling whether this process has a terminal. They are written once,
+here.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
+import sys
 from typing import Any, Dict, List, Optional
 
 IS_WINDOWS = os.name == "nt"
@@ -55,6 +57,36 @@ def kill_tree(popen: subprocess.Popen) -> None:
         popen.kill()
     except OSError:
         pass
+
+
+def stdin_is_terminal() -> bool:
+    """Is stdin a terminal that somebody types into?
+
+    ``isatty()`` alone is not the answer on Windows. There it is true for
+    every character device, and the null device is one: a command started
+    with ``< NUL``, with ``< /dev/null`` in a POSIX-style shell, or by a tool
+    that gives its commands no input would pass for a person at a keyboard.
+    Windows is asked instead whether the handle is a console. Any doubt is a
+    "no": the callers guard approvals.
+    """
+    try:
+        stream = sys.stdin
+        if stream is None or not stream.isatty():
+            return False
+        if not IS_WINDOWS:
+            return True
+        import ctypes
+        import msvcrt
+
+        # An instance of our own: the argument types set here must not change
+        # the function for other users of the shared ctypes.windll.kernel32.
+        kernel32 = ctypes.WinDLL("kernel32")  # type: ignore[attr-defined]
+        kernel32.GetConsoleMode.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+        kernel32.GetConsoleMode.restype = ctypes.c_int
+        mode = ctypes.c_ulong()
+        return bool(kernel32.GetConsoleMode(msvcrt.get_osfhandle(stream.fileno()), ctypes.byref(mode)))
+    except (AttributeError, ValueError, OSError):
+        return False
 
 
 def pid_alive(pid: Any) -> bool:

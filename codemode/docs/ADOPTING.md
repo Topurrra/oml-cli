@@ -18,9 +18,11 @@ checked against a policy you control and written to a log.
 - [Long programs](#long-programs)
 - [Project helpers](#project-helpers)
 - [Many agents at once](#many-agents-at-once)
+- [A command or a layout of your own](#a-command-or-a-layout-of-your-own)
 - [Platforms](#platforms)
 - [Instructions for the agent](#instructions-for-the-agent)
 - [Coming from 0.1](#coming-from-01)
+- [Coming from 0.2](#coming-from-02)
 
 ## Set up, in three commands
 
@@ -137,7 +139,7 @@ the namespace in programs (`tools.files.read_file(...)`) and in policy rules.
 
 | Type | What it connects to | Keys |
 |---|---|---|
-| `mcp-stdio` | An MCP server started as a local process. | `command` (list), `env`, `cwd` |
+| `mcp-stdio` | An MCP server started as a local process. | `command` (list), `env`, `inherit_env`, `cwd` |
 | `mcp-http` | An MCP server over streamable HTTP. | `url`, `headers` |
 | `mcp-sse` | An MCP server over HTTP with server-sent events (the older remote transport). | `url`, `headers` |
 | `commands` | Command lines you declare. No server needed. | `tools`, `cwd`, `env`, `inherit_env`, `max_output_chars` |
@@ -159,6 +161,24 @@ entries whose values must never appear in a result).
 the environment of the process that runs the runtime, when the server
 starts. It never reaches the sandbox, and it is removed from anything the
 server echoes back. Do not write a token into the file.
+
+**The environment of a server or a command.** A process the runtime starts
+does not get the host's whole environment, which holds every credential the
+host has. It gets:
+
+- a base list: `PATH`, the user's name and home folder, the folders for
+  programs, settings, caches and temporary files of the platform
+  (`APPDATA`, `ProgramFiles` and the like on Windows; `XDG_*` and `TMPDIR`
+  elsewhere), the locale and the time zone;
+- what you write in `env`;
+- what `inherit_env` names: `["JAVA_HOME", "MYTOOL_*"]` passes those
+  variables as they are on the host, with `*` and `?` as wildcards.
+  `true` passes everything.
+
+An inherited variable whose name says it holds a credential (`TOKEN`,
+`KEY`, `SECRET`, `PASSWORD`, `AUTH` and the like) is removed from results,
+as a `${NAME}` reference in `env` is. Names are compared as your system
+compares them: without regard to case on Windows.
 
 **Paths.** A relative `cwd`, and relative paths in a `command`, are read
 from the folder you start the runtime in. When the runtime found the config
@@ -182,6 +202,7 @@ obtained elsewhere, in a header.
 | `max_log_chars` | 8000 | Printed output returned to the caller. |
 | `max_state_bytes` | 1000000 | One session's `state`. |
 | `catalog_cache_s` | 300 | How long a server's tool list is used from disk. `0` turns the cache off. |
+| `max_guidance_chars` | 4000 | The project's own `guidance` text. Past it the text is cut and says so. |
 
 Set `timeout_s` to the longest program you expect, and give long tools
 their own entry in `call_timeouts`, rather than raising `call_timeout_s`
@@ -190,12 +211,26 @@ hour.
 
 ### Other sections
 
-- `approval`: `require_terminal` (default `true`) and `ttl_s` (default
-  86400). See [Policy](#policy).
+- `approval`: `require_terminal` (default `true`), `ttl_s` (default
+  86400) and `standing` (default `all`; `same-tool` or `off` narrow what a
+  person may approve in advance). See [Policy](#policy).
 - `retention`: `max_age_days` (default 30) and `max_executions` (default
   2000). Records past either are removed now and then; `0` turns a limit
   off. `codemode prune` does it on demand.
 - `helpers`: a folder of Python files. See [Project helpers](#project-helpers).
+- `guidance`: this project's own words for its agents: a short text, or
+  `{"file": "docs/agents.md"}`. It is added to the description of the
+  `execute` tool, which is all an agent that uses the MCP server reads, and
+  under its own heading to what `codemode instructions` prints. Use it for
+  what the runtime cannot know: which helper to reach for, what a tool's
+  result is good for, what never to do here. A file is read when it is
+  needed, so an edit shows at once. Keep it short, because every agent reads
+  it on every start: past `limits.max_guidance_chars` it is cut and says
+  so, and `codemode doctor` warns.
+- `work_dir`: the folder agents are told to write their program files into
+  (default `.codemode-work`). The instructions name it and `init` keeps it
+  out of version control. See
+  [A command or a layout of your own](#a-command-or-a-layout-of-your-own).
 - `executor`: where programs run. See the README on containers.
 - `agent`: the name written into the log for this caller. `--agent` and
   `$CODEMODE_AGENT` override it.
@@ -238,7 +273,8 @@ control. Declare those commands and they are tools:
   refused.
 - The command gets a short list of host variables (`PATH` and the like),
   your `env`, and what `inherit_env` names. `"inherit_env": true` passes
-  the whole environment, including any secrets in it.
+  the whole environment, including any secrets in it. See "The environment
+  of a server or a command" above.
 - Every tool returns
   `{ok, exit, timed_out, seconds, stdout, stderr, stdout_chars, stderr_chars, truncated, output_file}`.
   Output over `max_output_chars` (20000) keeps its start and its end, is
@@ -287,14 +323,49 @@ never written a policy pauses on everything.
 
 **Approving.** `codemode approve <id>` in your own terminal. It refuses to
 run without a terminal on stdin, so an agent that drives the CLI through a
-shell tool cannot approve its own request with one more command. If you
-approve from a script on purpose, set
+shell tool cannot approve its own request with one more command. A pipe, a
+file and the null device (`< /dev/null`, `< NUL`) are all refused; on
+Windows the console itself is asked, because Python calls the null device a
+terminal there. If you approve from a script on purpose, set
 `"approval": {"require_terminal": false}`. A pause older than
 `approval.ttl_s` (a day) needs `approve --stale`: the question was asked a
 while ago.
 
+This check tells a shell tool from a terminal. It cannot tell an agent from
+a person: a tool that types into a real terminal (a terminal panel of an
+editor that an agent can drive, a pseudo-terminal) looks like you. If your
+agent has such a tool, do not let it run `approve`, and put what must never
+happen under `deny`, which no approval overrides. The other way round, a
+window that gives programs a pipe instead of a terminal is refused even
+with you at the keyboard (Git Bash in its own window does this without
+`winpty`): approve from another terminal.
+
 A deny rule beats an approval. If the policy changed to deny a call while
 its program was paused, approving does not run it.
+
+**Many gated calls in a row.** A program that makes several calls the
+policy asks about pauses at each one that comes after the last approval.
+There are three ways to give one answer for several calls, from the
+narrowest to the widest:
+
+- Put the calls in one `parallel()`. They pause together, and one
+  `codemode approve <id>` covers them with every argument in front of you.
+- `codemode approve <id> --same-tool` approves what is pending and, in
+  advance, later calls of this execution to the same tools, whatever their
+  arguments.
+- `codemode approve <id> --all-remaining` approves what is pending and
+  every later call of this execution that the policy asks about. You do
+  not see those calls first, so read the program before you use it:
+  `codemode get <id> --select code`.
+
+An approval in advance is for that one execution; the same program run
+again asks again. It ends when any approval would (`approval.ttl_s`), and
+it never covers a call under `deny`. Each call that runs under it is
+written to the log with the person who approved, before the call, and
+every outcome of the execution lists what was approved in advance
+(`standingApprovals`). It needs a terminal like any approval; a program
+and the MCP tool have no way to give one. To keep people to the narrower
+form set `"approval": {"standing": "same-tool"}`; `"off"` turns both off.
 
 **What the policy does not cover.** By default the program runs as a
 process under your user, not in a jail: it can open files and sockets by
@@ -377,6 +448,55 @@ are removed after 30 days or beyond the newest 2000 (the `retention`
 section); `codemode prune --older-than 7` removes more, and
 `codemode doctor` shows the size.
 
+## A command or a layout of your own
+
+**Your own command.** If people and agents in your project start the
+runtime through something else (a wrapper script, a task runner, a tool
+that ships a copy of it), tell the runtime what they type:
+
+```text
+CODEMODE_COMMAND="mytool code"
+```
+
+Every hint, `--help` and `codemode instructions` then print that command
+followed by the subcommand, for example `mytool code approve <id>`, in
+place of the interpreter and the script. Set it in the environment the
+runtime is started in, which is what a wrapper does anyway.
+
+Nothing is added to the command: it is taken to choose the config and the
+data folder itself. If yours passes `--config` and `--home` through, say
+where they go with `{options}`:
+
+```text
+CODEMODE_COMMAND="task codemode {options} --"
+```
+
+With the variable set, `init` also knows the runtime's own MCP server when
+your server list has it under that command (`mytool code serve`), and
+leaves it out as it does under its own name: a program must not reach the
+runtime through itself.
+
+**Your own layout.** By default the runtime puts three things in the
+project root: `codemode.json`, the data folder `.codemode/`, and
+`.codemode-work/`, where agents are told to write their program files. A
+project that keeps such things elsewhere says so once, at `init`:
+
+```text
+codemode init --out tools/agents/codemode.json --home tools/agents/data --work-dir tools/agents/programs
+```
+
+- `--out FILE` writes the config there. Nothing looks for it there by
+  itself, so later commands name it: `--config FILE`, or `CODEMODE_CONFIG`.
+  Every command `init` prints already does. Relative paths in a config
+  named this way are read from the folder a command runs in, so run from
+  the project root.
+- `--home DIR` (or `CODEMODE_HOME`) is the data folder, as on every command.
+- `--work-dir DIR` is written into the config as `work_dir`.
+
+`.gitignore` gets the folders the project really uses, and none for a
+folder outside the project. `codemode instructions` names the same folders:
+where programs go, and which folder an agent must leave alone.
+
 ## Platforms
 
 Tested on Windows 11 and on Linux. macOS shares the POSIX code path with
@@ -445,7 +565,7 @@ config error, 3 paused, 5 not found, 6 still running.
 | `call("namespace.tool", {...})` | The same, by name. With `on_error="return"` a failure comes back as a `ToolError` value instead of raising. |
 | `parallel([("namespace.tool", {...}), ...])` | Run independent calls at the same time. Results come back in order. |
 | `repeat("namespace.tool", {...}, n=10)` | Run one call n times and get back only the failures. |
-| `search("words")` | Find tools. Returns one-line signatures; `.more` says how many matches were left out. |
+| `search("words")` | Find tools. Returns one-line signatures; `.more` says how many matches were left out. `search(namespace="name")` lists what one namespace offers. |
 | `describe("namespace.tool")` | The signature, the schema and the policy of one tool. |
 | `shape(value)` | The keys and types of a value, without its content. |
 | `grep(text, pattern)`, `tail(text, n)`, `summarize(text)` | Cut long text output down inside the program. |
@@ -538,3 +658,25 @@ Also new and visible: hints print a full command line (the interpreter's
 path, `--config`, `--home`) instead of `python main.py ...`; an empty
 `search("")` lists up to 50 tools instead of 10; the `execute` MCP tool has
 more optional parameters.
+
+## Coming from 0.2
+
+Commands, JSON fields and exit codes are unchanged; everything else was
+added. Three behaviours are different, on purpose:
+
+1. On Windows, `approve` with the null device on stdin (`< NUL`,
+   `< /dev/null`, or a tool that gives its commands no input) is refused.
+   It used to be accepted, which let an agent approve its own request.
+2. A server or a command gets a few more host variables by default: the
+   platform's folder variables, the locale, the time zone. None is a
+   credential.
+3. With `inherit_env`, a variable whose name says it holds a credential is
+   removed from what the server or the command returns, and a pattern
+   written in another case now matches on Windows.
+
+New, and off until you use them: `inherit_env` on stdio servers;
+`CODEMODE_COMMAND`; `init --out` and `--work-dir`, the `work_dir` key;
+`search --namespace` and `search(namespace=...)`; the `guidance` key;
+`approve --same-tool` and `--all-remaining`, with `approval.standing` to
+narrow them. A config that uses a new key is an error under 0.2, which
+rejects keys it does not know.

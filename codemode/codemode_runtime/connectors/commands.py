@@ -39,7 +39,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from ..errors import ConfigError, ToolFailure
 from ..procutil import child_options, kill_tree
 from . import CallContext, Connector
-from .mcp_stdio import BASE_ENV, resolve_env
+from .mcp_stdio import check_inherit_env, host_env, resolve_env
 
 TOOL_KEYS = {"description", "command", "params", "env", "allow_env", "timeout_s", "cwd", "ok_exit_codes"}
 PARAM_KEYS = {"type", "description", "default", "enum"}
@@ -87,9 +87,7 @@ def validate_spec(name: str, spec: Dict[str, Any]) -> None:
     own_env = spec.get("env", {})
     if not isinstance(own_env, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in own_env.items()):
         raise _fail(where + ".env", "must map strings to strings")
-    inherit = spec.get("inherit_env", [])
-    if inherit is not True and inherit is not False and not (isinstance(inherit, list) and all(isinstance(v, str) and v for v in inherit)):
-        raise _fail(where + ".inherit_env", "must be true, false or a list of variable names (globs are allowed)")
+    check_inherit_env(spec.get("inherit_env", []), where + ".inherit_env")
     limit = spec.get("max_output_chars", DEFAULT_OUTPUT_CHARS)
     if isinstance(limit, bool) or not isinstance(limit, int) or limit < 200:
         raise _fail(where + ".max_output_chars", "must be a whole number, 200 or more; got %r" % (limit,))
@@ -333,14 +331,10 @@ class CommandsConnector(Connector):
         return str(folder) if folder is not None else None
 
     def _environment(self, tool: Dict[str, Any], extra: Dict[str, str]) -> Dict[str, str]:
-        inherit = self._spec.get("inherit_env", [])
-        if inherit is True:
-            env = dict(os.environ)
-        else:
-            env = {k: v for k, v in os.environ.items() if k in BASE_ENV or any(fnmatchcase(k, pattern) for pattern in inherit or [])}
+        env, inherited = host_env(self._spec.get("inherit_env"))
         own, secrets = resolve_env(self.name, self._spec)
         theirs, more = resolve_env(self.name, tool)
-        self._secrets = secrets + more
+        self._secrets = secrets + more + inherited
         env.update(own)
         env.update(theirs)
         env.update(extra)

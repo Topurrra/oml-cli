@@ -7,13 +7,22 @@ the current directory, and the ``--config`` and ``--home`` the execution was
 run with are missing, so the command would look in another data directory.
 Every hint therefore goes through ``command()``, which repeats the launcher
 and the global options of the current process.
+
+A project may start the runtime through a command of its own: a wrapper
+script, a task runner, a tool that ships a copy. Then the interpreter and
+the script are a command nobody types, and only the project knows the real
+one. It says so in ``CODEMODE_COMMAND``, and hints print that instead.
 """
 
 from __future__ import annotations
 
 import os
+import re
 import sys
 from typing import List, Optional
+
+COMMAND_VARIABLE = "CODEMODE_COMMAND"
+_OPTIONS = re.compile(r"\s*\{options\}")
 
 _PREFIX: Optional[List[str]] = None
 _GLOBAL: List[str] = []
@@ -60,13 +69,49 @@ def argv(*args: str) -> List[str]:
     return launcher() + list(_GLOBAL) + list(args)
 
 
+def own_command() -> Optional[str]:
+    """The project's own command line for this runtime, from the
+    environment, or None. ``{options}`` in it stands for ``--config`` and
+    ``--home``: a command that takes them says where they go, and one that
+    chooses the config and the data folder itself leaves it out, so that
+    nothing is added to it."""
+    text = " ".join((os.environ.get(COMMAND_VARIABLE) or "").split())
+    if not text:
+        return None
+    options = " ".join(_quote(part) for part in _GLOBAL)
+    return _OPTIONS.sub(lambda match: (" " + options) if options else "", text).strip()
+
+
+def is_own_command(program: str, args: List[str]) -> bool:
+    """Does this command line start the runtime through the project's own
+    command? ``mytool code serve`` does when ``CODEMODE_COMMAND`` is
+    ``mytool code``, wherever ``mytool`` is installed and whatever its
+    extension. Used to recognise the runtime's own server in a server list,
+    under whatever name the project gave the runtime."""
+    text = _OPTIONS.sub("", " ".join((os.environ.get(COMMAND_VARIABLE) or "").split())).strip()
+    if not text:
+        return False
+    # Not shlex in POSIX mode: it would eat the backslashes of a Windows path.
+    words = [word.strip('"') for word in re.findall(r'"[^"]*"|\S+', text)]
+
+    def name(word: str) -> str:
+        return os.path.splitext(word.replace("\\", "/").rsplit("/", 1)[-1])[0].lower()
+
+    return name(str(program)) == name(words[0]) and [str(a) for a in args[: len(words) - 1]] == words[1:]
+
+
 def command(*args: str) -> str:
     """A command line a human can paste: launcher, global options, ``args``."""
+    own = own_command()
+    if own is not None:
+        return " ".join([own] + [_quote(part) for part in args])
     return " ".join(_quote(part) for part in argv(*args))
 
 
 def program_name() -> str:
     """Short name for ``--help``."""
+    if (os.environ.get(COMMAND_VARIABLE) or "").strip():
+        return _OPTIONS.sub("", " ".join(os.environ[COMMAND_VARIABLE].split())).strip()
     parts = launcher()
     if parts == ["codemode"]:
         return "codemode"

@@ -36,7 +36,7 @@ from .errors import (
     TerminalRequired,
     UsageError,
 )
-from . import textio
+from . import procutil, textio
 from .jsonutil import pretty
 from .runtime import Runtime, summarize_stats
 
@@ -85,6 +85,10 @@ def _print_payload(payload: Dict[str, Any]) -> None:
             _out(error["traceback"].rstrip())
         if error.get("hint"):
             _out("hint: %s" % error["hint"])
+    for grant in payload.get("standingApprovals", []):
+        what = "every later call" if "*" in grant["tools"] else "later calls to %s" % ", ".join(grant["tools"])
+        _out("approved in advance by %s: %s of this execution%s; %d call(s) so far" % (
+            grant.get("by"), what, (" until %s" % grant["expires"]) if grant.get("expires") else "", grant.get("calls", 0)))
     for warning in payload.get("warnings", []):
         _out("warning: %s" % warning)
     if payload.get("logs"):
@@ -189,22 +193,25 @@ def _read_code(args: argparse.Namespace) -> str:
 
 def _require_terminal(runtime: Runtime, what: str, give_user: str) -> None:
     """Approving is for a person. An agent that drives this CLI through a
-    shell tool has no terminal on stdin, so the default refuses it there:
-    an agent must not be able to approve its own request by running one more
-    command. A project that approves from scripts on purpose says so in its
-    config, which is a file the agent is told not to edit."""
+    shell tool has no terminal on stdin (a pipe, a file or the null device),
+    so the default refuses it there: an agent must not be able to approve its
+    own request by running one more command. A project that approves from
+    scripts on purpose says so in its config, which is a file the agent is
+    told not to edit.
+
+    This tells a shell tool from a terminal, not an agent from a person: a
+    tool that types into a real terminal passes. See docs/ADOPTING.md."""
     if not runtime.config.approval["require_terminal"]:
         return
-    try:
-        if sys.stdin.isatty():
-            return
-    except (AttributeError, ValueError):
-        pass
+    if procutil.stdin_is_terminal():
+        return
     raise TerminalRequired(
         "%s must be run by a person at a terminal; this process has no terminal on stdin" % what,
         hint="If you are an agent: do not approve your own request. Tell the user what is pending and give them "
         "this command to run in their own terminal: %s    If you are the user and approve from a script on "
-        'purpose, set "approval": {"require_terminal": false} in the config.' % give_user,
+        'purpose, set "approval": {"require_terminal": false} in the config. If you are the user at a terminal '
+        "and still see this, that window gives programs a pipe instead of a terminal (some POSIX-style shells "
+        "on Windows do): run the command from another one." % give_user,
     )
 
 
@@ -309,7 +316,17 @@ def cmd_get(runtime: Runtime, args: argparse.Namespace, as_json: bool) -> int:
 
 def cmd_approve(runtime: Runtime, args: argparse.Namespace, as_json: bool) -> int:
     _require_terminal(runtime, "approve", launcher.command("approve", args.id))
-    return _finish(runtime.approve(args.id, by=args.by, stale_ok=args.stale), as_json)
+    standing = "all" if args.all_remaining else ("same-tool" if args.same_tool else None)
+    payload = runtime.approve(args.id, by=args.by, stale_ok=args.stale, standing=standing)
+    code = _finish(payload, as_json)
+    if not as_json and payload.get("status") == "paused" and standing is None and runtime.config.standing != "off":
+        # Said to the person, at the moment it matters, and nowhere an agent
+        # reads: the hint of a pause does not mention it.
+        sys.stderr.write(
+            "note: it paused again. To approve later calls to the same tools along with the pending ones, for this "
+            "execution only: %s\n" % launcher.command("approve", str(payload.get("executionId")), "--same-tool")
+        )
+    return code
 
 
 def cmd_reject(runtime: Runtime, args: argparse.Namespace, as_json: bool) -> int:
@@ -361,7 +378,12 @@ def cmd_show(runtime: Runtime, args: argparse.Namespace, as_json: bool) -> int:
                 detail += "  %d B" % entry["result_bytes"]
             _out("  %3d  %-8s %-28s %-9s %s" % (entry["seq"], entry["kind"], entry["name"][:28], entry["state"], detail))
         elif kind == "approval":
-            _out("  approval of step(s) %s by %s" % (", ".join(str(s) for s in entry["seqs"]), entry["by"]))
+            more = ""
+            if entry.get("standing"):
+                more = ", and in advance of %s" % ("every later call" if "*" in entry["standing"] else "later calls to %s" % ", ".join(entry["standing"]))
+            elif entry.get("via") == "standing":
+                more = ", under the approval given in advance at %s" % entry.get("granted")
+            _out("  approval of step(s) %s by %s%s" % (", ".join(str(s) for s in entry["seqs"]), entry["by"], more))
         elif kind == "pass_end":
             _out("  pass ended: %s" % entry["status"])
         elif kind == "end":
@@ -372,7 +394,16 @@ def cmd_show(runtime: Runtime, args: argparse.Namespace, as_json: bool) -> int:
 
 
 def cmd_search(runtime: Runtime, args: argparse.Namespace, as_json: bool) -> int:
-    hits, total = runtime.catalog.search_with_total(args.query, args.limit)
+    from .errors import NotFoundError, ToolFailure
+
+    try:
+        hits, total = runtime.catalog.search_with_total(args.query, args.limit, args.namespace)
+    except ToolFailure as failure:  # only with --namespace: one that does not exist, or whose server does not answer
+        if failure.kind == "UnknownTool":
+            raise NotFoundError(failure.message, failure.hint)
+        error = CodemodeError(failure.message, failure.hint)
+        error.kind = failure.kind
+        raise error
     if as_json:
         _print_json(hits)
     else:
@@ -419,7 +450,12 @@ def cmd_init(args: argparse.Namespace, as_json: bool) -> int:
     before any config is loaded: there is none yet."""
     from .project import init
 
-    report = init(Path.cwd(), source=args.source, force=args.force, home=Path(args.home) if getattr(args, "home", None) else None)
+    home = getattr(args, "home", None)
+    if args.out:
+        # The config is written where no later command looks by itself, so
+        # every command this one prints has to name it.
+        launcher.set_global_options(args.out, home)
+    report = init(Path.cwd(), source=args.source, force=args.force, home=Path(home) if home else None, out=args.out, work_dir=args.work_dir)
     if as_json:
         _print_json(report)
         return EXIT_OK
@@ -448,7 +484,7 @@ def cmd_doctor(runtime: Runtime, args: argparse.Namespace, as_json: bool) -> int
 
     if args.refresh:
         runtime.clear_tool_cache()
-    report = doctor(runtime.config, runtime.home, runtime.executor)
+    report = doctor(runtime.config, runtime.home, runtime.executor, runtime.guidance)
     if as_json:
         _print_json(report)
     else:
@@ -477,8 +513,12 @@ def cmd_instructions(runtime: Runtime, args: argparse.Namespace, as_json: bool) 
     the file where the project keeps them, with the command line this
     project uses."""
     from .instructions import instructions
+    from .project import folder_in_project
 
-    text = instructions(launcher.command(), "mcp" if args.mcp else "cli")
+    # The folders as this project has them: the instructions tell an agent
+    # where to write programs and which folder to leave alone.
+    data = folder_in_project(runtime.home, runtime.config.root or Path.cwd()) or launcher._portable(os.path.abspath(str(runtime.home)))
+    text = instructions(launcher.command(), "mcp" if args.mcp else "cli", runtime.config.work_dir, data, runtime.guidance()["text"])
     _print_json({"instructions": text}) if as_json else _out(text)
     return EXIT_OK
 
@@ -636,6 +676,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("id")
     p.add_argument("--by", default="human", help="who approved; recorded in the audit log")
     p.add_argument("--stale", action="store_true", help="approve even if the pause is older than approval.ttl_s")
+    wider = p.add_mutually_exclusive_group()
+    wider.add_argument("--same-tool", action="store_true",
+                       help="also approve, in advance, later calls of this execution to the tools approved now, whatever their arguments")
+    wider.add_argument("--all-remaining", action="store_true",
+                       help="also approve, in advance, every later call of this execution that the policy asks about; you will not see them first")
 
     p = add("reject", "refuse a paused execution; calls that already ran stay applied")
     p.add_argument("id")
@@ -654,13 +699,19 @@ def build_parser() -> argparse.ArgumentParser:
     p = add("search", "find tools, as a program would with search()")
     p.add_argument("query", nargs="?", default="")
     p.add_argument("--limit", type=int, default=None, help="default: 10 for a query, 50 for an empty one")
+    p.add_argument("--namespace", metavar="NAME", default=None,
+                   help="only the tools of this namespace (or helpers); with no query, everything that server offers")
 
     p = add("describe", "describe a tool, a namespace or snippet:NAME")
     p.add_argument("target")
 
     p = add("init", "set this project up: write codemode.json from its MCP server list, check the servers, update .gitignore")
     p.add_argument("--from", dest="source", metavar="FILE", help="the MCP server list to read (default: .mcp.json, or mcp.json in a dot-folder of the project)")
-    p.add_argument("--force", action="store_true", help="write codemode.json even if there is one")
+    p.add_argument("--force", action="store_true", help="write the config even if there is one")
+    p.add_argument("--out", metavar="FILE", default=None,
+                   help="write the config to this file instead of codemode.json in the current folder; later commands then name it with --config")
+    p.add_argument("--work-dir", metavar="DIR", default=None,
+                   help="the folder agents write their programs into (default: .codemode-work); kept in the config and out of version control")
 
     p = add("doctor", "check the setup: interpreter, config, data folder, sandbox, every connector, policy, records")
     p.add_argument("--refresh", action="store_true", help="forget cached tool lists first")

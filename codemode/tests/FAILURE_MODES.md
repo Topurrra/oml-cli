@@ -91,6 +91,34 @@ Each item has an ID that the tests quote.
   time-to-live the approval is refused unless the person insists.
 - **L15** The decision shown by `describe()` is for the tool alone. When a
   rule for that tool looks at arguments, the output must say so.
+- **L16** `approve` is started with the null device on stdin: `< NUL`,
+  `< /dev/null` in a POSIX-style shell, or a shell tool that gives its
+  commands no input. On Windows `isatty()` is true for every character
+  device, and the null device is one, so the process passes for a person at
+  a keyboard. It must be refused like a pipe. The other side: a real
+  terminal must still be accepted, or nobody can approve.
+- **L17** A program makes many gated calls one after another, and a person
+  approves in advance (`approve --same-tool`, `approve --all-remaining`) so
+  that it does not pause at each. Every way this could let more through
+  than the person agreed to:
+  - `--same-tool` must cover later calls to the tools approved now and no
+    other tool; `--all-remaining` every later call the policy asks about;
+  - neither may cover a call a deny rule forbids;
+  - neither may reach another execution, not even the same program run
+    again;
+  - both end when an approval would (`approval.ttl_s`), after which the
+    next call pauses;
+  - both need a terminal like any approval, and there is no way to give
+    one from a program or through the MCP server;
+  - a project must be able to narrow them (`approval.standing`:
+    `same-tool`, `off`), and what it does not allow is refused before
+    anything runs;
+  - the log must still answer "who allowed this call" for each call: a
+    call that runs under an approval in advance gets an approval entry of
+    its own, before it runs, that names the person and the approval;
+  - the outcome must say what was approved in advance, by whom, until
+    when, and how many calls ran under it, so that the next person to
+    approve something for the execution sees it.
 
 ## Output budgets (`truncate.py`)
 
@@ -161,6 +189,14 @@ Each item has an ID that the tests quote.
 - **H12** `--select` with a path that does not exist, a list index, a value
   over the output budget, and a result that is not there because the
   execution failed.
+- **H13** "What does this one server offer?" `search()` with a namespace
+  must return only that namespace's entries: all of them for an empty
+  query, in the server's order, with the policy of each and the honest
+  total; the matching ones for a query. `helpers` lists the project's helper
+  functions. A namespace that does not exist is an error that names the
+  ones that do. A search with no namespace must be recorded exactly as it
+  was before the parameter existed, or an execution paused under the older
+  runtime would no longer resume.
 
 ## Calls: time limits, queues, large results, reuse (`engine.py`, `config.py`)
 
@@ -286,6 +322,17 @@ Each item has an ID that the tests quote.
   The search must stop at the repository root and at the home folder.
 - **M16** In a process that serves many executions, a server's script is
   edited between two of them. The second must talk to the new code.
+- **M17** A stdio server needs variables of the host that the base list
+  does not hold. Without `inherit_env` it must not get them: the whole host
+  environment holds every credential the host has. With a name or a glob in
+  `inherit_env` it gets exactly those, and `true` gives all. Names compare
+  the way the platform compares them: a pattern written in another case
+  matches on Windows and does not elsewhere. A value of the wrong shape is a
+  config error. The same code serves the commands connector.
+- **M18** A variable reached a server or a command through `inherit_env`,
+  under a name that says it holds a credential, and is echoed back. It must
+  be removed from the result like one named in `env`. A variable of the base
+  list is never treated as one, whatever it is called.
 
 ## A project's commands as tools (`connectors/commands.py`)
 
@@ -379,6 +426,25 @@ Each item has an ID that the tests quote.
   none of each other's keys.
 - **U11** The instructions for agents show only commands that exist, and
   the adoption guide carries the same text.
+- **U12** A project keeps tool configs and scratch files in folders of its
+  own. `init --out FILE` must write the config there, creating the folder,
+  and put nothing in the project root; the commands it prints must name
+  that config; `.gitignore` must get the folders the project really uses
+  (the data folder from `--home`, the programs folder from `work_dir`) and
+  no entry for a folder outside the project; the instructions must name the
+  same folders. With nothing set, every one of these is as it was. A
+  `work_dir` that is not a folder name is a config error.
+- **U13** A project has things to tell its agents that the runtime cannot
+  know. `guidance` in the config, a text or a file, must reach both places
+  an agent reads: the description of the `execute` tool and the
+  instructions, in both forms. A file is read when it is needed, so an edit
+  shows without a restart. A text over `limits.max_guidance_chars` is cut
+  and says how much is missing and where the whole of it is. A file that
+  cannot be read fails `instructions` and `doctor`; the tool description
+  says so instead of failing, because an agent that reads nothing else must
+  not lose the tool over it. With no guidance both texts are exactly as
+  before. A value that is neither a text nor `{"file": ...}` is a config
+  error.
 
 ## Entry points, command hints, odd files (`main.py`, `launcher.py`, `textio.py`, `cli.py`)
 
@@ -402,6 +468,17 @@ Each item has an ID that the tests quote.
   config, because of an argument that file writing gained in 3.10). No
   check on a newer Python can see this: the check is the suites themselves,
   run under those two interpreters. `docs/VERIFICATION.md` says how.
+- **E8** The runtime is started through a command of the project's own: a
+  wrapper script, a task runner, a tool that ships a copy. A hint that names
+  the interpreter and the script is then a command nobody types, and may
+  not work. With `CODEMODE_COMMAND` set, every hint, `--help` and the
+  instructions print that command. `{options}` in it is where `--config`
+  and `--home` go; without it nothing is added, because such a command
+  chooses them itself. Unset, empty or blank, nothing changes. The
+  runtime's own server may then be in the project's server list under that
+  command (`mytool code serve`): `init` must leave it out as it does under
+  its own name, wherever the command is installed and whatever its
+  extension, or a program could reach the runtime through itself.
 
 ## Fault scenarios (`e2e.py`, from the chaos list)
 

@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from . import launcher
-from .config import CONFIG_NAME, RESERVED_NAMES, Config, config_from_dict
+from .config import CONFIG_NAME, DEFAULT_WORK_DIR, RESERVED_NAMES, Config, config_from_dict
 from .connectors import build_connector, looks_secret, redact, value_looks_secret
 from .engine import check_program
 from .errors import CodemodeError, ConfigError, ToolFailure, UsageError
@@ -188,7 +188,10 @@ def connectors_from_servers(servers: Dict[str, Any]) -> Tuple[Dict[str, Dict[str
 def _is_this_runtime(raw: Dict[str, Any]) -> bool:
     parts = [str(raw.get("command") or "")] + [str(a) for a in (raw.get("args") if isinstance(raw.get("args"), list) else [])]
     joined = " ".join(parts)
-    return "serve" in parts and ("codemode" in joined.lower() or "codemode_runtime" in joined)
+    if "serve" not in parts:
+        return False
+    # By its own name, or by the name the project starts it under.
+    return "codemode" in joined.lower() or "codemode_runtime" in joined or launcher.is_own_command(parts[0], parts[1:])
 
 
 def starting_policy(tools_by_connector: Dict[str, Optional[List[Dict[str, Any]]]]) -> Dict[str, Any]:
@@ -221,10 +224,37 @@ def starting_policy(tools_by_connector: Dict[str, Optional[List[Dict[str, Any]]]
     return policy
 
 
-def gitignore_lines(existing: str) -> List[str]:
+def ignore_entries(root: Path, home: Optional[Path] = None, work_dir: Optional[str] = None) -> List[str]:
+    """What a project keeps out of version control: the data folder and the
+    folder agents write their programs into, as paths below ``root``. A
+    project may keep either one somewhere else; the entry follows it, and a
+    folder outside the project needs none."""
+    entries: List[str] = []
+    data = home if home is not None else Path(root) / ".codemode"  # a relative --home is relative to where the command runs
+    work = Path(os.path.abspath(str(root))) / (work_dir or DEFAULT_WORK_DIR)
+    for folder in (data, work):
+        inside = folder_in_project(folder, root)
+        if inside and inside + "/" not in entries:
+            entries.append(inside + "/")
+    return entries
+
+
+def folder_in_project(folder: Path, root: Path) -> Optional[str]:
+    """``folder`` as a path below the project root, with forward slashes,
+    or None when it is the root itself or not inside it."""
+    # abspath, not resolve(): the names as the project writes them, and no
+    # trip to the disk for a folder that may not exist yet.
+    try:
+        inside = Path(os.path.abspath(str(folder))).relative_to(Path(os.path.abspath(str(root)))).as_posix()
+    except ValueError:
+        return None
+    return None if inside in ("", ".") else inside
+
+
+def gitignore_lines(existing: str, entries: Any = IGNORE_ENTRIES) -> List[str]:
     """The entries that have to be added to a ``.gitignore`` text."""
     present = {line.strip().rstrip("/") for line in existing.splitlines()}
-    return [entry for entry in IGNORE_ENTRIES if entry.rstrip("/") not in present and "/" + entry.rstrip("/") not in present]
+    return [entry for entry in entries if entry.rstrip("/") not in present and "/" + entry.rstrip("/") not in present]
 
 
 # -- probing connectors --------------------------------------------------------------
@@ -269,11 +299,24 @@ def probe(config: Config, home: Path) -> Dict[str, Dict[str, Any]]:
 # -- init ------------------------------------------------------------------------------
 
 
-def init(folder: Path, source: Optional[str] = None, force: bool = False, home: Optional[Path] = None) -> Dict[str, Any]:
-    """Write ``codemode.json`` in ``folder``. Returns a report: what was
-    written, what each server answered, which variables to export."""
+def init(
+    folder: Path,
+    source: Optional[str] = None,
+    force: bool = False,
+    home: Optional[Path] = None,
+    out: Optional[str] = None,
+    work_dir: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Write the config for the project in ``folder``: ``codemode.json``
+    there, or the file ``out`` names. Returns a report: what was written,
+    what each server answered, which variables to export.
+
+    ``folder`` stays the project root wherever the config is written: the
+    server list is looked for there, relative paths in the config are read
+    from there, and ``.gitignore`` there is the one that is updated.
+    """
     folder = Path(folder)
-    target = folder / CONFIG_NAME
+    target = Path(out) if out else folder / CONFIG_NAME
     if target.exists() and not force:
         raise UsageError(
             "%s already exists" % target,
@@ -315,8 +358,12 @@ def init(folder: Path, source: Optional[str] = None, force: bool = False, home: 
     raw: Dict[str, Any] = {"connectors": connectors, "policy": starting_policy({name: None for name in connectors})}
     if (folder / "codemode_helpers").is_dir():
         raw["helpers"] = "codemode_helpers"
+    if work_dir is not None:
+        raw["work_dir"] = work_dir
     # Validate before anything is written, then look at the servers.
     config = config_from_dict(raw, str(target), {})
+    if work_dir is not None:
+        raw["work_dir"] = config.work_dir  # as the config reads it: forward slashes, no trailing one
     config.path, config.root = target.resolve(), folder.resolve()
     data_home = home or (folder / ".codemode")
     answers = probe(config, data_home)
@@ -324,10 +371,14 @@ def init(folder: Path, source: Optional[str] = None, force: bool = False, home: 
         raw["policy"] = {"mode": "enforce", "default": "ask", "allow": ["repo.status", "repo.log"], "deny": ["*.delete_*"]}
     else:
         raw["policy"] = starting_policy({name: answers[name].get("tools") for name in connectors})
-    # open(), not Path.write_text(newline=...): that argument is newer than
-    # the oldest Python this runs on.
-    with open(target, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write(json.dumps(raw, indent=2, ensure_ascii=True) + "\n")
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # open(), not Path.write_text(newline=...): that argument is newer than
+        # the oldest Python this runs on.
+        with open(target, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(raw, indent=2, ensure_ascii=True) + "\n")
+    except OSError as exc:
+        raise UsageError("cannot write %s: %s" % (target, exc), hint="Name a file you can write with --out FILE.")
     report: Dict[str, Any] = {
         "status": "completed",
         "config": str(target),
@@ -341,10 +392,16 @@ def init(folder: Path, source: Optional[str] = None, force: bool = False, home: 
         "policy": {"default": "ask", "allow": raw["policy"]["allow"], "ask": raw["policy"].get("ask", []), "deny": raw["policy"]["deny"]},
         "export": export,
         "notes": notes,
-        "gitignore": _update_gitignore(folder),
+        "gitignore": _update_gitignore(folder, ignore_entries(folder, data_home, config.work_dir)),
     }
+    if out:
+        notes.append(
+            "The config is not where the runtime looks by itself (%s in the project root or above the folder a command runs in). "
+            "Name it on every command with --config, as the commands below do, or in CODEMODE_CONFIG. Relative paths in it "
+            "are read from the folder a command runs in: run from the project root." % CONFIG_NAME
+        )
     report["next"] = [
-        "Read the policy in %s: reads are allowed, everything else asks first. Allow the writes you are happy to leave to the agent." % CONFIG_NAME,
+        "Read the policy in %s: reads are allowed, everything else asks first. Allow the writes you are happy to leave to the agent." % target.name,
         "Check the setup at any time with: %s" % launcher.command("doctor"),
         "Give the agent its instructions: %s prints a block for the project's instructions file (AGENTS.md or the like)."
         % launcher.command("instructions"),
@@ -354,17 +411,19 @@ def init(folder: Path, source: Optional[str] = None, force: bool = False, home: 
     return report
 
 
-def _update_gitignore(folder: Path) -> str:
+def _update_gitignore(folder: Path, entries: List[str]) -> str:
     path = folder / ".gitignore"
     if not path.exists() and not (folder / ".git").exists():
         return "skipped: this folder is not a git repository"
+    if not entries:
+        return "nothing to add: the data folder and the work folder are outside the project"
     try:
         # As bytes: reading as text would turn CRLF into LF and hide what
         # the file's own line endings are.
         existing = path.read_bytes().decode("utf-8", "replace") if path.exists() else ""
-        missing = gitignore_lines(existing)
+        missing = gitignore_lines(existing, entries)
         if not missing:
-            return "already has %s" % ", ".join(IGNORE_ENTRIES)
+            return "already has %s" % ", ".join(entries)
         newline = "\r\n" if "\r\n" in existing else "\n"  # keep the file's own line endings
         block = ("" if not existing or existing.endswith(("\n", "\r")) else newline) + newline.join(
             ["# codemode: run records and working files"] + missing) + newline
@@ -405,9 +464,10 @@ def dead_rules(policy: Any, names: List[str], unknown_namespaces: List[str]) -> 
     return dead
 
 
-def doctor(config: Config, home: Path, executor: Any) -> Dict[str, Any]:
+def doctor(config: Config, home: Path, executor: Any, guidance: Any = None) -> Dict[str, Any]:
     """Check everything a program needs. Returns ``{"ok", "checks"}``; ``ok``
-    is false when a check failed (a warning does not fail it)."""
+    is false when a check failed (a warning does not fail it). ``guidance``
+    is the runtime's reader of the project's own text for its agents."""
     checks: List[Dict[str, Any]] = []
     version = "%d.%d.%d" % sys.version_info[:3]
     checks.append(_check("python", "ok" if sys.version_info >= (3, 9) else "fail", "%s at %s" % (version, sys.executable)))
@@ -498,6 +558,20 @@ def doctor(config: Config, home: Path, executor: Any) -> Dict[str, Any]:
         except CodemodeError as exc:
             checks.append(_check("helpers", "fail", exc.message, exc.hint))
 
+    if config.guidance:
+        try:
+            own = guidance() if guidance is not None else {"chars": 0, "source": None}
+            budget = int(config.limits["max_guidance_chars"])
+            detail = "%d chars from %s, added to the tool description and the instructions" % (own["chars"], own["source"])
+            if own["chars"] > budget:
+                checks.append(_check("guidance", "warn", "%s; cut to %d (limits.max_guidance_chars)" % (detail, budget),
+                                     "Every agent reads this on every start. Keep it to what an agent needs before its first program, and "
+                                     "leave the rest in a file the text points to."))
+            else:
+                checks.append(_check("guidance", "ok", detail))
+        except CodemodeError as exc:
+            checks.append(_check("guidance", "fail", exc.message, exc.hint))
+
     executions = home / "executions"
     logs = list(executions.glob("ex_*.jsonl")) if executions.is_dir() else []
     size = 0
@@ -513,7 +587,8 @@ def doctor(config: Config, home: Path, executor: Any) -> Dict[str, Any]:
     root = config.root or Path.cwd()
     if (root / ".git").exists():
         try:
-            missing = gitignore_lines((root / ".gitignore").read_text(encoding="utf-8") if (root / ".gitignore").exists() else "")
+            listed = (root / ".gitignore").read_text(encoding="utf-8") if (root / ".gitignore").exists() else ""
+            missing = gitignore_lines(listed, ignore_entries(root, home, config.work_dir))
         except OSError:
             missing = []
         if missing:

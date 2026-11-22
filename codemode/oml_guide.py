@@ -74,10 +74,18 @@ infos = oml.many([("read", ["inspect", f, "--only", "entities", "--own"]) for f 
 """
 
 
-def instructions(block, surface):
-    """The runtime's instructions block with oml's folder for programs and the oml section added."""
-    block = block.replace(".codemode-work/", ".oml/code/").replace("`.codemode/` folder", "`.oml/codemode/` folder")
+def instructions(block):
+    """The runtime's instructions block (its folders come from the config oml writes) with the oml section added."""
     return block.rstrip("\n") + "\n\n" + _SECTION.format(prompt=prompt([])).rstrip("\n") + "\n"
+
+
+def drop_key(path, key):
+    """Take one top-level key out of the config file init wrote."""
+    with open(path, encoding="utf-8") as handle:
+        raw = json.load(handle)
+    if raw.pop(key, None) is not None:
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(json.dumps(raw, indent=2, ensure_ascii=True) + "\n")
 
 
 def drop_own_connector(path, report):

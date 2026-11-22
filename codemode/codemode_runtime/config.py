@@ -25,7 +25,12 @@ from .errors import ConfigError
 from .policy import Policy, policy_from_dict
 from .textio import read_text
 
-TOP_KEYS = {"connectors", "policy", "approval", "limits", "executor", "llm", "agent", "helpers", "retention"}
+TOP_KEYS = {"connectors", "policy", "approval", "limits", "executor", "llm", "agent", "helpers", "retention", "work_dir", "guidance"}
+
+# Where agents are told to write their program files, unless the project
+# names another folder. The instructions name it and init keeps it out of
+# version control; the runtime itself reads a program from wherever it is.
+DEFAULT_WORK_DIR = ".codemode-work"
 
 # How long execution records are kept. Every execution is a file, and a
 # project with busy agents writes hundreds a day. Records past either limit
@@ -35,8 +40,14 @@ DEFAULT_RETENTION: Dict[str, float] = {"max_age_days": 30, "max_executions": 200
 # Approvals. ``require_terminal`` refuses ``approve`` and ``--interactive``
 # when stdin is not a terminal: an agent that drives the CLI through a shell
 # tool has none, so it cannot approve its own request by accident. ``ttl_s``
-# is how long a paused execution can still be approved (0: for ever).
+# is how long a paused execution can still be approved (0: for ever), and
+# how long an approval given in advance stays good. ``standing`` is the
+# widest approval in advance a person may give for one execution: for every
+# later call (``all``), for later calls to the tools they are approving now
+# (``same-tool``), or none (``off``).
+STANDING_SCOPES = ("off", "same-tool", "all")
 DEFAULT_APPROVAL: Dict[str, Any] = {"require_terminal": True, "ttl_s": 86400}
+DEFAULT_STANDING = "all"
 
 DEFAULT_LIMITS: Dict[str, float] = {
     "timeout_s": 60,  # wall clock for one pass of one execution
@@ -48,6 +59,7 @@ DEFAULT_LIMITS: Dict[str, float] = {
     "max_log_chars": 8_000,  # log text returned to the caller
     "max_state_bytes": 1_000_000,  # one session's state
     "catalog_cache_s": 300,  # how long a server's tool list is trusted from disk; 0 turns the cache off
+    "max_guidance_chars": 4000,  # the project's own text in the tool description and the instructions
 }
 _MAY_BE_ZERO = {"catalog_cache_s"}
 
@@ -67,7 +79,7 @@ _MCP_KEYS = COMMON_CONNECTOR_KEYS | {"secrets", "parse_json_text"}
 CONNECTOR_KEYS = {
     "demo": COMMON_CONNECTOR_KEYS,
     "chaos": COMMON_CONNECTOR_KEYS,
-    "mcp-stdio": _MCP_KEYS | {"command", "env", "cwd"},
+    "mcp-stdio": _MCP_KEYS | {"command", "env", "inherit_env", "cwd"},
     "mcp-http": _MCP_KEYS | {"url", "headers"},  # streamable HTTP
     "mcp-sse": _MCP_KEYS | {"url", "headers"},  # HTTP with server-sent events (the 2024-11-05 transport)
     # A project's own command lines as tools, for a project with no server.
@@ -98,6 +110,7 @@ class Config:
     policy: Policy
     limits: Dict[str, float]
     approval: Dict[str, Any] = field(default_factory=lambda: dict(DEFAULT_APPROVAL))
+    standing: str = DEFAULT_STANDING  # approval.standing: the widest approval in advance a person may give
     retention: Dict[str, float] = field(default_factory=lambda: dict(DEFAULT_RETENTION))
     call_timeouts: List[Tuple[str, float]] = field(default_factory=list)
     executor_command: Optional[List[str]] = None
@@ -114,6 +127,10 @@ class Config:
     # relative to the current directory, as they always were.
     root: Optional[Path] = None
     helpers: Optional[str] = None  # a folder of Python files that programs call as helpers.<file>.<function>()
+    work_dir: str = DEFAULT_WORK_DIR  # the folder the instructions tell agents to write programs into
+    # The project's own words for its agents: a text, or {"file": path}. The
+    # runtime cannot know a project's conventions; this is where they go.
+    guidance: Any = None
 
     @property
     def helpers_dir(self) -> Optional[Path]:
@@ -154,7 +171,7 @@ class Config:
             "source": self.source,
             "connectors": connectors,
             "policy": self.policy.to_dict(),
-            "approval": self.approval,
+            "approval": dict(self.approval, standing=self.standing),
             "retention": self.retention,
             "limits": limits,
             "executor": {
@@ -164,6 +181,8 @@ class Config:
             "llm": llm,
             "agent": self.agent,
             "helpers": str(self.helpers_dir) if self.helpers_dir is not None else None,
+            "work_dir": self.work_dir,
+            "guidance": self.guidance,
         }
 
 
@@ -241,6 +260,10 @@ def _connectors(raw: Any) -> Dict[str, Dict[str, Any]]:
                 raise ConfigError("connectors.%s.env must map strings to strings" % name)
             if "cwd" in spec and not isinstance(spec["cwd"], str):
                 raise ConfigError("connectors.%s.cwd must be a string" % name)
+            if "inherit_env" in spec:
+                from .connectors.mcp_stdio import check_inherit_env
+
+                check_inherit_env(spec["inherit_env"], "connectors.%s.inherit_env" % name)
         if kind in ("mcp-http", "mcp-sse"):
             url = spec.get("url")
             if not isinstance(url, str) or not url.lower().startswith(("http://", "https://")):
@@ -286,13 +309,22 @@ def _limits(raw: Any) -> "tuple[Dict[str, float], List[Tuple[str, float]]]":
     return limits, timeouts
 
 
-def _approval(raw: Any) -> Dict[str, Any]:
+def _approval(raw: Any) -> "tuple[Dict[str, Any], str]":
+    """The ``approval`` section: the settings every approval is checked
+    against, and the widest approval in advance a person may give."""
     approval = dict(DEFAULT_APPROVAL)
     if raw is None:
-        return approval
+        return approval, DEFAULT_STANDING
     if not isinstance(raw, dict):
         raise ConfigError("approval must be an object", hint='Example: {"approval": {"require_terminal": true, "ttl_s": 86400}}')
-    _check_keys("approval", raw, set(DEFAULT_APPROVAL))
+    _check_keys("approval", raw, set(DEFAULT_APPROVAL) | {"standing"})
+    standing = raw.get("standing", DEFAULT_STANDING)
+    if not isinstance(standing, str) or standing not in STANDING_SCOPES:
+        raise ConfigError(
+            "approval.standing must be one of %s; got %r" % (", ".join(STANDING_SCOPES), standing),
+            hint="It is the widest approval in advance a person may give for one execution: for every later call (all), "
+            "for later calls to the tools they are approving now (same-tool), or none (off).",
+        )
     if "require_terminal" in raw:
         if not isinstance(raw["require_terminal"], bool):
             raise ConfigError("approval.require_terminal must be true or false, got %r" % (raw["require_terminal"],))
@@ -302,7 +334,7 @@ def _approval(raw: Any) -> Dict[str, Any]:
         if isinstance(ttl, bool) or not isinstance(ttl, (int, float)) or ttl < 0:
             raise ConfigError("approval.ttl_s must be a number of seconds, 0 for no limit; got %r" % (ttl,))
         approval["ttl_s"] = ttl
-    return approval
+    return approval, standing
 
 
 def _retention(raw: Any) -> Dict[str, float]:
@@ -383,14 +415,36 @@ def config_from_dict(raw: Any, source: str, env: Optional[Mapping[str, str]] = N
         raise ConfigError(
             "helpers must be the name of a folder", hint='Example: "helpers": "codemode_helpers", a folder of .py files next to the config.'
         )
+    work_dir = raw.get("work_dir", DEFAULT_WORK_DIR)
+    # Forward slashes and no trailing one: this is text for instructions and
+    # for an ignore file, and both are read on every platform.
+    work_dir = work_dir.strip().replace("\\", "/").rstrip("/") if isinstance(work_dir, str) else ""
+    if not work_dir or any(ord(char) < 32 for char in work_dir):
+        raise ConfigError(
+            "work_dir must be the name of a folder",
+            hint='Example: "work_dir": "build/agent-programs", where agents write their program files. Default: %s.' % DEFAULT_WORK_DIR,
+        )
+    guidance = raw.get("guidance")
+    as_text = isinstance(guidance, str) and bool(guidance.strip())
+    as_file = isinstance(guidance, dict) and set(guidance) == {"file"} and isinstance(guidance["file"], str) and bool(guidance["file"].strip())
+    if guidance is not None and not (as_text or as_file):
+        raise ConfigError(
+            'guidance must be a text, or {"file": "a path"}',
+            hint='Example: "guidance": {"file": "docs/agents.md"}. It is this project\'s own words for its agents, added to the '
+            "description of the execute tool and to the instructions.",
+        )
+    approval, standing = _approval(raw.get("approval"))
     return Config(
         helpers=helpers,
+        work_dir=work_dir,
+        guidance=guidance,
+        standing=standing,
         retention=_retention(raw.get("retention")),
         connectors=_connectors(raw.get("connectors")),
         policy=policy_from_dict(raw.get("policy")),
         limits=limits,
         call_timeouts=call_timeouts,
-        approval=_approval(raw.get("approval")),
+        approval=approval,
         executor_command=command,
         executor_env_passthrough=passthrough,
         llm=_llm(raw.get("llm"), env),
