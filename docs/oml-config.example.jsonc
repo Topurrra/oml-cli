@@ -119,6 +119,11 @@
     "odcMcpServer": ""
   },
 
+  "code": {
+    // Agents run a step of three or more oml calls with logic between them as one oml code program. Off: they chain commands and use oml batch.
+    "use": true
+  },
+
   "memory": {
     // Agents recall project memory at the start of a task.
     "recall": true,

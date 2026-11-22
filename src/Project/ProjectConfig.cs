@@ -70,6 +70,7 @@ static class ProjectConfig
         new("author", "text", "", null, "The name written as creator and last modifier of what oml creates or changes in this project; empty means not set. The variable OML_AUTHOR wins over it.", Max: 100),
         new("outsystems.mcpServer", "url-local", "", null, "Address of Service Studio's MCP server (O11), such as http://127.0.0.1:41820/mcp. oml publish, pull, references and studio use it; empty means the default port. Only this computer (127.0.0.1 or localhost)."),
         new("outsystems.odcMcpServer", "url", "", null, "Address of the OutSystems MCP server of your ODC tenant, such as https://mytenant.outsystems.dev/mcp. Agents use it for ODC apps; oml itself does not call it."),
+        new("code.use", "bool", "true", null, "Agents run a step of three or more oml calls with logic between them as one oml code program. Off: they chain commands and use oml batch."),
         new("memory.recall", "bool", "true", null, "Agents recall project memory at the start of a task."),
         new("memory.write", "bool", "true", null, "Agents save what they learned at the end of a task."),
         new("memory.reminder", "bool", "true", null, "The end-of-turn hook reminds an agent that changed something and saved nothing (costs one turn)."),
@@ -255,6 +256,7 @@ static class ProjectConfig
             lines.Add($"Service Studio MCP server (O11): {studioMcp}. oml pull, publish, references and studio already use it; call it yourself only for a step oml has no command for.");
         if (v.Get("outsystems.odcMcpServer") is { Length: > 0 } odcMcp)
             lines.Add($"OutSystems MCP server (ODC): {odcMcp}. Use it for ODC apps as skill/reference/odc.md says; ask before publish and deploy there too.");
+        if (!v.On("code.use")) lines.Add("Do not use oml code; chain commands and use oml batch.");
         if (!v.On("memory.recall")) lines.Add("Do not run oml memory recall.");
         if (!v.On("memory.write")) lines.Add("Do not write project memory.");
         if (!v.On("docs.library")) lines.Add("Do not search the OutSystems docs library.");

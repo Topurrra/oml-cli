@@ -56,7 +56,7 @@ Plain technical English (ISO 24495-1; ASD-STE100 style):
 
 ## Standard loop (every tool call costs a full turn)
 
-Several commands = ONE tool call: chain with `;` or an `oml batch` file (logic in between: `oml code --help`). A normal task needs 4 to 8 tool calls. Past 12? Are you repeating reads or applying one element at a time?
+Many commands = ONE tool call (`;` or `oml batch`); 3+ calls with logic between: `oml code run --json -f .oml/code/<name>.py`. A normal task: 4 to 8 tool calls; past 12, you repeat reads or apply elements one by one.
 
 Project profile: a session may start with an "oml project profile" (`.oml/oml-config.json`: sizes, themes, checks, questions, approvals, commands, browser, fast lane). Follow every line; it overrides this loop and the rules above. No such text? Add `oml config` to the read call.
 
