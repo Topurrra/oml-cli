@@ -1486,6 +1486,7 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 - `oml config` prints the profile: the lines an agent follows. Only what differs from the default work is listed, plus the author line (see **Author** below) and the approval lines: what agents run without asking (`autoApprove.*` on) and what still needs a yes.
 - `oml config show` lists every setting with its value, default, choices and what it does.
 - `oml config set <key> <value>` changes one setting and makes the file when it is missing: `oml config set ui.targets desktop`, `oml config set ui.themes light`, `oml config set ask.testing off`, `oml config set browser agent`, `oml config set autoApprove.install on`, `oml config set commands.lifetime off`.
+- `oml config example` prints every setting with its default and a comment, as the file takes it (comments are allowed): copy it, change what you need. The same text is `docs/oml-config.example.jsonc` in the repository and `oml-config.example.jsonc` in the release.
 - `oml config init` writes the file with every default. `--dir <project>` works in another folder. The file is found from the current folder upwards.
 
 | Group | Settings |

@@ -106,6 +106,7 @@ try {
     foreach ($item in @('skill', 'README.md', 'oml-full.md', 'BENCHMARKS.md', 'INSTRUCTION.md', 'THIRD-PARTY-NOTICES.md', 'licenses', 'CHANGELOG.md')) {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $item) -Destination $stage -Recurse
     }
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'docs/oml-config.example.jsonc') -Destination $stage
     # oml code: the code-mode runtime (Python) beside bin/, without its tests and Python's caches.
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'codemode') -Destination $stage -Recurse
     foreach ($extra in @(Get-ChildItem -LiteralPath (Join-Path $stage 'codemode') -Recurse -Directory -Force | Where-Object { $_.Name -in '__pycache__', 'tests' })) {

@@ -18,7 +18,7 @@ namespace OmlCli;
 // Up to 1.22 the file was .oml/config.json: that name is still read, and the next change writes the new one.
 static class ProjectConfig
 {
-    const string Usage = "Usage: oml config [show | init | set <key> <value>] [--dir <project folder>]";
+    const string Usage = "Usage: oml config [show | init | example | set <key> <value>] [--dir <project folder>]";
     internal const string FileName = "oml-config.json";
     internal const string LegacyFileName = "config.json";
 
@@ -40,6 +40,8 @@ static class ProjectConfig
         new("checks.bestPractices", "bool", "true", null, "Read oml doc best-practices before adding entities, screens or flows no recipe covers."),
         new("checks.testScenarios", "bool", "true", null, "Offer oml test scenarios after a change."),
         new("checks.testData", "bool", "true", null, "Use oml test data to prepare and clean up test records."),
+        new("checks.checkDiff", "bool", "true", null, "Run oml check --diff on a staged change before the report."),
+        new("checks.validate", "bool", "true", null, "Run oml validate --warnings on the staged file right before oml install."),
         new("ask.testing", "bool", "true", null, "Ask whether to test or look at the app in the browser. Off: decide from checks.*, never ask, and list what was not run."),
         new("ask.testScenarios", "bool", "true", null, "Ask whether the user wants test scenarios. Off: follow checks.testScenarios without asking."),
         new("ask.devUrl", "bool", "true", null, "Ask for the DEV URL of a screen. Off: use app.devUrl, or skip the live checks when it is empty."),
@@ -49,7 +51,8 @@ static class ProjectConfig
         new("autoApprove.publish", "bool", "false", null, "Agents run oml publish without asking. Off: ask first."),
         new("autoApprove.references", "bool", "false", null, "Agents refresh references (oml references) without asking. Off: ask first."),
         new("autoApprove.deploy", "bool", "false", null, "Agents run LifeTime tag, deploy, abort and continue without asking. Off: ask first."),
-        new("autoApprove.dataDeletion", "bool", "false", null, "Agents run what deletes data (delete edits, test data cleanup, SQL deletes) without asking. Off: ask first."),
+        new("autoApprove.deletes", "bool", "false", null, "Agents delete existing elements (actions, screens, blocks, structures, static records and the like) without asking. Entities and attributes are never deleted. Off: ask first."),
+        new("autoApprove.dataDeletion", "bool", "false", null, "Agents run what changes or deletes production data without asking: SQL that changes data, a shorter length, fewer decimals or a new mandatory setting on an existing attribute, test data cleanup. Off: ask first."),
         new("commands.install", "bool", "true", null, "oml install may run. Off: it is refused, and agents leave the install to the user."),
         new("commands.publish", "bool", "true", null, "oml publish may run. Off: it is refused, and agents name the publish step for the user."),
         new("commands.references", "bool", "true", null, "oml references may run. Off: it is refused; references are refreshed in Service Studio."),
@@ -229,7 +232,11 @@ static class ProjectConfig
         if (!v.On("checks.bestPractices")) skipped.Add("oml doc best-practices");
         if (!v.On("checks.testScenarios")) skipped.Add("oml test scenarios");
         if (!v.On("checks.testData")) skipped.Add("oml test data");
+        var noRun = new List<string>();
+        if (!v.On("checks.checkDiff")) noRun.Add("oml check --diff before the report");
+        if (!v.On("checks.validate")) noRun.Add("oml validate before install");
         if (skipped.Count > 0) lines.Add($"Turned off for this project, do not run or offer unless the user asks in this task: {Join(skipped)}. The commands refuse; --no-profile runs one once when the user asks.");
+        if (noRun.Count > 0) lines.Add($"Skip these steps of the workflow unless the user asks: {Join(noRun)}.");
 
         if (!v.On("ask.testing")) lines.Add("Do not ask whether to test or look at the app in the browser. Run what this profile leaves on, then end with one line: Not run: <what you skipped>.");
         if (!v.On("ask.testScenarios")) lines.Add("Do not ask about test scenarios.");
@@ -281,7 +288,8 @@ static class ProjectConfig
         [
             ("autoApprove.install", "install", "commands.install"), ("autoApprove.publish", "publish", "commands.publish"),
             ("autoApprove.references", "reference refresh", "commands.references"), ("autoApprove.deploy", "LifeTime steps (tag, deploy, abort, continue)", "commands.lifetime"),
-            ("autoApprove.dataDeletion", "anything that deletes data", null),
+            ("autoApprove.deletes", "deleting an existing element", null),
+            ("autoApprove.dataDeletion", "anything that changes or deletes production data", null),
         ];
         var live = steps.Where(s => s.Command is null || v.On(s.Command)).ToList();
         var free = live.Where(s => v.On(s.Key)).Select(s => s.Step).ToList();
@@ -289,7 +297,7 @@ static class ProjectConfig
         if (!v.On("autoApprove.apply")) yield return "Ask before each oml apply: show the spec and the staged path first.";
         if (free.Count > 0)
             yield return $"Do not ask before {string.Join(", ", free)} (autoApprove, set by the user): run it when the task needs it, then report the exact command and its result."
-                + (free.Contains("install") ? " Install only after oml validate --warnings shows zero errors." : "");
+                + (free.Contains("install") && v.On("checks.validate") ? " Install only after oml validate --warnings shows zero errors." : "");
         if (asked.Count > 0) yield return $"Always ask before {string.Join(", ", asked)}: restate the exact command and wait for a yes.";
     }
 
@@ -391,6 +399,9 @@ static class ProjectConfig
                     next = "oml config set <key> <value> changes one; agents read the result with oml config.",
                 });
                 return all.Error is null ? 0 : 1;
+            case ["example"]:
+                Console.Write(Example());
+                return 0;
             case ["init"]:
                 var root = RootOf(start) ?? start;
                 if (File.Exists(PathIn(root))) return Fail($"{PathIn(root)} exists.", "Change it with oml config set <key> <value>, or edit the file.");
@@ -428,6 +439,43 @@ static class ProjectConfig
     {
         TerminalOutput.PrintObject(new { error = message, hint });
         return 2;
+    }
+
+    // Every setting with its default and a comment, as .oml/oml-config.json takes it (comments are allowed there): a
+    // file to copy and change. docs/oml-config.example.jsonc is this text.
+    internal static string Example()
+    {
+        var b = new System.Text.StringBuilder();
+        b.Append("// .oml/oml-config.json: every setting with its default. Copy it, change what you need, delete the rest.\n");
+        b.Append("// Comments are allowed. oml config show explains each setting; oml config prints what agents follow.\n");
+        b.Append("{\n  \"version\": 1");
+        string? group = null;
+        string Value(Setting s) => s.Kind switch
+        {
+            "bool" => s.Default,
+            "list" => "[" + string.Join(", ", s.Default.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => "\"" + x + "\"")) + "]",
+            _ => System.Text.Json.JsonSerializer.Serialize(s.Default),
+        };
+        foreach (var s in Settings.Where(s => !s.Locked))
+        {
+            var dot = s.Key.IndexOf('.');
+            var g = dot < 0 ? null : s.Key[..dot];
+            var name = dot < 0 ? s.Key : s.Key[(dot + 1)..];
+            if (g != group)
+            {
+                if (group is not null) b.Append("\n  }");
+                if (g is not null) b.Append($",\n\n  \"{g}\": {{");
+                group = g;
+            }
+            else b.Append(',');
+            var indent = g is null ? "  " : "    ";
+            if (g is null) b.Append(",\n");
+            var choices = s.Kind switch { "choice" or "list" => " One" + (s.Kind == "list" ? " or more" : "") + " of: " + string.Join(", ", s.Choices!) + ".", _ => "" };
+            b.Append($"\n{indent}// {s.About}{choices}\n{indent}\"{name}\": {Value(s)}");
+        }
+        if (group is not null) b.Append("\n  }");
+        b.Append("\n}\n");
+        return b.ToString();
     }
 
     // Writes every setting, nested by its first key part, so the file documents itself. Locked settings are left out.

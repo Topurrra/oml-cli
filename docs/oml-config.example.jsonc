@@ -1,0 +1,151 @@
+// .oml/oml-config.json: every setting with its default. Copy it, change what you need, delete the rest.
+// Comments are allowed. oml config show explains each setting; oml config prints what agents follow.
+{
+  "version": 1,
+
+  "ui": {
+    // Screen sizes the project supports. Agents design and test only these. One or more of: desktop, tablet, phone.
+    "targets": ["desktop", "tablet", "phone"],
+    // Themes the project supports. Agents write and check styles only for these. One or more of: light, dark.
+    "themes": ["light", "dark"],
+    // Right-to-left layouts are needed.
+    "rtl": false,
+    // Check contrast, labels and keyboard use for new UI.
+    "accessibility": true,
+    // New texts need translations (the module is multilingual).
+    "translations": false
+  },
+
+  "checks": {
+    // Run oml browser page after a publish to see the result in the app.
+    "browser": true,
+    // Before building UI, show a preview injected into the running app (browser dev tools or oml browser try) and build after the user's yes (golden rule 1).
+    "uiPreview": true,
+    // Write the oml review file (.md) for a staged change.
+    "review": true,
+    // Follow oml doc ui-checklist for UI work.
+    "uiChecklist": true,
+    // Read oml doc best-practices before adding entities, screens or flows no recipe covers.
+    "bestPractices": true,
+    // Offer oml test scenarios after a change.
+    "testScenarios": true,
+    // Use oml test data to prepare and clean up test records.
+    "testData": true,
+    // Run oml check --diff on a staged change before the report.
+    "checkDiff": true,
+    // Run oml validate --warnings on the staged file right before oml install.
+    "validate": true
+  },
+
+  "ask": {
+    // Ask whether to test or look at the app in the browser. Off: decide from checks.*, never ask, and list what was not run.
+    "testing": true,
+    // Ask whether the user wants test scenarios. Off: follow checks.testScenarios without asking.
+    "testScenarios": true,
+    // Ask for the DEV URL of a screen. Off: use app.devUrl, or skip the live checks when it is empty.
+    "devUrl": true,
+    // Ask which producer element to use even for one match. Off: one match is used without a question.
+    "producerChoice": true
+  },
+
+  "autoApprove": {
+    // Agents run oml apply (it writes a staged copy; the source is not changed) without asking. Off: show the spec and ask before each apply.
+    "apply": true,
+    // Agents run oml install without asking, after oml validate shows zero errors. Off: ask first.
+    "install": false,
+    // Agents run oml publish without asking. Off: ask first.
+    "publish": false,
+    // Agents refresh references (oml references) without asking. Off: ask first.
+    "references": false,
+    // Agents run LifeTime tag, deploy, abort and continue without asking. Off: ask first.
+    "deploy": false,
+    // Agents delete existing elements (actions, screens, blocks, structures, static records and the like) without asking. Entities and attributes are never deleted. Off: ask first.
+    "deletes": false,
+    // Agents run what changes or deletes production data without asking: SQL that changes data, a shorter length, fewer decimals or a new mandatory setting on an existing attribute, test data cleanup. Off: ask first.
+    "dataDeletion": false
+  },
+
+  "commands": {
+    // oml install may run. Off: it is refused, and agents leave the install to the user.
+    "install": true,
+    // oml publish may run. Off: it is refused, and agents name the publish step for the user.
+    "publish": true,
+    // oml references may run. Off: it is refused; references are refreshed in Service Studio.
+    "references": true,
+    // oml pull may run. Off: it is refused; the user saves the .oml from Service Studio.
+    "pull": true,
+    // oml lifetime may run. Off: it is refused; deployments are done in LifeTime.
+    "lifetime": true,
+    // oml studio may drive Service Studio (open, close, tabs, focus). Off: it is refused.
+    "studio": true,
+    // oml migrate may run. Off: it is refused.
+    "migrate": true
+  },
+
+  "apply": {
+    // oml apply lays out every flow it changes. Off: flows that already existed keep their layout (new nodes are not arranged; tidyFlows still does it on request), new flows are still laid out.
+    "autoLayout": true
+  },
+
+  "migrate": {
+    // oml migrate keeps session variables that server logic writes (or sensitive, or records) in a server store (entity SessionValue). Off: they stay manual.
+    "serverStore": true,
+    // oml migrate merges consecutive server calls of a screen action into one server action (one request). Off: each call stays.
+    "mergeServerCalls": true,
+    // oml migrate copies exposed REST and SOAP services into the new module (as --copy-exposed). Off: they stay in the old module.
+    "copyExposed": false
+  },
+
+  "lane": {
+    // Small changes (only CSS values or texts of existing elements) skip the browser check, the review file and questions.
+    "fast": true
+  },
+
+  // Who opens the app to look at it: oml (oml browser, its own Edge or Chrome) or agent (the agent's built-in browser). One of: oml, agent.
+  "browser": "oml",
+
+  "app": {
+    // Base URL of the app in DEV, such as https://dev.example.com/Orders.
+    "devUrl": ""
+  },
+
+  // The name written as creator and last modifier of what oml creates or changes in this project; empty means not set. The variable OML_AUTHOR wins over it.
+  "author": "",
+
+  "outsystems": {
+    // Address of Service Studio's MCP server (O11), such as http://127.0.0.1:41820/mcp. oml publish, pull, references and studio use it; empty means the default port. Only this computer (127.0.0.1 or localhost).
+    "mcpServer": "",
+    // Address of the OutSystems MCP server of your ODC tenant, such as https://mytenant.outsystems.dev/mcp. Agents use it for ODC apps; oml itself does not call it.
+    "odcMcpServer": ""
+  },
+
+  "memory": {
+    // Agents recall project memory at the start of a task.
+    "recall": true,
+    // Agents save what they learned at the end of a task.
+    "write": true,
+    // The end-of-turn hook reminds an agent that changed something and saved nothing (costs one turn).
+    "reminder": true
+  },
+
+  "docs": {
+    // Agents may search the downloaded OutSystems docs (oml doc --search ... --library).
+    "library": true
+  },
+
+  "map": {
+    // Agents use the application map (oml map ...) for questions across modules.
+    "use": true
+  },
+
+  "hooks": {
+    // The hook refuses reading the large skill references whole.
+    "bigDocs": true,
+    // The hook refuses calls to the test-data API that do not go through oml test data.
+    "testDataApi": true,
+    // With browser = agent, the hook refuses shell commands that start Edge, Chrome or Firefox.
+    "externalBrowser": true,
+    // The session-start hook gives this profile to the agent, so it needs no command to read it.
+    "sessionProfile": true
+  }
+}

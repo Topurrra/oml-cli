@@ -197,6 +197,10 @@ foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Filter *.md) {
     if (-not (Test-Path (Join-Path $f.DirectoryName $target))) { Fail "$($f.Name): broken link $target" }
   }
 }
+# docs/oml-config.example.jsonc is what oml config example prints: every setting, so people copy a current file.
+$example = (& $Oml config example | Out-String).Replace("`r`n", "`n").TrimEnd()
+$saved = (Get-Content -Raw (Join-Path $repo 'docs/oml-config.example.jsonc')).Replace("`r`n", "`n").TrimEnd()
+if ($example -ne $saved) { Fail "docs/oml-config.example.jsonc differs from oml config example: run oml config example > docs/oml-config.example.jsonc" }
 Write-Host "ok   doc: $($budget.Count) topics, sections, unknown names, warn lookups, $($ids.Count) ids, budgets (default load $load tokens, oml --help $help, oml help --all $helpAll, $($commandWords.Count) command words in the overview, largest of $($sections.Count) command sections $biggest), links"
 
 # 9. apply adds the warnings.md fix as `hint` to a new warning it covers, and no hint to other ids

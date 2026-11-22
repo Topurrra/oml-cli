@@ -7,7 +7,7 @@ static class CliUsage
     public const string Text = """
         oml version
         oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--no-skill] [--no-library] [--no-doctor]   (a project ready to work in: folders, memory, config, skill, hooks, the OutSystems docs, a setup check; with --in, the modules and the map)
-        oml config [show | init | set <key> <value>] [--dir <project>]   (the project profile, .oml/oml-config.json: what agents do, skip and ask; no argument prints the lines an agent follows)
+        oml config [show | init | example | set <key> <value>] [--dir <project>]   (the project profile, .oml/oml-config.json: what agents do, skip, ask; example: all settings; bare: what agents follow)
         oml skill refresh [--dir <project>]   (update a project's skill/ and AGENTS.md to this oml)
         oml new <out.oml> [--name N] [--kind WebResponsive|Mobile|Service|ReactiveLibrary|...]
         oml new <out.oml> --template <name-or-exported.oml> [--name N]
