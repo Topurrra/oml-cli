@@ -127,6 +127,10 @@ sealed class ProductionRules
         }
     }
     static readonly string[] AttributeProperties = { "DataType", "Length", "Decimals", "IsMandatory", "IsAutoNumber" };
+    // `oml model-coverage` reads the same tables this class enforces.
+    internal static IReadOnlyList<string> AttributeShape => AttributeProperties;
+    internal static IReadOnlyList<(string property, string what)> EntityShape => EntitySettings;
+    internal static IEnumerable<string> ContractTypes => Contracts.Order(StringComparer.Ordinal);
     // Entity settings that change how published rows are keyed, read or written (EntityOptions sets them on new entities).
     static readonly (string property, string what)[] EntitySettings =
     {

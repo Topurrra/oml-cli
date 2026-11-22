@@ -179,6 +179,10 @@ Unit 'api-check' {
   try { & (Join-Path $tests 'api-check.ps1') -Oml $oml }
   catch { $global:fail++; Write-Host "FAIL api checks: $_" }
 }
+Unit 'model-coverage-check' {
+  try { & (Join-Path $tests 'model-coverage-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL model coverage checks: $_" }
+}
 Unit 'ui-update-check' {
   try { & (Join-Path $tests 'ui-update-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL ui update checks: $_" }

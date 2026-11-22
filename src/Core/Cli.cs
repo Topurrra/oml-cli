@@ -14,7 +14,7 @@ public static partial class Cli
     static readonly Dictionary<string, Handler> Dispatch = new()
     {
         // Commands.Read.cs
-        ["version"] = CmdVersion, ["selftest"] = CmdSelfTest, ["model-types"] = CmdApi, ["widget-types"] = CmdWidgets,
+        ["version"] = CmdVersion, ["selftest"] = CmdSelfTest, ["model-types"] = CmdApi, ["widget-types"] = CmdWidgets, ["model-coverage"] = ModelCoverage.Run,
         ["find"] = CmdFind, ["inspect"] = CmdInspect, ["describe"] = CmdDescribe, ["export"] = CmdExport, ["query"] = ModelQuery.Run,["tree"] = CmdTree, ["flow"] = CmdFlow, ["map"] = CmdMap,
         ["stats"] = CmdCensus, ["validate"] = CmdValidate, ["openapi"] = CmdOpenApi,
         ["header"] = CmdMeta, ["expression"] = CmdExpr,
