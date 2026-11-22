@@ -44,6 +44,30 @@ static partial class SelfTest
             using var m = Model.Load(repeat);
             if (m.Entities.OfType<IStaticEntity>().Single(x => x.Name == "Status").Records.Count() != 1) failures.Add("static record duplicated");
         }
+        // An existing static entity with its own roles (a Traditional MenuItem: Id, Order, Caption as label, no Is_Active) made public: it keeps
+        // its attributes and roles; the defaults Label and Is_Active are not added.
+        using (var own = Model.Load(blank))
+        {
+            var menu = (IStaticEntity)Reflect.Call(own, "CreateStaticEntity", "Menu", Model.Services().NewKey())!;
+            var id = menu.Attributes.SingleOrDefault(a => a.Name == "Id") ?? menu.CreateAttribute("Id", Model.Services().NewKey());
+            id.DataType = own.IntegerType; id.IsMandatory = true; menu.IdentifierAttribute = id;
+            var order = menu.CreateAttribute("Order", Model.Services().NewKey()); order.DataType = own.IntegerType;
+            var caption = menu.CreateAttribute("Caption", Model.Services().NewKey()); caption.DataType = own.TextType;
+            menu.LabelAttribute = caption; menu.OrderByAttribute = order;
+            Model.Save(own, Path.Combine(dir, "static-own.oml"));
+        }
+        File.WriteAllText(spec, """{"staticEntities":[{"name":"Menu","public":true}]}""");
+        var ownOut = Path.Combine(dir, "static-own-public.oml");
+        var (ownCode, ownReport) = Apply.Execute(Path.Combine(dir, "static-own.oml"), spec, ownOut);
+        if (ownCode != 0) failures.Add("existing static entity made public: " + JsonSerializer.Serialize(ownReport));
+        else
+        {
+            using var m = Model.Load(ownOut);
+            var menu = m.Entities.OfType<IStaticEntity>().Single(x => x.Name == "Menu");
+            var names = string.Join(",", menu.Attributes.Select(a => a.Name).Order(StringComparer.Ordinal));
+            if (!menu.Public || names != "Caption,Id,Order" || menu.IsActiveAttribute is not null || menu.LabelAttribute?.Name != "Caption")
+                failures.Add($"existing static entity made public changed: public {menu.Public}, attributes {names}, active {menu.IsActiveAttribute?.Name}, label {menu.LabelAttribute?.Name}");
+        }
         File.WriteAllText(spec, """{"staticEntities":[{"name":"Item"}]}""");
         var refused = Path.Combine(dir, "static-refused.oml");
         if (Apply.Execute(output, spec, refused).code == 0 || File.Exists(refused)) failures.Add("static retype was not refused");

@@ -76,7 +76,10 @@ static class StaticEntities
             var rawEntity = Reuse.Item(raw, "staticEntities", s.Name);
             if (s.Public is { } isPublic) e.Public = isPublic;
             if (s.Description is not null) e.Description = s.Description;
-            var defaults = new[] { new AttrSpec("Label", Length: 50, Mandatory: true),
+            // A new static entity gets the default Label, Order and Is_Active attributes and their roles. An existing one keeps its own: a
+            // Traditional MenuItem has Id, Order and Caption (its label) and no Is_Active, and adding the defaults there would add mandatory
+            // attributes without values and change its roles (refused for an existing entity).
+            var defaults = was ? [] : new[] { new AttrSpec("Label", Length: 50, Mandatory: true),
                 new AttrSpec("Order", "Integer", Mandatory: true), new AttrSpec("Is_Active", "Boolean", Mandatory: true) };
             foreach (var a in defaults.Where(d => !(s.Attributes ?? new()).Any(a => a.Name == d.Name)).Concat(s.Attributes ?? new()))
             {
@@ -108,10 +111,13 @@ static class StaticEntities
                 if (a.Label is not null) attr.Label = a.Label;
                 created.Add($"attribute {s.Name}.{a.Name}");
             }
-            e.LabelAttribute ??= e.Attributes.Single(a => a.Name == "Label");
-            e.OrderByAttribute ??= e.Attributes.Single(a => a.Name == "Order");
-            e.IsActiveAttribute ??= e.Attributes.Single(a => a.Name == "Is_Active");
-            if (e.IdentifierAttribute is null || e.LabelAttribute is null || e.OrderByAttribute is null || e.IsActiveAttribute is null)
+            if (!was)
+            {
+                e.LabelAttribute ??= e.Attributes.Single(a => a.Name == "Label");
+                e.OrderByAttribute ??= e.Attributes.Single(a => a.Name == "Order");
+                e.IsActiveAttribute ??= e.Attributes.Single(a => a.Name == "Is_Active");
+            }
+            if (e.IdentifierAttribute is null || !was && (e.LabelAttribute is null || e.OrderByAttribute is null || e.IsActiveAttribute is null))
                 throw new ModelError($"incomplete static attribute roles: Id={e.IdentifierAttribute?.Name}, Label={e.LabelAttribute?.Name}, Order={e.OrderByAttribute?.Name}, Active={e.IsActiveAttribute?.Name}");
             foreach (var r in s.Records ?? new()) Attempt($"record {s.Name}.{r.Identifier}", problems, () =>
             {
@@ -128,11 +134,12 @@ static class StaticEntities
                 var record = (IRecord)Reflect.Call(e, "CreateRecord", r.Identifier, Model.Services().NewKey())!;
                 record.Identifier = r.Identifier;
                 if (record.Identifier != r.Identifier) throw new ModelError($"identifier renamed {record.Identifier}");
+                // The roles an existing entity has (one without Is_Active gets no active value).
                 var values = new Dictionary<string, string> {
-                    [e.IdentifierAttribute!.Name] = ReferenceEquals(e.IdentifierAttribute.DataType, m.TextType) ? "\"" + r.Identifier.Replace("\"", "\"\"") + "\"" : id.ToString(CultureInfo.InvariantCulture),
-                    [e.LabelAttribute.Name] = "\"" + (r.Label ?? r.Identifier).Replace("\"", "\"\"") + "\"",
-                    [e.OrderByAttribute.Name] = (r.Order ?? id).ToString(CultureInfo.InvariantCulture),
-                    [e.IsActiveAttribute.Name] = r.IsActive ? "True" : "False" };
+                    [e.IdentifierAttribute!.Name] = ReferenceEquals(e.IdentifierAttribute.DataType, m.TextType) ? "\"" + r.Identifier.Replace("\"", "\"\"") + "\"" : id.ToString(CultureInfo.InvariantCulture) };
+                if (e.LabelAttribute is { } labelAttr) values[labelAttr.Name] = "\"" + (r.Label ?? r.Identifier).Replace("\"", "\"\"") + "\"";
+                if (e.OrderByAttribute is { } orderAttr) values[orderAttr.Name] = (r.Order ?? id).ToString(CultureInfo.InvariantCulture);
+                if (e.IsActiveAttribute is { } activeAttr) values[activeAttr.Name] = r.IsActive ? "True" : "False";
                 foreach (var v in r.Values ?? new())
                 {
                     if (v.Key == e.IdentifierAttribute.Name) throw new ModelError("values cannot override the generated Id");
