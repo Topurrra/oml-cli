@@ -32,8 +32,9 @@ Same task, same module, same model:
 | Small: entity, CRUD actions, list screen | 611k input tokens, 185 s | **207k input tokens, 56 s** |
 | 24 UI components, 1 agent | $0.94, 58 turns | **$0.55, 37 turns** |
 | 24 UI components, 8 agents | 20/24 built, $3.16 | **24/24 built, $1.17** |
+| OUI wizard, 11 blocks, with `oml code` | $1.51, 13.0M tokens, 45 inputs wrong | **$0.76, 6.1M tokens, all inputs right** |
 
-Details, the new `oml code` benchmark and how to re-run them: [BENCHMARKS.md](BENCHMARKS.md).
+Details and how to re-run them: [BENCHMARKS.md](BENCHMARKS.md).
 
 ## Install
 

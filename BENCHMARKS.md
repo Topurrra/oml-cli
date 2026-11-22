@@ -11,15 +11,27 @@ Re-run any of them with [tests/bench](tests/bench/README.md). Every run uses rea
 | Small: entity, 2 CRUD actions, list screen | 611k input tokens, 185 s | 207k input tokens, 56 s | 3.0× fewer tokens, 3.3× faster |
 | Large: 24 UI components, 1 agent | $0.94, 787 s, 58 turns | $0.55, 706 s, 37 turns | 42% cheaper |
 | Large: 24 UI components, 8 agents | 20/24 built, $3.16 | 24/24 built, $1.17 | all parts built, 63% cheaper |
-| OUI subset, oml code vs MCP | pending | pending | see [below](#oui-subset-oml-code-vs-outsystems-mcp) |
+| OUI subset: 11 blocks + wizard screen | $1.51, 1073 s, 13.0M input tokens | $0.76, 752 s, 6.1M input tokens | 50% cheaper, 30% faster, inputs right |
 
 ## OUI subset: oml code vs OutSystems MCP
 
 Both agents rebuild a subset of OUI (about 10 blocks and 1 page template) from the same descriptions. The oml side uses `oml code`: one Python program runs many oml calls and returns only the answer. The OUI kit's own build of the same subset is the reference: each result is compared with it element by element (blocks, inputs, events, placeholders, validation).
 
-Task: [tests/bench/tasks/oui-subset.md](tests/bench/tasks/oui-subset.md). Model: Claude Haiku 5.5. One run per side.
+Task: [tests/bench/tasks/oui-subset.md](tests/bench/tasks/oui-subset.md): the wizard template OuiTplWizard, the 11 blocks it uses and one structure, from a blank Reactive module. Model: Claude Haiku 5.5. One run per side, on 2026-11-23. MCP side: Service Studio 11.55.97 and the official skill at commit `8cdd94f` (2026-11-20).
 
-Results: pending.
+| | OutSystems MCP + O11 skill | oml code |
+|---|---:|---:|
+| Cost | $1.51 | **$0.76** (50% less) |
+| Time | 1,073 s | **752 s** (30% less) |
+| Turns | 73 | **62** |
+| Input tokens (incl. cache) | 12,990,846 | **6,056,354** (2.1× fewer) |
+| Output tokens | 232,253 | **154,307** |
+| Tool calls (failed) | 94 (3) | 94 (2) |
+| Validation | 0 errors, 6 warnings | 0 errors, 29 warnings (27 are offline image warnings) |
+| Elements vs the OUI kit's build | 82/82 | 82/82 |
+| Inputs as specified | **45 of 47 optional inputs made mandatory** | All 47 right: types, mandatory and defaults |
+
+Both built every block, input, event, placeholder, the screen and the structure. The difference is in quality and cost: the MCP agent made almost every block input mandatory, so each use of a block must pass every value; the oml code agent matched the description. Gaps on the oml side: the wizard's country dropdown has no options (the agent could not add list items and left it), and neither side's JavaScript was tried in a browser. `tests/bench/compare.ps1` checks signatures, not behaviour or CSS.
 
 ## Small task
 
