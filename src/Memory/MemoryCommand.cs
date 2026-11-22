@@ -11,7 +11,7 @@ namespace OmlCli;
 // skill/reference/memory.md. Output is compact JSON; an error is {"error", "hint"} with exit 1 (the store or a record
 // is not there) or 2 (the input is wrong or refused). Read subcommands (recall, list, show, history, handoff) also run
 // inside `oml batch`; the others are refused there.
-static class MemoryCommand
+static partial class MemoryCommand
 {
     public static readonly string[] ReadSubcommands = ["recall", "list", "show", "history", "handoff", "traps"];
     const int DefaultTop = 3, MaxTop = 20, DefaultList = 20, MaxList = 200, TrapsShown = 3;
@@ -38,6 +38,7 @@ static class MemoryCommand
                 "doctor" => Doctor(rest),
                 "handoff" => Handoff(rest),
                 "traps" => Traps(rest),
+                "dream" => Dream(rest),
                 "bench" => MemoryBench.Run(rest),
                 _ => throw new MemoryException($"Unknown memory command '{args[0]}'.", 2, "Run 'oml memory --help'."),
             };
@@ -194,27 +195,7 @@ static class MemoryCommand
         DateTime? validFrom = o.Get("--valid-from") is { } vf ? ParseDate("--valid-from", vf) : null, validUntil = o.Get("--valid-until") is { } vu ? ParseDate("--valid-until", vu) : null;
         if (validFrom is not null && validUntil is not null && validUntil <= validFrom) throw new MemoryException("--valid-until must be after --valid-from.", 2);
         var supersedes = o.Get("--supersedes") is { } sup ? ParseId(sup) : -1;
-
-        // Sizes, forms and secrets: refused before anything is written, with the fix in the message.
-        try
-        {
-            var size = MemoryFormat.Bytes(text);
-            if (size > MemoryFormat.TextMax) throw new MemoryException($"The text is {size} bytes; the limit is {MemoryFormat.TextMax}. One fact per record: cut it or split it.", 2);
-            var srcSize = MemoryFormat.Bytes(src);
-            if (srcSize > MemoryFormat.SrcMax) throw new MemoryException($"--src is {srcSize} bytes; the limit is {MemoryFormat.SrcMax}. Use a short agent name.", 2);
-            var whySize = MemoryFormat.Bytes(why);
-            if (whySize > MemoryFormat.WhyMax) throw new MemoryException($"--why is {whySize} bytes; the limit is {MemoryFormat.WhyMax}. Give the reason in one short sentence.", 2);
-            if (module is not null && (!ModuleForm.IsMatch(module) || MemoryFormat.Bytes(module) > MemoryFormat.ModuleMax)) throw new MemoryException($"--module must be a module name (letters, digits, _ . - and single spaces inside) of at most {MemoryFormat.ModuleMax} bytes.", 2);
-            if (elements.Any(e => !NameForm.IsMatch(e.Replace("/", ""))) || MemoryFormat.Bytes(string.Join(',', elements)) > MemoryFormat.ElementsMax)
-                throw new MemoryException($"--elements takes element names or paths separated by commas, at most {MemoryFormat.ElementsMax} bytes in all. Name the main ones.", 2);
-            if (tags.Any(t => !NameForm.IsMatch(t)) || MemoryFormat.Bytes(string.Join(',', tags)) > MemoryFormat.TagsMax)
-                throw new MemoryException($"--tags takes short words separated by commas, at most {MemoryFormat.TagsMax} bytes in all.", 2);
-        }
-        catch (EncoderFallbackException) { throw new MemoryException("The text holds a character that cannot be stored (an unpaired surrogate). Write the character itself.", 2); }
-        foreach (var (field, value) in new[] { ("text", text), ("--why", why), ("--tags", string.Join(',', tags)), ("--elements", string.Join(',', elements)), ("--module", module ?? ""), ("--src", src) })
-            if (MemorySecrets.Find(value) is { } secret)
-                throw new MemoryException($"The {field} holds what looks like a secret ({secret}). Memory is plain text, so nothing was written. Do not store keys or tokens. Write what it is for instead.", 2,
-                    "For example: \"the LifeTime token is in OML_LIFETIME_TOKEN\".");
+        CheckFields(text, why, module, elements, tags, src);
 
         var store = OpenStore(folder);
         return store.WithLock(() =>
@@ -273,6 +254,31 @@ static class MemoryCommand
             Print(report);
             return 0;
         });
+    }
+
+    // Sizes, forms and secrets of a new record: refused before anything is written, with the fix in the message. Shared
+    // by add and dream --import.
+    static void CheckFields(string text, string why, string? module, string[] elements, string[] tags, string src)
+    {
+        try
+        {
+            var size = MemoryFormat.Bytes(text);
+            if (size > MemoryFormat.TextMax) throw new MemoryException($"The text is {size} bytes; the limit is {MemoryFormat.TextMax}. One fact per record: cut it or split it.", 2);
+            var srcSize = MemoryFormat.Bytes(src);
+            if (srcSize > MemoryFormat.SrcMax) throw new MemoryException($"--src is {srcSize} bytes; the limit is {MemoryFormat.SrcMax}. Use a short agent name.", 2);
+            var whySize = MemoryFormat.Bytes(why);
+            if (whySize > MemoryFormat.WhyMax) throw new MemoryException($"--why is {whySize} bytes; the limit is {MemoryFormat.WhyMax}. Give the reason in one short sentence.", 2);
+            if (module is not null && (!ModuleForm.IsMatch(module) || MemoryFormat.Bytes(module) > MemoryFormat.ModuleMax)) throw new MemoryException($"--module must be a module name (letters, digits, _ . - and single spaces inside) of at most {MemoryFormat.ModuleMax} bytes.", 2);
+            if (elements.Any(e => !NameForm.IsMatch(e.Replace("/", ""))) || MemoryFormat.Bytes(string.Join(',', elements)) > MemoryFormat.ElementsMax)
+                throw new MemoryException($"--elements takes element names or paths separated by commas, at most {MemoryFormat.ElementsMax} bytes in all. Name the main ones.", 2);
+            if (tags.Any(t => !NameForm.IsMatch(t)) || MemoryFormat.Bytes(string.Join(',', tags)) > MemoryFormat.TagsMax)
+                throw new MemoryException($"--tags takes short words separated by commas, at most {MemoryFormat.TagsMax} bytes in all.", 2);
+        }
+        catch (EncoderFallbackException) { throw new MemoryException("The text holds a character that cannot be stored (an unpaired surrogate). Write the character itself.", 2); }
+        foreach (var (field, value) in new[] { ("text", text), ("--why", why), ("--tags", string.Join(',', tags)), ("--elements", string.Join(',', elements)), ("--module", module ?? ""), ("--src", src) })
+            if (MemorySecrets.Find(value) is { } secret)
+                throw new MemoryException($"The {field} holds what looks like a secret ({secret}). Memory is plain text, so nothing was written. Do not store keys or tokens. Write what it is for instead.", 2,
+                    "For example: \"the LifeTime token is in OML_LIFETIME_TOKEN\".");
     }
 
     // Live records of the same module (or of none) that the new text may contradict: the best matches of the search
@@ -405,7 +411,8 @@ static class MemoryCommand
         var (folder, module) = Where(o);
         var kind = CheckKind(o);
         var top = ParseTop(o, DefaultTop, MaxTop);
-        var state = OpenStore(folder).Load(useIndex: !o.Flags.Contains("--no-index"));
+        var store = OpenStore(folder);
+        var state = store.Load(useIndex: !o.Flags.Contains("--no-index"));
         // A wider pool than asked, so usefulness and newer records can change the order.
         var (raw, weak, searched) = RecallRaw(state, module, kind, query, Math.Min(top * 3, 60));
         var (use, logStart) = Usage();
@@ -438,6 +445,7 @@ static class MemoryCommand
             result["hint"] = "Weak match: do not rely on it. Rephrase with the module or element name, or ask the user.";
         }
         if (TamperWarning(state) is { } warning) result["warning"] = warning;
+        if (EndOfDayNudge(store, state.Total) is { } nudge) result["endOfDay"] = nudge;
         Print(result);
         return 0;
     }
@@ -722,7 +730,8 @@ static class MemoryCommand
         if (o.Words.Count > 0) throw new MemoryException($"Unexpected '{o.Words[0]}'.", 2, "Usage: oml memory handoff [--module <Name>]");
         var (folder, module) = Where(o);
         var top = ParseTop(o, 6, MaxTop);
-        var state = OpenStore(folder).Load(useIndex: true);
+        var store = OpenStore(folder);
+        var state = store.Load(useIndex: true);
         var live = Filtered(state.LiveNow(), module, null).OrderByDescending(r => r.Seq).ToList();
         var task = live.FirstOrDefault(r => r.Tags.Contains("task"));
         var staged = live.Where(r => r.Tags.Contains("staged")).Take(5).ToList();
@@ -742,6 +751,7 @@ static class MemoryCommand
         if (task is null && staged.Count == 0 && open.Count == 0 && recent.Count == 0) result["hint"] = "No live record yet.";
         else if (task is null) result["hint"] = "No record is tagged task. Write one at the end of a task: oml memory add \"<what is being built>\" --kind log --tags task";
         if (TamperWarning(state) is { } warning) result["warning"] = warning;
+        if (EndOfDayNudge(store, state.Total) is { } nudge) result["endOfDay"] = nudge;
         Print(result);
         return 0;
     }

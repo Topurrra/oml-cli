@@ -161,6 +161,9 @@ export const cookbook = [
     ['oml memory doctor --module C:\\Work\\Orders.oml', 'Check the hash chain (finds edits made outside oml) and that the named elements still exist in the module.'],
     ['oml memory handoff --module Orders', 'Print a short brief for the next agent: the task, staged files and open questions.'],
     ['oml memory traps --command "oml describe Orders.oml OrderDetail"', 'List the trap records this command may run into, by element names and words. Read only; it never blocks.'],
+    ['oml memory dream --prepare', 'End of the day: write a packet (new records, missing elements, repeated failures, duplicates and contradictions) and instructions for the agent to tidy the memory.'],
+    ['oml memory dream --import C:\\Work\\.oml\\dream\\ops.json', 'Apply the add and retract operations of the agent after checks; rejected ones are listed with the reason. Records the dream.'],
+    ['oml memory dream --status', 'Show when the memory was last tidied and how many records were written since.'],
   ] },
   { group: 'OutSystems docs library', items: [
     ['oml outsystems-docs fetch', 'Download the OutSystems 11 docs (docs-product, docs-support, docs-howtos) from GitHub: Markdown only, about 15 MB.'],

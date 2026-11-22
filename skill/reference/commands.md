@@ -57,16 +57,17 @@ oml team-rules add <file.md> [--force]   (check a skill file (name and descripti
 oml team-rules remove <name>   (uninstall one company skill; the source file stays)
 oml explain-warning <id | title words>       (cause and fix of a validation message, such as NoErrorHandlingInFlow)
 oml explain-warning --catalog [<prefix>]      (list the verification ids oml knows; a prefix narrows, such as Entity_)
-oml memory init [--module <file.oml> | --dir <folder>] [--force]   (create the project's memory store: .oml/memory/memory.log in the project root folder (the current folder); the only command that creates one)
-oml memory add "<one fact>" [--kind fact|decision|pref|trap|log|glossary|answer] [--module <Name>] [--elements A,B] [--why "<reason>"] [--tags a,b] [--supersedes <id>] [--conf 0-100] [--src <agent>] [--valid-from <date>] [--valid-until <date>]   (write one record of at most 300 bytes; secrets are refused)
-oml memory recall "<question>" [--module <Name>] [--kind K] [--top N]   (the best records for a question, at most 20; read only)
-oml memory list [--module <Name>] [--kind K] [--top N] [--all]   (records, newest first; --all adds replaced and retracted ones; read only)
+oml memory init [--module <file.oml> | --dir <folder>] [--force]   (create the store .oml/memory/memory.log in the project root folder (the current folder); no other command does)
+oml memory add "<one fact>" [--kind fact|decision|pref|trap|log|glossary|answer] [--module <Name>] [--elements A,B] [--why "<reason>"] [--tags a,b] [--supersedes <id>] [--conf 0-100] [--src <agent>] [--valid-from <date>] [--valid-until <date>]   (one record, 300 bytes at most; secrets are refused)
+oml memory recall "<question>" [--module <Name>] [--kind K] [--top N] [--include-stale]   (the best records for a question, ranked by use; read only)
+oml memory list [--module <Name>] [--kind K] [--top N] [--all]   (records, newest first; --all adds replaced ones; read only)
 oml memory show <id>   (one record in full, with its status; read only)
 oml memory history <id>   (what replaced what; read only)
 oml memory retract <id> --why "<reason>"   (mark a record as no longer true; it stays in the file)
-oml memory doctor [--module <file.oml>]   (check the hash chain, the file end and the index; with a module, check that the elements still exist)
-oml memory handoff [--module <Name>] [--top N]   (a short brief for the next agent from the newest records; read only)
-oml memory traps [--command "<command>"] [--module <Name>] [--top N]   (live trap records; with --command, those the command may run into, by words; read only, never blocks)
+oml memory doctor [--module <file.oml>] [--file <usage.jsonl>]   (check the hash chain and the index; with a module, that the elements exist; failures that repeat)
+oml memory handoff [--module <Name>] [--top N]   (a brief for the next agent from the newest records; read only)
+oml memory traps [--command "<command>"] [--module <Name>] [--top N]   (live trap records; with --command, those it may run into; read only)
+oml memory dream --prepare [<folder>] | --import <ops.json> | --status   (end-of-day memory tidy: a packet, then checked add/retract ops)
 oml batch <steps.json> [--continue]   (several commands in one process, so Service Studio loads once; "-" reads the steps from stdin)
 oml translations export <module.oml> <file> [--format Excel|xlsx|ResX]
 oml install <staged.oml> <target.oml> [--allow-existing-errors]
@@ -1194,7 +1195,16 @@ A record is **live** when no later record replaced or retracted it and now is in
 
 `doctor [--file <usage.jsonl>]` also reads the usage log (default: `OML_LOG` or the default file) and lists `suggestedTraps`: a failure with the same message from the same command 3 times or more, in 2 sessions or more, that no live trap record matches. Each has `command`, `message`, `seen`, `sessions`, `passedWith` (the command and option names of a later pass in the same session, if any) and `add`: the exact `oml memory add ... --kind trap` command. Doctor never writes it; the user decides. A message with a secret, or one that reads like an instruction, is never suggested. Suggestions do not change `ok` or the exit code.
 
-**oml batch.** `recall`, `list`, `show`, `history`, `handoff` and `traps` are allowed in `oml batch`, so an agent can recall in its first read call. `init`, `add`, `retract`, `doctor` and `bench` are refused there (exit 2). A missing store gives exit 1, which does not stop the run.
+**dream.** The end-of-day tidy ("dreaming"). Work laptops are off at night, so it runs when the user ends the day: the user says "that's it for today", "done for today" or "wrap up the day", and the agent runs the steps below. No model runs inside oml.
+
+- `dream --prepare [<folder>] [--module <file.oml>[,...]] [--file <usage.jsonl>]` writes `instructions.md` and `packet.md` to the folder (default `<root>\.oml\dream`). The packet has five parts: the live records added since the last dream; records whose `elements` are not in their module; failures that repeat in the usage log since the last dream (3 times or more, in 2 sessions or more), with the suggested trap or the trap that did not stop them; records recalled since then that did not help; and duplicate, near-duplicate or contradicting pairs (each new record against the live records of its scope, judged as `add` judges a new record; at most 30 pairs). Element names are read with `oml inspect` from `--module`, else from `<Module>.oml` in the root folder (up to 3 levels deep). A module with no file is listed as not checked; repo-wide records are checked only against `--module` files.
+- The agent follows `instructions.md` and saves a JSON array of operations: `{"op": "add", "text", "kind", "module", "elements", "why", "tags", "supersedes"}` or `{"op": "retract", "id", "why"}`. `[]` means nothing to change.
+- `dream --import <ops.json> [--module <file.oml>[,...]]` checks each operation in order and writes the accepted ones (`src` is `dream`). An operation is rejected when its id does not exist, is a retraction or is already replaced (also by an earlier operation in the file), its text is the same as a live record of the module, an element is not in its module, a field holds a secret, or a field breaks a limit of `add`. With no module file, the elements are not checked and the operation has `elementsChecked: false`. The output has `summary` (`submitted`, `accepted`, `rejected`), `accepted` (index, new id, what it replaced) and `rejected` (index and `reason`). Exit 0 also when some are rejected. Import records the dream in `.oml\memory\dream.json` (time and record count), so the next `--prepare` starts there.
+- `dream --status` prints `lastDream`, `dreamedToday`, `newSinceDream` (records written since) and the usage log lines and failures since.
+
+`recall` and `handoff` print `endOfDay` once a day, when records were added since the last dream and no dream ran that day. The agent then tells the user once that saying "that's it for today" tidies the memory. `dream.json` keeps the day of the last hint.
+
+**oml batch.** `recall`, `list`, `show`, `history`, `handoff` and `traps` are allowed in `oml batch`, so an agent can recall in its first read call. `init`, `add`, `retract`, `doctor`, `dream` and `bench` are refused there (exit 2). A missing store gives exit 1, which does not stop the run.
 
 **Exit codes.** 0 done. 1 no store, record not found, a finding of `doctor`, a damaged file, or the lock not free after 30 seconds. 2 wrong input or a refused record. Output is compact JSON on stdout (pure ASCII); an error is `{"error": "...", "hint": "..."}`.
 
@@ -1391,7 +1401,7 @@ Anything the hook cannot read is allowed: a broken hook never blocks work. Each 
 
 **Memory reminder** (the end-of-turn hook, `oml hooks stop`): small models often forget `oml memory add`. When the agent finishes, the hook asks it once to save what the next agent should know, and only when all of these hold:
 
-- the session changed something or tested the app (`apply`, `install`, `new`, `publish`, `references`, `extension new`, `app pack`, `lifetime deploy|tag`, `browser`) and saved nothing (`memory add` or `retract`), going by the usage log since the session started (the transcript file's creation time, else the last 2 hours);
+- the session changed something or tested the app (`apply`, `install`, `new`, `publish`, `references`, `extension new`, `app pack`, `lifetime deploy|tag`, `browser`) and saved nothing (`memory add`, `retract` or `dream --import`), going by the usage log since the session started (the transcript file's creation time, else the last 2 hours);
 - the project folder has a memory store (`.oml/memory/memory.log`);
 - the agent is not already continuing because of a stop hook (`stop_hook_active`), so it never asks twice.
 

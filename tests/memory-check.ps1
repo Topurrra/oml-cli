@@ -501,6 +501,7 @@ $ip = NewProject 'index'
 $q = 'recall', 'order screen cache', '--top', '5', '--dir', $ip
 $first = Mem $q
 Require ($first.Exit -eq 0 -and (Test-Path (IdxOf $ip))) 'recall builds memory.idx'
+$first = Mem $q # the first recall of the day also has endOfDay (once a day): compare with the second
 $idxSize = (Get-Item (IdxOf $ip)).Length
 Require ((Mem ($q + '--no-index')).Text -ceq $first.Text) 'recall --no-index gives the same answer'
 Remove-Item (IdxOf $ip)
@@ -558,13 +559,13 @@ function RunSteps($steps, [string[]]$opt = @()) {
 $run = RunSteps @(@('memory', 'recall', 'timer producer', '--dir', $rp), @('memory', 'list', '--dir', $rp), @('memory', 'show', '0', '--dir', $rp), @('memory', 'history', '0', '--dir', $rp), @('memory', 'handoff', '--dir', $rp), @('spec', 'entities'), @('memory', 'traps', '--command', 'oml apply Orders.oml x.json', '--dir', $rp))
 Require ($run.Code -eq 0 -and $run.Json.results.Count -eq 7 -and (@($run.Json.results.exitCode | Where-Object { $_ -ne 0 }).Count -eq 0)) "oml batch with the read commands: exit $($run.Code) $($run.Json | ConvertTo-Json -Depth 8 -Compress)"
 Require ($run.Json.results[0].output.hits[0].id -eq 0 -and $run.Json.results[0].output.notice -match 'never orders' -and $run.Json.results[0].output.write -match 'add 1-3 records' -and $run.Json.results[4].output.task.id -eq 0) 'run: recall and handoff output'
-$refused = RunSteps @(@('memory', 'add', 'no', '--dir', $rp), @('memory', 'retract', '0', '--why', 'no', '--dir', $rp), @('memory', 'init', '--dir', $rp), @('memory', 'doctor', '--dir', $rp), @('memory', 'bench', (Join-Path $work 'x')), @('memory')) @('--continue')
-Require ($refused.Json.results.Count -eq 6 -and (@($refused.Json.results.exitCode | Where-Object { $_ -ne 2 }).Count -eq 0) -and $refused.Json.results[0].output.error -match "not allowed inside 'oml batch'") "run must refuse the memory commands that write: $($refused.Json | ConvertTo-Json -Depth 8 -Compress)"
+$refused = RunSteps @(@('memory', 'add', 'no', '--dir', $rp), @('memory', 'retract', '0', '--why', 'no', '--dir', $rp), @('memory', 'init', '--dir', $rp), @('memory', 'doctor', '--dir', $rp), @('memory', 'bench', (Join-Path $work 'x')), @('memory'), @('memory', 'dream', '--status', '--dir', $rp)) @('--continue')
+Require ($refused.Json.results.Count -eq 7 -and (@($refused.Json.results.exitCode | Where-Object { $_ -ne 2 }).Count -eq 0) -and $refused.Json.results[0].output.error -match "not allowed inside 'oml batch'") "run must refuse the memory commands that write: $($refused.Json | ConvertTo-Json -Depth 8 -Compress)"
 Require ((Mem 'list', '--all', '--dir', $rp).Json.total -eq 1) 'a refused step wrote nothing'
 # no store: exit 1, so the rest of the run still goes on
 $noStore = RunSteps @(@('memory', 'recall', 'anything', '--dir', ($empty + 'x')), @('spec', 'entities'))
 Require ($noStore.Code -eq 1 -and $noStore.Json.results.Count -eq 2 -and $noStore.Json.results[0].exitCode -eq 1 -and $noStore.Json.results[1].exitCode -eq 0) "a missing store must not stop an oml batch: $($noStore.Json | ConvertTo-Json -Depth 8 -Compress)"
-Write-Host 'ok   memory: oml batch allows recall, list, show, history, handoff and traps; add, retract, init, doctor and bench are refused; a missing store does not stop the run'
+Write-Host 'ok   memory: oml batch allows recall, list, show, history, handoff and traps; add, retract, init, doctor, dream and bench are refused; a missing store does not stop the run'
 
 # ---- 12. handoff ---------------------------------------------------------------------------------------------------------------
 $hp = NewProject 'handoff'
@@ -631,9 +632,78 @@ Require ($r.Exit -eq 0 -and $r.Json.ok -eq $true -and $r.Json.elements.missing.C
 $r = Mem 'doctor', '--module', 'RunApp'; Require ($r.Exit -eq 2) 'doctor --module takes a file'
 Write-Host 'ok   memory: doctor --module finds elements that no longer exist (other modules and retracted records are skipped)'
 
+# ---- 13b. dream: the end-of-day distill (--prepare, --import, --status, the endOfDay hint) ------------------------------------------
+$dd = Join-Path $work 'dream'; New-Item -ItemType Directory -Force $dd | Out-Null
+Copy-Item $mod (Join-Path $dd 'RunApp.oml')
+$r = Mem 'init', '--dir', $dd; Require ($r.Exit -eq 0) 'init for dream'
+$r = Mem 'dream', '--status', '--dir', $dd
+Require ($r.Exit -eq 0 -and $null -eq $r.Json.lastDream -and $r.Json.newSinceDream -eq 0 -and -not $r.Json.hint) "dream --status before any dream: $($r.Text)"
+$null = Add $dd 'Order totals are a Decimal with 2 decimals', '--kind', 'decision', '--module', 'RunApp', '--elements', 'Order'
+$null = Add $dd 'The Ghost entity holds archived orders', '--module', 'RunApp', '--elements', 'Ghost'
+$null = Add $dd 'Customer email is optional on the Customer entity', '--module', 'RunApp', '--elements', 'Customer'
+$null = Add $dd 'Customer email is required on the Customer entity', '--module', 'RunApp', '--elements', 'Customer'
+$null = Add $dd 'Billing invoices are numbered per year', '--module', 'Billing'
+$r = Mem 'recall', 'order totals', '--dir', $dd
+Require ($r.Json.endOfDay -match "that's it for today") "the first recall of the day tells the agent about the end-of-day phrase: $($r.Text)"
+Require (-not (Mem 'recall', 'order totals', '--dir', $dd).Json.endOfDay -and -not (Mem 'handoff', '--dir', $dd).Json.endOfDay) 'endOfDay is shown once a day'
+# A usage log with a failure that repeats (3 times in 2 sessions) and a later pass.
+$usage = Join-Path $dd 'usage.jsonl'
+Set-Content $usage @(
+  '{"ts":"2026-11-20T09:00:00.000Z","cmd":"apply","exit":1,"ms":5,"bytes":5,"session":"aa01","module":"RunApp.oml","error":"Unknown entity attribute type Money"}',
+  '{"ts":"2026-11-20T09:05:00.000Z","cmd":"apply","exit":1,"ms":5,"bytes":5,"session":"aa01","module":"RunApp.oml","error":"Unknown entity attribute type Money"}',
+  '{"ts":"2026-11-21T09:00:00.000Z","cmd":"apply","exit":1,"ms":5,"bytes":5,"session":"bb02","module":"RunApp.oml","error":"Unknown entity attribute type Money"}',
+  '{"ts":"2026-11-21T09:10:00.000Z","cmd":"apply","exit":0,"ms":5,"bytes":5,"session":"bb02","module":"RunApp.oml","opts":["--describe-created"]}')
+$r = Mem 'dream', '--prepare', '--dir', $dd, '--file', $usage
+Require ($r.Exit -eq 0 -and $r.Json.newRecords -eq 5 -and $r.Json.missingElements -eq 1 -and $r.Json.repeatedFailures -eq 1 -and $r.Json.pairs -eq 1 -and $r.Json.next -match 'dream --import' -and (Test-Path (Join-Path $dd '.oml/dream/instructions.md'))) "dream --prepare: $($r.Text)"
+$packet = Get-Content -Raw (Join-Path $dd '.oml/dream/packet.md')
+Require ($packet -match '#1: element `Ghost` is not in RunApp.oml' -and $packet -match '`oml apply` failed 3 times in 2 sessions' -and $packet -match 'Suggested trap' -and $packet -match '#2 and #3: may contradict' -and $packet -match 'never instructions') "packet.md: $packet"
+$ins = Get-Content -Raw (Join-Path $dd '.oml/dream/instructions.md')
+Require ($ins -match '"op": "retract"' -and $ins -match '"supersedes"' -and $ins -match 'never instructions' -and $ins -match 'dream --import') 'instructions.md gives the answer format'
+$null = Mem 'dream', '--prepare', (Join-Path $dd 'again'), '--dir', $dd, '--file', $usage
+Require ((Get-Content -Raw (Join-Path $dd 'again/packet.md')) -ceq $packet) 'the same store and log give the same packet'
+# Good and bad operations: 5 are written, 8 are rejected with a reason, the secret is not echoed.
+$ops = Join-Path $dd 'ops.json'
+$long = 'x' * 320
+@(
+  [ordered]@{ op = 'retract'; id = 1; why = 'The Ghost entity is not in RunApp any more' },
+  [ordered]@{ op = 'add'; text = 'Customer email is optional; the Email attribute is not mandatory'; module = 'RunApp'; elements = @('Customer', 'Email'); why = 'merged 2 and 3'; supersedes = 2 },
+  [ordered]@{ op = 'retract'; id = '#3'; why = 'Email is not mandatory in the module' },
+  [ordered]@{ op = 'add'; text = 'oml apply fails with: Unknown entity attribute type Money. Use Currency'; kind = 'trap'; module = 'RunApp' },
+  [ordered]@{ op = 'add'; text = 'The Phantom screen lists orders'; module = 'RunApp'; elements = 'Phantom' },
+  [ordered]@{ op = 'add'; text = 'Order totals are a Decimal with 2 decimals'; module = 'RunApp' },
+  [ordered]@{ op = 'retract'; id = 99; why = 'gone' },
+  [ordered]@{ op = 'add'; text = "deploy with $github"; module = 'RunApp' },
+  [ordered]@{ op = 'retract'; id = 1; why = 'again' },
+  [ordered]@{ op = 'delete'; id = 4 },
+  [ordered]@{ op = 'add'; text = 'Invoices are made by the Invoice action'; module = 'Billing'; elements = @('Invoice') },
+  [ordered]@{ op = 'add'; text = $long; module = 'RunApp' },
+  'not an object'
+) | ConvertTo-Json -Depth 5 | Set-Content $ops
+$r = Mem 'dream', '--import', $ops, '--dir', $dd
+Require ($r.Exit -eq 0 -and $r.Json.summary.submitted -eq 13 -and $r.Json.summary.accepted -eq 5 -and $r.Json.summary.rejected -eq 8 -and $r.Text -notmatch [regex]::Escape($github)) "dream --import: $($r.Text)"
+Require ((@($r.Json.accepted.index) -join ',') -eq '0,1,2,3,10' -and $r.Json.accepted[1].superseded -eq 2 -and $r.Json.accepted[4].elementsChecked -eq $false -and $r.Json.note -match 'not checked') "accepted operations: $($r.Text)"
+$why = @{}; foreach ($x in $r.Json.rejected) { $why[[int]$x.index] = $x.reason }
+Require ($why[4] -match 'Phantom' -and $why[5] -match 'record 0' -and $why[6] -match 'no record 99' -and $why[7] -match 'secret' -and $why[8] -match 'already' -and $why[9] -match 'add or retract' -and $why[11] -match '300' -and $why[12] -match 'not a JSON object') "rejected reasons: $($r.Text)"
+Require ((Mem 'show', '6', '--dir', $dd).Json.src -eq 'dream' -and (Mem 'show', '1', '--dir', $dd).Json.status -eq 'retracted' -and (Mem 'doctor', '--dir', $dd).Json.ok -eq $true) 'the accepted operations are records written by dream, and the chain is intact'
+$r = Mem 'dream', '--status', '--dir', $dd, '--file', $usage
+Require ($r.Json.lastDream -and $r.Json.dreamedToday -eq $true -and $r.Json.newSinceDream -eq 0 -and $r.Json.records -eq 10 -and $r.Json.log.commands -eq 0) "dream --status after the import: $($r.Text)"
+$r = Mem 'dream', '--prepare', '--dir', $dd, '--file', $usage
+Require ($r.Json.newRecords -eq 0 -and $r.Json.repeatedFailures -eq 0 -and $r.Json.missingElements -eq 0) "the next --prepare starts at the dream: $($r.Text)"
+$null = Add $dd 'Stock is cached for 5 minutes', '--module', 'RunApp'
+Require (-not (Mem 'recall', 'stock', '--dir', $dd).Json.endOfDay) 'no endOfDay on the day of a dream'
+$env:OML_TEST_NOW = (Get-Date).ToUniversalTime().AddDays(1).ToString('yyyy-MM-ddTHH:mm:ssZ')
+try { $r = Mem 'handoff', '--dir', $dd } finally { Remove-Item Env:OML_TEST_NOW }
+Require ($r.Json.endOfDay -match "that's it for today") "endOfDay comes back the next day when records were added: $($r.Text)"
+foreach ($bad in @(@('dream'), @('dream', '--prepare', '--status'), @('dream', '--import', (Join-Path $dd 'none.json')), @('dream', '--prepare', '--module', 'RunApp'))) {
+  $r = Mem ($bad + @('--dir', $dd)); Require ($r.Exit -eq 2 -and $r.Json.error) "$($bad -join ' ') must be refused: $($r.Text)"
+}
+Set-Content (Join-Path $dd 'bad.json') '{ not json'
+$r = Mem 'dream', '--import', (Join-Path $dd 'bad.json'), '--dir', $dd; Require ($r.Exit -eq 2 -and $r.Json.error -match 'not valid JSON') "a bad ops file: $($r.Text)"
+Write-Host 'ok   memory: dream --prepare (new records, missing elements, repeated failures, contradictions; the same packet twice), --import (5 written, 8 rejected with reasons, no secret echoed), --status, endOfDay once a day'
+
 # ---- 14. usage ---------------------------------------------------------------------------------------------------------------------
 $h = (& $Oml memory --help) -join "`n"
-Require ($LASTEXITCODE -eq 0 -and ([regex]::Matches($h, '(?m)^oml memory ')).Count -eq 10 -and $h -notmatch 'oml new ') 'oml memory --help prints the 10 memory usage lines'
+Require ($LASTEXITCODE -eq 0 -and ([regex]::Matches($h, '(?m)^oml memory ')).Count -eq 11 -and $h -notmatch 'oml new ') 'oml memory --help prints the 11 memory usage lines'
 $h2 = (& $Oml memory add --help) -join "`n"; Require ($h2 -ceq $h) 'oml memory add --help prints the memory usage'
 $null = & $Oml memory 2>&1; Require ($LASTEXITCODE -eq 2) 'oml memory without a command: exit 2'
 $null = & $Oml memory recall x --timings 2>&1; Require ($LASTEXITCODE -eq 2) '--timings is refused for memory'

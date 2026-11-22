@@ -203,7 +203,7 @@ static class AgentHooks
         var start = now.AddHours(-2);
         if (Str(o, "transcript_path", "transcriptPath") is { } transcript && File.Exists(transcript)) start = File.GetCreationTimeUtc(transcript);
         var rows = UsageLog.Read(log, maxBytes: 2 * 1024 * 1024).Where(r => r.Ts >= start && !r.InRun).ToList();
-        if (rows.Any(r => r.Cmd is "memory add" or "memory retract" && r.Exit == 0)) return null;
+        if (rows.Any(r => (r.Cmd is "memory add" or "memory retract" || r.Cmd == "memory dream" && r.Opts.Contains("--import")) && r.Exit == 0)) return null;
         var changed = rows.Where(r => r.Exit == 0 && ChangeCommands.Contains(r.Cmd)).GroupBy(r => r.Cmd).Select(g => $"{g.Key} {g.Count()}x").ToList();
         if (changed.Count == 0) return null;
         return $"oml: this session ran {string.Join(", ", changed)} and saved nothing to the project memory. Before you finish: if it found something the next agent should know " +
