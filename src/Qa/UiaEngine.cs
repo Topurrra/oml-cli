@@ -31,6 +31,7 @@ sealed class UiaEngine : IQaEngine
 
     public string Mode => "uia";
     public bool Alive => browser is null || !browser.HasExited;
+    public bool Visible => headed;
     public QaNetwork Network { get; } = new();
 
     public UiaEngine(bool headed, int width, int height)

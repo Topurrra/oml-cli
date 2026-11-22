@@ -4,7 +4,8 @@ using System.Text.Json;
 
 namespace OmlCli.Qa;
 
-// One Edge or Chrome with its own throwaway profile (never the user's), driven over CDP. Clicks and typing are real
+// One Edge or Chrome with its own throwaway profile, driven over CDP; or, with --attach, one new tab in the user's own
+// Chrome that runs with remote debugging (see Attach). Clicks and typing are real
 // input events at the element's position (hit-tested first), so they go through the same path as a person's click,
 // without moving the user's mouse. "Ready" means: the document loaded, no request in flight for a quiet moment.
 sealed class CdpEngine : IQaEngine
@@ -12,15 +13,23 @@ sealed class CdpEngine : IQaEngine
     const int QuietMs = 350;      // no network activity for this long after the last request ended
     const int StuckMs = 8_000;    // a request open longer than this (long polling, analytics) no longer holds "ready"
 
-    readonly Process process;
-    readonly string profile;
+    readonly Process? process;     // null when attached to the user's own browser (--attach)
+    readonly string? profile;
     public Cdp Cdp { get; }
+    // "127.0.0.1:<port>" when attached to the user's own Chrome: oml drives one new tab there and closes only that tab.
+    public string? Attached { get; }
+    readonly string? ownTarget;
+    // A person can see the window: --headed, or an attached Chrome that is not headless (a handoff needs one).
+    public bool Visible { get; }
     public QaNetwork Network { get; } = new();
     readonly List<string> exceptions = [];
     readonly List<string> console = [];
     readonly object gate = new();
 
-    CdpEngine(Process process, string profile, Cdp cdp) { this.process = process; this.profile = profile; Cdp = cdp; }
+    CdpEngine(Process? process, string? profile, Cdp cdp, bool visible, string? attached = null, string? ownTarget = null)
+    {
+        (this.process, this.profile, Cdp, Visible, Attached, this.ownTarget) = (process, profile, cdp, visible, attached, ownTarget);
+    }
 
     public static async Task<CdpEngine> Start(bool headed, int width, int height)
     {
@@ -47,17 +56,97 @@ sealed class CdpEngine : IQaEngine
             var page = targets.EnumerateArray().FirstOrDefault(t => t.GetProperty("type").GetString() == "page");
             if (page.ValueKind != JsonValueKind.Object) throw new QaUsage("The browser started but has no page to drive.");
             var cdp = await Cdp.Connect(new Uri(page.GetProperty("webSocketDebuggerUrl").GetString()!), 10_000);
-            var browser = new CdpEngine(process, profile, cdp);
-            cdp.Event += browser.OnEvent;
-            foreach (var domain in new[] { "Page.enable", "Network.enable", "Runtime.enable", "Log.enable" }) await cdp.Send(domain);
-            await cdp.Send("Emulation.setDeviceMetricsOverride", new { width, height, deviceScaleFactor = 1, mobile = width < 768 });
-            return browser;
+            return await Ready(new CdpEngine(process, profile, cdp, headed), width, height);
         }
         catch
         {
             Kill(process, profile);
             throw;
         }
+    }
+
+    static async Task<CdpEngine> Ready(CdpEngine browser, int width, int height)
+    {
+        browser.Cdp.Event += browser.OnEvent;
+        foreach (var domain in new[] { "Page.enable", "Network.enable", "Runtime.enable", "Log.enable" }) await browser.Cdp.Send(domain);
+        await browser.Cdp.Send("Emulation.setDeviceMetricsOverride", new { width, height, deviceScaleFactor = 1, mobile = width < 768 });
+        return browser;
+    }
+
+    // --attach: the user's own Chrome, started with --remote-debugging-port, where they logged in (SSO, MFA). Only a
+    // browser on this computer: the port, a ws:// or an http:// address on 127.0.0.1 or localhost. oml opens a new tab,
+    // drives only that tab and closes only that tab; the user's tabs and the browser stay as they are.
+    public static async Task<CdpEngine> Attach(string? endpoint, int width, int height)
+    {
+        var port = AttachPort(endpoint);
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        string product;
+        try
+        {
+            var version = JsonDocument.Parse(await http.GetStringAsync($"http://127.0.0.1:{port}/json/version")).RootElement;
+            product = version.TryGetProperty("Browser", out var b) ? b.GetString() ?? "" : "";
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            throw new QaUsage($"No browser with remote debugging on 127.0.0.1:{port}. Start Chrome with: chrome.exe --remote-debugging-port={port} --user-data-dir=<a separate profile folder>, log in there once, then attach again.");
+        }
+        // Chrome 111 and later want PUT for a new tab.
+        using var created = await http.SendAsync(new HttpRequestMessage(HttpMethod.Put, $"http://127.0.0.1:{port}/json/new?about:blank"));
+        if (!created.IsSuccessStatusCode) throw new QaUsage($"The browser on 127.0.0.1:{port} did not open a new tab (HTTP {(int)created.StatusCode}).");
+        var target = JsonDocument.Parse(await created.Content.ReadAsStringAsync()).RootElement;
+        var id = target.GetProperty("id").GetString()!;
+        try
+        {
+            var socket = new Uri(target.GetProperty("webSocketDebuggerUrl").GetString()!);
+            if (!Loopback(socket.Host)) throw new QaUsage($"The browser gave a DevTools address on {socket.Host}, not on this computer; oml does not connect to it.");
+            var cdp = await Cdp.Connect(socket, 10_000);
+            var visible = !product.Contains("Headless", StringComparison.OrdinalIgnoreCase);
+            return await Ready(new CdpEngine(null, null, cdp, visible, $"127.0.0.1:{port}", id), width, height);
+        }
+        catch
+        {
+            try { using var _ = await http.GetAsync($"http://127.0.0.1:{port}/json/close/{id}"); }
+            catch (Exception x) when (x is HttpRequestException or TaskCanceledException) { }
+            throw;
+        }
+    }
+
+    // The DevTools port of --attach: none given is 9222. A host that is not this computer is refused before any connection.
+    public static int AttachPort(string? endpoint)
+    {
+        if (string.IsNullOrWhiteSpace(endpoint)) return 9222;
+        if (int.TryParse(endpoint, out var n)) return n is > 0 and < 65536 ? n : throw new QaUsage($"--attach: {endpoint} is not a port.");
+        if (!Uri.TryCreate(endpoint.Contains("://") ? endpoint : "http://" + endpoint, UriKind.Absolute, out var uri) || uri.Scheme is not ("ws" or "http"))
+            throw new QaUsage("--attach takes a port (9222), or a ws:// or http:// address on 127.0.0.1.");
+        if (!Loopback(uri.Host)) throw new QaUsage($"--attach: {uri.Host} is not this computer. oml attaches only to a browser on 127.0.0.1 (localhost).");
+        if (uri.IsDefaultPort) throw new QaUsage("--attach: give the port, such as ws://127.0.0.1:9222.");
+        return uri.Port;
+    }
+
+    static bool Loopback(string host) => host is "127.0.0.1" or "localhost" or "[::1]" or "::1";
+
+    // browser raw and the raw step: methods that act on the whole browser are refused. Attached, the browser is the
+    // user's own: also no Target call on a tab that is not oml's, and no clearing of storage, cookies or cache.
+    public static string? RawRefusal(string method, JsonElement parameters, bool attached, string? ownTarget)
+    {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(method, @"^[A-Z][A-Za-z]*\.[a-z][A-Za-z]*$"))
+            return $"{method} is not a DevTools method name such as Page.reload or Runtime.evaluate.";
+        if (method is "Browser.close" or "Browser.crash" or "Browser.crashGpuProcess")
+            return $"{method} would close the whole browser. Use oml browser stop.";
+        if (!attached) return null;
+        if (method.StartsWith("Target.", StringComparison.Ordinal) && parameters.ValueKind == JsonValueKind.Object
+            && parameters.TryGetProperty("targetId", out var t) && t.ToString() != ownTarget)
+            return $"{method}: that tab is not oml's. Attached to your browser, oml acts only on its own tab.";
+        if (method.StartsWith("Storage.clear", StringComparison.Ordinal) || method is "Network.clearBrowserCookies" or "Network.clearBrowserCache")
+            return $"{method} would clear data of your own browser. Refused while attached.";
+        return null;
+    }
+
+    // Any DevTools method on oml's page, after RawRefusal.
+    public async Task<JsonElement> Raw(string method, JsonElement parameters)
+    {
+        if (RawRefusal(method, parameters, Attached is not null, ownTarget) is { } why) throw new QaUsage(why);
+        return await Cdp.Send(method, parameters.ValueKind == JsonValueKind.Object ? parameters : null, 30_000);
     }
 
     // Chrome writes the port it picked to DevToolsActivePort in the profile; --remote-debugging-port=0 avoids clashes.
@@ -159,7 +248,7 @@ sealed class CdpEngine : IQaEngine
     }
 
     public string Mode => "cdp";
-    public bool Alive => Cdp.Closed is null && !process.HasExited;
+    public bool Alive => Cdp.Closed is null && process?.HasExited != true;
 
     // A real mouse click at the element's centre, after locate scrolled it into view and hit-tested it.
     public async Task Activate(JsonElement at)
@@ -241,9 +330,16 @@ sealed class CdpEngine : IQaEngine
 
     public void Dispose()
     {
+        if (process is null)
+        {
+            // Attached: close oml's own tab only; the user's browser and tabs stay open.
+            try { Cdp.Send("Page.close", null, 2_000).Wait(2_500); } catch (AggregateException) { }
+            Cdp.Dispose();
+            return;
+        }
         try { Cdp.Send("Browser.close", null, 2_000).Wait(2_500); } catch (AggregateException) { }
         Cdp.Dispose();
-        Kill(process, profile);
+        Kill(process, profile!);
     }
 
     static void Kill(Process process, string profile)

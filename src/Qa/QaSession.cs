@@ -9,13 +9,17 @@ namespace OmlCli.Qa;
 // `oml browser start` keeps one browser open in a background `oml browser serve` process, so later `browser run` and `browser page`
 // skip the browser's cold start (6 to 8 seconds) and keep the app's login. They find the session through a state
 // file and talk to it over a named pipe that only the same Windows user can open. One request at a time.
-// The session stops on `oml browser stop`, after 30 minutes without a request, or when its browser is closed.
+// The session stops on `oml browser stop`, after 30 minutes without a request, or when its browser is closed. Attached
+// (--attach), it drives one tab of the user's own Chrome, and stop closes only that tab.
 static class QaSession
 {
     static readonly TimeSpan Idle = TimeSpan.FromMinutes(30);
-    static string StateFile => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "oml-cli", "browser-session.json");
+    // OML_BROWSER_SESSION moves the state file (the tests use it, so they never touch a session the user runs).
+    static string StateFile => Environment.GetEnvironmentVariable("OML_BROWSER_SESSION") is { Length: > 0 } file ? Path.GetFullPath(file)
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "oml-cli", "browser-session.json");
 
-    sealed record State(string Pipe, int Pid, string Engine, string? Note, int Width, int Height, DateTime Started);
+    // Attached: "127.0.0.1:<port>" when the session drives a tab in the user's own Chrome (--attach).
+    sealed record State(string Pipe, int Pid, string Engine, string? Note, int Width, int Height, DateTime Started, string? Attached = null);
 
     static State? ReadState()
     {
@@ -32,14 +36,22 @@ static class QaSession
     static object Describe(State s, bool started) => new
     {
         session = started ? "started" : "running", engine = s.Engine, engineNote = s.Note, pid = s.Pid,
-        viewport = new { width = s.Width, height = s.Height }, since = s.Started.ToString("s"),
-        hint = "browser run, page, look, sweep and diff now use this browser. oml browser stop closes it.",
+        viewport = new { width = s.Width, height = s.Height }, since = s.Started.ToString("s"), attached = s.Attached,
+        hint = s.Attached is null ? "browser run, page, look, sweep, diff and raw now use this browser. oml browser stop closes it."
+            : "browser run, page, look, sweep, diff and raw now use a new tab in your browser, where oml acts as you. oml browser stop closes that tab only.",
     };
 
     public static int Start(QaCommand.Settings o)
     {
+        if (o.Has("--attach"))
+        {
+            CdpEngine.AttachPort(o.Get("--attach"));   // a bad port or a host that is not this computer: refused here
+            if (o.Get("--engine") == "uia") throw new QaUsage("--attach drives your browser over DevTools; it does not work with --engine uia.");
+        }
         if (ReadState() is { } existing && Running(existing))
         {
+            if (o.Has("--attach") && existing.Attached is null)
+                throw new QaUsage("A browser session of oml's own is running. Run oml browser stop first, then oml browser start --attach.");
             TerminalOutput.PrintObject(Describe(existing, started: false));
             return 0;
         }
@@ -84,7 +96,8 @@ static class QaSession
             try { using var p = Process.GetProcessById(s.Pid); p.Kill(true); } catch (Exception x) when (x is ArgumentException or InvalidOperationException) { }
         }
         File.Delete(StateFile);
-        TerminalOutput.PrintObject(new { session = "stopped" });
+        TerminalOutput.PrintObject(s.Attached is null ? (object)new { session = "stopped" }
+            : new { session = "detached", note = "oml's tab is closed; your browser and its tabs stay open." });
         return 0;
     }
 
@@ -97,6 +110,7 @@ static class QaSession
         if (!Running(s)) { File.Delete(StateFile); return null; }
         var sent = args.ToArray();
         if (sent[0] is "run" or "diff") sent[1] = Path.GetFullPath(sent[1]);
+        if (sent[0] is "raw" && sent.Length > 2 && !sent[2].TrimStart().StartsWith('{')) sent[2] = Path.GetFullPath(sent[2]);
         for (var i = 2; i < sent.Length - 1; i++)
             if (sent[i] is "--out" or "--screenshot" or "--snapshot" or "--js") sent[i + 1] = Path.GetFullPath(sent[i + 1]);
             else if (sent[i] is "--css" && File.Exists(sent[i + 1])) sent[i + 1] = Path.GetFullPath(sent[i + 1]);
@@ -114,10 +128,26 @@ static class QaSession
         pipe.Connect(3_000);
         using var writer = new StreamWriter(pipe, new UTF8Encoding(false), leaveOpen: true) { AutoFlush = true };
         using var reader = new StreamReader(pipe, Encoding.UTF8, leaveOpen: true);
+        request["terminal"] = !Console.IsInputRedirected;
         writer.WriteLine(request.ToJsonString());
-        var line = reader.ReadLineAsync();
-        if (!line.Wait(answerMs)) throw new TimeoutException();
-        return JsonNode.Parse(line.Result ?? throw new IOException("The browser session closed the connection."))!.AsObject();
+        var clock = Stopwatch.StartNew();
+        var listening = false;
+        while (true)
+        {
+            var line = reader.ReadLineAsync();
+            if (!line.Wait(Math.Max(1, answerMs - (int)clock.ElapsedMilliseconds))) throw new TimeoutException();
+            var answer = JsonNode.Parse(line.Result ?? throw new IOException("The browser session closed the connection."))!.AsObject();
+            if (answer["attention"] is null) return answer;
+            // A handoff step in the session: the attention line goes to this terminal, and Enter pressed here goes back.
+            Console.Error.WriteLine(answer.ToJsonString());
+            if (listening || Console.IsInputRedirected) continue;
+            listening = true;
+            _ = Task.Run(() =>
+            {
+                try { if (Console.ReadLine() is not null) writer.WriteLine("{\"enter\":true}"); }
+                catch (Exception e) when (e is IOException or ObjectDisposedException) { }
+            });
+        }
     }
 
     // The background process: one browser, requests one by one, until stop, idle or the browser is gone.
@@ -138,7 +168,7 @@ static class QaSession
             return 2;
         }
         using var browser = engine;
-        File.WriteAllText(StateFile, JsonSerializer.Serialize(new State(pipeName, Environment.ProcessId, browser.Mode, note, width, height, DateTime.Now)));
+        File.WriteAllText(StateFile, JsonSerializer.Serialize(new State(pipeName, Environment.ProcessId, browser.Mode, note, width, height, DateTime.Now, (browser as CdpEngine)?.Attached)));
         try
         {
             while (browser.Alive)
@@ -152,8 +182,16 @@ static class QaSession
                 var request = JsonNode.Parse(reader.ReadLine() ?? "{}")!.AsObject();
                 if (request["stop"] is not null) { writer.WriteLine(new JsonObject { ["stopped"] = true }.ToJsonString()); break; }
                 var args = request["args"]!.AsArray().Select(a => a!.GetValue<string>()).ToArray();
+                // A handoff step reaches the person through the caller: attention lines go back on the pipe, and when the
+                // caller has a terminal, its Enter comes back as {"enter": true}.
+                var person = new QaHandoff(line => { try { writer.WriteLine(line); } catch (IOException) { } },
+                    request["terminal"]?.GetValue<bool>() == true ? async cancel =>
+                    {
+                        while (await reader.ReadLineAsync(cancel) is { } line) if (line.Contains("enter", StringComparison.Ordinal)) return;
+                        await Task.Delay(Timeout.Infinite, cancel);   // the caller went away: only the condition can end the wait
+                    } : null);
                 (int Code, JsonObject Output) answer;
-                try { answer = QaCommand.Execute(args, (browser, note)).GetAwaiter().GetResult(); }
+                try { answer = QaCommand.Execute(args, (browser, note), person).GetAwaiter().GetResult(); }
                 catch (Exception e) when (e is QaUsage or QaFailure or CdpException or IOException) { answer = (2, new JsonObject { ["error"] = e.Message }); }
                 try { writer.WriteLine(new JsonObject { ["code"] = answer.Code, ["output"] = answer.Output }.ToJsonString()); }
                 catch (IOException) { } // the caller went away; the session goes on

@@ -8,10 +8,12 @@ namespace OmlCli.Qa;
 // Runs the steps of a browser script like a tester would: one action per step, then wait until the screen is ready, then
 // the step's expectations (retried until they hold or the timeout passes), then the checks every step gets for free:
 // no JavaScript exception, no failed request, no server exception from an OutSystems call, no error feedback message.
-// capture: also report the screen each step ended on, for `browser run --save`.
-sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string shotDir, bool capture = false, QaShot.Limit shots = default)
+// capture: also report the screen each step ended on, for `browser run --save`. person: how a handoff step reaches the
+// person who logs in (see QaHandoff).
+sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string shotDir, bool capture = false, QaShot.Limit shots = default, QaHandoff? person = null)
 {
-    static readonly string[] Actions = ["open", "click", "fill", "select", "press", "wait", "screenshot", "expect"];
+    static readonly string[] Actions = ["open", "click", "fill", "select", "press", "wait", "screenshot", "handoff", "raw", "expect"];
+    const int HandoffMs = 300_000;   // a handoff waits 5 minutes unless the step gives "timeout"
     // Words that make a click destructive. Such a click needs "allowDestructive": true in its step.
     // No word boundaries: widget names run words together (DeleteButton, BtnRemoveUser).
     static readonly Regex Destructive = new("delete|remove|erase|destroy|purge|apagar|eliminar|excluir", RegexOptions.IgnoreCase);
@@ -40,15 +42,18 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
                 case "press": await browser.Press(value.GetString() ?? throw new QaUsage("press: give a key such as \"Enter\".")); break;
                 case "wait": await Wait(value); break;
                 case "screenshot": await QaShot.Take(browser, Path.Combine(shotDir, $"step-{n}-{Safe(value.GetString() ?? "shot")}.png"), shots, result); break;
+                case "handoff": result["handoff"] = await Handoff(value, step); break;
+                case "raw": result["raw"] = await Raw(value, step); break;
             }
             // Opening also covers the browser's cold start and the app's first load: at least 30 seconds.
-            if (action is "open" or "click" or "fill" or "select" or "press") result["readyMs"] = await browser.WaitReady(action == "open" ? Math.Max(timeoutMs, 30_000) : timeoutMs);
+            if (action is "open" or "click" or "fill" or "select" or "press" or "handoff") result["readyMs"] = await browser.WaitReady(action == "open" ? Math.Max(timeoutMs, 30_000) : timeoutMs);
             // A time limit from a saved run: slower than it means the app got slower, not that the test should wait longer.
             if (step.TryGetProperty("maxMs", out var max) && max.TryGetInt64(out var limit) && clock.ElapsedMilliseconds > limit)
                 throw new QaFailure($"{action} took {clock.ElapsedMilliseconds} ms; the limit is {limit} ms (maxMs). The app is slower than when the file was saved.");
             if (capture && action is not ("wait" or "screenshot")) { var path = new Uri(await browser.Url()).AbsolutePath.TrimEnd('/'); result["screen"] = Uri.UnescapeDataString(path[(path.LastIndexOf('/') + 1)..]); }
             if (step.TryGetProperty("expect", out var expect)) await Expect(expect, seq);
-            var allowErrors = step.TryGetProperty("allowErrors", out var ae) && ae.GetBoolean();
+            // What happens on a login page while a person logs in (an identity provider's scripts) is not the app under test.
+            var allowErrors = action == "handoff" || step.TryGetProperty("allowErrors", out var ae) && ae.GetBoolean();
             var calls = await Calls(seq);
             if (calls.Count > 0) result["calls"] = calls;
             var problems = allowErrors ? [] : await Problems(seq, exceptions, console, notes, step);
@@ -63,6 +68,7 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
             result["error"] = e is QaFailure ? e.Message : $"{e.GetType().Name}: {e.Message}";
             try { await QaShot.Take(browser, Path.Combine(shotDir, $"step-{n}-failed.png"), shots, result); } catch (Exception x) when (x is not QaUsage) { }
             try { result["url"] = await browser.Url(); } catch (Exception x) when (x is not QaUsage) { }
+            if (action != "handoff" && await LoginHint(browser) is { } login) result["hint"] = login;
         }
         if (notes.Count > 0) result["notes"] = notes;
         result["ms"] = clock.ElapsedMilliseconds;
@@ -154,6 +160,95 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
         if (value.ValueKind == JsonValueKind.Number) { await Task.Delay(Math.Clamp(value.GetInt32(), 0, 60_000)); return; }
         var text = value.GetString() ?? throw new QaUsage("wait: give milliseconds or a text to wait for.");
         await Until(async () => (await browser.Helper("text")).GetString()!.Contains(text, StringComparison.OrdinalIgnoreCase) ? null : $"the text {Quote(text)} did not appear");
+    }
+
+    // A person takes over for what an agent must not do: log in, an MFA code. The window comes to the front, one
+    // "attention" line says what to do, and the run goes on when "until" holds (the URL contains a text, or a target
+    // is visible) or the person presses Enter (only when there is a terminal). oml never sees what they type.
+    async Task<string> Handoff(JsonElement value, JsonElement step)
+    {
+        var what = value.ValueKind == JsonValueKind.String && value.GetString() is { Length: > 0 } w ? w : "log in";
+        var until = step.TryGetProperty("until", out var u) ? u : default;
+        var hasUntil = until.ValueKind == JsonValueKind.Object;
+        if (until.ValueKind != JsonValueKind.Undefined && (!hasUntil || !until.EnumerateObject().Any()
+            || until.EnumerateObject().Any(p => p.Name is not ("url" or "visible") || p.Value.ValueKind != JsonValueKind.String)))
+            throw new QaUsage("handoff: \"until\" is {\"url\": \"<part of the URL after login>\"} or {\"visible\": \"<widget, text:<text> or css:<selector>>\"}.");
+        var limit = !step.TryGetProperty("timeout", out var t) ? HandoffMs
+            : t.TryGetInt32(out var ms) && ms > 0 ? ms : throw new QaUsage("handoff: \"timeout\" is a number of milliseconds.");
+        var who = person ?? QaHandoff.FromConsole();
+        if (!hasUntil && who.Enter is null)
+            throw new QaUsage("handoff: there is no terminal to press Enter in. Give \"until\" ({\"url\": \"...\"} or {\"visible\": \"...\"}) so oml sees when the person is done, and a \"timeout\" in ms.");
+        if (!browser.Visible)
+            throw new QaUsage("handoff: nobody can see this browser. Run with --headed, or attach to your own Chrome (oml browser start --attach).");
+        if (browser is CdpEngine cdp) try { await cdp.Cdp.Send("Page.bringToFront"); } catch (CdpException) { }
+        string url;
+        try { url = await browser.Url(); } catch (Exception e) when (e is not QaUsage) { url = ""; }
+        who.Attention(new JsonObject
+        {
+            ["attention"] = !hasUntil ? $"{what} in the browser window, then press Enter"
+                : $"{what} in the browser window; oml goes on when it is done" + (who.Enter is null ? "" : " (or press Enter)"),
+            // No query string: a login URL can carry a one-time code or state.
+            ["url"] = Uri.TryCreate(url, UriKind.Absolute, out var page) ? page.GetLeftPart(UriPartial.Path) : null,
+            ["until"] = hasUntil ? JsonNode.Parse(until.GetRawText()) : null,
+            ["timeoutMs"] = limit,
+        }.ToJsonString());
+        using var stop = new CancellationTokenSource();
+        var pressed = who.Enter?.Invoke(stop.Token) ?? Task.Delay(Timeout.Infinite, stop.Token);
+        var clock = Stopwatch.StartNew();
+        try
+        {
+            string? problem = null;
+            while (!pressed.IsCompletedSuccessfully)
+            {
+                if (hasUntil && (problem = await Holds(until)) is null) return "until";
+                if (clock.ElapsedMilliseconds > limit) throw new QaFailure($"handoff {what}: not done in {limit} ms ({problem ?? "Enter was not pressed"}).");
+                if (pressed.IsCompleted) await Task.Delay(500); else await Task.WhenAny(pressed, Task.Delay(500));
+            }
+        }
+        finally { stop.Cancel(); }
+        if (hasUntil) await Until(() => Holds(until));   // Enter pressed: the condition must hold now too
+        return "enter";
+    }
+
+    async Task<string?> Holds(JsonElement until)
+    {
+        try
+        {
+            if (until.TryGetProperty("url", out var url) && !(await browser.Url()).Contains(url.GetString()!, StringComparison.OrdinalIgnoreCase))
+                return $"the URL does not contain {Quote(url.GetString()!)} yet";
+            if (until.TryGetProperty("visible", out var v))
+            {
+                var at = await browser.Helper("locate", v.GetString(), null, false);
+                if (!at.TryGetProperty("ambiguous", out _) && !(at.TryGetProperty("found", out var f) && f.GetInt32() > 0 && at.GetProperty("visible").GetBoolean()))
+                    return $"{v.GetString()} is not visible yet";
+            }
+            return null;
+        }
+        // A navigation (the login redirects) replaces the page while oml reads it: not yet.
+        catch (Exception e) when (e is CdpException or QaFailure or InvalidOperationException or KeyNotFoundException) { return "the page is changing"; }
+    }
+
+    // Any DevTools method on oml's page (see CdpEngine.RawRefusal for what is refused).
+    async Task<JsonNode?> Raw(JsonElement value, JsonElement step)
+    {
+        if (browser is not CdpEngine cdp) throw new QaUsage("raw: needs the DevTools engine; this run uses UI Automation.");
+        var method = value.ValueKind == JsonValueKind.String ? value.GetString()! : throw new QaUsage("raw: give a DevTools method name, such as \"Page.reload\".");
+        var parameters = step.TryGetProperty("params", out var p) ? p : default;
+        if (parameters.ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Object)) throw new QaUsage("raw: \"params\" is an object.");
+        return QaCommand.RawResult(await cdp.Raw(method, parameters));
+    }
+
+    // A visible password field: the screen asks to log in. Only a hint; oml types a password only from "$env:NAME".
+    public static async Task<string?> LoginHint(IQaEngine browser)
+    {
+        try
+        {
+            var at = await browser.Helper("locate", "css:input[type=password]", null, true);
+            if (at.TryGetProperty("ambiguous", out _) || at.TryGetProperty("found", out var f) && f.GetInt32() > 0 && at.GetProperty("visible").GetBoolean())
+                return "This screen asks to log in. Attach to a browser where you are logged in (oml browser start --attach), or add a handoff step so a person logs in.";
+        }
+        catch (Exception e) when (e is not QaUsage) { }
+        return null;
     }
 
     // Finds the target, waiting for it to appear and (for an action) to be visible, enabled and not covered.
@@ -266,4 +361,18 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
 
     internal static string Quote(string s) => JsonSerializer.Serialize(s);
     static string Safe(string name) => Regex.Replace(name, @"[^\w\-]+", "_");
+}
+
+// How a handoff step reaches the person: where the attention line goes, and, when there is a terminal, a task that ends
+// when they press Enter. A session passes both through its pipe to the caller's terminal (QaSession).
+sealed class QaHandoff(Action<string> attention, Func<CancellationToken, Task>? enter)
+{
+    public Action<string> Attention { get; } = attention;
+    public Func<CancellationToken, Task>? Enter { get; } = enter;
+
+    // stderr, so stdout stays one JSON report; Enter only when stdin is a terminal (an agent's run has none).
+    public static QaHandoff FromConsole() => new(line => Console.Error.WriteLine(line), Console.IsInputRedirected ? null : async cancel =>
+    {
+        if (await Task.Run(Console.ReadLine) is null) await Task.Delay(Timeout.Infinite, cancel);
+    });
 }

@@ -178,8 +178,8 @@ if ($help -gt 700 * 1.15) { Fail "oml --help is $help tokens; budget 700 (+15%)"
 # and oml mock lines; 2900 for the longer renamed commands and the test scenarios and test data lines; 2950 for oml skill refresh and browser page --style-conflicts; 3050 for oml config and the create options; 3150 for oml export and the --template and --plan options of oml migrate. Agents read the overview
 # (oml --help), not this.
 $helpAll = [math]::Ceiling((Run 'help', '--all').Text.Length / 4)
-# 3350 for oml browser look, sweep and diff; 3450 for oml browser try and oml migrate check; 3500 for oml server.
-if ($helpAll -gt 3500 * 1.15) { Fail "oml help --all is $helpAll tokens; budget 3500 (+15%)" }
+# 3350 for oml browser look, sweep and diff; 3450 for oml browser try and oml migrate check; 3500 for oml server; 3550 for oml browser raw and --attach.
+if ($helpAll -gt 3550 * 1.15) { Fail "oml help --all is $helpAll tokens; budget 3550 (+15%)" }
 # every command word of the full usage is named in the overview (a word is whole: `test` is not `testing`)
 $fullUsage = (Run 'help', '--all').Text
 $overview = (Run '--help').Text

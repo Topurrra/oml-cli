@@ -10,7 +10,7 @@
 #      -After waits for the units whose outputs it reads; a unit with -Publish moves the out-*.oml files it made into
 #      tmp\base. A unit with -Group shares something with the others of its group, which run at most $groupLimit at a time:
 #        browser   (3)  headless Edge/Chrome with time windows: style-conflicts, architecture-page, check-page,
-#                       review-page, image (also a 5 s trace limit), dashboard (a local port), qa-replay (a local page)
+#                       review-page, image (also a 5 s trace limit), dashboard (a local port), qa-replay and qa-attach (a local page)
 #        usagelog  (1)  log-check and aliases-check append to and trim the person's default usage log (OML_LOG=1)
 #        selftest  (1)  selftest records the build as checked in %LOCALAPPDATA%; doctor-check reads that record
 #        hkcu      (1)  setup-check writes a throwaway HKCU key and compares the real HKCU\Software\Classes keys
@@ -286,6 +286,11 @@ Unit 'server-check' {
 Unit 'qa-replay-check' -Group browser {
   try { & (Join-Path $tests 'qa-replay-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL qa replay checks: $_" }
+}
+# qa-attach-check starts a browser of its own with remote debugging and attaches to it (--attach, handoff, raw).
+Unit 'qa-attach-check' -Group browser {
+  try { & (Join-Path $tests 'qa-attach-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL qa attach checks: $_" }
 }
 # log-check also appends to and trims the person's default usage log (OML_LOG=1), so it runs alone.
 Unit 'aliases-check' -Group usagelog {

@@ -14,7 +14,9 @@ namespace OmlCli.Qa;
 //   browser sweep <url>        the page at each supported width: overflow and its cause, layout, widgets per width
 //   browser try <url> --css ..  a preview of planned UI injected into the running page (golden rule 1); nothing is saved
 //   browser diff <a> <b|url>   what changed between two snapshots, as text
-//   browser start | stop       keep one browser open between runs (QaSession): no cold start, logins stay
+//   browser start | stop       keep one browser open between runs (QaSession): no cold start, logins stay;
+//                              --attach: a new tab in the user's own Chrome (CdpEngine.Attach)
+//   browser raw <Method> [..]  any DevTools method on the session's page (CdpEngine.RawRefusal says what is refused)
 static class QaCommand
 {
     public static int Run(string[] args)
@@ -28,6 +30,13 @@ static class QaCommand
                 case "stop": return QaSession.Stop();
                 case "serve" when args.Length >= 2: return QaSession.Serve(args[1], Options(args[2..]));
                 case "record" when args.Length >= 2: return QaRecorder.Run(args[1], Options(args[2..])).GetAwaiter().GetResult();
+                // Any DevTools method on the session's page; refused before the session when it is never allowed.
+                case "raw" when args.Length is 2 or 3:
+                    if (CdpEngine.RawRefusal(args[1], default, attached: false, null) is { } refused) throw new QaUsage(refused);
+                    if (QaSession.Forward(args) is not { } answer)
+                        throw new QaUsage("browser raw works on a browser session. Run oml browser start (or oml browser start --attach) first.");
+                    TerminalOutput.PrintNode(answer.Output);
+                    return answer.Code;
                 // Two snapshot files compare at once; a URL as the second side is the page now, taken by a browser.
                 case "diff" when args.Length >= 3 && !(Uri.TryCreate(args[2], UriKind.Absolute, out var live) && live.Scheme.StartsWith("http")):
                     if (args.Length > 3) throw new QaUsage("diff takes two snapshot files, or a snapshot file and a URL.");
@@ -37,7 +46,8 @@ static class QaCommand
                 case "run" or "page" or "sweep" or "try" when args.Length >= 2:
                     args = QaShot.WithVariables(args);
                     var options = Options(args[0] is "look" or "diff" ? args[3..] : args[2..]);
-                    if (!options.Has("--no-session") && QaSession.Forward(args) is { } forwarded)
+                    // --attach on one command attaches for that command only, past any session.
+                    if (!options.Has("--no-session") && !options.Has("--attach") && QaSession.Forward(args) is { } forwarded)
                     {
                         TerminalOutput.PrintNode(forwarded.Output);
                         return forwarded.Code;
@@ -57,12 +67,14 @@ static class QaCommand
     }
 
     // A run or page request, on its own browser or on the session's (shared, which stays open).
-    public static async Task<(int Code, JsonObject Output)> Execute(string[] args, (IQaEngine Engine, string? Note)? shared)
+    // person: how a handoff step reaches the person (null: this process's console).
+    public static async Task<(int Code, JsonObject Output)> Execute(string[] args, (IQaEngine Engine, string? Note)? shared, QaHandoff? person = null)
     {
+        if (args[0] == "raw") return await Raw(args, shared);
         var options = Options(args[0] is "look" or "diff" ? args[3..] : args[2..]);
         return args[0] switch
         {
-            "run" => await RunFile(args[1], options, shared),
+            "run" => await RunFile(args[1], options, shared, person),
             "look" => await Closer(options, shared, b => BrowserTools.Look(b, args[1], args[2], options)),
             "sweep" => await Closer(options, shared, b => BrowserTools.Sweep(b, args[1], options)),
             "try" => await Closer(options, shared, b => BrowserTools.Try(b, args[1], options)),
@@ -112,7 +124,9 @@ static class QaCommand
         var values = new Dictionary<string, string?>();
         for (var i = 0; i < args.Length; i++)
         {
-            if (Flags.Contains(args[i])) values[args[i]] = null;
+            // --attach [<port> | <ws url>]: the value is optional (9222 when none is given).
+            if (args[i] == "--attach") values[args[i]] = i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[++i] : null;
+            else if (Flags.Contains(args[i])) values[args[i]] = null;
             else if (Valued.Contains(args[i]) && i + 1 < args.Length) values[args[i]] = args[++i];
             else throw new QaUsage($"Unknown or incomplete option {args[i]}. {CliUsage.For("browser")}");
         }
@@ -126,6 +140,12 @@ static class QaCommand
         var mode = o.Get("--engine") ?? "auto";
         var show = headed ?? o.Has("--headed");
         if (mode is not ("auto" or "cdp" or "uia")) throw new QaUsage("--engine takes auto, cdp or uia.");
+        if (o.Has("--attach"))
+        {
+            if (mode == "uia") throw new QaUsage("--attach drives your browser over DevTools; it does not work with --engine uia.");
+            var attached = await CdpEngine.Attach(o.Get("--attach"), width, height);
+            return (attached, $"Attached to your browser at {attached.Attached}: oml works in a new tab of its own and acts as you there.");
+        }
         const string Limits = "UI Automation sees what the screen shows; it has no network checks (call), JavaScript errors, key presses or css: targets.";
         if (mode == "uia") return (new UiaEngine(show, width, height), Limits);
         if (mode == "auto" && QaPolicy.BlocksDevTools() is { } policy)
@@ -144,7 +164,37 @@ static class QaCommand
         catch (JsonException e) { throw new QaUsage($"{file} is not valid JSON: {e.Message}"); }
     }
 
-    static async Task<(int, JsonObject)> RunFile(string file, Settings o, (IQaEngine Engine, string? Note)? shared)
+    // browser raw <Method> [<params json | file.json>]: on the session's page only (forwarded, so shared is set there).
+    static async Task<(int, JsonObject)> Raw(string[] args, (IQaEngine Engine, string? Note)? shared)
+    {
+        if (shared?.Engine is not CdpEngine cdp)
+            throw new QaUsage(shared is null ? "browser raw works on a browser session. Run oml browser start (or oml browser start --attach) first."
+                : "browser raw needs the DevTools engine; this session uses UI Automation.");
+        var parameters = default(JsonElement);
+        if (args.Length > 2)
+        {
+            var text = args[2].TrimStart().StartsWith('{') ? args[2] : File.Exists(args[2]) ? File.ReadAllText(args[2])
+                : throw new QaUsage($"browser raw: {args[2]} is not a JSON object or a .json file.");
+            try { parameters = JsonDocument.Parse(text).RootElement.Clone(); }
+            catch (JsonException e) { throw new QaUsage($"browser raw: the parameters are not valid JSON: {e.Message}"); }
+            if (parameters.ValueKind != JsonValueKind.Object) throw new QaUsage("browser raw: the parameters are a JSON object, such as {\"expression\": \"document.title\"}.");
+        }
+        var result = await cdp.Raw(args[1], parameters);
+        return (0, new JsonObject { ["method"] = args[1], ["result"] = RawResult(result), ["session"] = true });
+    }
+
+    // A raw result as it came, or, when it is large (a screenshot, a whole DOM), the path of a file that holds it.
+    public static JsonNode? RawResult(JsonElement result)
+    {
+        var text = result.ValueKind == JsonValueKind.Undefined ? "{}" : result.GetRawText();
+        if (text.Length <= 20_000) return JsonNode.Parse(text);
+        var file = Path.Combine(Path.GetTempPath(), "oml-browser", $"raw-{DateTime.Now:yyyyMMdd-HHmmss-fff}.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        File.WriteAllText(file, text);
+        return new JsonObject { ["chars"] = text.Length, ["file"] = file, ["note"] = "The result is large; it is in the file." };
+    }
+
+    static async Task<(int, JsonObject)> RunFile(string file, Settings o, (IQaEngine Engine, string? Note)? shared, QaHandoff? person)
     {
         var root = ReadQaFile(file);
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("steps", out var steps) || steps.ValueKind != JsonValueKind.Array)
@@ -167,7 +217,7 @@ static class QaCommand
             var save = o.Get("--save") is { } s ? Path.GetFullPath(s) : null;
             if (save is not null && (File.Exists(save) || string.Equals(save, Path.GetFullPath(file), StringComparison.OrdinalIgnoreCase)))
                 throw new QaUsage($"--save: {save} exists. Save to a new file; the file you ran stays as it is.");
-            var runner = new QaRunner(browser, baseUrl, timeout, outDir, capture: save is not null, shots: QaShot.From(o));
+            var runner = new QaRunner(browser, baseUrl, timeout, outDir, capture: save is not null, shots: QaShot.From(o), person: person ?? QaHandoff.FromConsole());
             var results = new JsonArray();
             int passed = 0, failed = 0, n = 0;
             foreach (var step in steps.EnumerateArray())
@@ -223,6 +273,7 @@ static class QaCommand
             var path = new Uri(now).AbsolutePath.TrimEnd('/');
             var page = new JsonObject { ["url"] = now, ["screen"] = Uri.UnescapeDataString(path[(path.LastIndexOf('/') + 1)..]), ["engine"] = browser.Mode, ["engineNote"] = engineNote };
             foreach (var (key, value) in summary.ToList()) { summary.Remove(key); page[key] = value; }
+            page["login"] = await QaRunner.LoginHint(browser);
             var calls = new JsonArray();
             var slow = new JsonArray();
             foreach (var r in browser.Network.CallsSince(seq).Where(r => r.Done))

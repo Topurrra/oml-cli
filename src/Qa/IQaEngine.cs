@@ -12,6 +12,8 @@ interface IQaEngine : IDisposable
     string Mode { get; }
     // False once the browser exited or the connection to it closed (a session then stops).
     bool Alive { get; }
+    // A person can see the window (--headed, or an attached browser that is not headless): a handoff step needs it.
+    bool Visible { get; }
     QaNetwork Network { get; }
     Task Navigate(string url);
     Task<long> WaitReady(int timeoutMs);

@@ -1047,14 +1047,15 @@ oml apply Orders_Tests.oml Orders_Tests.bdd-spec.json Orders_Tests.staged.oml
 `oml browser page <url> [--headed] [--width N] [--height N] [--timeout <ms>] [--screenshot <file.png>] [--engine auto|cdp|uia] [--no-session]`
 `oml browser run <script.json> [--base-url <url>] [--headed] [--width N] [--height N] [--timeout <ms>] [--out <folder>] [--continue] [--engine auto|cdp|uia] [--no-session]`
 `oml browser record <url> [--out <script.jsonc>] [--engine auto|cdp|uia] [--width N] [--height N]`
-`oml browser start [--engine auto|cdp|uia] [--headed] [--width N] [--height N]` and `oml browser stop`
+`oml browser start [--engine auto|cdp|uia] [--headed] [--width N] [--height N] [--attach [<port> | <ws url>]]` and `oml browser stop`
 `oml browser look <url> <target> [--state hover|focus|active|focus-visible] [--theme dark|light] [--screenshot <file.png>]`
 `oml browser sweep <url> [--widths 390,768,1366] [--out <folder>]`
 `oml browser try <url> [--css <file.css>] [--html <target>=<file.html>] [--append <target>=<file.html>] [--js <file.js>] [--screenshot <file.png>]`
 `oml browser page <url> --snapshot <file.json>`, then `oml browser diff <before.json> <after.json | url>`
 Every command that writes a screenshot also takes `[--max-width N] [--max-height N]` (see Screenshot size).
+`oml browser raw <CDP method> [<params json | file.json>]`
 
-The agent's browser and computer use for the published app: it looks at and drives the real app, with real data and server actions, like a manual tester. (`oml qa` is the old name and still works.) It opens Edge or Chrome with a new, empty profile, never yours. The profile is deleted at the end.
+The agent's browser and computer use for the published app: it looks at and drives the real app, with real data and server actions, like a manual tester. (`oml qa` is the old name and still works.) It opens Edge or Chrome with a new, empty profile, never yours. The profile is deleted at the end. To test an app behind SSO or MFA, attach it to your own Chrome instead (see [Your own Chrome](#your-own-chrome---attach)).
 
 `browser page` prints what the screen shows, in about 2 KB: `actions`, `inputs`, `tables` (columns, row count, 3 sample rows), `feedback` and `invalid` messages, `headings`, other named `widgets`, `layout` findings, the real `viewport`, and `errors`. With the DevTools engine it also prints `calls`: each OutSystems call with its `status`, `rows`, server `exception` and `ms`; `slowCalls`: the calls that took a second or more (an aggregate that fetches too much, a missing index); and `a11y`: from the browser's accessibility tree, buttons, links, fields and images without a name (with the widget Name), headings that skip a level, and no level-1 heading. Use it to find the targets for a browser script.
 
@@ -1094,6 +1095,8 @@ A browser script (JSONC):
 | `press` | A key: Enter, Tab, Escape, arrows, Space, Backspace, Delete. DevTools only. |
 | `wait` | Milliseconds, or a text to wait for. |
 | `screenshot` | Saves the page as a PNG in the output folder. |
+| `handoff` | A person does a step, such as log in or an MFA code. See [Hand off to a person](#hand-off-to-a-person). |
+| `raw` | `{ "raw": "Page.reload", "params": { } }`: any DevTools method on oml's page, as `browser raw`. DevTools only. |
 
 `expect` keys: `screen`, `url`, `text`, `noText`, `visible`, `hidden`, `value` (`{ "Field": "text" }`), `feedback` (`"success"` or `{ "type", "text" }`), `call` (`"FetchOrders"` or `{ "name", "rows": ">0" }`, DevTools only), `table` (`target`, `rows`, `column`, `match`, `notMatch`), `count` (`{ "target", "is": ">=2" }`), `invalid` (`true`, `false` or a field), `inView` (a target or list, wholly in the window without scrolling), `layout` (`true`, or a list of kinds). Counts take `>`, `>=`, `<`, `<=`, `=`, `!=` or a number. Expectations are retried until they hold or the timeout passes.
 
@@ -1118,7 +1121,7 @@ Two engines. `--engine auto` (default) picks one:
 
 `auto` reads the Edge or Chrome policy and uses `uia` when remote debugging is off. `oml doctor` shows which engine `oml browser` uses. oml reads the policy only; it never changes it.
 
-Output: `{ ok, passed, failed, skipped, ms, engine, engineNote, steps: [ { n, do, ok, ms, readyMs, calls, error, notes, screenshot, screenshotSize, url } ] }`. With `--out`, also `browser-report.json` and the screenshots in that folder; without it, screenshots go to `%TEMP%\oml-browser\<time>`.
+Output: `{ ok, passed, failed, skipped, ms, engine, engineNote, steps: [ { n, do, ok, ms, readyMs, calls, error, hint, notes, screenshot, screenshotSize, url } ] }`. A step that fails on a screen with a password field gets a `hint` on how to get past the login; `browser page` reports it as `login`. With `--out`, also `browser-report.json` and the screenshots in that folder; without it, screenshots go to `%TEMP%\oml-browser\<time>`.
 
 ### Screenshot size
 
@@ -1130,9 +1133,37 @@ The UI Automation window cannot be narrower than the browser allows (about 500 p
 
 ### Session
 
-`oml browser start` keeps one browser open in a background process. Later `browser run`, `page`, `look`, `try`, `sweep` and `diff` use it, screenshots included (`sweep` takes every width in that one browser): no browser start (6 to 8 seconds), and the app's login stays. Their output has `"session": true`. `--no-session` runs one command in a browser of its own. The session uses the engine and window size it started with.
+`oml browser start` keeps one browser open in a background process. Later `browser run`, `page`, `look`, `try`, `sweep`, `diff` and `raw` use it, screenshots included (`sweep` takes every width in that one browser): no browser start (6 to 8 seconds), and the app's login stays. Their output has `"session": true`. `--no-session` runs one command in a browser of its own. The session uses the engine and window size it started with.
 
-The session listens on a named pipe that only the same Windows user can open. It does one request at a time; a second one gets "busy". It stops on `oml browser stop`, after 30 minutes without a request, or when its browser is closed. Its state is in `%LOCALAPPDATA%\oml-cli\browser-session.json`.
+The session listens on a named pipe that only the same Windows user can open. It does one request at a time; a second one gets "busy". It stops on `oml browser stop`, after 30 minutes without a request, or when its browser is closed. Its state is in `%LOCALAPPDATA%\oml-cli\browser-session.json`. A handoff in a session prints its attention line on the terminal that ran `browser run`, and Enter there goes back to the session.
+
+### Your own Chrome (--attach)
+
+`oml browser start --attach [<port> | <ws url>]` drives a new tab in a Chrome you started and logged in to, so an app behind SSO or MFA can be tested without a stored password. The default port is 9222. oml reads `/json/version` on 127.0.0.1 only and refuses any other host. It opens one new tab, works only there, and closes only that tab: `oml browser stop` detaches (`"session": "detached"`), and your browser and tabs stay open. `--attach` on `browser run`, `page`, `look`, `sweep`, `try` or `diff` attaches for that one command.
+
+Start Chrome for this with a profile folder of its own, and log in to the app there once:
+
+```
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir=C:\ChromeOml
+```
+
+Chrome 136 and later refuse remote debugging on the default profile, so the separate `--user-data-dir` is needed; it keeps its logins between starts. `chrome://inspect` is not needed. A `RemoteDebuggingAllowed = 0` policy blocks this too.
+
+**While attached, oml acts as you in that browser**, with your logins, cookies and permissions. Attach only a profile used for testing, and stop the session when you are done.
+
+### Hand off to a person
+
+A `handoff` step stops for a person at a login or MFA page, instead of failing there:
+
+```jsonc
+{ "handoff": "log in", "until": { "url": "/Orders/Home" }, "timeout": 300000 }
+```
+
+The window comes to the front and oml prints one line on stderr, such as `{"attention":"log in in the browser window; oml goes on when it is done","url":...}`. The run goes on when `until` holds (`url`: the address contains the text; `visible`: a widget, `text:` or `css:` target shows) or, when there is a terminal, when the person presses Enter. `timeout` defaults to 5 minutes. oml never sees what the person types. An agent's run has no terminal: give `until`, tell the person to log in in the window, and run the script. A handoff needs a window a person can see: `--headed`, or `--attach`. Errors on the login page do not fail the step.
+
+### raw
+
+`oml browser raw <Method> [<params>]` calls any Chrome DevTools Protocol method on the session's page and prints `{ method, result }`; a result over 20,000 characters goes to a file under `%TEMP%\oml-browser`. It needs `oml browser start` (or `--attach`). The parameters are a JSON object or a `.json` file. Refused: `Browser.close` and `Browser.crash` (use `browser stop`), and, while attached, a `Target.*` call on a tab that is not oml's and `Storage.clear*`, `Network.clearBrowserCookies` and `Network.clearBrowserCache`, which would act on your real browser. Anything else runs as you in that browser.
 
 ### Record
 
