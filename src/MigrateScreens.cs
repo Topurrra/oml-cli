@@ -2644,6 +2644,9 @@ static class ScreenTranslator
             var a = new JsonObject { ["name"] = nm, ["sources"] = new JsonArray(entity) };
             if (info is { Static: true, IsActive: { } active }) a["filters"] = new JsonArray($"{entity}.{active} = True");
             if ((info?.Static == true ? info.Order : info?.Label) is { } sortBy) a["sorts"] = new JsonArray(new JsonObject { ["attribute"] = $"{entity}.{sortBy}" });
+            // A Traditional Combo Box lists every record; a new screen aggregate fetches 50. A static entity's records are known: all of them.
+            if (info?.Static == true && cx.StaticRecords?.GetValueOrDefault(entity) is { Count: > 0 } records) a["maxRecords"] = records.Count;
+            else if (info is { Static: false }) Todo($"the aggregate {nm} lists the options of the entity {entity} and fetches at most 50 records (Max Records), where the Traditional Combo Box showed all of them; raise it if {entity} has more");
             aggregates.Add(nm);
             optionAggs[entity] = a;
             return nm;
@@ -3300,13 +3303,14 @@ static class ScreenTranslator
             { "kind": "ComboBox", "type": "ComboBox", "name": "ListBox", "props": { "variable": "KindId", "source": "GetKinds.List", "sourceAttribute": "Kind.Name" } },
             { "kind": "ComboBox", "type": "ComboBox", "name": "OddBox", "props": { "variable": "KindId", "sourceEntity": "Odd" } } ] }
         """);
-        var comboCx = plain with { Entities = new Dictionary<string, EntityInfo> { ["Color"] = new(true, "Id", "Label", "Order", "Is_Active"), ["Kind"] = new(false, "Id", "Name", null, null) } };
+        var comboCx = plain with { Entities = new Dictionary<string, EntityInfo> { ["Color"] = new(true, "Id", "Label", "Order", "Is_Active"), ["Kind"] = new(false, "Id", "Name", null, null) },
+            StaticRecords = new Dictionary<string, IReadOnlyList<(string Id, IReadOnlyDictionary<string, string> Values)>> { ["Color"] = [("Red", new Dictionary<string, string>()), ("Blue", new Dictionary<string, string>())] } };
         var cb = Translate(comboIn, comboCx);
         var cw = At(cb.Spec, "widgets") as JsonArray;
         var cAggs = (At(cb.Spec, "aggregates") as JsonArray ?? []).OfType<JsonObject>().ToDictionary(a => Text(a, "name")!);
         Check(Text(cw, 0, "type") == "Dropdown" && Text(cw, 0, "list") == "GetColorOptions.List" && Text(cw, 0, "values") == "Color.Id" && Text(cw, 0, "labels") == "Color.Label"
             && cAggs.TryGetValue("GetColorOptions", out var colorAgg) && Text(colorAgg, "sources", 0) == "Color" && Text(colorAgg, "filters", 0) == "Color.Is_Active = True" && Text(colorAgg, "sorts", 0, "attribute") == "Color.Order"
-            && !Has(cb.Todo, "ColorBox"),
+            && Text(colorAgg, "maxRecords") == "2" && !Has(cb.Todo, "ColorBox") && !Has(cb.Todo, "GetColorOptions") && Has(cb.Todo, "GetKindOptions", "at most 50"),
             $"Combo: a static Source Entity is an aggregate of its active records in order, Id as value, label as text: {cb.Spec?.ToJsonString()} [{string.Join(" | ", cb.Todo)}]");
         Check(Text(cw, 1, "list") == "GetKindOptions.List" && Text(cw, 1, "labels") == "Kind.Name" && cAggs.TryGetValue("GetKindOptions", out var kindAgg) && kindAgg["filters"] is null
             && Text(kindAgg, "sorts", 0, "attribute") == "Kind.Name" && Has(cb.Todo, "KindBox", "special list") && Text(cw, 2, "list") == "GetKindOptions.List" && Text(cw, 2, "labels") == "Kind.Code" && cAggs.Count == 4,
