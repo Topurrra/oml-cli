@@ -14,9 +14,13 @@
     the agents; verify.ps1 checks those rules after an oml batch.
 
 .PARAMETER Side
-    mcp   = OutSystems MCP server (Service Studio, module open) + the servicestudio-mcp-oml skill.
-    oml   = the oml CLI + the skill in this repository's skill/ folder. Needs -Module.
-    both  = mcp, then oml, one after the other, from the same starting module.
+    mcp     = OutSystems MCP server (Service Studio, module open) + the servicestudio-mcp-oml skill.
+    oml     = the oml CLI + the skill in this repository's skill/ folder. Needs -Module.
+    omlcode = the same as oml, plus one preamble line: do multi-step oml work as `oml code run` Python programs
+              (oml's code mode). Needs -Module and Python 3.9+ for oml code.
+    both    = mcp, then oml, one after the other, from the same starting module.
+    code    = mcp, then omlcode.
+    all     = mcp, then oml, then omlcode.
 
 .PARAMETER Mode
     single = one agent per side.
@@ -52,13 +56,20 @@
 .PARAMETER Yes
     Skips the confirmation prompt before a real run.
 
+.PARAMETER StudioModule
+    mcp side: the name of the module to work on, when Service Studio has more than one module open. The prompt
+    names it and says never to change any other open module.
+
+.PARAMETER KeepModules
+    mcp side: open modules the agent must never change, named in the prompt (for example OUI). Needs -StudioModule.
+
 .EXAMPLE
     pwsh -NoProfile -File tests/bench/bench.ps1 -Task tests/bench/tasks/showcase-24.md -Side oml -Mode swarm -Module 'C:\bench\start\OML-parallel.oml' -Out 'C:\bench\run1'
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Task,
-    [Parameter(Mandatory)][ValidateSet('mcp', 'oml', 'both')][string]$Side,
+    [Parameter(Mandatory)][ValidateSet('mcp', 'oml', 'omlcode', 'both', 'code', 'all')][string]$Side,
     [ValidateSet('single', 'swarm')][string]$Mode = 'single',
     [ValidateRange(1, 64)][int]$Agents = 8,
     [string]$Model = 'claude-haiku-5-5',
@@ -69,7 +80,9 @@ param(
     [string]$SkillRef,
     [switch]$AllowDownload,
     [switch]$DryRun,
-    [switch]$Yes
+    [switch]$Yes,
+    [ValidatePattern('^[A-Za-z_][A-Za-z0-9_]*$')][string]$StudioModule,
+    [ValidatePattern('^[A-Za-z_][A-Za-z0-9_]*$')][string[]]$KeepModules = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -87,6 +100,11 @@ $Inv = [Globalization.CultureInfo]::InvariantCulture
 $McpPreamble = @'
 You work on the OutSystems 11 module that is open in Service Studio, using ONLY the OutSystems MCP server `servicestudio` and the `servicestudio-mcp-oml` skill. Do not use any `oml` command line tool, and do not read or edit .oml files yourself. Service Studio is set to merge changes automatically. Do not publish and do not install anything. A human may need to approve the first connection dialog; retry `createSessionToken` for up to 2 minutes if it is pending. Never write a session token or any other secret into a file or into your reply.
 '@
+if ($StudioModule) {
+    # Several modules open in Studio: name the target and forbid changes to the others.
+    $McpPreamble += "`n`n" + 'The target module is `' + $StudioModule + '`. Service Studio has other modules open too' + $(if ($KeepModules.Count) { ' (' + (($KeepModules | ForEach-Object { '`' + $_ + '`' }) -join ', ') + ')' } else { '' }) + ': never change any module other than `' + $StudioModule + '`, and check that every change you make goes to `' + $StudioModule + '`.'
+}
+elseif ($KeepModules.Count) { throw '-KeepModules needs -StudioModule: the module the agent works on.' }
 
 # ---------- helpers ----------
 
@@ -110,8 +128,15 @@ function Format-List($Items) {
     if ($list.Count) { $list -join ', ' } else { 'none' }
 }
 
-function Get-OmlPreamble([string]$Base) {
-    'You use ONLY the `oml` command line tool and the `outsystems-oml` skill. The CLI is `' + $script:Cli + '`. Do not use any MCP server. Do not run `oml install`, `publish`, `references` or `lt`. The source module `' + $Base + '` is read-only: never write to it. Copy it into your own folder before you change anything.'
+function Test-OmlSide([string]$SideName) { $SideName -in @('oml', 'omlcode') }
+
+function Get-OmlPreamble([string]$Base, [string]$SideName = 'oml') {
+    $text = 'You use ONLY the `oml` command line tool and the `outsystems-oml` skill. The CLI is `' + $script:Cli + '`. Do not use any MCP server. Do not run `oml install`, `publish`, `references` or `lt`. The source module `' + $Base + '` is read-only: never write to it. Copy it into your own folder before you change anything.'
+    if ($SideName -eq 'omlcode') {
+        # The one difference from the oml side: work through oml's code mode.
+        $text += "`n`n" + 'Do multi-step oml work as Python programs in oml''s code mode: write the program with your file tool in your folder, then run `' + $script:Cli + ' code run --json -f <program.py>`. Run `' + $script:Cli + ' code prompt` once first: it says what a program can call (`helpers.oml`, `oml.read`, `oml.write`, `parallel`). One program per step; return only what you need. A single command may run directly.'
+    }
+    $text
 }
 
 function Read-TaskFile([string]$Path) {
@@ -175,7 +200,7 @@ function Get-ComponentChunks($Components, [int]$AgentCount) {
 function New-SinglePrompt($Task, [string]$SideName, [string]$Dir, [string]$Base) {
     if ($SideName -eq 'mcp') { return Join-Prompt @($McpPreamble, $Task.Whole) }
     $where = 'Work in this folder: ' + $Dir + '. Write intermediate files only here. The final module must be result.oml in this folder, and it must pass `oml validate result.oml --warnings`.'
-    Join-Prompt @((Get-OmlPreamble $Base), $where, $Task.Whole)
+    Join-Prompt @((Get-OmlPreamble $Base $SideName), $where, $Task.Whole)
 }
 
 function New-PartPrompt($Task, [string]$SideName, [int]$Index, [int]$Count, $Chunk, [string]$Dir, [string]$Base, [string]$PartFile) {
@@ -187,7 +212,7 @@ function New-PartPrompt($Task, [string]$SideName, [int]$Index, [int]$Count, $Chu
     }
     $shared = 'Other agents work at the same time on other parts, each in its own folder. Your folder: ' + $Dir
     $steps = 'Write your components as one oml spec with only a `blocks` array to ' + $PartFile + '. Test it: copy the source module to a file in your own folder, run `oml apply` from that copy to a new staged file in your own folder, then run `oml validate` on that staged file. Done when the apply has zero problems and zero new errors and ' + $PartFile + ' is final. Report every failed command and why, and anything you could not build.'
-    Join-Prompt @((Get-OmlPreamble $Base), $shared, $Task.Brief, $mine, $steps)
+    Join-Prompt @((Get-OmlPreamble $Base $SideName), $shared, $Task.Brief, $mine, $steps)
 }
 
 function New-AssemblyPrompt($Task, [string]$SideName, [string]$Dir, [string]$Base, $ExistingParts, $MissingParts) {
@@ -199,7 +224,7 @@ function New-AssemblyPrompt($Task, [string]$SideName, [string]$Dir, [string]$Bas
     }
     $parts = 'The component part files written by the component agents are: ' + (Format-List $ExistingParts) + '. Part files that were not written: ' + (Format-List $MissingParts) + '.'
     $steps = 'Build ONE spec in this folder with all the `blocks` from the existing part files, plus everything the rest of the task needs. Check how `oml apply` takes its spec files: run `oml apply` with no arguments and read the usage. If it accepts several spec files, pass all the part files and your rest-of-task spec in one call. Otherwise merge all their `blocks` arrays and the rest-of-task content into one spec file, and apply that. Apply once with `oml apply ' + $Base + ' <spec> result.oml`. Then run `oml validate result.oml --warnings`. Done when result.oml has zero validation errors. Report every failed command and why, and anything you could not build.'
-    Join-Prompt @((Get-OmlPreamble $Base), ('Work in this folder: ' + $Dir), $Task.Brief, $components, $parts, $rest, $steps)
+    Join-Prompt @((Get-OmlPreamble $Base $SideName), ('Work in this folder: ' + $Dir), $Task.Brief, $components, $parts, $rest, $steps)
 }
 
 # ---------- agent folders and claude commands ----------
@@ -234,6 +259,32 @@ function New-AgentFolder([string]$Dir, [string]$SideName, [string]$Prompt) {
 
 # ---------- running agents ----------
 
+# Counts tool calls and failed tool calls in the agent's session transcript (Claude Code writes one .jsonl per session
+# under <config dir>/projects). Read only. Returns $null when the transcript is not found.
+function Get-ToolStats([string]$SessionId) {
+    if (-not $SessionId) { return $null }
+    $configDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME '.claude' }
+    $projects = Join-Path $configDir 'projects'
+    if (-not (Test-Path -LiteralPath $projects)) { return $null }
+    $file = Get-ChildItem -LiteralPath $projects -Recurse -File -Filter "$SessionId.jsonl" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $file) { return $null }
+    $calls = 0; $errors = 0; $codeRuns = 0; $byTool = [ordered]@{}
+    foreach ($line in [IO.File]::ReadLines($file.FullName)) {
+        if (-not $line.Contains('"tool_')) { continue }
+        try { $entry = $line | ConvertFrom-Json -Depth 64 } catch { continue }
+        foreach ($c in @($entry.message.content)) {
+            if (-not $c -or $c -is [string]) { continue }
+            if ($c.type -eq 'tool_use') {
+                $calls++
+                $byTool[$c.name] = 1 + [int]$byTool[$c.name]
+                if ([string]$c.input.command -match '\bcode\s+run\b') { $codeRuns++ }
+            }
+            elseif ($c.type -eq 'tool_result' -and $c.is_error) { $errors++ }
+        }
+    }
+    [pscustomobject]@{ transcript = $file.FullName; toolCalls = $calls; toolErrors = $errors; codeRuns = $codeRuns; byTool = [pscustomobject]$byTool }
+}
+
 function Read-AgentResult($Agent, $Run) {
     $problem = $null
     $r = $null
@@ -262,6 +313,7 @@ function Read-AgentResult($Agent, $Run) {
         outputTokens      = [int64]$u.output_tokens
         permissionDenials = if ($r -and $r.permission_denials) { @($r.permission_denials).Count } else { 0 }
         sessionId         = if ($r) { $r.session_id } else { $null }
+        tools             = if ($r) { Get-ToolStats $r.session_id } else { $null }
         finalText         = Hide-Secrets ([string]$(if ($r) { $r.result }))
         problem           = $problem
     }
@@ -296,7 +348,8 @@ function Invoke-Phase([string]$Name, $Agents, [string[]]$ClaudeArgs) {
         Remove-Job -Job $jobs[$i] -Force -ErrorAction SilentlyContinue
         $rec = Read-AgentResult $agent $run
         $agentRecords += $rec
-        Write-Host ('    {0}: exit {1}, ${2:N2}, {3} s, {4} turns, error: {5}' -f $rec.name, $rec.exitCode, $rec.costUsd, [int]($rec.durationMs / 1000), $rec.numTurns, $(if ($rec.isError) { 'yes' } else { 'no' }))
+        $toolText = if ($rec.tools) { ", $($rec.tools.toolCalls) tool calls ($($rec.tools.toolErrors) failed)" } else { '' }
+        Write-Host ('    {0}: exit {1}, ${2:N2}, {3} s, {4} turns{6}, error: {5}' -f $rec.name, $rec.exitCode, $rec.costUsd, [int]($rec.durationMs / 1000), $rec.numTurns, $(if ($rec.isError) { 'yes' } else { 'no' }), $toolText)
     }
     $starts = @($agentRecords | Where-Object { $_.startedUtc } | ForEach-Object { [datetime]$_.startedUtc } | Sort-Object)
     $ends = @($agentRecords | Where-Object { $_.endedUtc } | ForEach-Object { [datetime]$_.endedUtc } | Sort-Object)
@@ -309,6 +362,12 @@ function Get-Totals($Agents, [double]$WallSeconds) {
         $total = 0.0
         foreach ($a in @($Agents)) { $total += [double]$a.$Field }
         $total
+    }
+    # Tool counts only when every agent's transcript was found; otherwise the total would be too low.
+    $toolCalls = $null; $toolErrors = $null; $codeRuns = $null
+    if (@($Agents).Count -and @($Agents | Where-Object { -not $_.tools }).Count -eq 0) {
+        $toolCalls = 0; $toolErrors = 0; $codeRuns = 0
+        foreach ($a in @($Agents)) { $toolCalls += $a.tools.toolCalls; $toolErrors += $a.tools.toolErrors; $codeRuns += $a.tools.codeRuns }
     }
     $uncached = Sum-Field 'inputTokens'
     $cacheRead = Sum-Field 'cacheReadTokens'
@@ -325,6 +384,9 @@ function Get-Totals($Agents, [double]$WallSeconds) {
         outputTokens      = [int64](Sum-Field 'outputTokens')
         agentErrors       = @($Agents | Where-Object { $_.isError }).Count
         permissionDenials = [int](Sum-Field 'permissionDenials')
+        toolCalls         = $toolCalls
+        toolErrors        = $toolErrors
+        codeRuns          = $codeRuns
     }
 }
 
@@ -343,7 +405,7 @@ function Invoke-Side([string]$SideName, $Task, [string]$SideRoot) {
     Write-Host "== side: $SideName, folder: $SideRoot"
     New-Item -ItemType Directory -Path $SideRoot -Force | Out-Null
     $base = Join-Path $SideRoot 'base.oml'
-    if ($SideName -eq 'oml') { Copy-Item -LiteralPath $script:Snapshot -Destination $base }
+    if (Test-OmlSide $SideName) { Copy-Item -LiteralPath $script:Snapshot -Destination $base }
     $claudeArgs = Get-ClaudeArgs $SideName
     $phases = @()
     if ($Mode -eq 'single') {
@@ -353,7 +415,7 @@ function Invoke-Side([string]$SideName, $Task, [string]$SideRoot) {
     }
     else {
         $parts = Join-Path $SideRoot 'parts'
-        if ($SideName -eq 'oml') { New-Item -ItemType Directory -Path $parts | Out-Null }
+        if (Test-OmlSide $SideName) { New-Item -ItemType Directory -Path $parts | Out-Null }
         $chunks = Get-ComponentChunks $Task.Components $Agents
         $list = @()
         for ($i = 0; $i -lt $chunks.Count; $i++) {
@@ -367,7 +429,7 @@ function Invoke-Side([string]$SideName, $Task, [string]$SideRoot) {
 
         $existing = @()
         $missing = @()
-        if ($SideName -eq 'oml') {
+        if (Test-OmlSide $SideName) {
             $existing = @(Get-ChildItem -LiteralPath $parts -Filter 'a*.json' -ErrorAction SilentlyContinue | Sort-Object Name | ForEach-Object { $_.FullName })
             $missing = @(for ($i = 1; $i -le $list.Count; $i++) { $p = Join-Path $parts "a$i.json"; if (-not (Test-Path -LiteralPath $p)) { "a$i.json" } })
             if ($missing.Count -and -not $DryRun) { Write-Host "  warning: part file(s) not written: $($missing -join ', ')" }
@@ -381,7 +443,7 @@ function Invoke-Side([string]$SideName, $Task, [string]$SideRoot) {
     $agents = @($phases | ForEach-Object { $_.agents })
     $sideSeconds = [Math]::Round($timer.Elapsed.TotalSeconds, 1)
     $verify = $null
-    if ($SideName -eq 'oml' -and -not $DryRun) {
+    if ((Test-OmlSide $SideName) -and -not $DryRun) {
         if (Test-Path -LiteralPath $resultFile) { $verify = Invoke-Verify $resultFile $Task.Expect $SideRoot }
         else { $verify = [pscustomobject]@{ ok = $false; note = 'no result.oml was written' } }
     }
@@ -448,7 +510,8 @@ function Get-Versions {
 
 function Format-Money($Value) { '$' + ([double]$Value).ToString('N2', $Inv) }
 function Format-Count($Value) { ([int64]$Value).ToString('N0', $Inv) }
-function Get-SideLabel([string]$Name) { if ($Name -eq 'mcp') { 'OutSystems MCP + O11 skill' } else { 'oml' } }
+function Get-SideLabel([string]$Name) { switch ($Name) { 'mcp' { 'OutSystems MCP + O11 skill' } 'omlcode' { 'oml code' } default { 'oml' } } }
+function Format-Tools($Totals) { if ($null -eq $Totals.toolCalls) { 'n/a' } else { "$($Totals.toolCalls) / $($Totals.toolErrors)" } }
 
 function Get-VerifyText($Side) {
     $v = $Side.verify
@@ -475,11 +538,11 @@ function Format-Markdown($Doc) {
     $lines.Add('')
     $lines.Add('## Summary')
     $lines.Add('')
-    $lines.Add('| Side | Cost | Time | Turns | Input tokens (incl. cache) | Output tokens | Agent errors | Result |')
-    $lines.Add('|---|---:|---:|---:|---:|---:|---:|---|')
+    $lines.Add('| Side | Cost | Time | Turns | Input tokens (incl. cache) | Output tokens | Tool calls / failed | Agent errors | Result |')
+    $lines.Add('|---|---:|---:|---:|---:|---:|---:|---:|---|')
     foreach ($s in $Doc.sides) {
         $t = $s.totals
-        $lines.Add("| $(Get-SideLabel $s.side) | $(Format-Money $t.costUsd) | $([int]$t.wallSeconds) s | $($t.turns) | $(Format-Count $t.totalInputTokens) | $(Format-Count $t.outputTokens) | $($t.agentErrors) | $(Get-VerifyText $s) |")
+        $lines.Add("| $(Get-SideLabel $s.side) | $(Format-Money $t.costUsd) | $([int]$t.wallSeconds) s | $($t.turns) | $(Format-Count $t.totalInputTokens) | $(Format-Count $t.outputTokens) | $(Format-Tools $t) | $($t.agentErrors) | $(Get-VerifyText $s) |")
     }
     $lines.Add('')
     $lines.Add('## Phases')
@@ -494,13 +557,13 @@ function Format-Markdown($Doc) {
     $lines.Add('')
     $lines.Add('## Agents')
     $lines.Add('')
-    $lines.Add('| Side | Agent | Exit | Cost | Duration | Turns | Input | Cache read | Cache write | Output | Denied calls | Problem |')
-    $lines.Add('|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|')
+    $lines.Add('| Side | Agent | Exit | Cost | Duration | Turns | Input | Cache read | Cache write | Output | Tool calls | Failed calls | code runs | Denied calls | Problem |')
+    $lines.Add('|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|')
     foreach ($s in $Doc.sides) {
         foreach ($p in $s.phases) {
             foreach ($a in $p.agents) {
                 $problem = if ($a.problem) { ([string]$a.problem) -replace '\|', '/' } else { '' }
-                $lines.Add("| $(Get-SideLabel $s.side) | $($a.name) | $($a.exitCode) | $(Format-Money $a.costUsd) | $([int]($a.durationMs / 1000)) s | $($a.numTurns) | $(Format-Count $a.inputTokens) | $(Format-Count $a.cacheReadTokens) | $(Format-Count $a.cacheWriteTokens) | $(Format-Count $a.outputTokens) | $($a.permissionDenials) | $problem |")
+                $lines.Add("| $(Get-SideLabel $s.side) | $($a.name) | $($a.exitCode) | $(Format-Money $a.costUsd) | $([int]($a.durationMs / 1000)) s | $($a.numTurns) | $(Format-Count $a.inputTokens) | $(Format-Count $a.cacheReadTokens) | $(Format-Count $a.cacheWriteTokens) | $(Format-Count $a.outputTokens) | $(if ($a.tools) { $a.tools.toolCalls } else { 'n/a' }) | $(if ($a.tools) { $a.tools.toolErrors } else { 'n/a' }) | $(if ($a.tools) { $a.tools.codeRuns } else { 'n/a' }) | $($a.permissionDenials) | $problem |")
             }
         }
     }
@@ -515,7 +578,7 @@ function Format-Markdown($Doc) {
     $lines.Add('## Notes')
     $lines.Add('')
     $lines.Add('- Input tokens include cache reads and cache writes. Cost is the figure Claude Code reports.')
-    $lines.Add('- Failed tool calls are not counted by this script. Read the final text of each agent and its run folder.')
+    $lines.Add('- Tool calls and failed calls come from each agent''s Claude Code session transcript (a failed call is a tool result marked as an error; a command that exits non-zero counts). code runs: Bash or PowerShell calls that ran `oml code run`. n/a: the transcript was not found. Read the final text of each agent too.')
     $lines.Add('- Agents in one phase run in parallel, so the phase time is the slowest agent.')
     $lines.Add('- Each run folder keeps the full agent output (result.json). Check it before you share the folder.')
     ($lines -join "`n") + "`n"
@@ -546,15 +609,15 @@ $script:SkillCommit = $null
 $oldTimeout = $env:MCP_TOOL_TIMEOUT
 
 try {
-    $sides = if ($Side -eq 'both') { @('mcp', 'oml') } else { @($Side) }
+    $sides = switch ($Side) { 'both' { @('mcp', 'oml') } 'code' { @('mcp', 'omlcode') } 'all' { @('mcp', 'oml', 'omlcode') } default { @($Side) } }
     $script:TaskInfo = Read-TaskFile $Task
     if ($Mode -eq 'swarm' -and $script:TaskInfo.Components.Count -eq 0) {
         throw "Swarm mode needs a numbered component list in $($script:TaskInfo.Path). Use -Mode single for this task."
     }
 
     $script:ModulePath = $null
-    if ($sides -contains 'oml') {
-        if (-not $Module) { throw '-Module is required for the oml side: the .oml file both sides start from.' }
+    if ($sides -contains 'oml' -or $sides -contains 'omlcode') {
+        if (-not $Module) { throw '-Module is required for the oml and omlcode sides: the .oml file every side starts from.' }
         $script:ModulePath = (Resolve-Path -LiteralPath $Module -ErrorAction Stop).Path
         if ([IO.Path]::GetExtension($script:ModulePath) -ne '.oml') { throw "-Module must be an .oml file: $script:ModulePath" }
         if (-not $OmlExe) {
@@ -564,7 +627,7 @@ try {
         }
         $script:Cli = (Resolve-Path -LiteralPath $OmlExe -ErrorAction Stop).Path
     }
-    elseif ($Module) { Write-Warning '-Module is used by the oml side only; the mcp side works on the module open in Service Studio.' }
+    elseif ($Module) { Write-Warning '-Module is used by the oml and omlcode sides only; the mcp side works on the module open in Service Studio.' }
 
     if ($sides -contains 'mcp') {
         $port = $DefaultStudioPort
@@ -654,6 +717,7 @@ try {
                 Turns       = $t.turns
                 InputTokens = (Format-Count $t.totalInputTokens)
                 OutputTokens = (Format-Count $t.outputTokens)
+                ToolCalls   = (Format-Tools $t)
                 AgentErrors = $t.agentErrors
                 Result      = (Get-VerifyText $_)
             }
