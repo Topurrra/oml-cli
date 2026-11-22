@@ -267,10 +267,13 @@ partial class Builder
                         Defer(widget, ($"{where}.targetWidget", () => TargetWidget(widget, targetName)));
                         continue;
                     }
-                    if (other && p.Value.ValueKind == JsonValueKind.String && Picked(widget, key))
+                    // A Combo Box's Source Entity (its model name is SourceAttributeParent) and attributes are picked as its properties panel does.
+                    var comboPick = widget.GetType().Name == "ComboBox" && key is "sourceEntity" or "sourceAttribute" or "sourceIdentifierAttribute";
+                    if ((other || comboPick) && p.Value.ValueKind == JsonValueKind.String && (comboPick || Picked(widget, key)))
                     {
                         var text = p.Value.GetString()!;
-                        picks.Add(($"{where}.{p.Name}", () => PanelPick(widget, key, text)));
+                        var pickKey = key == "sourceEntity" && comboPick ? "sourceAttributeParent" : key;
+                        picks.Add(($"{where}.{p.Name}", () => PanelPick(widget, pickKey, text)));
                         continue;
                     }
                     // A Traditional Button or Link keeps its confirmation text on its On Click event, not on the widget.

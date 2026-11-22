@@ -53,7 +53,7 @@ static class Export
     static readonly HashSet<string> FactSources = new(StringComparer.OrdinalIgnoreCase)
     {
         "Value", "Text", "Variable", "Source", "SourceBlock", "Visible", "Condition", "TargetWidget", "Style", "StyleClasses", "CustomStyle",
-        "Tag", "Icon", "MarginLeft", "InputType", "Prompt", "Mandatory", "Enabled", "IsDefault", "ConfirmationMessage", "Image",
+        "Tag", "Icon", "MarginLeft", "InputType", "Prompt", "Mandatory", "Enabled", "IsDefault", "ConfirmationMessage", "Image", "SourceEntity",
     };
     // "Url" is not in the list: describe writes url only for an Image, so a Link's address must come from the generic
     // reader, which skips a key the facts already wrote.

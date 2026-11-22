@@ -19,6 +19,7 @@
 //          slots are absent) (E 590-653). The translator decides from `type`, then `kind` without Web/Mobile/Widget.
 // props    facts (D 99-145): value text variable source sourceBlock visible (not "True") condition targetWidget style inlineStyle tag icon marginLeft inputType (not Text)
 //          prompt mandatory (not "False") enabled (not "True") isDefault confirm image url (Image only) onClick onChange (handler names) and one key per Events entry;
+//          Combo Box: source (record list) or sourceEntity, sourceAttribute and sourceIdentifierAttribute (Entity.Attribute), specialList (its entries' texts);
 //          then destination (screen an On Click goes to, E 619), method (a property of the click event with "Method" in its name, E 623: often absent), then every other
 //          readable property named with letters only, first letter lowered (E 621). Those generic names (label, sourceRecordList, sourceRecord, ...) are not checkable here.
 // _targets (optional, a node the spec cannot express): {property: element name | [names]}, what an AjaxRefreshNode refreshes; inspect's session variable rows may have `default` (optional).
@@ -68,7 +69,12 @@ static class ScreenTranslator
         // client function of the same name (ClientFunctions), so the expression stays as it is.
         IReadOnlySet<string>? ServerFunctions = null,
         // Blocks of Traditional producers migrated earlier ("Old.Block"): an instance uses the same block of the Reactive module (Target "New.Block").
-        IReadOnlyDictionary<string, ProducerBlock>? ProducerBlocks = null);
+        IReadOnlyDictionary<string, ProducerBlock>? ProducerBlocks = null,
+        // The old module's entities (inspect): a Combo Box with a Source Entity becomes a Dropdown over an aggregate of it.
+        IReadOnlyDictionary<string, EntityInfo>? Entities = null);
+
+    // An entity's special attributes, as inspect names them (null: not set): identifier, label, order and is-active.
+    internal sealed record EntityInfo(bool Static, string Identifier, string? Label, string? Order, string? IsActive);
 
     // A migrated producer's block: "New.Block", its inputs and its events (Notify when the block called Notify).
     internal sealed record ProducerBlock(string Target, IReadOnlySet<string> Inputs, IReadOnlySet<string> Events);
@@ -137,6 +143,7 @@ static class ScreenTranslator
         readonly Dictionary<string, string> varTypes = new(StringComparer.OrdinalIgnoreCase);
         readonly Dictionary<string, JsonObject> extraLocals = new(StringComparer.OrdinalIgnoreCase);
         readonly Dictionary<string, JsonObject> aggDefs = new(StringComparer.OrdinalIgnoreCase);              // aggregate name -> its Preparation node
+        readonly Dictionary<string, JsonObject> optionAggs = new(StringComparer.OrdinalIgnoreCase);           // entity -> the aggregate of a Combo Box's Source Entity
         readonly HashSet<string> prepWrites = new(StringComparer.OrdinalIgnoreCase);                          // variables the lifted Preparation logic assigns
         JsonObject? initAction;                                                                               // the client action behind onInitialize: { name, flow }
         readonly Dictionary<string, JsonObject> afterFetch = new(StringComparer.OrdinalIgnoreCase);           // aggregate name -> the client action behind its onAfterFetch
@@ -616,6 +623,7 @@ static class ScreenTranslator
             foreach (var a in Objs(el["actions"])) actions.Add(Action(a));
 
             var content = Content(spec);
+            foreach (var a in optionAggs.Values) aggs.Add(a);   // the options of Combo Boxes with a Source Entity
             if (storeUsed.Count > 0)   // the screen reads stored session variables: a data action, with the key from the client variable
             {
                 var outputs = new JsonArray(storeUsed.Select(x => (JsonNode?)new JsonObject { ["name"] = x, ["type"] = cx.StoreVariables![x] }).ToArray());
@@ -2599,15 +2607,46 @@ static class ScreenTranslator
             var source = Prop(w, used, "source", "sourceList");
             if (source is not null) o["list"] = Rw(source, at);
             string Option(string expr) => Regex.Replace(Rw(expr, at), @"^\w+\.List\.Current\.", "");
-            if (Prop(w, used, "valueAttribute", "optionValue", "optionsValue", "value") is { } val) o["values"] = Option(val);
-            if (Prop(w, used, "labelAttribute", "optionLabel", "optionsText", "label", "text") is { } lab) o["labels"] = Option(lab);
+            if (Prop(w, used, "valueAttribute", "optionValue", "optionsValue", "sourceIdentifierAttribute", "value") is { } val) o["values"] = Option(val);
+            if (Prop(w, used, "labelAttribute", "optionLabel", "optionsText", "sourceAttribute", "label", "text") is { } lab) o["labels"] = Option(lab);
+            // A Source Entity (no record list): the options are a screen aggregate of the entity, its active records in order for a static
+            // entity, by label for another; the value is its identifier and the text its label attribute unless a Source Attribute is set.
+            var entity = source is null ? Prop(w, used, "sourceEntity") : null;
+            var info = entity is null ? null : cx.Entities?.GetValueOrDefault(entity);
+            if (entity is not null)
+            {
+                var agg = OptionsAggregate(entity, info);
+                o["list"] = agg + ".List";
+                o["values"] ??= $"{entity}.{info?.Identifier ?? "Id"}";
+                if (o["labels"] is null && info?.Label is { } label) o["labels"] = $"{entity}.{label}";
+                if (info is null) Todo($"{at} takes its options from the entity {entity}, which the plan does not know; check its aggregate {agg}, Options Value and Options Text");
+                else if (o["labels"] is null) Todo($"{at} takes its options from the entity {entity}, which has no label attribute; set the Dropdown's Options Text");
+            }
+            // A record list of an entity's records: the value is that entity's identifier, as in Traditional Web.
+            if (source is not null && o["values"] is null && S(o["labels"]) is { } shown && Regex.Match(shown, @"^(\w+)\.\w+$") is { Success: true } lm
+                && cx.Entities?.GetValueOrDefault(lm.Groups[1].Value) is { } listed)
+                o["values"] = $"{lm.Groups[1].Value}.{listed.Identifier}";
             if (ActionRef(w, used, "its On Change", "onChange") is { } oc) o["onChange"] = oc;
-            if (source is null) Todo($"{at} has no source list in the export; set its list, labels and values");
+            if (source is null && entity is null) Todo($"{at} has no source list in the export; set its list, labels and values");
             if (Prop(w, used, "emptyValue", "emptyLabel", "emptyCaption", "emptyText") is { } empty)
                 Carry(o, "dropdownEmpty", Rw(empty, at), $"{at} has the empty entry {empty}, which the spec cannot express; set the Dropdown's Empty Text in Service Studio");
             if (Prop(w, used, "specialList", "hasSpecialList") is { } special && !IsFalse(special))
                 Todo($"{at} adds the special list {special} to its options, which a Dropdown cannot: build a data action that returns the options with those entries added, and use it as the list");
             return o;
+        }
+
+        // The screen aggregate Get<Entity>Options that lists a Combo Box's Source Entity: one per entity, made at the first Combo Box that needs it.
+        string OptionsAggregate(string entity, EntityInfo? info)
+        {
+            if (optionAggs.TryGetValue(entity, out var made)) return S(made["name"])!;
+            var nm = $"Get{entity}Options";
+            for (var i = 2; aggregates.Contains(nm) || actionNames.Contains(nm) || varTypes.ContainsKey(nm) || widgetByName.ContainsKey(nm); i++) nm = $"Get{entity}Options{i}";
+            var a = new JsonObject { ["name"] = nm, ["sources"] = new JsonArray(entity) };
+            if (info is { Static: true, IsActive: { } active }) a["filters"] = new JsonArray($"{entity}.{active} = True");
+            if ((info?.Static == true ? info.Order : info?.Label) is { } sortBy) a["sorts"] = new JsonArray(new JsonObject { ["attribute"] = $"{entity}.{sortBy}" });
+            aggregates.Add(nm);
+            optionAggs[entity] = a;
+            return nm;
         }
 
         // Rule 5: Table Records -> table, List Records -> list, with the same source, header cells and row cells.
@@ -3247,6 +3286,34 @@ static class ScreenTranslator
         Check(Text(w[8], "type") == "Container" && Text(w[8], "visible") == "Pick = 1" && Text(w[8], "children", 0, "type") == "Expression" && Has(m.Todo, "Raw", "unescaped"), "Misc: an unescaped Expression is carried in a Container that holds Visible, with a Todo");
         Check(Text(w[9], "type") == "If" && Text(w[9], "trueBranch", 0, "text") == "yes" && Text(w[9], "falseBranch", 0, "text") == "no", "Misc: an If keeps both branches");
         Check(Text(w[10], "type") == "List" && Text(w[10], "source") == "GetKinds.List" && Text(w[10], "children", 0, "value") == "GetKinds.List.Current.Kind.Name", "Misc: List Records becomes a List with the row content");
+
+        // 8b. Combo Boxes with a Source Entity (as oml export writes them): a static entity lists its active records in order, a regular one sorts by
+        //     its label; two boxes on one entity share the aggregate; a Source Attribute is the text; a record list gets its entity's identifier as
+        //     the value; a special list stays a Todo; an unknown entity is a Todo.
+        var comboIn = Parse("""
+        { "kind": "Screen", "name": "Pick", "flow": "MainFlow", "moduleKind": "Traditional", "locals": [ { "name": "ColorId", "type": "Color Identifier" }, { "name": "KindId", "type": "Kind Identifier" } ],
+          "preparation": { "complete": true, "nodes": [ { "kind": "aggregate", "name": "GetKinds", "sources": ["Kind"] } ] },
+          "widgets": [
+            { "kind": "ComboBox", "type": "ComboBox", "name": "ColorBox", "props": { "variable": "ColorId", "sourceEntity": "Color", "isMandatory": "False", "width": "300px" } },
+            { "kind": "ComboBox", "type": "ComboBox", "name": "KindBox", "props": { "variable": "KindId", "sourceEntity": "Kind", "specialList": "-1, \"(none)\"" } },
+            { "kind": "ComboBox", "type": "ComboBox", "name": "CodeBox", "props": { "variable": "KindId", "sourceEntity": "Kind", "sourceAttribute": "Kind.Code" } },
+            { "kind": "ComboBox", "type": "ComboBox", "name": "ListBox", "props": { "variable": "KindId", "source": "GetKinds.List", "sourceAttribute": "Kind.Name" } },
+            { "kind": "ComboBox", "type": "ComboBox", "name": "OddBox", "props": { "variable": "KindId", "sourceEntity": "Odd" } } ] }
+        """);
+        var comboCx = plain with { Entities = new Dictionary<string, EntityInfo> { ["Color"] = new(true, "Id", "Label", "Order", "Is_Active"), ["Kind"] = new(false, "Id", "Name", null, null) } };
+        var cb = Translate(comboIn, comboCx);
+        var cw = At(cb.Spec, "widgets") as JsonArray;
+        var cAggs = (At(cb.Spec, "aggregates") as JsonArray ?? []).OfType<JsonObject>().ToDictionary(a => Text(a, "name")!);
+        Check(Text(cw, 0, "type") == "Dropdown" && Text(cw, 0, "list") == "GetColorOptions.List" && Text(cw, 0, "values") == "Color.Id" && Text(cw, 0, "labels") == "Color.Label"
+            && cAggs.TryGetValue("GetColorOptions", out var colorAgg) && Text(colorAgg, "sources", 0) == "Color" && Text(colorAgg, "filters", 0) == "Color.Is_Active = True" && Text(colorAgg, "sorts", 0, "attribute") == "Color.Order"
+            && !Has(cb.Todo, "ColorBox"),
+            $"Combo: a static Source Entity is an aggregate of its active records in order, Id as value, label as text: {cb.Spec?.ToJsonString()} [{string.Join(" | ", cb.Todo)}]");
+        Check(Text(cw, 1, "list") == "GetKindOptions.List" && Text(cw, 1, "labels") == "Kind.Name" && cAggs.TryGetValue("GetKindOptions", out var kindAgg) && kindAgg["filters"] is null
+            && Text(kindAgg, "sorts", 0, "attribute") == "Kind.Name" && Has(cb.Todo, "KindBox", "special list") && Text(cw, 2, "list") == "GetKindOptions.List" && Text(cw, 2, "labels") == "Kind.Code" && cAggs.Count == 4,
+            $"Combo: a regular Source Entity sorts by its label, boxes share it, a Source Attribute is the text, a special list is a Todo: {cb.Spec?.ToJsonString()} [{string.Join(" | ", cb.Todo)}]");
+        Check(Text(cw, 3, "list") == "GetKinds.List" && Text(cw, 3, "values") == "Kind.Id" && Text(cw, 3, "labels") == "Kind.Name" && !Has(cb.Todo, "ListBox")
+            && Text(cw, 4, "list") == "GetOddOptions.List" && Has(cb.Todo, "OddBox", "does not know"),
+            $"Combo: a record list of an entity gets its identifier as the value; an unknown Source Entity is a Todo: {cb.Spec?.ToJsonString()} [{string.Join(" | ", cb.Todo)}]");
 
         // 10. Every node kind of a client flow: a server action call that stays as it is, an async JavaScript node, a comment with a made-up name, and the
         //     screen's own JavaScript, carried as a script but with a Todo because it uses jQuery. End nodes are not listed: a connector says "End".

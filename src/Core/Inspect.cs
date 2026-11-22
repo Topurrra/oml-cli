@@ -44,7 +44,10 @@ static class Inspect
             kind = m.Kind.ToString(),
             content = One("content", () => Content.Inspect(m)),
             defaultScreen = One("defaultScreen", () => m.DefaultScreen is { } landing ? Model.NameOf(landing) : null),
-            entities = Rows("entities", h.Keep(m.Entities), e => new { name = e.Name, @public = e.Public, attributes = e.Attributes.Select(Attr), lastModifiedBy = h.By(e), lastModifiedDate = h.On(e) }),
+            // The spec's entity keys for its special attributes, when set (identifier only when it is not Id): a dropdown's options read them.
+            entities = Rows("entities", h.Keep(m.Entities), e => new { name = e.Name, @public = e.Public, attributes = e.Attributes.Select(Attr),
+                identifier = e.IdentifierAttribute?.Name is { } id && id != "Id" ? id : null, labelAttribute = e.LabelAttribute?.Name,
+                orderByAttribute = e.OrderByAttribute?.Name, isActiveAttribute = e.IsActiveAttribute?.Name, lastModifiedBy = h.By(e), lastModifiedDate = h.On(e) }),
             staticEntities = Rows("staticEntities", h.Keep(m.Entities).Where(e => Reflect.Get(e, "EntityKind")?.ToString() == "Static")
                 .Cast<OutSystems.Model.Data.IStaticEntity>(), e => new { name = e.Name, @public = e.Public,
                     records = e.Records.Select(r => new { identifier = r.Identifier,

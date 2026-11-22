@@ -439,6 +439,12 @@ static partial class Migrate
                 .Select(rec => (S(rec, "identifier")!, (IReadOnlyDictionary<string, string>)(rec["values"] as JsonObject ?? []).Where(kv => kv.Value is JsonValue)
                     .ToDictionary(kv => kv.Key, kv => kv.Value!.ToString(), StringComparer.OrdinalIgnoreCase))).ToList(), StringComparer.OrdinalIgnoreCase);
 
+    // The old module's entities with their special attributes, as inspect gives them (a Combo Box's Source Entity becomes an aggregate of it).
+    internal static Dictionary<string, ScreenTranslator.EntityInfo> EntityInfos(JsonNode? inspect) =>
+        Rows(inspect, "entities").Where(e => S(e, "name") is not null).GroupBy(e => S(e, "name")!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => new ScreenTranslator.EntityInfo(S(g.First(), "kind") == "StaticEntity", S(g.First(), "identifier") ?? "Id",
+                S(g.First(), "labelAttribute"), S(g.First(), "orderByAttribute"), S(g.First(), "isActiveAttribute")), StringComparer.OrdinalIgnoreCase);
+
     // The server actions the translated screens call and their outputs: the old module's server and service actions (copied, same name) and the
     // entity wrappers (in the old module: Create and CreateOrUpdate return the new Id).
     internal static Dictionary<string, IReadOnlyDictionary<string, string>> ServerOutputs(JsonNode? inspect, Result r)
@@ -1015,7 +1021,7 @@ static partial class Migrate
             r.NewModule["references"] = refs;
         }
         var context = MakeContext(r, layout, placeholders) with { ProducerBlocks = producerBlocks.Count > 0 ? producerBlocks : null, ServerOutputs = mergeServerCalls ? ServerOutputs(inspect, r) : null, SessionInputs = r.SessionInputs,
-            StaticRecords = StaticRecords(inspect),
+            StaticRecords = StaticRecords(inspect), Entities = EntityInfos(inspect),
             SiteProperties = Rows(inspect, "siteProperties").Where(p => S(p, "name") is not null).GroupBy(p => S(p, "name")!, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => S(g.First(), "type") ?? "Text", StringComparer.OrdinalIgnoreCase),
             Roles = Rows(inspect, "roles").Select(p => S(p, "name")).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase),

@@ -115,12 +115,22 @@ static class Describe
         if (Reflect.Get(o, "TargetWidget") is IObjectSignature target) { var targetName = Name(target); Add("targetWidget", targetName, "targetWidget=" + targetName); }
         // Traditional Image and List Box (Service Studio's own classes): the image, and the source record list and its attributes.
         if (Reflect.Get(o, "ActualImage") is IObjectSignature picture) Add("image", Name(picture), "image=" + Name(picture));
-        if (o.GetType().Name is "Image" or "ListBox" && o.GetType().FullName!.StartsWith("ServiceStudio.Model.WebWidgets+", StringComparison.Ordinal))
+        // A Traditional Combo Box also takes its options from a Source Entity (no record list), and adds its Special List entries.
+        if (o.GetType().Name is "Image" or "ListBox" or "ComboBox" && o.GetType().FullName!.StartsWith("ServiceStudio.Model.WebWidgets+", StringComparison.Ordinal))
         {
             if (o.GetType().Name == "Image" && Reflect.Get(o, "Type")?.ToString() is { } imageType && imageType != "Static") Add("imageType", imageType, "imageType=" + imageType);
             foreach (var key in new[] { "SourceRecordList" })   // url: the generic reader writes it
                 if (Text(Reflect.Get(o, key)) is { Length: > 0 } text) Add("source", text, "source=" + text);
-            foreach (var key in new[] { "SourceAttribute", "SelectionAttribute" })
+            // Source Entity is, in the model, a Source Attribute Parent (an attribute of the entities in scope) whose type is the entity.
+            if (o.GetType().Name == "ComboBox" && Text(Reflect.Get(o, "SourceRecordList")).Length == 0
+                && Reflect.Get(o, "SourceAttributeParent") is { } entityParent && Reflect.Get(entityParent, "DataType") is OutSystems.Model.Data.IEntitySignature sourceEntity)
+                Add("sourceEntity", Name(sourceEntity), "sourceEntity=" + Name(sourceEntity));
+            if (List(o, "SpecialList").ToList() is { Count: > 0 } special)
+            {
+                var entries = string.Join("; ", special.Select(e => string.Join(", ", ElementPaths.Children((IObjectSignature)e).Select(Text).Where(t => t.Length > 0))));
+                Add("specialList", entries, "specialList=" + entries);
+            }
+            foreach (var key in new[] { "SourceAttribute", "SourceIdentifierAttribute", "SelectionAttribute" })
                 if (Reflect.Get(o, key) is IObjectSignature attribute)
                 {
                     var path = (Reflect.Get(o, key + "Parent") is IObjectSignature parent ? Name(parent) + "." : "") + Name(attribute);
