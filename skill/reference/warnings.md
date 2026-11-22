@@ -23,6 +23,7 @@ Common errors and warnings. Look one up with `oml explain-warning <id or title w
 | `InvalidFlow_BadForEach` | Invalid Action Flow | Loop body does not return to the For Each. | Set `next` of the last body node to the For Each. |
 | `InvalidDataAction_OutputMustBeSet`, `InvalidDataAction_NoOutputs` | Invalid Data Action | Data action output missing or never set. | Declare outputs and assign each one. |
 | `InvalidFunction_UnsupportedServerAction`, `InvalidFunction_UnsupportedExecuteAction` | Invalid Client Function | Client function calls the server or a non-function. | Set `function` to false, or remove the call. |
+| `JavaScriptSyntax` | JavaScript syntax error | Code does not compile. | Fix the line and column given. |
 
 ## Expressions
 
@@ -58,7 +59,7 @@ Common errors and warnings. Look one up with `oml explain-warning <id or title w
 | `NoErrorHandlingForAllExceptions` | Missing 'AllExceptions' | OnException lacks an AllExceptions handler. | Add an `exceptionHandler` for AllExceptions. |
 | `InvalidErrorHandler_AbortTrans`, `InvalidErrorHandler_Log` | Unexpected Exception Handler, Audit Suggestion | UI flow handler with Abort Transaction or Log Error off. | Set `abortTransaction` and `logError` true. |
 | `UnusedUserAction`, `UnusedAction`, `UnusedScreenData` | Unused User Action, Unused Action, Unused Aggregate | New element that nothing uses. | Use it or leave it out; never delete existing ones. |
-| `UnusedElement` | Unused Element | A part nothing reads, such as a JavaScript node input the script never reads (`$parameters.<Name>`) or an output never assigned. | Read it in the script or remove it from the node's inputs (flow nodes may change). Keep the parameters of existing actions (rule 3). |
+| `UnusedElement` | Unused Element | A part nothing reads, such as a JavaScript node input the script never reads or an output never assigned. | Read it in the script or remove it. Keep existing actions' parameters (rule 3). |
 | `UnusedEventHandler`, `UnusedArgument`, `UnusedPlaceholderArgument` | Unused Event Handler, Unused Argument, Unused Placeholder Content | Value for an event, input or placeholder that does not exist. | Fix the name or remove the value. |
 | `WebBlock_CustomEventNotTriggered` | Unused Block Event | Block event that nothing fires. | Fire it with `triggerEvent`, or drop it from `events`. |
 | `ConsecutiveServerInteractions`, `IteratedServerInteraction` | Performance Warning | Client action calls the server often or in a loop. | Do the work in one server action. |

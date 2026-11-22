@@ -240,12 +240,15 @@ public static partial class Cli
         if (args.Count is not (2 or 3)) return null;
         using var open = Open(args[1]); var module = open.Module;
         var all = Model.All(module);
-        var errors = all.Where(m => m.Type == OutSystems.Model.ValidationMessageType.Error).ToArray();
+        // Service Studio's editor flags broken JavaScript; headless validation does not, so oml compiles it with node.exe.
+        var scripts = Timings.Measure("javascript collect", () => JavaScriptSyntax.Collect(module));
+        var (scriptErrors, scriptNote) = Timings.Measure("javascript check", () => JavaScriptSyntax.Check(scripts));
+        var errors = all.Where(m => m.Type == OutSystems.Model.ValidationMessageType.Error).Concat(scriptErrors).ToArray();
         var allWarnings = all.Where(m => m.Type == OutSystems.Model.ValidationMessageType.Warning).ToArray();
         var warnings = args.Contains("--warnings") ? allWarnings : null;
         var name = ((OutSystems.Model.Applications.IModule)module).Name;
         // `summary` comes first, so output cut short still shows the totals.
-        Emit(new { summary = new { module = name, errors = errors.Length, warnings = allWarnings.Length },
+        Emit(new { summary = new { module = name, errors = errors.Length, warnings = allWarnings.Length }, note = scriptNote,
                    errorCount = errors.Length, errors = Model.Grouped(errors, module: name),
                    warningCount = warnings?.Length, warnings = warnings is null ? null : Model.Grouped(warnings, module: name) });
         return errors.Length == 0 ? 0 : 1;

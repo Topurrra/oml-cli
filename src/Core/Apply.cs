@@ -200,6 +200,8 @@ static class Apply
         var sourceAll = Model.All(m, "validate source"); // one validation for errors and warnings
         var baseline = sourceAll.Where(e => e.Type == ValidationMessageType.Error).ToArray();
         var baselineWarnings = sourceAll.Where(e => e.Type == ValidationMessageType.Warning).ToArray();
+        // JavaScript texts as they were: only snippets this run adds or changes are syntax-checked, like SQL.
+        var scriptsBefore = Timings.Measure("javascript snapshot", () => JavaScriptSyntax.Snapshot(m));
         using var build = Timings.Phase("build");
         var created = new List<string>();
         var existing = new List<string>();
@@ -429,7 +431,10 @@ static class Apply
 
         build?.Dispose();
         var after = Model.Errors(m, "validate built");
-        var newErrors = Subtract(after, baseline);
+        var (scriptErrors, scriptNote) = Timings.Measure("javascript check", () => JavaScriptSyntax.Check(JavaScriptSyntax.Collect(m)
+            .Where(s => !scriptsBefore.TryGetValue(s.Key, out var code) || code != s.Code).ToList()));
+        if (scriptNote is not null) warnings.Add(scriptNote);
+        var newErrors = Subtract(after, baseline).Concat(scriptErrors).ToArray();
         if (problems.Count > 0 || newErrors.Length > 0)
         {
             return (1, new { saved = false, problems, warnings, newErrors = Model.Grouped(newErrors), changed, existing });

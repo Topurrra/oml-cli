@@ -188,6 +188,7 @@ static partial class SelfTest
             QualifiedNamesTest(blank, dir, failures);
             MinifyTest(blank, dir, failures);
             FileValuesTest(blank, dir, failures);
+            JavaScriptSyntaxTest(blank, dir, failures);
             RunCommandTest(blank, dir, failures);
             TurnsTest(blank, dir, failures);
             PackageSelfTest.Run(blank, dir, failures);

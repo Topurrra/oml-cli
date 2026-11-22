@@ -443,7 +443,7 @@ This example requires Customer, Order with CustomerId/Total, and InvalidOrder in
 { "kind": "refreshData", "dataSource": "JoinedOrders" }
 ```
 
-JavaScript validation does not run the script or test browser behavior.
+`apply` syntax-checks each new or changed JavaScript node and Script with Service Studio's `node.exe` and refuses to save on an error (`JavaScriptSyntax`, with line and column). It does not run the script or test browser behavior.
 Scope DOM work to a block root ID, respect reduced motion, and clean up work when removed.
 Avoid global listeners.
 
