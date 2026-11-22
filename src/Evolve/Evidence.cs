@@ -23,11 +23,16 @@ static class Evidence
         return File.Exists(file) ? file : null;
     }
 
+    // The log oml writes now, for `oml memory`: null when there is none, and also with OML_LOG=0. Logging off means memory
+    // reads no log either, so recall does not rank by a log that other processes are still writing (the person's default
+    // file, which the test suite reads otherwise). `oml learn` asks for evidence on purpose and reads DefaultFile instead.
+    public static string? LoggedFile() => UsageLog.FilePath is { } file && File.Exists(file) ? file : null;
+
     // The log and the older file it rotated to (<file>.1), oldest first, for memory usefulness: recalls from before a
     // rotation still count. `oml learn` reads only the current file, so its line numbers name one file (--file adds more).
     public static List<string> DefaultFiles()
     {
-        if (DefaultFile() is not { } file) return [];
+        if (LoggedFile() is not { } file) return [];
         return File.Exists(file + ".1") ? [file + ".1", file] : [file];
     }
 

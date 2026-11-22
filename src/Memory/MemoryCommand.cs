@@ -635,7 +635,7 @@ static partial class MemoryCommand
         var ok = problems.Count == 0 && missing.Count == 0 && warnings.Count == 0;
         // Traps that repeat: the same failure 3 times or more, in 2 sessions or more, with no live trap record. Only the
         // command to add one is printed; nothing is written.
-        var usage = o.Get("--file") is { } usageFile ? Path.GetFullPath(usageFile) : Evidence.DefaultFile();
+        var usage = o.Get("--file") is { } usageFile ? Path.GetFullPath(usageFile) : Evidence.LoggedFile();
         if (usage is not null && !File.Exists(usage)) throw new MemoryException($"No usage log at {usage}.", 2);
         var suggested = usage is null ? [] : Evidence.TrapSuggestions(Evidence.Load([usage], null), state.LiveNow().Where(r => r.Kind == "trap"))
             .Select(t => (object)new { command = "oml " + t.Failure.Cmd, message = t.Failure.Message, seen = t.Failure.Rows.Count, sessions = t.Failure.Sessions, passedWith = t.PassedWith, add = t.Command }).ToList();

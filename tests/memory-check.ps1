@@ -9,6 +9,9 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
 $Fixtures = $Tmp
 $Tmp = New-TestFolder $Tmp 'memory'
+# Recall ranks by the usage log. Logging off (OML_LOG=0) means memory reads no log, so the answers here do not change when
+# another process writes to the person's default log during the run. Section 13b gives dream its log with --file.
+$savedLog = $env:OML_LOG; $env:OML_LOG = '0'
 try {
 $work = Join-Path $Tmp ('memory-' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Force $work | Out-Null
 function Fail($m) { throw "memory: $m" }
@@ -788,4 +791,4 @@ foreach ($f in $files) {
   }
 }
 Write-Host "ok   memory: no secret-shaped text in $($files.Count) test files ($($patterns.Count) patterns)"
-} finally { Remove-TestWorkFolder $Tmp }
+} finally { $env:OML_LOG = $savedLog; Remove-TestWorkFolder $Tmp }
