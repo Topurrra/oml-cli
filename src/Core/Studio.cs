@@ -24,14 +24,14 @@ static class Studio
     public static object Status() => Guard("Reading Service Studio's open modules", "Check Edit > MCP Server in Service Studio.", () =>
     {
         Connect();
-        return new { url = Url, apps = Call("listApps", input: null)["apps"] };
+        return new { url = Url, server = serverLine, canOpen = Has("openModule"), apps = ListApps()["apps"] };
     });
 
     // The names of the modules open now; the batch publish checks them before it publishes anything.
     public static List<string> OpenModuleNames() => Guard("Reading Service Studio's open modules", "Check Edit > MCP Server in Service Studio.", () =>
     {
         Connect();
-        return (Call("listApps", input: null)["apps"] as JsonArray ?? new())
+        return (ListApps()["apps"] as JsonArray ?? new())
             .Where(a => a?["isOpen"]?.GetValue<bool>() == true).Select(a => a!["name"]!.GetValue<string>()).ToList();
     });
 
@@ -59,7 +59,7 @@ static class Studio
     public static int CloseModule(string module) => Guard("Closing the module in Service Studio", "Close its tab in Service Studio.", () =>
     {
         Connect();
-        if (StudioGuards.SameNameRefusal(Call("listApps", input: null), module) is { } refusal) throw new CliError(refusal, 2);
+        if (StudioGuards.SameNameRefusal(ListApps(), module) is { } refusal) throw new CliError(refusal, 2);
         var open = OpenModuleNames();
         if (!open.Contains(module)) throw new CliError($"Module '{module}' is not open in Service Studio.", 2);
         StudioUi.Close(module, open, OpenModuleNames);
@@ -67,12 +67,59 @@ static class Studio
         return 0;
     });
 
+    // `oml studio open <Module> [--environment <host>]`: searchApps finds the module on the environment Service Studio is
+    // logged in to, openModule opens it in a new tab (Service Studio 11.55.99.65452 and later). Never closes anything.
+    public static int OpenFromServer(string module, string? environment) => Guard("Opening the module in Service Studio",
+        "Open it in Service Studio yourself (Open from Environment), or get it as a file with oml server pull.", () =>
+    {
+        Connect();
+        if (!Has("openModule"))
+            throw new CliError("This Service Studio cannot open modules for oml: its MCP server has no openModule tool (it came with Service Studio 11.55.99.65452). " +
+                               "Open the module in Service Studio, or get it as a file with oml server pull.", 2);
+        var search = new JsonObject { ["search"] = module };
+        if (environment is not null) search["environment"] = environment;
+        var found = Call("searchApps", search);
+        var matches = (found["apps"] as JsonArray ?? new()).SelectMany(a => (a?["modules"] as JsonArray ?? new())
+                .Select(m => (app: a!["name"]?.GetValue<string>() ?? "", m: m!)))
+            .Where(x => string.Equals(x.m["name"]?.GetValue<string>(), module, StringComparison.OrdinalIgnoreCase)).ToList();
+        var env = found["environment"]?.GetValue<string>();
+        if (matches.Count == 0)
+            throw new CliError($"No module named '{module}' on {env ?? "the environment Service Studio is logged in to"}." +
+                               (found["message"]?.GetValue<string>() is { Length: > 0 } hint ? " " + hint : ""), 2);
+        if (matches.Count > 1)
+            throw new CliError($"Several modules named '{module}': {string.Join(", ", matches.Select(x => $"{x.m["name"]} ({x.app})"))}. Open the one you mean in Service Studio.", 2);
+        var (appName, row) = matches[0];
+        var name = row["name"]!.GetValue<string>();
+        if (row["isOpen"]?.GetValue<bool>() == true)
+        {
+            Cli.Emit(new { module = name, application = appName, environment = env, status = "alreadyOpen", tabIds = row["tabIds"] });
+            return 0;
+        }
+        var open = new JsonObject { ["moduleKey"] = row["key"]!.GetValue<string>() };
+        if (environment is not null) open["environment"] = environment;
+        JsonNode result = new JsonObject();
+        for (var attempt = 0; attempt < 8; attempt++)   // each call waits up to 45 s while Service Studio downloads and loads it
+        {
+            result = Call("openModule", (JsonObject)open.DeepClone());
+            if (result["status"]?.GetValue<string>() != "opening") break;
+            TerminalProgress.Message(result["message"]?.GetValue<string>() ?? "Service Studio is still opening the module...");
+        }
+        var status = result["status"]?.GetValue<string>() ?? "unknown";
+        Cli.Emit(new
+        {
+            module = name, application = appName, environment = env, status, message = result["message"]?.GetValue<string>(),
+            tabId = result["module"]?["tabId"]?.GetValue<string>(), inNewWindow = result["inNewWindow"]?.GetValue<bool>(),
+            next = status == "opening" ? $"Service Studio is still opening it; if it shows a dialog, answer it there, then run oml studio open {name} again." : null,
+        });
+        return status is "opened" or "alreadyOpen" ? 0 : 1;
+    });
+
     // One publish, without printing: `publish` prints it, and the batch publish (PublishBatch) collects it.
     public static PublishBatch.PublishResult PublishOne(string target, bool close = false) => Guard("Publishing through Service Studio", ManualPublish, () =>
     {
         var (name, how, pushed) = OpenModule(target, close: close);
         JsonNode? apps = null;
-        try { apps = Call("listApps", input: null); } catch (CliError) { } // only for the warning: a failed lookup never blocks a publish
+        try { apps = ListApps(); } catch (CliError) { } // only for the warning: a failed lookup never blocks a publish
         var warnings = new List<string>();
         if (StudioGuards.PublishWarning(name, StudioGuards.FindApp(apps, name)) is { } zero) warnings.Add(zero);
         var result = Call("omlPublish", new JsonObject { ["eSpaceName"] = name });
@@ -172,7 +219,7 @@ static class Studio
     static int PullOpen(string? module, string? output)
     {
         Connect();
-        var open = (Call("listApps", input: null)["apps"] as JsonArray ?? new())
+        var open = (ListApps()["apps"] as JsonArray ?? new())
             .Where(a => a?["isOpen"]?.GetValue<bool>() == true).Select(a => a!["name"]!.GetValue<string>()).ToList();
         var name = module ?? (open.Count == 1 ? open[0]
             : throw new CliError(open.Count == 0 ? "No module is open in Service Studio. Open the module first."
@@ -261,7 +308,7 @@ static class Studio
     {
         Connect();
         if (!target.EndsWith(".oml", StringComparison.OrdinalIgnoreCase))
-            return StudioGuards.SameNameRefusal(Call("listApps", input: null), target) is { } refusal ? throw new CliError(refusal, 2)
+            return StudioGuards.SameNameRefusal(ListApps(), target) is { } refusal ? throw new CliError(refusal, 2)
                 : IsOpen(target) ? (target, "module", []) : throw new CliError($"Module '{target}' is not open in Service Studio. Open it, or pass its .oml file.", 2);
 
         var path = Path.GetFullPath(target);
@@ -270,7 +317,7 @@ static class Studio
         using (var m = Model.Load(path)) name = ((OutSystems.Model.Applications.IModule)m).Name;
         if (IsOpen(name))
         {
-            if (StudioGuards.SameNameRefusal(Call("listApps", input: null), name) is { } refusal) throw new CliError(refusal, 2);
+            if (StudioGuards.SameNameRefusal(ListApps(), name) is { } refusal) throw new CliError(refusal, 2);
             if (!push) throw new CliError($"A module named '{name}' is already open in Service Studio, so this file would not be the one used. " +
                                           $"Close it there and run again, or run with '{name}' to use the open copy.", 2);
             if (PushTexts(path, name, closeIfNeeded: close) is { } pushedTexts) return (name, "pushed", pushedTexts);
@@ -357,22 +404,42 @@ static class Studio
     }
 
     static bool IsOpen(string name) =>
-        (Call("listApps", input: null)["apps"] as JsonArray ?? new()).Any(a =>
+        (ListApps()["apps"] as JsonArray ?? new()).Any(a =>
             a?["name"]?.GetValue<string>() == name && a["isOpen"]?.GetValue<bool>() == true);
 
     static string? token;
+    static string? serverLine;          // the first line of the server's instructions: "Service Studio <v>, MCP contract <N>." (none on contract 1)
+    static HashSet<string>? toolNames;  // from tools/list, once per run
+
+    static bool Has(string tool)
+    {
+        if (toolNames is null)
+            try { toolNames = ((Rpc("tools/list", new JsonObject())["tools"] as JsonArray) ?? new()).Select(t => t?["name"]?.GetValue<string>()).OfType<string>().ToHashSet(); }
+            catch (CliError) { toolNames = []; }   // no tool list: behave as the early builds (listApps)
+        return toolNames.Contains(tool);
+    }
+
+    // The open modules (and loaded references) as {"apps": [...]}. Service Studio 11.55.98.65437 and later replaced listApps
+    // with listOpenModules (rows under "modules", one per open tab); the rows have the same fields, so the rest of oml reads
+    // them the same way. Modules are still addressed by name: SameNameRefusal refuses a name open in two tabs.
+    static JsonObject ListApps()
+    {
+        var rows = Has("listOpenModules") ? Call("listOpenModules", input: null)["modules"] : Call("listApps", input: null)["apps"];
+        return new JsonObject { ["apps"] = rows?.DeepClone() ?? new JsonArray() };
+    }
 
     static void Connect()
     {
         if (token is not null) return;
         try
         {
-            Rpc("initialize", new JsonObject
+            var init = Rpc("initialize", new JsonObject
             {
                 ["protocolVersion"] = "2025-06-18",
                 ["capabilities"] = new JsonObject(),
                 ["clientInfo"] = new JsonObject { ["name"] = "oml-cli", ["version"] = "1" },
             });
+            serverLine = init["instructions"]?.GetValue<string>()?.Split('\n')[0].Trim() is { Length: > 0 } line && line.Contains("MCP contract") ? line : null;
         }
         catch (HttpRequestException e)
         {
@@ -400,7 +467,7 @@ static class Studio
         File.WriteAllText(TokenFile, token);
     }
 
-    // Every tool but listApps wraps its arguments in "input"; every tool takes the token.
+    // Every tool but listApps and listOpenModules wraps its arguments in "input"; every tool takes the token.
     static JsonNode Call(string tool, JsonObject? input, bool retried = false)
     {
         var args = new JsonObject { ["sessionToken"] = token };
@@ -412,7 +479,13 @@ static class Studio
             NewToken(); // stale after a Service Studio restart or a revoke; ask once, never loop
             return Call(tool, input, retried: true);
         }
-        if (result["isError"]?.GetValue<bool>() == true) throw new CliError($"{tool}: {Shorten(Text(result))}", 2);
+        if (result["isError"]?.GetValue<bool>() == true)
+        {
+            var message = Text(result);
+            throw new CliError($"{tool}: {Shorten(message)}" + (
+                message.Contains("MODULE_AMBIGUOUS") ? " Close the other tabs of that module in Service Studio, then run again." :
+                message.Contains("ENVIRONMENT_REQUIRED") ? " Pass --environment <host>, one of the environments the message names." : ""), 2);
+        }
         if (result["structuredContent"] is { } structured) return structured;
         var text = Text(result);
         try { return JsonNode.Parse(text) ?? new JsonObject(); }

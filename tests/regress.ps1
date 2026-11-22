@@ -309,6 +309,10 @@ Unit 'log-check' -Group usagelog {
   try { & (Join-Path $tests 'log-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL log checks: $_" }
 }
+# studio-check starts its own mock of Service Studio's MCP server (an early build and a newer one); no Service Studio needed.
+Unit 'studio-check' {
+  try { & (Join-Path $tests 'studio-check.ps1') -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL studio checks: $_" }
+}
 Unit 'pull-check' {
   try { & (Join-Path $tests "pull-check.ps1") -Oml $oml -Tmp $tmp } catch { $global:fail++; Write-Host "FAIL pull checks: $_" }
 }

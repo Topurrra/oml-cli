@@ -9,7 +9,8 @@ public static partial class Cli
         2 when args[1] == "tabs" => Emit(StudioUi.Tabs()),
         2 when args[1] == "focus" => StudioUi.Focus(),
         3 when args[1] == "close" => Studio.CloseModule(args[2]),
-        3 when args[1] == "open" => throw new CliError(StudioUi.OpenBlocked, 2),
+        3 when args[1] == "open" => Studio.OpenFromServer(args[2], null),
+        5 when args[1] == "open" && args[3] == "--environment" => Studio.OpenFromServer(args[2], args[4]),
         _ => null,
     };
 

@@ -49,9 +49,6 @@ static class StudioTabs
 
 static class StudioUi
 {
-    public const string OpenBlocked = "oml cannot open a module from the server. Service Studio's MCP server has no open tool, and the environment page's Recent modules list opens a module by clicks only. " +
-        "Open the module in Service Studio, or pass its .oml file to oml publish. A new module is made with Add Module on the application page.";
-
     const string Script = """
         $ErrorActionPreference = 'Stop'
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8

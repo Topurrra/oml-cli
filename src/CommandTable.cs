@@ -84,6 +84,7 @@ internal static class CommandTable
         if (cmd is "check" or "architecture" && a.Contains("--team")) return ["gated"];   // downloads from LifeTime
         if (cmd == "memory" && sub is "add" or "retract" or "dream" or "init") return ["write"];
         if (cmd == "map" && sub == "build") return ["write"];   // writes the stored map
+        if (cmd == "studio" && sub == "open") return ["gated"];   // opens a module in Service Studio
         if (cmd == "team-rules" && sub is "add" or "remove") return ["write"];   // installs or removes a company skill
         if (cmd == "test" && sub == "data" && a.Length > 2 && a[2] is "allow" or "create" or "update" or "cleanup") return ["gated"];   // changes data on a server
         return All.FirstOrDefault(c => c.Name == cmd)?.Mcp?.Split(' ') ?? [];
