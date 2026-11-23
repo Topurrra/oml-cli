@@ -319,11 +319,12 @@ static class ProjectConfig
         return "oml project profile (.oml/oml-config.json, set by the user; follow it: it overrides the defaults of the skill and AGENTS.md):\n- " + string.Join("\n- ", Profile(v));
     }
 
-    // The platform server host: OML_SERVER_HOST, else outsystems.serverHost of the project; scheme and path dropped.
+    // The platform server host: OML_SERVER_HOST as it is (oml server refuses a scheme or a path there), else
+    // outsystems.serverHost of the project with any scheme and path dropped.
     internal static string ServerHost(Values v)
     {
-        var text = Environment.GetEnvironmentVariable("OML_SERVER_HOST") is { Length: > 0 } env ? env : v.Get("outsystems.serverHost");
-        text = text.Trim();
+        if (Environment.GetEnvironmentVariable("OML_SERVER_HOST") is { Length: > 0 } env) return env;
+        var text = v.Get("outsystems.serverHost").Trim();
         if (text.Contains("://")) text = text[(text.IndexOf("://") + 3)..];
         return text.Split('/')[0];
     }
