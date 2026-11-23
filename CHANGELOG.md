@@ -21,6 +21,8 @@ Keep a Changelog style: one section per release, newest first.
 
 ### Fixed
 
+- **`oml flow` lists a flow's nodes and edges in the same order on every run.** Edges followed the model's child order, which changes from one load to the next, so two runs (or a warm and a cold run) printed the edges in a different order. Nodes are now sorted by position and then id, and edges follow that node order. warm-check compares `flow` byte for byte again, and dashboard-check runs it three times.
+
 - The Dropdown keys in `oml spec`: `labels` and `values`, written on one item of the list (`Status.Label`), not `optionsText` and `optionsValue`.
 
 ## 1.23.0
