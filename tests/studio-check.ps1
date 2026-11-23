@@ -36,7 +36,7 @@ try {
   Assert ((Calls 0) -contains 'listApps') "early build: listApps was not called: $(Calls 0)"
   Write-Host "ok   studio: an early build lists open modules with listApps"
   $r = Run 0 @('studio', 'open', 'Shop')
-  Assert ($r.Exit -eq 2 -and $r.Out -match 'openModule' -and $r.Out -match 'server pull') "studio open on an early build: $($r.Out)"
+  Assert ($r.Exit -eq 2 -and $r.Out -match 'openModule' -and $r.Out -match '11\.55\.99\.65452 or later' -and $r.Out -match 'Open from Environment' -and $r.Out -match 'oml pull Shop') "studio open on an early build: $($r.Out)"
   Write-Host "ok   studio open: an early build refuses with the manual step"
   $r = Run 0 @('query', 'Orders', 'Root { Name }', '--live')
   Assert ($r.Exit -eq 0 -and $r.Out -match 'Orders') "query --live on an early build: $($r.Out)"

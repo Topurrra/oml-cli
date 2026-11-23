@@ -70,12 +70,16 @@ static class Studio
     // `oml studio open <Module> [--environment <host>]`: searchApps finds the module on the environment Service Studio is
     // logged in to, openModule opens it in a new tab (Service Studio 11.55.99.65452 and later). Never closes anything.
     public static int OpenFromServer(string module, string? environment) => Guard("Opening the module in Service Studio",
-        "Open it in Service Studio yourself (Open from Environment), or get it as a file with oml server pull.", () =>
+        "Open it in Service Studio with Open from Environment.", () =>
     {
         Connect();
         if (!Has("openModule"))
-            throw new CliError("This Service Studio cannot open modules for oml: its MCP server has no openModule tool (it came with Service Studio 11.55.99.65452). " +
-                               "Open the module in Service Studio, or get it as a file with oml server pull.", 2);
+        {
+            string? build = null;
+            try { build = Model.InstalledBuild(); } catch (Exception) { /* the message works without it */ }
+            throw new CliError($"oml studio open needs Service Studio 11.55.99.65452 or later{(build is null ? "" : $"; this one is {build}")}: older builds have no openModule tool in their MCP server. " +
+                               $"Ask the user to open {module} in Service Studio with Open from Environment (or to update Service Studio), then continue with oml pull {module}.", 2);
+        }
         var search = new JsonObject { ["search"] = module };
         if (environment is not null) search["environment"] = environment;
         var found = Call("searchApps", search);
@@ -137,7 +141,8 @@ static class Studio
             warnings.Add("Service Studio skipped the upload: the server already has this version, so nothing new was deployed." +
                          (how == "module" ? " If you installed a newer file, publish the file instead: oml publish <file.oml>." : ""));
         if (StudioGuards.ConcurrentPublication(result))
-            warnings.Add($"Service Studio answered 'concurrent publication': this file was built from an older version of '{name}' than the server has. Get the current one (open it in Service Studio, then oml pull), apply the spec to that file and publish it.");
+            warnings.Add($"Service Studio answered 'concurrent publication': this file is not based on the version on the server (a file from oml server pull or a package is version 0 to Service Studio). " +
+                         $"Close the open '{name}' tab without saving and open it from the server: oml studio open {name} --environment <server host> (Service Studio 11.55.99.65452 and later; ask the user first), or the user uses Open from Environment. Then oml pull {name} --out <file.oml>, apply the spec to that file and publish it.");
         var published = Flag(result, "published", "omlPublish");
         // The server now has the open copy: the file becomes that copy, so the next cycle starts from the server's version.
         string? fileUpdated = null, backup = null;
@@ -285,7 +290,8 @@ static class Studio
         try { return run(); }
         catch (CliError e) when (e.ExitCode == 2)
         {
-            throw new CliError($"{what} failed: {e.Message} {manualStep}", 2);
+            // A message that already says what the person does (it names Open from Environment) needs no second hint.
+            throw new CliError($"{what} failed: {e.Message}" + (e.Message.Contains(manualStep, StringComparison.Ordinal) || e.Message.Contains("Open from Environment", StringComparison.Ordinal) ? "" : " " + manualStep), 2);
         }
         catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException or KeyNotFoundException
                                        or HttpRequestException or TaskCanceledException)

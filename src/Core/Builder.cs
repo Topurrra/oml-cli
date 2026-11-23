@@ -465,7 +465,9 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         OmlCli.Content.RequireScripts(m, screen, s.RequiredScripts);
         if (s.StyleSheet is not null) Queue(label, m, screen, "StyleSheet", JsonSerializer.SerializeToElement(s.StyleSheet));
         if (s.Description is not null && Reflect.Property(screen, "Description", writable: true) is { } description) description.SetValue(screen, s.Description);
-        if (s.IsDefault) references.Add(($"{label}.isDefault", () => Set(m, "DefaultScreen", screen)));
+        // Reactive and Mobile start at the module's DefaultScreen; Traditional Web starts at the default Entry of a UI flow,
+        // and its compiler stops ("Invalid compiler output. Condition is false") when DefaultScreen is set.
+        if (s.IsDefault) references.Add(($"{label}.isDefault", () => { if (WebUi.IsTraditional(m)) DefaultEntry(screen, label); else Set(m, "DefaultScreen", screen); }));
         if (s.Access is { } access) references.Add(($"{label}.access", () => SetAccess(screen, access)));
         if (WebUi.IsTraditional(m)) { WebScreenParts(screen, s, label); return; }
         if (s.Title is { ValueKind: JsonValueKind.String } title)

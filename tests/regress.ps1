@@ -40,6 +40,9 @@ $env:OML_LOG = '0' # the suite must not write to a person's usage log (it is on 
 # (A hidden variable, not the project config: the units run in the repository and in tmp, where no config may change a
 # person's own use of oml.)
 $env:OML_WARM = '0'
+# The tests set OML_SERVER_* themselves (a local mock server, made-up logins). oml would otherwise fill a missing one from
+# the person's Windows user variables, and a test that clears them on purpose would log in to their real server.
+$env:OML_SERVER_USER_VARIABLES = '0'
 # Test what the sources say, never a stale build: an incremental build takes a few seconds when nothing changed.
 $repo = Split-Path $tests -Parent
 & dotnet build (Join-Path $repo 'src\OmlCli.csproj') -c Release --nologo -v q -clp:ErrorsOnly | Out-Host

@@ -16,18 +16,9 @@ static partial class Dashboard
 
     // A variable of this process, else the person's Windows user variable (HKCU\Environment): a dashboard started
     // before the variables were set still finds them, as `oml mcp` does.
-    static string? ServerSetting(string name)
-    {
-        if (Environment.GetEnvironmentVariable(name) is { Length: > 0 } set) return set;
-        if (name == "OML_SERVER_HOST" && ProjectConfig.Load(null).Get("outsystems.serverHost") is { Length: > 0 }) return ProjectConfig.ServerHost(ProjectConfig.Load(null));
-        if (!OperatingSystem.IsWindows()) return null;
-        try
-        {
-            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Environment");
-            return key?.GetValue(name) is string value && value.Length > 0 ? value : null;
-        }
-        catch (Exception e) when (e is System.Security.SecurityException or UnauthorizedAccessException or IOException) { return null; }
-    }
+    static string? ServerSetting(string name) =>
+        name == "OML_SERVER_HOST" ? ProjectConfig.ServerHost(ProjectConfig.Load(null)) is { Length: > 0 } host ? host : null
+        : ServerApi.Variable(name);
 
     // Before a server command: the missing variables from the Windows user variables, in this process only.
     static void FillServerVariables()

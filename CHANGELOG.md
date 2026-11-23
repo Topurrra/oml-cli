@@ -2,6 +2,32 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 2.0.1
+
+Fixes found in the first real use of 2.0.0.
+
+### Fixed
+
+- **A Traditional Web module with a default screen failed to publish** ("Internal Error. Invalid compiler output. Condition
+  is false" in `ESpace.Dump`). `"isDefault": true` on a screen set the module's Default Screen, which Reactive uses and the
+  Traditional compiler refuses. In a Traditional module it now makes an Entry of the screen's UI flow that goes to it the
+  only default Entry (an existing one, else `Start`), and clears a Default Screen that 2.0.0 set: applying the spec again
+  repairs such a module. Found by publishing halves of a real change until one screen setting was left; the self-test
+  checks it.
+- **`oml server` finds your login without help.** It reads `OML_SERVER_HOST`, `OML_SERVER_USER` and `OML_SERVER_PASSWORD`
+  from the process, else from your Windows user variables, as the dashboard and `oml mcp` already did. A shell or an agent
+  started before you set them no longer needs them loaded by hand. (Tests run with `OML_SERVER_USER_VARIABLES=0`, so a
+  test never reaches a real server.)
+- **Publishing a module that is on the server.** The docs taught `oml server pull`, apply, publish, and Service Studio
+  refuses that publish ("A concurrent publication was detected"): it publishes a change only to a module it opened from
+  the server itself, and a pulled file is version 0 to it. The docs, `oml server pull` (a new `publish` field) and the
+  publish failure message now give the way that works: open the module from the server (`oml studio open <Module>
+  --environment <host>` on Service Studio 11.55.99.65452 and later, after the user's yes; on an older build the user's Open
+  from Environment), then `oml pull`, apply, install, publish. A pulled file stays the one to read, compare, check and review.
+- **`oml studio open` on an older Service Studio** said the tool "came with Service Studio 11.55.99.65452", which read as if
+  that were the installed build. It now says it needs 11.55.99.65452 or later, names the installed build, and that the user
+  opens the module with Open from Environment.
+
 ## 2.0.0
 
 Everything since 1.21.1. A major version: the production rules, the command names and the dashboard changed, and agents

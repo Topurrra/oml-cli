@@ -34,8 +34,8 @@ static class StudioGuards
         var zero = app is JsonObject o && o["version"] is JsonValue v
             && (v.TryGetValue<string>(out var text) ? text.Trim() == "0" : v.TryGetValue<double>(out var number) && number == 0);
         return zero
-            ? $"Module '{module}' has version 0 in Service Studio. This is normal for a new module. If it is a copy extracted from a package, Service Studio rejects the publish with 'A concurrent publication was detected': " +
-              "open the server version of the module (or run oml pull on it), apply the spec again to that file, then publish."
+            ? $"Module '{module}' has version 0 in Service Studio. This is normal for a new module. If the module is already on the server (a copy from a package or from oml server pull), Service Studio rejects the publish with 'A concurrent publication was detected': " +
+              $"open it from the server (oml studio open {module} --environment <server host> on Service Studio 11.55.99.65452 and later, after the user's yes; else the user uses Open from Environment), then oml pull {module} --out <file.oml>, apply the spec again to that file, then publish."
             : null;
     }
 

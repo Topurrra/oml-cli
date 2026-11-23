@@ -838,15 +838,18 @@ The API adaptation derives from OutSystems/outsystems-pipeline. Its license is `
 |---|---|
 | `OML_SERVER_HOST` | The environment's hostname, as you connect to it in Service Studio, with an optional port. No `https://` or path. Or set it once per project: `oml config set outsystems.serverHost <host>` (the variable wins). |
 | `OML_SERVER_USER` | Your Service Studio user name. |
-| `OML_SERVER_PASSWORD` | Its password, from the process environment only. Never printed, logged or saved. |
+| `OML_SERVER_PASSWORD` | Its password. Never printed, logged or saved. |
 | `OML_SERVER_INSECURE_LOCALHOST=1` | Tests only: HTTP for exact `127.0.0.1` or `localhost`. |
+| `OML_SERVER_USER_VARIABLES=0` | Tests only: read the three settings from the process alone. |
+
+oml reads each of the three from the process, else from your Windows user variables, so a shell or an agent started before you set them still finds them; nothing needs to be loaded by hand.
 | `OML_SERVER_CACHE` | The folder for `server check`'s cache. Default `%LOCALAPPDATA%\oml-cli\server-cache`. |
 
 | Command | Behavior |
 |---|---|
 | `server modules [--app <Name>]` | Every module the user can see: `name`, `key`, `application`, `applicationKey`, `publishedVersionId`, `lastVersion` (number), `lastVersionId`, `uploadedBy`, `uploadedDate`. Sorted by application, then name. `--app` keeps one application (name in any case, or key). |
 | `server versions <Module>` | The module's versions, newest first: `version` (number), `versionId`, `published`, `uploadedBy`, `uploadedDate`. |
-| `server pull <Module> [--version N] --out <file.oml>` | Saves one version as an `.oml` file. `--version` is a number from `server versions`; without it, the published version. Stdout: `module`, `key`, `application`, `version`, `versionId`, `published`, `file`, `bytes`, `next`. |
+| `server pull <Module> [--version N] --out <file.oml>` | Saves one version as an `.oml` file. `--version` is a number from `server versions`; without it, the published version. Stdout: `module`, `key`, `application`, `version`, `versionId`, `published`, `file`, `bytes`, `next`, and `publish`: how to publish a change to this module (not from this file). |
 | `server pull --app <Name> --out <folder>` | Saves the published version of every module of one application as `<folder>\<Module>.oml`, with one login. Stdout: `host`, `application`, `folder`, `count`, `modules` (`name`, `version`, `versionId`, `file`, `bytes`), `skipped` and `failed` with a `reason`, and `next` (`oml check --in <folder>`, `oml architecture --in <folder>`). Exit 1 when a module was skipped or failed. |
 | `server check [--app <Name>]... [--rules <oml-rules.json>] [--out <report.html>]` | The end-of-day check of the environment. See below. |
 
@@ -865,12 +868,13 @@ Check a pulled file with `oml inspect --header <file.oml>` before you change it.
 
 **An existing file.** `pull --app` never overwrites a file. The folder gets `oml-server.json`: per file the module key, version id and hash. A file that is the same module version from the same server is listed with `unchanged: true` and not downloaded again. Any other file is listed in `skipped`. An unknown application name lists the closest names.
 
-**Change a module from the server.**
-1. `oml server pull <Module> --out <Module>.oml` (or `pull --app`).
-2. `oml apply <Module>.oml <spec.json> <Module>.staged.oml`.
-3. The person opens the staged file in Service Studio and publishes it. When Service Studio is open, `oml publish <Module>.staged.oml` does the same after a yes.
+**Read from the server, publish from Service Studio.** A file from `oml server pull` is for reading, comparing, checking and reviewing. Service Studio publishes a change only to a module it opened from the server itself: it knows that module's version, while a pulled file (like a copy from a package) is version 0 to it, and the publish ends in "A concurrent publication was detected". `pull` prints this as `publish`, with the commands. To change and publish a module that is on the server:
+1. Open it in Service Studio from the server: `oml studio open <Module> --environment <host>` (Service Studio 11.55.99.65452 and later; gated: ask the user first). On an older build the user does it: Open from Environment.
+2. `oml pull <Module> --out <Module>.oml`: the open module, with its real version.
+3. `oml apply <Module>.oml <spec.json> <Module>.staged.oml`, then validate, review and `oml install <Module>.staged.oml <Module>.oml` (with the user's yes).
+4. `oml publish <Module>.oml` (with the user's yes).
 
-oml never publishes through this REST API. If someone publishes the module in between, pull it again and apply the spec again: Service Studio refuses an older copy ("A concurrent publication was detected").
+A spec written while working on a pulled file applies the same way to the file of step 2. oml never publishes through this REST API. If someone publishes the module in between, Service Studio refuses the older copy the same way: start again at step 1.
 
 **Review two server versions.** `oml review --server <Module> <v1> <v2>` pulls both versions and runs `oml review` between them (see Review).
 

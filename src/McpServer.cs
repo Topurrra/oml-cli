@@ -306,15 +306,9 @@ internal static class McpServer
     // fill the OML_SERVER_* names that are missing, for this child only. The values are never logged or printed.
     static void AddServerVariables(IDictionary<string, string?> environment)
     {
-        if (!OperatingSystem.IsWindows()) return;
-        try
-        {
-            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Environment");
-            foreach (var name in new[] { "OML_SERVER_HOST", "OML_SERVER_USER", "OML_SERVER_PASSWORD" })
-                if (string.IsNullOrEmpty(environment.TryGetValue(name, out var set) ? set : null) && key?.GetValue(name) is string value && value.Length > 0)
-                    environment[name] = value;
-        }
-        catch (Exception e) when (e is System.Security.SecurityException or UnauthorizedAccessException or IOException) { }
+        foreach (var name in new[] { "OML_SERVER_HOST", "OML_SERVER_USER", "OML_SERVER_PASSWORD" })
+            if (string.IsNullOrEmpty(environment.TryGetValue(name, out var set) ? set : null) && ServerApi.Variable(name) is { } value)
+                environment[name] = value;
     }
 
     static JsonObject Envelope(int code, string stdout, string stderr)

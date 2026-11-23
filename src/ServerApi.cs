@@ -138,10 +138,18 @@ static partial class ServerApi
         {
             ["module"] = name, ["key"] = key, ["application"] = Text(Embedded(found, "application"), "name"),
             ["version"] = number, ["versionId"] = versionId, ["published"] = versionId == Int(Prop(found, "publishedVersionId")),
-            ["file"] = outFile, ["bytes"] = bytes, ["next"] = $"oml header \"{outFile}\"",
+            ["file"] = outFile, ["bytes"] = bytes, ["next"] = $"oml inspect --header \"{outFile}\"",
+            ["publish"] = PublishNote(name, ctx.Host),
         });
         return 0;
     }
+
+    // A file from the server is for reading, comparing, checking and reviewing. Service Studio publishes only a module it
+    // opened from the server itself (it knows that module's version); this file is version 0 to it, and a publish of a change
+    // built on it ends in "A concurrent publication was detected".
+    internal static string PublishNote(string module, string? host) =>
+        $"To publish a change to {module}, do not build it on this file. Open it in Service Studio from the server: oml studio open {module} --environment {host ?? "<server host>"} " +
+        $"(Service Studio 11.55.99.65452 and later; ask the user first), or the user uses Open from Environment. Then oml pull {module} --out <file.oml>, apply the spec to that file, and publish it.";
 
     // pull --app <Name> --out <folder>: the published version of every module of one application, one file per module.
     // A file already there is never overwritten: the same module version from this server (by the folder's manifest and
@@ -362,6 +370,21 @@ static partial class ServerApi
         throw new ServerError($"Module '{name}' is not on this server, or this user cannot see it.") { Next = "oml server modules" };
     }
 
+    // An OML_SERVER_* setting: this process's variable, else the person's Windows user variable (HKCU\Environment), so a
+    // shell or an agent started before the variables were set still finds them (as the dashboard and oml mcp do). The
+    // value is never printed. OML_SERVER_USER_VARIABLES=0 is for tests only: the process alone, never the real login.
+    internal static string? Variable(string name)
+    {
+        if (Environment.GetEnvironmentVariable(name) is { Length: > 0 } set) return set;
+        if (!OperatingSystem.IsWindows() || Environment.GetEnvironmentVariable("OML_SERVER_USER_VARIABLES") == "0") return null;
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("Environment");
+            return key?.GetValue(name) is string value && value.Length > 0 ? value : null;
+        }
+        catch (Exception e) when (e is System.Security.SecurityException or UnauthorizedAccessException or IOException) { return null; }
+    }
+
     // OML_SERVER_HOST: a hostname with an optional port, as OML_LIFETIME_HOST. HTTPS only; the test switch allows HTTP
     // for 127.0.0.1 or localhost alone (as Service Studio does for a loopback host's token request).
     static Uri Endpoint(string host)
@@ -426,7 +449,7 @@ static partial class ServerApi
     // One command's settings, connection and secrets. Emit is the only way out to stdout.
     sealed class Ctx : IDisposable
     {
-        public readonly string? Password = Environment.GetEnvironmentVariable("OML_SERVER_PASSWORD");
+        public readonly string? Password = Variable("OML_SERVER_PASSWORD");
         public string? Host, User, Token, Warning;
         HttpClientHandler? handler;
         HttpClient? http;
@@ -444,11 +467,11 @@ static partial class ServerApi
         public void Settings()
         {
             Host = ProjectConfig.ServerHost(ProjectConfig.Load(null)) is { Length: > 0 } host ? host : null;
-            User = Environment.GetEnvironmentVariable("OML_SERVER_USER");
+            User = Variable("OML_SERVER_USER");
             var missing = new[] { ("OML_SERVER_HOST", Host), ("OML_SERVER_USER", User), ("OML_SERVER_PASSWORD", Password) }
                 .Where(p => string.IsNullOrWhiteSpace(p.Item2)).Select(p => p.Item1).ToArray();
             if (missing.Length > 0)
-                throw new ServerError($"Set {string.Join(", ", missing)} in the environment: OML_SERVER_HOST is the server's hostname (no https://; or outsystems.serverHost in .oml/oml-config.json), OML_SERVER_USER and OML_SERVER_PASSWORD are the login you use in Service Studio.");
+                throw new ServerError($"Set {string.Join(", ", missing)} in the environment or as Windows user variables (oml reads both): OML_SERVER_HOST is the server's hostname (no https://; or outsystems.serverHost in .oml/oml-config.json), OML_SERVER_USER and OML_SERVER_PASSWORD are the login you use in Service Studio.");
             if (User!.Any(char.IsControl) || Password!.Any(char.IsControl)) throw new ServerError("OML_SERVER_USER or OML_SERVER_PASSWORD holds a control character.");
         }
 

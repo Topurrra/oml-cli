@@ -330,7 +330,8 @@ static class ProjectConfig
 
     // The platform server host: OML_SERVER_HOST as it is (oml server refuses a scheme or a path there), else
     // outsystems.serverHost of the project with any scheme and path dropped.
-    internal static string ServerHost(Values v) => Host("OML_SERVER_HOST", v, "outsystems.serverHost");
+    internal static string ServerHost(Values v) =>
+        ServerApi.Variable("OML_SERVER_HOST") is { Length: > 0 } host ? host : Host("OML_SERVER_HOST", v, "outsystems.serverHost");
 
     // The LifeTime host: OML_LIFETIME_HOST as it is, else outsystems.lifetimeHost of the project (the folder oml
     // runs in) with any scheme and path dropped. The token is only ever read from OML_LIFETIME_TOKEN.

@@ -39,7 +39,7 @@ static class StudioCompareSelfTest
         Expect(StudioGuards.InstallRefusal(2, 0, true) is null, "install: only old errors pass with the flag");
         Expect(StudioGuards.InstallRefusal(2, 1, true) is { } r1 && r1.Contains("refusing"), "install: a new error refuses with the flag");
         Expect(StudioGuards.InstallRefusal(2, 1, false) is { } r2 && !r2.Contains("--allow"), "install: a new error refuses without the flag, no flag hint");
-        Expect(StudioGuards.PublishWarning("M", JsonNode.Parse("""{ "name": "M", "version": "0" }""")) is { } p0 && p0.Contains("extracted from a package"), "publish: version 0 warns");
+        Expect(StudioGuards.PublishWarning("M", JsonNode.Parse("""{ "name": "M", "version": "0" }""")) is { } p0 && p0.Contains("copy from a package or from oml server pull") && p0.Contains("Open from Environment"), "publish: version 0 warns");
         Expect(StudioGuards.PublishWarning("M", JsonNode.Parse("""{ "name": "M", "version": "12" }""")) is null && StudioGuards.PublishWarning("M", JsonNode.Parse("""{ "name": "M" }""")) is null && StudioGuards.PublishWarning("M", null) is null, "publish: other or unknown version passes");
         Expect(StudioGuards.PublishWarning("M", JsonNode.Parse("""{ "version": 0 }""")) is not null && StudioGuards.PublishWarning("M", JsonNode.Parse("""{ "version": 3 }""")) is null
                && StudioGuards.PublishWarning("M", JsonNode.Parse("""{ "version": { "n": "0" } }""")) is null && StudioGuards.PublishWarning("M", JsonNode.Parse("\"0\"")) is null, "publish: odd version shapes fail open");

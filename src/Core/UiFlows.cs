@@ -10,6 +10,34 @@ namespace OmlCli;
 // Listed again, a comment with the same text and an entry with the same name are the ones there (an entry is updated).
 partial class Builder
 {
+    // Traditional Web: "isDefault": true on a screen. The module starts at the default Entry of a UI flow, never at
+    // DefaultScreen (the Traditional compiler fails on a module that has one). The screen's own flow gets an Entry that goes
+    // to it (an existing one, else "Start" or <Screen>Entry), and it becomes the module's only default Entry. A DefaultScreen
+    // an older oml set is cleared, so applying the spec again repairs such a module.
+    void DefaultEntry(object screen, string label)
+    {
+        var flow = m.WebFlows.FirstOrDefault(f => Elements(Reflect.Get(f, "Nodes")).Any(n => ReferenceEquals(n, screen)))
+            ?? throw new ModelError($"{label}: isDefault needs the screen in a UI flow");
+        var nodes = Elements(Reflect.Get(flow, "Nodes")).ToList();
+        var entry = nodes.OfType<OutSystems.Model.UI.Web.IEntry>().FirstOrDefault(e => ReferenceEquals(e.Target, screen));
+        if (entry is null)
+        {
+            var name = nodes.Any(n => Model.NameOf(n) == "Start") ? Model.NameOf(screen) + "Entry" : "Start";
+            entry = (OutSystems.Model.UI.Web.IEntry)Reflect.CallGeneric(flow, "CreateNode", typeof(OutSystems.Model.UI.Web.IEntry), name, services.NewKey())!;
+            entry.Target = (OutSystems.Model.UI.IUIFlowNode)screen;
+            created.Add($"entry {Model.NameOf(entry)} -> {Model.NameOf(screen)}");
+        }
+        foreach (var other in m.WebFlows.SelectMany(f => Elements(Reflect.Get(f, "Nodes")).OfType<OutSystems.Model.UI.Web.IEntry>()))
+            if (!ReferenceEquals(other, entry) && other.IsDefault) other.IsDefault = false;
+        entry.IsDefault = true;
+        if (Reflect.Property(m, "DefaultScreen", writable: true) is { } defaultScreen && defaultScreen.GetValue(m) is not null) defaultScreen.SetValue(m, null);
+    }
+
+    // Is the screen already the start of this Traditional module (a default Entry that goes to it)?
+    bool IsDefaultEntry(object screen) =>
+        m.WebFlows.SelectMany(f => Elements(Reflect.Get(f, "Nodes")).OfType<OutSystems.Model.UI.Web.IEntry>())
+            .Any(e => e.IsDefault && ReferenceEquals(e.Target, screen));
+
     public void UiFlows(List<JsonElement>? flows)
     {
         foreach (var f in flows ?? new()) Try($"uiFlow {RequiredName(f)}", () =>

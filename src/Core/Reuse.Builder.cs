@@ -140,7 +140,12 @@ partial class Builder
                 else if (now != handler) changed.Add(key);
             }
         if (s.Access is { } access && !SameAccess(screen, access)) changed.Add("access");
-        if (s.IsDefault && !ReferenceEquals(Reflect.Get(m, "DefaultScreen"), screen)) changed.Add("isDefault");
+        if (s.IsDefault && !(WebUi.IsTraditional(m) ? IsDefaultEntry(screen) && Reflect.Get(m, "DefaultScreen") is null : ReferenceEquals(Reflect.Get(m, "DefaultScreen"), screen)))
+        {
+            // Traditional: setting the default Entry is safe on an existing screen (and repairs a DefaultScreen an older oml set).
+            if (WebUi.IsTraditional(m)) { references.Add(($"{label}.isDefault", () => DefaultEntry(screen, label))); Change($"isDefault of {label} (default Entry)"); }
+            else changed.Add("isDefault");
+        }
         if (changed.Count > 0) problems.Add(Reuse.Changed(label, changed, "Change it with edits: set (lifecycle handlers, default screen), setAccess."));
         if (s.StyleSheet is not null && !Reuse.SameText(Reflect.Get(screen, "StyleSheet") as string, s.StyleSheet) && Reuse.Css(Reflect.Get(screen, "StyleSheet") as string) != Reuse.Css(s.StyleSheet))
         {

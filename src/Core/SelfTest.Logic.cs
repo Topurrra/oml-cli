@@ -113,6 +113,26 @@ static partial class SelfTest
                 if (main.Nodes.OfType<OutSystems.Model.UI.Web.IEntry>().SingleOrDefault() is not { } entry || Model.NameOf(entry.Target) != "Home") failures.Add("entry Start does not go to Home after it was listed again");
                 if (web.UseCookies || web.InvalidEmail != "Bad email address") failures.Add("module settings useCookies or invalidEmail not set");
             }
+            // "isDefault": true on a Traditional screen: the default Entry, never DefaultScreen (the Traditional compiler stops
+            // on a module with one). Listed again, the same Entry; no second one.
+            if (code == 0)
+            {
+                File.WriteAllText(path, """{"screens":[{"name":"Landing","isDefault":true}]}""");
+                var startHere = Path.Combine(dir, "logic-web-default.oml");
+                var startAgain = Path.Combine(dir, "logic-web-default-again.oml");
+                (code, report) = Apply.Execute(again, path, startHere);
+                if (code == 0) (code, report) = Apply.Execute(startHere, path, startAgain);
+                if (code != 0) failures.Add("traditional isDefault: " + JsonSerializer.Serialize(report));
+                else
+                {
+                    using var start = Model.Load(startAgain);
+                    var entries = start.WebFlows.SelectMany(f => f.Nodes).OfType<OutSystems.Model.UI.Web.IEntry>().ToList();
+                    var defaults = entries.Where(e => e.IsDefault).ToList();
+                    if (Reflect.Get(start, "DefaultScreen") is not null) failures.Add("traditional isDefault set DefaultScreen (the compiler fails on it)");
+                    if (defaults.Count != 1 || Model.NameOf(defaults[0].Target) != "Landing") failures.Add($"traditional isDefault: {defaults.Count} default entries, to {string.Join(",", defaults.Select(e => Model.NameOf(e.Target)))}");
+                    if (entries.Count(e => Model.NameOf(e.Target) == "Landing") != 1) failures.Add("traditional isDefault listed again made a second entry");
+                }
+            }
         }
 
         // Traditional widgets without a public model interface (Image, List Box, Label, Editable Table, Upload) and an image per locale.

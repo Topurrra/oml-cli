@@ -11,8 +11,10 @@ $ErrorActionPreference = 'Stop'
 $Fixtures = $Tmp
 $Tmp = New-TestFolder $Tmp 'server'
 try {
-$names = @('OML_SERVER_HOST', 'OML_SERVER_USER', 'OML_SERVER_PASSWORD', 'OML_SERVER_INSECURE_LOCALHOST', 'OML_TEST_SERVER_TOKEN', 'OML_SERVER_CACHE', 'OML_AUTHOR')
+$names = @('OML_SERVER_HOST', 'OML_SERVER_USER', 'OML_SERVER_PASSWORD', 'OML_SERVER_INSECURE_LOCALHOST', 'OML_TEST_SERVER_TOKEN', 'OML_SERVER_CACHE', 'OML_AUTHOR', 'OML_SERVER_USER_VARIABLES')
 $saved = @{}; foreach ($name in $names) { $saved[$name] = [Environment]::GetEnvironmentVariable($name) }
+# Never the person's real login from the Windows user variables, also when this test runs on its own.
+$env:OML_SERVER_USER_VARIABLES = '0'
 $job = $null
 $ready = Join-Path $Tmp 'server-ready'
 $problems = Join-Path $Tmp 'server-problems.txt'
@@ -33,6 +35,7 @@ function Invoke-Oml([string[]]$Arguments, [int]$Exit = 0) {
 try {
     # 1. Settings and usage, before any request.
     foreach ($name in $names) { Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue }
+    $env:OML_SERVER_USER_VARIABLES = '0'
     $r = Invoke-Server @('modules') 2
     Assert ($r.error -match 'OML_SERVER_HOST, OML_SERVER_USER, OML_SERVER_PASSWORD') 'missing settings are all named'
     $env:OML_SERVER_USER = 'dev.user'
@@ -138,7 +141,7 @@ try {
     $out = Join-Path $Tmp 'pulled\OrdersCore.oml'
     $r = Invoke-Server @('pull', 'OrdersCore', '--out', $out)
     Assert ($r.versionId -eq 102 -and $r.version -eq 2 -and $r.published -eq $true -and $r.file -eq $out -and $r.bytes -eq (Get-Item $out).Length) "pull published: $($r | ConvertTo-Json -Compress)"
-    Assert ([IO.File]::ReadAllText($out) -eq 'mock-oml k-orders-core 102' -and $r.next -match 'oml header') 'pulled bytes'
+    Assert ([IO.File]::ReadAllText($out) -eq 'mock-oml k-orders-core 102' -and $r.next -match 'oml inspect --header' -and $r.publish -match 'oml studio open OrdersCore --environment 127\.0\.0\.1:\d+' -and $r.publish -match 'oml pull OrdersCore') 'pulled bytes, and how to publish a change'
     $r = Invoke-Server @('pull', 'OrdersCore', '--out', $out) 2
     Assert ($r.error -match 'Output already exists' -and [IO.File]::ReadAllText($out) -eq 'mock-oml k-orders-core 102') 'never overwrites'
     $old = Join-Path $Tmp 'OrdersCore-v1.oml'

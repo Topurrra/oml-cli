@@ -18,14 +18,21 @@ try {
   & $Oml new $mod --name LogApp --kind CrossDevice | Out-Null
   Require ($LASTEXITCODE -eq 0) 'log-check: could not build the test module'
 
-  # 1. OML_LOG=0 (and off, false): nothing is written, not to the default file, not anywhere.
-  $before = if (Test-Path $default) { (Get-Item $default).Length } else { -1 }
-  foreach ($off in @('0', 'off', 'false')) {
-    $env:OML_LOG = $off
-    & $Oml version | Out-Null; & $Oml inspect $mod --own | Out-Null; & $Oml spec check (Join-Path $PSScriptRoot 'datamodel.json') | Out-Null
-    $after = if (Test-Path $default) { (Get-Item $default).Length } else { -1 }
-    Require ($before -eq $after) "log: OML_LOG='$off' wrote the default file"
-  }
+  # 1. OML_LOG=0 (and off, false): nothing is written, not to the default file, not anywhere. Other oml processes on this
+  # computer (an agent at work, a person) may write the default file meanwhile, so only this test's lines count: its
+  # commands run with their own OML_SESSION, and no line in the default file may carry that session's hash.
+  $savedSession = $env:OML_SESSION
+  $env:OML_SESSION = 'log-check-' + [guid]::NewGuid().ToString('N')
+  $sha = [Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($env:OML_SESSION))
+  $sessionHash = ([Convert]::ToHexString($sha, 0, 8)).ToLowerInvariant()
+  try {
+    foreach ($off in @('0', 'off', 'false')) {
+      $env:OML_LOG = $off
+      & $Oml version | Out-Null; & $Oml inspect $mod --own | Out-Null; & $Oml spec check (Join-Path $PSScriptRoot 'datamodel.json') | Out-Null
+      $mine = if (Test-Path $default) { @(Select-String -LiteralPath $default -SimpleMatch "`"session`":`"$sessionHash`"").Count } else { 0 }
+      Require ($mine -eq 0) "log: OML_LOG='$off' wrote the default file ($mine line(s) of this test)"
+    }
+  } finally { $env:OML_SESSION = $savedSession }
   Write-Host 'ok   log: nothing is written with OML_LOG=0, off or false'
 
   # 2. A file path: one line per command, one per run step.
