@@ -59,7 +59,7 @@
           <p class="eyebrow">OutSystems 11 · command line · AI agents</p>
           <h1 id="hero-title">oml<span class="cursor" aria-hidden="true">_</span></h1>
           <p class="lead">OutSystems 11 from the command line. Built for AI agents.</p>
-          <p>Read, change, check and review modules through Service Studio's own Model API. Every change goes to a staged copy first. Use it yourself, or give its skill to any agent.</p>
+          <p>Read, change, check and review modules through Service Studio's own Model API, and move Traditional Web modules to Reactive. Every change is checked first and keeps a backup. Use it yourself, or give its skill to any agent.</p>
           <div class="actions">
             <a class="button primary" href="https://github.com/Topurrra/oml-cli/releases/latest">Download for Windows</a>
             <a class="button" href="https://github.com/Topurrra/oml-cli">View on GitHub</a>
@@ -86,7 +86,7 @@ oml apply modules\Orders.oml specs\change.json staged\Orders.oml
 oml review modules\Orders.oml staged\Orders.oml --out review.html
 oml install staged\Orders.oml modules\Orders.oml</code></pre>
           </div>
-          <p class="small muted"><code>apply</code> never touches the source. <code>install</code> replaces it only when the staged file has no errors, and keeps a backup.</p>
+          <p class="small muted"><code>apply</code> never touches the source. <code>install</code> replaces it only when the staged file has no errors, and keeps a backup. Allow install without asking, and <code>apply</code> does both in one step.</p>
         </div>
       </div>
       <div class="logos wrap">

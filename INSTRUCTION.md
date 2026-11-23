@@ -2,7 +2,7 @@
 
 oml lets any AI agent (Claude Code, Codex, Cursor, Copilot, Gemini and others) build, check and test OutSystems 11 apps safely. The agent runs `oml`; you decide what changes and what ships.
 
-> **The one rule to remember:** agents never change your real module or an environment by themselves. They work on a staged copy and ask you before `install`, `publish` or a deployment.
+> **The one rule to remember:** agents never change your real module or an environment by themselves. They work on a staged copy and ask you before `install`, `publish` or a deployment. If you allow install without asking (`autoApprove.install`), they change the module directly, after a backup, and only with no new errors.
 
 ---
 

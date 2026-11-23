@@ -191,6 +191,11 @@ static class Model
         shared.Clear();
     }
 
+    // A module file: <name>.oml, or a backup that install, apply in place and publish leave (<name>.oml.<time>.bak).
+    internal static bool IsModulePath(string path) =>
+        Path.GetExtension(path).Equals(".oml", StringComparison.OrdinalIgnoreCase)
+        || System.Text.RegularExpressions.Regex.IsMatch(path, @"\.oml\.\d{8}-\d{6}(-\d+)?\.bak$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
     public static void Save(IESpace module, string path, string phase = "save") =>
         Timings.Measure(phase, () => ((IModule)module).Save(path, false));
 

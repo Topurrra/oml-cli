@@ -27,7 +27,7 @@ These 11 rules come before every other instruction (also `oml doc rules`). Compa
 
 Also:
 
-- Change modules only with `oml apply`, always to a NEW staged file.
+- Change modules only with `oml apply`: to a NEW staged file, or in place (no staged path) when the profile says so.
 - Inspect before you design; reuse existing elements.
 - Confirm with the user before `install`, `publish`, `references`, `lifetime tag|deploy|abort|continue`, and every `needsApproval` item of an apply. Restate the exact command or item and wait for a yes. Exception: the project profile says "Do not ask before" a step (`autoApprove`). Then run it and report the command and result.
 - Before you use another module's element, run `oml find <Name> <module.oml> --in <producer folder|file.oml>`. Show the candidates and their parameters and ask which to use, even for one match. Use its `Module.Name`; never guess.

@@ -8,8 +8,10 @@ public static partial class Cli
 {
     // The index is {"items": [ {...}, ... ]} or a bare list. Paths are relative to the index file's folder.
     // Any fault here is exit 2, before the first module is touched.
-    static List<JsonObject> ReadBatchIndex(string indexPath, string command, string[] keys)
+    // optional: keys an item may leave out (they are still the only other keys it may have).
+    static List<JsonObject> ReadBatchIndex(string indexPath, string command, string[] keys, string[]? optional = null)
     {
+        optional ??= [];
         string text;
         try { text = File.ReadAllText(indexPath); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { throw new CliError($"Cannot read the {command} index: {e.Message}", 2); }
@@ -25,7 +27,7 @@ public static partial class Cli
             if (list[i] is not JsonObject item) throw new CliError($"Item {i + 1} of the {command} index must be an object with {string.Join(", ", keys)}.", 2);
             if (item.Select(p => p.Key).FirstOrDefault(k => !keys.Contains(k)) is { } unknown)
                 throw new CliError($"Item {i + 1} of the {command} index has the unknown key '{unknown}'. Keys: {string.Join(", ", keys)}.", 2);
-            foreach (var key in keys)
+            foreach (var key in keys.Except(optional))
                 if (item[key] is null) throw new CliError($"Item {i + 1} of the {command} index has no '{key}'.", 2);
             items.Add(item);
         }
@@ -54,13 +56,21 @@ public static partial class Cli
         if (args.Count != 3 || args[1] != "--batch") return null;
         var index = Path.GetFullPath(args[2]);
         var folder = Path.GetDirectoryName(index)!;
-        var plan = ReadBatchIndex(index, "apply", ["source", "spec", "staged"]).Select((item, i) =>
-            (source: BatchPaths(item, "source", folder, i + 1)[0], specs: BatchPaths(item, "spec", folder, i + 1, many: true), staged: BatchPaths(item, "staged", folder, i + 1)[0])).ToList();
-        BatchRefuseDuplicates(plan.Select(p => p.staged), "staged file");
-        // A staged file that is also a source or a spec would be read after another item wrote it, or hide a clash.
+        // An item without "staged" changes its source in place (Apply.InPlaceAllowed), as oml apply without a staged path.
+        var plan = ReadBatchIndex(index, "apply", ["source", "spec", "staged"], optional: ["staged"]).Select((item, i) =>
+            (source: BatchPaths(item, "source", folder, i + 1)[0], specs: BatchPaths(item, "spec", folder, i + 1, many: true),
+             staged: item["staged"] is null ? null : BatchPaths(item, "staged", folder, i + 1)[0])).ToList();
+        if (plan.Any(p => p.staged is null) && !Apply.InPlaceAllowed) throw new CliError("An item without \"staged\" changes its module itself. " + Apply.InPlaceRefused, 2);
+        BatchRefuseDuplicates(plan.Select(p => p.staged).OfType<string>(), "staged file");
+        BatchRefuseDuplicates(plan.Where(p => p.staged is null).Select(p => p.source), "module changed in place");
+        // A staged file that is also a source or a spec would be read after another item wrote it, or hide a clash; so
+        // would a module changed in place that another item reads.
         var inputs = new HashSet<string>(plan.SelectMany(p => p.specs.Append(p.source)), StringComparer.OrdinalIgnoreCase);
-        if (plan.Select(p => p.staged).FirstOrDefault(inputs.Contains) is { } clash)
+        if (plan.Select(p => p.staged).OfType<string>().FirstOrDefault(inputs.Contains) is { } clash)
             throw new CliError($"The staged file {clash} is also a source or a spec in the index. Give it its own path.", 2);
+        var readOnly = new HashSet<string>(plan.SelectMany(p => p.specs).Concat(plan.Where(p => p.staged is not null).Select(p => p.source)), StringComparer.OrdinalIgnoreCase);
+        if (plan.Where(p => p.staged is null).Select(p => p.source).FirstOrDefault(readOnly.Contains) is { } shared)
+            throw new CliError($"The module {shared} is changed in place by one item and read by another. Give it one item.", 2);
 
         var results = new JsonArray();
         int saved = 0, failed = 0, newErrors = 0, newWarnings = 0, created = 0, changed = 0;
@@ -72,7 +82,7 @@ public static partial class Cli
             foreach (var (source, specs, staged) in plan)
             {
                 Model.TrimShared();
-                var entry = new JsonObject { ["source"] = source, ["staged"] = staged };
+                var entry = staged is null ? new JsonObject { ["source"] = source } : new JsonObject { ["source"] = source, ["staged"] = staged };
                 try
                 {
                     var (code, report) = Apply.Execute(source, specs, staged, null);
@@ -99,7 +109,8 @@ public static partial class Cli
         Emit(new
         {
             items = results, summary = new { items = plan.Count, saved, failed, newErrors, newWarnings, created, changed },
-            next = saved > 0 ? "Run oml review <source> <staged> --md <new .md> for each saved item and show it; ask before oml install --batch."
+            next = saved > 0 ? (plan.Any(p => p.staged is not null) ? "Run oml review <source> <staged> --md <new .md> for each saved staged item and show it; ask before oml install --batch." : "")
+                               + (plan.Any(p => p.staged is null) ? (plan.Any(p => p.staged is not null) ? " " : "") + "Items without staged were changed in place: oml review <backup> <source> shows each change." : "")
                                + (Authorship.Name is null && created + changed > 0 ? " " + Authorship.Ask : "") : null,
         });
         return failed > 0 ? 1 : 0;

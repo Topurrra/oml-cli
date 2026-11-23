@@ -134,7 +134,7 @@ static class Check
         if (files.Count != 2) throw new CliError(usage, 2);
         foreach (var f in files)
         {
-            if (!Path.GetExtension(f).Equals(".oml", StringComparison.OrdinalIgnoreCase)) throw new CliError($"Not an .oml module file: {f}", 2);
+            if (!Model.IsModulePath(f)) throw new CliError($"Not an .oml module file: {f}", 2);
             if (!File.Exists(f)) throw new CliError($"File not found: {Path.GetFullPath(f)}", 2);
         }
         CheckInput.Settings settings;

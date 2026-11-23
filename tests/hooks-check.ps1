@@ -125,7 +125,7 @@ try {
   # autoApprove: the profile says what runs without a yes; commands.*: a command turned off is refused
   & $Oml config set autoApprove.install on | Out-Null
   $p = (& $Oml config) -join ' '
-  Require ($p -match 'Do not ask before install' -and $p -match 'Always ask before publish') "autoApprove.install is not in the profile: $p"
+  Require ($p -match 'Change modules in place' -and $p -notmatch 'staged path first' -and $p -match 'Always ask before publish') "autoApprove.install is not in the profile: $p"
   & $Oml config set commands.publish off | Out-Null
   $x = (& $Oml publish Orders.oml 2>&1) -join ''
   Require ($LASTEXITCODE -eq 2 -and $x -match 'commands.publish is off') "commands.publish off did not refuse oml publish: $x"

@@ -2,6 +2,44 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 2.1.0
+
+Change a module in one step when you allow it, and move Traditional Web modules to Reactive with `oml migrate`.
+
+### Highlight: Traditional Web to Reactive with `oml migrate`
+
+Rebuilding a Traditional Web module in Reactive is usually weeks of work by hand. `oml migrate` does the mechanical part
+by code and tells you exactly what is left:
+
+- **`oml migrate plan <old.oml> --name <NewModule>`** reads the old module and writes a plan into a folder, without
+  changing any module. It writes the specs that build the new Reactive module:
+  - entities, static entities and roles stay in the old module and are referenced;
+  - logic and data definitions are copied;
+  - screens, web blocks and emails are translated by code, each one `translated`, `partial` (built with TODO stubs) or
+    `worklist`;
+  - session variables become client variables where that is safe;
+  - public wrappers for the entity actions that other modules may not call directly.
+- **`oml migrate status <old.oml> <new.oml>`** shows the progress by name: what is done, what is still to do, and the
+  screens by status.
+- **`oml migrate check <old.oml> <new.oml>`** checks that the new module is a correct copy, beyond names. It checks
+  validation, action signatures, who can open each screen, block inputs, and the TODOs left.
+
+Agents follow the plan's `next` commands, and `oml doc traditional-to-reactive` explains how to finish the screens. The
+`migrate.*` settings in the project profile set its choices.
+
+### Changed
+
+- **With `autoApprove.install` on, agents change the module itself: no staged copy, no separate install.**
+  `oml apply <module.oml> <spec.json>` (no staged path) builds and checks the change as before, then writes it over the
+  module the way `oml install` does. It makes a backup first (`<file>.<time>.bak`), checks the bytes by hash and
+  restores the module on failure. A change with new errors, or one that waits for the user's yes, leaves the module as
+  it was. Before, every change was applied to a staged copy and then installed: the module loaded three times and the
+  agent handled two paths, for nothing when the user had already allowed install. `oml review <backup> <module>`
+  shows the change, and `review` and `check --diff` now take these backup files. The project profile tells agents to
+  work in place; a staged path still stages. In `oml apply --batch`, an item without `staged` changes its module in
+  place. Without `autoApprove.install` (or with `commands.install` off), apply without a staged path is refused and
+  nothing changes.
+
 ## 2.0.1
 
 Fixes found in the first real use of 2.0.0.

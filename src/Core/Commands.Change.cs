@@ -24,7 +24,7 @@ public static partial class Cli
     static int? CmdApply(List<string> args)
     {
         if (args.Contains("--batch")) return CmdApplyBatch(args);
-        if (args.Count < 4) return null;
+        if (args.Count < 3) return null;
         var positional = new List<string>();
         var describe = new List<string>();
         var describeCreated = false;
@@ -39,7 +39,10 @@ public static partial class Cli
             else if (args[i].StartsWith("--")) throw new CliError($"apply accepts --describe <A,B,...>, --describe-created, --report <report.json> and --user-approved, not '{args[i]}'.", 2);
             else positional.Add(args[i]);
         }
-        if (positional.Count < 3) throw new CliError("apply needs <source.oml> <spec.json>... <staged-out.oml>.", 2);
+        // The last path is a spec (.json, .jsonc): no staged path, so apply changes the module itself (Apply.InPlaceAllowed).
+        var inPlace = positional.Count >= 2 && (positional[^1].EndsWith(".json", StringComparison.OrdinalIgnoreCase) || positional[^1].EndsWith(".jsonc", StringComparison.OrdinalIgnoreCase));
+        if (inPlace) return Apply.Run(positional[0], positional.Skip(1).ToList(), null, new ApplyOptions(describe, describeCreated, userApproved), report);
+        if (positional.Count < 3) throw new CliError("apply needs <source.oml> <spec.json>... <staged-out.oml>" + (Apply.InPlaceAllowed ? ", or <module.oml> <spec.json>... to change the module itself." : "."), 2);
         return Apply.Run(positional[0], positional.Skip(1).SkipLast(1).ToList(), positional[^1], new ApplyOptions(describe, describeCreated, userApproved), report);
     }
 
@@ -148,6 +151,17 @@ public static partial class Cli
     static object InstallWrite(InstallPlan plan, byte[] bytes)
     {
         var (target, validatedHash, existingErrors) = (plan.Target, plan.Hash, plan.ExistingErrors);
+        var backup = WriteWithBackup(target, bytes, validatedHash);
+        if (existingErrors is not null)
+            return new { installed = target, backup, sha256 = validatedHash, existingErrors,
+                note = "The staged file has errors, and the target already had every one of them (--allow-existing-errors). No new error was added." };
+        return new { installed = target, backup, sha256 = validatedHash };
+    }
+
+    // The write of an install, also used by an apply in place: a backup next to the target (checked by hash), the new
+    // bytes over it (checked against validatedHash), the target restored from the backup on failure. Returns the backup.
+    internal static string WriteWithBackup(string target, byte[] bytes, string validatedHash)
+    {
         var backup = $"{target}.{DateTime.Now:yyyyMMdd-HHmmss}.bak";
         if (File.Exists(backup)) throw new CliError($"Backup already exists: {backup}", 2);
         var targetHash = Timings.Measure("backup", () =>
@@ -176,10 +190,7 @@ public static partial class Cli
             { throw new CliError($"Install failed ({failure}), and restoring the backup failed too ({e.Message}). Copy {backup} over {target} by hand.", 2); }
             throw new CliError($"Install failed ({failure}). The target was restored from {backup}.");
         });
-        if (existingErrors is not null)
-            return new { installed = target, backup, sha256 = validatedHash, existingErrors,
-                note = "The staged file has errors, and the target already had every one of them (--allow-existing-errors). No new error was added." };
-        return new { installed = target, backup, sha256 = validatedHash };
+        return backup;
     }
 
     static string? TryHash(string path)

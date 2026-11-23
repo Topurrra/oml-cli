@@ -48,13 +48,14 @@ static class Apply
     static readonly string[] DescribableKinds = ["entity", "structure", "static entity", "serverAction", "serviceAction", "clientAction", "screen", "block"];
     static readonly string[] PartKinds = ["aggregate", "dataAction", "screenAction"];
 
-    public static int Run(string source, IReadOnlyList<string> specPaths, string output, ApplyOptions? options = null, string? reportPath = null)
+    // output null: in place (see Execute).
+    public static int Run(string source, IReadOnlyList<string> specPaths, string? output, ApplyOptions? options = null, string? reportPath = null)
     {
         if (reportPath is not null)
         {
             reportPath = Path.GetFullPath(reportPath);
             try { CheckInput.NewOutput(reportPath); } catch (CheckInputError e) { throw new CliError(e.Message, 2); }
-            if (new[] { source, output }.Concat(specPaths).Any(p => string.Equals(Path.GetFullPath(p), reportPath, StringComparison.OrdinalIgnoreCase)))
+            if (new[] { source, output }.OfType<string>().Concat(specPaths).Any(p => string.Equals(Path.GetFullPath(p), reportPath, StringComparison.OrdinalIgnoreCase)))
                 throw new CliError("--report must be a new file: it is the source, the staged output or a spec.", 2);
         }
         var (code, report) = Execute(source, specPaths, output, options);
@@ -70,7 +71,7 @@ static class Apply
     }
 
     // What an agent must see even when the tool output is cut short: the summary, then the lists that decide the next step.
-    static readonly string[] FirstKeys = ["summary", "saved", "phase", "problems", "needsApproval", "newErrors", "reopenNewErrors", "newWarnings", "warnings", "approved", "breaking", "describe", "describeErrors", "staged", "next"];
+    static readonly string[] FirstKeys = ["summary", "saved", "phase", "problems", "needsApproval", "newErrors", "reopenNewErrors", "newWarnings", "warnings", "approved", "breaking", "describe", "describeErrors", "staged", "installed", "backup", "next"];
 
     static int Count(JsonNode? list) => list is JsonArray a ? a.Sum(x => x is JsonObject o && o["count"] is { } c ? c.GetValue<int>() : 1) : 0;
 
@@ -103,12 +104,29 @@ static class Apply
     public static (int code, object report) Execute(string source, string specPath, string output, bool userApproved = false) =>
         Execute(source, [specPath], output, userApproved ? new ApplyOptions([], false, UserApproved: true) : null);
 
-    public static (int code, object report) Execute(string source, IReadOnlyList<string> specPaths, string output, ApplyOptions? options, bool dryRun = false)
+    // In place (no staged path): the project lets install run without asking (autoApprove.install, and install not turned
+    // off). The launcher sets this variable from the project profile on every run, never from the caller's environment.
+    internal static bool InPlaceAllowed => Environment.GetEnvironmentVariable("OML_AUTO_APPROVE_INSTALL") == "1";
+
+    internal const string InPlaceRefused = "Without a staged path, oml apply changes the module itself, and this project installs only after the user's yes (autoApprove.install is off, or install is turned off). Give a new staged path as the last argument: oml apply <module.oml> <spec.json> <staged.oml>.";
+
+    // output null: in place. The change is saved to a scratch file, checked, then written over the source the way
+    // `oml install` writes (a backup first, the bytes checked by hash, the source restored on failure). A change with new
+    // errors, or one that waits for the user's yes, leaves the source as it was.
+    public static (int code, object report) Execute(string source, IReadOnlyList<string> specPaths, string? output, ApplyOptions? options, bool dryRun = false)
     {
         source = Path.GetFullPath(source);
-        output = Path.GetFullPath(output);
+        var inPlace = output is null;
+        if (inPlace)
+        {
+            if (!File.Exists(source)) throw new CliError($"File not found: {source}", 2);
+            if (!dryRun && !InPlaceAllowed) throw new CliError(InPlaceRefused, 2);
+            if (new FileInfo(source).IsReadOnly) throw new CliError($"The module is read-only: {source}. Nothing changed.", 2);
+            output = Path.Combine(Path.GetTempPath(), $"oml-apply-{Guid.NewGuid():N}.oml");
+        }
+        output = Path.GetFullPath(output!);
         if (string.Equals(source, output, StringComparison.OrdinalIgnoreCase))
-            throw new CliError("Output must differ from source; install with 'oml install' after review.", 2);
+            throw new CliError("Output must differ from source; install with 'oml install' after review" + (InPlaceAllowed ? ", or leave the staged path out to change the module itself." : "."), 2);
         if (!dryRun && File.Exists(output)) throw new CliError($"Staged output already exists: {output}. Use a new output path, or delete that file first.", 2);
 
         using var specPhase = Timings.Phase("spec");
@@ -156,7 +174,7 @@ static class Apply
             // Every module this apply opens: the source and, after the scratch reload, the reloaded one. The source stays
             // open to the end, because the production rules name its elements in their messages.
             var opened = new List<IESpace> { m };
-            try { return Execute(spec, json, m, source, output, commentsRemoved, many ? specPaths : null, options, opened, pathWarnings, dryRun, skip); }
+            try { return Execute(spec, json, m, source, output, commentsRemoved, many ? specPaths : null, options, opened, pathWarnings, dryRun, skip, inPlace); }
             // replaceWidgets edits that built exactly the widgets the module has: build once more without them, so those
             // widgets keep their keys (no change for review, merge or publish). At most one retry: the set only grows once.
             catch (UnchangedWidgets u) when (skip.Count == 0) { skip = u.Edits; }
@@ -209,9 +227,10 @@ static class Apply
             ? (kind == "delete" ? "autoApprove.deletes" : "autoApprove.dataDeletion") : null;
 
     internal const string ApprovalNext = "Nothing was saved. Ask the user about each needsApproval item, in plain words, and wait. On a clear yes, run the same oml apply again with --user-approved and a NEW staged path. On a no, take that part out of the spec.";
+    const string ApprovalNextInPlace = "Nothing was changed. Ask the user about each needsApproval item, in plain words, and wait. On a clear yes, run the same oml apply again with --user-approved. On a no, take that part out of the spec.";
 
     // raw: the spec's JSON, to tell keys the spec sets on an existing element from record defaults (Reuse).
-    static (int code, object report) Execute(Spec spec, System.Text.Json.Nodes.JsonNode? raw, IESpace m, string source, string output, int commentsRemoved, IReadOnlyList<string>? specs, ApplyOptions? options, List<IESpace> opened, List<string>? pathWarnings = null, bool dryRun = false, HashSet<int>? skipEdits = null)
+    static (int code, object report) Execute(Spec spec, System.Text.Json.Nodes.JsonNode? raw, IESpace m, string source, string output, int commentsRemoved, IReadOnlyList<string>? specs, ApplyOptions? options, List<IESpace> opened, List<string>? pathWarnings = null, bool dryRun = false, HashSet<int>? skipEdits = null, bool inPlace = false)
     {
         FlowLayout.BeginApply(); // marks are per apply: this run's placed/deleted flows
         var rules = Timings.Measure("rules snapshot", () => new ProductionRules(m));
@@ -469,12 +488,12 @@ static class Apply
         if (problems.Count > 0 || newErrors.Length > 0)
         {
             return (1, new { saved = false, problems, needsApproval = pending.Count > 0 ? pending : null, warnings, newErrors = Model.Grouped(newErrors), changed, existing,
-                next = pending.Count > 0 ? "Fix the problems and newErrors first. The needsApproval items also need the user's yes: ask, and on a clear yes apply again with --user-approved and a NEW staged path." : null });
+                next = pending.Count > 0 ? "Fix the problems and newErrors first. The needsApproval items also need the user's yes: ask, and on a clear yes apply again with --user-approved" + (inPlace ? "." : " and a NEW staged path.") : null });
         }
 
         if (dryRun) return (0, new { saved = false, dryRun = true }); // spec check --module: the build ran, nothing is written
         if (pending.Count > 0)
-            return (1, new { saved = false, needsApproval = pending, breaking, warnings, changed, created, existing, next = ApprovalNext });
+            return (1, new { saved = false, needsApproval = pending, breaking, warnings, changed, created, existing, next = inPlace ? ApprovalNextInPlace : ApprovalNext });
         if (author is { } writer && historyBefore is not null)
         {
             var (made, touched) = Authorship.Touched(historyBefore, Timings.Measure("author snapshot", () => ReviewModel.Read(m)));
@@ -482,17 +501,28 @@ static class Apply
             if (blocked) warnings.Add(Authorship.NotWritable);
         }
         Model.Save(m, output);
-        using var open = Model.Borrow(output, "reopen"); var reopened = open.Module; // an `oml batch` keeps it for the next command
+        // In place: the scratch file's bytes are what gets checked and written over the source; the scratch file goes at once.
+        byte[]? bytes = null;
+        if (inPlace)
+            try { bytes = File.ReadAllBytes(output); }
+            finally { File.Delete(output); }
+        using var open = inPlace ? new Borrowed(Model.Load(bytes!, "reopen", source)) : Model.Borrow(output, "reopen"); var reopened = open.Module; // an `oml batch` keeps a staged one for the next command
         var reopenedAll = Model.All(reopened, "validate reopened");
         var reopenNew = Subtract(reopenedAll.Where(e => e.Type == ValidationMessageType.Error).ToArray(), baseline);
         // Warnings do not block a save, but a type mismatch warning can still mean a wrong model: report them.
         var newWarnings = Subtract(reopenedAll.Where(e => e.Type == ValidationMessageType.Warning).ToArray(), baselineWarnings);
+        if (inPlace && reopenNew.Length > 0)
+            return (1, new { saved = false, phase = "reopen", reopenNewErrors = Model.Grouped(reopenNew), warnings, changed, created, existing,
+                next = "Nothing was changed: these errors show only after the module is saved and opened again. Fix the spec and apply again." });
+        var backup = inPlace ? Cli.WriteWithBackup(source, bytes!, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes!))) : null;
         var (described, describeErrors, describeMore) = Timings.Measure("describe", () => DescribeResults(reopened, options, created));
         return (reopenNew.Length == 0 ? 0 : 1, new
         {
             saved = true,
             specs,
-            staged = output,
+            staged = inPlace ? null : output,
+            installed = inPlace ? source : null,
+            backup,
             commentsRemoved = commentsRemoved > 0 ? commentsRemoved : (int?)null, // characters stripped from styleSheet/javaScript
             created,
             changed,
@@ -508,7 +538,8 @@ static class Apply
             describe = described,
             describeErrors,
             describeCreatedMore = describeMore,
-            next = $"Run oml review {Arg(source)} {Arg(output)} --md <new .md> and show it; ask before oml install."
+            next = (inPlace ? $"The module is changed; it was backed up to {Arg(backup!)}. oml review {Arg(backup!)} {Arg(source)} --md <new .md> shows the change."
+                            : $"Run oml review {Arg(source)} {Arg(output)} --md <new .md> and show it; ask before oml install.")
                    + (breaking is not null ? " Tell the user each breaking change: the modules that use these public elements must refresh references and fix their callers." : "")
                    + (author is null && created.Count + changed.Count > 0 ? " " + Authorship.Ask : ""),
         });

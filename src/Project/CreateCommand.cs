@@ -376,7 +376,7 @@ static class CreateCommand
         | Folder | For |
         |---|---|
         | `modules/` | The project's `.oap` and `.oml` files, as downloaded (`oml lifetime download`) or saved (`oml pull`). Never edited. |
-        | `staged/` | The agent's staged copies (`oml apply` writes here). Installed only after your yes, unless `autoApprove.install` is on. |
+        | `staged/` | The agent's staged copies (`oml apply` writes here), installed only after your yes. With `autoApprove.install` on, agents change the module itself instead, after a backup next to it (`<file>.<time>.bak`). |
         | `specs/` | Change specs (JSON). |
         | `browser/` | Browser scripts and saved replays (`oml browser run <file> --save <replay>`). |
         | `mocks/` | Mock responses for your mock server (`oml mock --all --out mocks`). |

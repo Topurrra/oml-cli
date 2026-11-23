@@ -46,8 +46,8 @@ static class ProjectConfig
         new("ask.testScenarios", "bool", "true", null, "Ask whether the user wants test scenarios. Off: follow checks.testScenarios without asking."),
         new("ask.devUrl", "bool", "true", null, "Ask for the DEV URL of a screen. Off: use app.devUrl, or skip the live checks when it is empty."),
         new("ask.producerChoice", "bool", "true", null, "Ask which producer element to use even for one match. Off: one match is used without a question."),
-        new("autoApprove.apply", "bool", "true", null, "Agents run oml apply (it writes a staged copy; the source is not changed) without asking. Off: show the spec and ask before each apply."),
-        new("autoApprove.install", "bool", "false", null, "Agents run oml install without asking, after oml validate shows zero errors. Off: ask first."),
+        new("autoApprove.apply", "bool", "true", null, "Agents run oml apply without asking (it writes a staged copy, or, when install runs without asking, changes the module itself after a backup). Off: show the spec and ask before each apply."),
+        new("autoApprove.install", "bool", "false", null, "Agents change modules without asking: oml apply writes the module itself (a backup first, no new errors) instead of a staged copy plus oml install. Off: a staged copy, and install after the user's yes."),
         new("autoApprove.publish", "bool", "false", null, "Agents run oml publish without asking. Off: ask first."),
         new("autoApprove.references", "bool", "false", null, "Agents refresh references (oml references) without asking. Off: ask first."),
         new("autoApprove.deploy", "bool", "false", null, "Agents run LifeTime tag, deploy, abort and continue without asking. Off: ask first."),
@@ -292,6 +292,9 @@ static class ProjectConfig
         return lines;
     }
 
+    // Install without asking, and install not turned off: oml apply then changes the module itself (no staged copy).
+    internal static bool InPlace(Values v) => v.On("autoApprove.install") && v.On("commands.install");
+
     // The commands a project can turn off: setting, the command as an agent types it.
     static readonly (string Key, string Command)[] Commands =
     [
@@ -313,10 +316,12 @@ static class ProjectConfig
         var live = steps.Where(s => s.Command is null || v.On(s.Command)).ToList();
         var free = live.Where(s => v.On(s.Key)).Select(s => s.Step).ToList();
         var asked = live.Where(s => !v.On(s.Key)).Select(s => s.Step).ToList();
-        if (!v.On("autoApprove.apply")) yield return "Ask before each oml apply: show the spec and the staged path first.";
+        if (!v.On("autoApprove.apply")) yield return InPlace(v) ? "Ask before each oml apply: show the spec first." : "Ask before each oml apply: show the spec and the staged path first.";
+        if (InPlace(v))
+            yield return "Change modules in place: oml apply <module.oml> <spec.json> (no staged path). It backs the module up, refuses new errors and installs in one step; do not stage and then run oml install. oml review <backup> <module> shows the change.";
+        free.Remove("install");   // said by the line above
         if (free.Count > 0)
-            yield return $"Do not ask before {string.Join(", ", free)} (autoApprove, set by the user): run it when the task needs it, then report the exact command and its result."
-                + (free.Contains("install") && v.On("checks.validate") ? " Install only after oml validate --warnings shows zero errors." : "");
+            yield return $"Do not ask before {string.Join(", ", free)} (autoApprove, set by the user): run it when the task needs it, then report the exact command and its result.";
         if (asked.Count > 0) yield return $"Always ask before {string.Join(", ", asked)}: restate the exact command and wait for a yes.";
     }
 
@@ -366,6 +371,8 @@ static class ProjectConfig
         // from the profile, never from the caller's environment.
         Environment.SetEnvironmentVariable("OML_AUTO_APPROVE_DELETES", v.On("autoApprove.deletes") ? "1" : null);
         Environment.SetEnvironmentVariable("OML_AUTO_APPROVE_DATA", v.On("autoApprove.dataDeletion") ? "1" : null);
+        // Core reads it in Apply: with no staged path, oml apply changes the module itself (a backup first, as install does).
+        Environment.SetEnvironmentVariable("OML_AUTO_APPROVE_INSTALL", InPlace(v) ? "1" : null);
         if (Environment.GetEnvironmentVariable("OML_STUDIO_URL") is { Length: > 0 } || Environment.GetEnvironmentVariable("OML_STUDIO_PORT") is { Length: > 0 }) return;
         if (v.Get("outsystems.mcpServer") is not { Length: > 0 } url || !Uri.TryCreate(url, UriKind.Absolute, out var uri)) return;
         Environment.SetEnvironmentVariable("OML_STUDIO_URL", url);

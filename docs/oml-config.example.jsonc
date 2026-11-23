@@ -49,9 +49,9 @@
   },
 
   "autoApprove": {
-    // Agents run oml apply (it writes a staged copy; the source is not changed) without asking. Off: show the spec and ask before each apply.
+    // Agents run oml apply without asking (it writes a staged copy, or, when install runs without asking, changes the module itself after a backup). Off: show the spec and ask before each apply.
     "apply": true,
-    // Agents run oml install without asking, after oml validate shows zero errors. Off: ask first.
+    // Agents change modules without asking: oml apply writes the module itself (a backup first, no new errors) instead of a staged copy plus oml install. Off: a staged copy, and install after the user's yes.
     "install": false,
     // Agents run oml publish without asking. Off: ask first.
     "publish": false,

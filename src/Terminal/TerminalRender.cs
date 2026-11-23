@@ -495,8 +495,9 @@ internal static class TerminalRender
     {
         var saved = root["summary"] is JsonObject s && s["saved"]?.GetValue<bool>() == true;
         var staged = root["staged"]?.GetValue<string>();
-        sb.AppendLine(TerminalColors.Paint(saved ? "Saved " + (staged ?? "") : "Not saved", TerminalColors.Bold));
-        var handled = new List<string> { "summary", "staged" };
+        var installed = root["installed"]?.GetValue<string>();   // in place: the module itself, after a backup
+        sb.AppendLine(TerminalColors.Paint(!saved ? "Not saved" : installed is not null ? "Changed " + installed : "Saved " + (staged ?? ""), TerminalColors.Bold));
+        var handled = new List<string> { "summary", "staged", "installed" };
         if (root["summary"] is JsonObject summary)
         {
             var parts = new List<string>();

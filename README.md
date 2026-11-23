@@ -2,7 +2,7 @@
 
 **OutSystems 11 from the command line, built for AI agents.**
 
-`oml` reads, changes, checks and reviews OutSystems 11 modules through the typed Model API of your installed Service Studio. It never edits OML XML. You use it yourself, or give its skill to any AI agent.
+`oml` reads, changes, checks and reviews OutSystems 11 modules through the typed Model API of your installed Service Studio, and moves Traditional Web modules to Reactive (`oml migrate`). It never edits OML XML. You use it yourself, or give its skill to any AI agent.
 
 Website: [topurrra.github.io/oml-cli](https://topurrra.github.io/oml-cli/) · [Releases](https://github.com/Topurrra/oml-cli/releases) · [Everything oml does](oml-full.md) · [Benchmarks](BENCHMARKS.md) · [Changelog](CHANGELOG.md)
 
@@ -67,7 +67,7 @@ A minimal `specs\change.json`:
 { "entities": [ { "name": "ReviewNote", "attributes": [ { "name": "Text", "length": 250, "mandatory": true } ] } ] }
 ```
 
-`apply` never changes the source file. `install` replaces it only when the staged file has zero validation errors, and keeps a backup. No module file yet? Open the module in Service Studio and run `oml pull`, or get the published version with `oml server pull`.
+`apply` never changes the source file. `install` replaces it only when the staged file has zero validation errors, and keeps a backup. With `oml config set autoApprove.install on`, `apply` without the staged path does both in one step: a backup, then the module itself, only when the change adds no errors. No module file yet? Open the module in Service Studio and run `oml pull`, or get the published version with `oml server pull`.
 
 Not a terminal person? Type `oml` for a menu that shows each command it runs, or `oml dashboard` for a local web page.
 

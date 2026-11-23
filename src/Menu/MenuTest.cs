@@ -153,8 +153,8 @@ internal static class MenuTest
                 Edit("t:hooks.omlWrites Enter Esc Esc");
                 Check(shown.Contains("locked") && ProjectConfig.Load(root).On("hooks.omlWrites"), "a locked setting is refused");
                 Edit("t:autoApprove.install Enter Esc Esc");
-                Check(ProjectConfig.Load(root).On("autoApprove.install") && ProjectConfig.Profile(ProjectConfig.Load(root)).Any(l => l.StartsWith("Do not ask before install")),
-                    "autoApprove.install turns on and the profile says not to ask");
+                Check(ProjectConfig.Load(root).On("autoApprove.install") && ProjectConfig.Profile(ProjectConfig.Load(root)).Any(l => l.StartsWith("Change modules in place")),
+                    "autoApprove.install turns on and the profile says to change modules in place");
                 Edit("t:ui.targets Enter Space Enter Esc Esc");
                 Check(ProjectConfig.Load(root).Get("ui.targets") == "tablet,phone", "a tick-list changes a list setting: " + ProjectConfig.Load(root).Get("ui.targets"));
                 Edit("t:ui.themes Enter Space Space Enter Esc Esc");

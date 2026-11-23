@@ -42,7 +42,7 @@ static class CliUsage
         oml spec model-types [<TypeName>...]   (members of model/plugin types on the installed build; no name lists the useful types)
         oml spec widget-types   (registered widget descriptors)
         oml spec expr "<text>"   (parse an expression: ok and its canonical form, or the parse error; exit 1 on invalid)
-        oml apply <source.oml> <spec.json>... <staged-out.oml> [--describe A,B,...] [--describe-created] [--report <report.json>] [--user-approved]
+        oml apply <source.oml> <spec.json>... [<staged-out.oml>] [--describe A,B,...] [--describe-created] [--report <report.json>] [--user-approved]   (no staged path: in place, with autoApprove.install)
         oml apply --batch <index.json>   (many modules in one process: {items:[{source,spec,staged}]}; one combined summary; exit 1 if any item failed)
         oml new <out.oml> [--name N] [--kind WebResponsive|Mobile|Service|ReactiveLibrary|...]
         oml new <out.oml> --template <name-or-exported.oml> [--name N]

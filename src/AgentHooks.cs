@@ -283,7 +283,7 @@ static class AgentHooks
                 return $"Grep in content mode on {doc.File} returns large parts of it. Use {doc.Instead}, or set head_limit to at most {MaxGrepLines}.";
             // A patch (Codex apply_patch) names its files in "*** Update File: <path>" lines.
             case Kind.Edit when IsOml(path) || Regex.IsMatch(Text("command", "patch", "input") ?? "", @"^\*\*\* (Add|Update|Delete) File: .*\.oml\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase):
-                return "rule 9: an .oml file is a binary package. Never edit or write it with a tool; change modules only with oml apply to a new staged file.";
+                return "rule 9: an .oml file is a binary package. Never edit or write it with a tool; change modules only with oml apply.";
             case Kind.Web when testApi && Text("url") is { } url && Uri.TryCreate(url, UriKind.Absolute, out var u) && TestDataCommand.AllowedHosts(Environment.CurrentDirectory).Contains(u.Host.ToLowerInvariant()):
                 return TestDataOnly;
             case Kind.Shell when Text("command", "command_line", "cmd") is { } command:
@@ -296,7 +296,7 @@ static class AgentHooks
                     if (noBrowser && Rx.Browser.IsMatch(part) && !Rx.OmlCommand.IsMatch(part))
                         return "this project sets browser = agent (.oml/oml-config.json): look at the app with your own built-in browser tool, not Edge, Chrome or Firefox started from a shell.";
                     if (Rx.OmlWrite.IsMatch(part))
-                        return "rule 9: this command writes an .oml file. Change modules only with oml apply to a new staged file; install copies it over the target after the user says yes.";
+                        return "rule 9: this command writes an .oml file. Change modules only with oml apply (and oml install for a staged copy).";
                     if (bigDocs && Rx.Reader.IsMatch(part) && !Rx.LineLimit.IsMatch(part) && BigDocs.FirstOrDefault(d => Regex.IsMatch(part, @"reference[\\/]" + Regex.Escape(d.File) + @"\b", RegexOptions.IgnoreCase)) is { File: not null } doc)
                         return $"{doc.File} is a large reference; do not print it whole. Use {doc.Instead}.";
                 }
