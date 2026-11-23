@@ -110,7 +110,7 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
               <tr>
                 <th scope="row">Works on</th>
                 <td data-label="OutSystems MCP">Modules open in Service Studio (newer builds can open them)</td>
-                <td data-label="oml">Module files. Many modules, many agents. Service Studio can stay closed for reads and checks.</td>
+                <td data-label="oml">Module files. Many modules, many agents. Service Studio must be installed but can stay closed: only pull, publish and Refresh All need it open.</td>
               </tr>
               <tr>
                 <th scope="row">A change</th>
@@ -565,7 +565,7 @@ Stage the result and validate it. Do not install or publish.</code></pre>
         <div class="section-head">
           <p class="eyebrow">Install</p>
           <h2 id="install-title">Install oml</h2>
-          <p>Windows, Service Studio 11 and the .NET 10 runtime (Service Studio 11.55.94+ installs it). Publish and Refresh All also need Studio's MCP server: <strong>Edit &gt; MCP Server &gt; Start MCP server</strong> (11.55.91+).</p>
+          <p>Windows, Service Studio 11 and the .NET 10 runtime (Service Studio 11.55.94+ installs it). Only pull, publish and Refresh All need Service Studio open, with its MCP server started: <strong>Edit &gt; MCP Server &gt; Start MCP server</strong> (11.55.91+).</p>
         </div>
 
         <div class="install-grid">
