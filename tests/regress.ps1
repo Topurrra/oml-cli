@@ -13,7 +13,7 @@
 #                       review-page, image (also a 5 s trace limit), dashboard (a local port), qa-replay and qa-attach (a local page)
 #        usagelog  (1)  log-check and aliases-check append to and trim the person's default usage log (OML_LOG=1)
 #        selftest  (1)  selftest records the build as checked in %LOCALAPPDATA%; doctor-check reads that record
-#        hkcu      (1)  setup-check writes a throwaway HKCU key and compares the real HKCU\Software\Classes keys
+#        hkcu      (1)  setup-check writes a throwaway HKCU key and compares the real HKCU\Software\Classes keys; commands-check reads them
 #        lifetime  (1)  lifetime-check starts a mock LifeTime server
 # Output is printed per unit in the order of the list below, not in finish order.
 # A full run that passes on a clean tree records its commit in %LOCALAPPDATA%\oml-cli\regress-passed.json; release.ps1
@@ -270,6 +270,11 @@ Unit 'run-check' {
 Unit 'batch-check' {
   try { & (Join-Path $tests 'batch-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL batch checks: $_" }
+}
+# commands-check reads HKCU (menu explorer --status twice), so it runs apart from setup-check, which writes there.
+Unit 'commands-check' -Group hkcu {
+  try { & (Join-Path $tests 'commands-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL commands checks: $_" }
 }
 Unit 'mcp-check' {
   try { & (Join-Path $tests 'mcp-check.ps1') -Oml $oml -Tmp $tmp }

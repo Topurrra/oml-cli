@@ -1,7 +1,8 @@
 # Old command names (census, meta, expr, api, widgets, setup, run, evolve, skills, library, warn, lt, dif, test scaffold) still
 # work as hidden aliases of the new names (stats, header, expression, model-types, widget-types, explorer-menu, batch, learn,
 # team-rules, outsystems-docs, explain-warning, lifetime, show-change, test bdd): the same output and exit code, also as a step
-# of `oml batch`; no old name in `oml --help`, `oml help --all` or the search entries; and the usage log records the new name
+# of `oml batch`; no old name in `oml --help`, `oml help --all` or the search entries (nine of those new names were since merged into
+# another command, such as `stats` into `inspect --stats`: help names the command they went to; tests/commands-check.ps1); and the usage log records the new name
 # when the old one was typed (older log lines are read under the new names). Needs no network. Throws on the first failure.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
@@ -82,12 +83,15 @@ try {
   Require ($found.Count -ge 40) "the overview lists $($found.Count) command words, expected at least 40"
   foreach ($old in $aliases.Keys) { Require ($found -notcontains $old) "oml --help lists the old name '$old'" }
   Require ($found -notcontains 'test scaffold') "oml --help lists 'test scaffold'"
-  foreach ($new in $aliases.Values) { Require ($found -contains $new) "oml --help does not list '$new'" }
-  Require ($found -contains 'test bdd') "oml --help does not list 'test bdd'"
+  # Merged since into another command (CliUsage.Merged): help lists that command.
+  $merged = @{ stats = 'inspect'; header = 'inspect'; expression = 'spec'; 'model-types' = 'spec'; 'widget-types' = 'spec'; 'explorer-menu' = 'menu'; 'outsystems-docs' = 'doc'; 'explain-warning' = 'doc'; 'show-change' = 'dashboard' }
+  function Shown($new) { if ($merged.ContainsKey($new)) { $merged[$new] } else { $new } }
+  foreach ($new in $aliases.Values) { Require ($found -contains (Shown $new)) "oml --help does not list '$(Shown $new)'" }
+  Require ($found -contains 'test') "oml --help does not list 'test'"
   $words = @($full -split "`n" | ForEach-Object { if ($_ -match '^oml (\S+)') { $Matches[1] } } | Select-Object -Unique)
   foreach ($old in $aliases.Keys) { Require ($words -notcontains $old) "oml help --all has a line for the old name '$old'" }
   Require ($full -notmatch '(?m)^oml test scaffold') "oml help --all has a line for 'test scaffold'"
-  foreach ($new in $aliases.Values) { Require ($words -contains $new) "oml help --all has no line for '$new'" }
+  foreach ($new in $aliases.Values) { Require ($words -contains (Shown $new)) "oml help --all has no line for '$(Shown $new)'" }
   foreach ($text in $overview, $full) {
     foreach ($old in $aliases.Keys) { Require ($text -notmatch "\boml $old\b(?![-\w])") "help text mentions 'oml $old'" }
     Require ($text -notmatch 'oml test scaffold') "help text mentions 'oml test scaffold'"
@@ -95,7 +99,7 @@ try {
   $ids = @((Call @('doc', '--search-list')).Text -split "`n" | Where-Object { $_ -like 'command:*' } | ForEach-Object { ($_ -split "`t")[0] -replace '~\d+$', '' })
   Require ($ids.Count -ge 30) "the search lists $($ids.Count) command entries"
   foreach ($old in $aliases.Keys) { Require ($ids -notcontains "command:$old") "the search has an entry for the old name '$old'" }
-  foreach ($new in 'stats', 'header', 'expression', 'lifetime', 'outsystems-docs', 'team-rules') { Require ($ids -contains "command:$new") "the search has no entry for '$new'" }
+  foreach ($new in 'inspect --stats', 'inspect --header', 'spec expr', 'lifetime', 'doc library', 'team-rules') { Require ($ids -contains "command:$new") "the search has no entry for '$new'" }
   Write-Host 'ok   aliases: no old name in oml --help, oml help --all or the search entries'
 
   # 4. The usage log records the new name when the old one is typed.
