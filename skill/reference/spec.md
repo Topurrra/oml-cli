@@ -893,10 +893,7 @@ The scaffold fixture verifies a local layout on bare CrossDevice. The self-test 
 Edits run after creation in list order. Expression writes run after edits; expressions must use final names. Each problem prevents the final staged save. The examples assume the elements they name exist.
 
 Existing means present in the source module before this spec started. Elements created in this spec remain editable and deletable, including after the internal data-model reload.
-The production rules (rules.md) hold for every edit, found by key when the build ends:
-- Refused (rule 2): deleting an existing entity or attribute, renaming an attribute (also through Name), changing an attribute's `DataType`.
-- Needs the user's yes (`needsApproval`, then `--user-approved`): deleting any other existing element (rule 3); a shorter `Length`, fewer `Decimals`, `IsMandatory` true or a changed `IsAutoNumber` on an entity attribute, a new `IdentifierAttribute` or `IsMultiTenant` (rule 5); SQL that changes data (rule 6).
-- Free: renames of other elements (a public one is listed in `breaking`), structure attributes, other settings, flow nodes, widgets and local variables.
+The production rules (rules.md) hold for every edit, found by key when the build ends. Refused (rule 2): deleting an existing entity or attribute, renaming an attribute (also through Name), changing an attribute's `DataType`. Needs the user's yes (`needsApproval`, then `--user-approved`): deleting any other existing element (rule 3); a shorter `Length`, fewer `Decimals`, `IsMandatory` true or a changed `IsAutoNumber` on an entity attribute, a new `IdentifierAttribute` or `IsMultiTenant` (rule 5); SQL that changes data (rule 6). Free: renames of other elements (a public one is listed in `breaking`), structure attributes, other settings, flow nodes, widgets and local variables.
 
 | Operation | Keys | Behavior |
 |---|---|---|
