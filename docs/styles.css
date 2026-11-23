@@ -212,6 +212,42 @@ h1 {
 .hero-text > .small.muted { margin-top: 4px; }
 .hero-code .small { margin-top: 12px; }
 
+/* Agents strip: a slow, looping row of the agents oml works with (pausable; still under reduced motion) */
+.hero { padding-bottom: 56px; }
+.logos { padding-bottom: 56px; }
+.logos-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.logos-title { margin: 0; font: 600 12px/1.5 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.logos-pause {
+  min-height: 32px; padding: 4px 12px; font: 600 12px var(--sans); color: var(--muted);
+  background: transparent; border: 1px solid var(--line); border-radius: 999px; cursor: pointer;
+}
+.logos-pause:hover { color: var(--text); border-color: var(--line-strong); }
+.marquee {
+  display: flex; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+.marquee-track {
+  list-style: none; display: flex; gap: 12px; padding-right: 12px; flex-shrink: 0;
+  animation: marquee 45s linear infinite;
+}
+.marquee:hover .marquee-track, .marquee.paused .marquee-track { animation-play-state: paused; }
+@keyframes marquee { to { transform: translateX(-100%); } }
+.marquee-track li {
+  display: inline-flex; align-items: center; gap: 10px; white-space: nowrap;
+  padding: 8px 16px 8px 8px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--card); font-weight: 600; font-size: 15px; box-shadow: var(--shadow);
+}
+.mark {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--c); color: #fff; font: 700 11px var(--mono); letter-spacing: -0.02em;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee { flex-wrap: wrap; -webkit-mask-image: none; mask-image: none; }
+  .marquee-track { flex-wrap: wrap; flex-shrink: 1; row-gap: 10px; }
+  .marquee-track[aria-hidden="true"], .logos-pause { display: none; }
+}
+
 /* Code blocks: a dark terminal in both themes */
 
 .code {

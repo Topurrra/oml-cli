@@ -89,6 +89,46 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
           <p class="small muted"><code>apply</code> never touches the source. <code>install</code> replaces it only when the staged file has no errors, and keeps a backup.</p>
         </div>
       </div>
+      <div class="logos wrap">
+        <div class="logos-head">
+          <p class="logos-title" id="logos-title">Works with the agent you already use</p>
+          <button id="logos-pause" class="logos-pause" type="button" aria-pressed="false">Pause</button>
+        </div>
+        <div class="marquee" role="region" aria-labelledby="logos-title">
+          <ul class="marquee-track">
+              <li><span class="mark" style="--c: #d97757" aria-hidden="true">C</span>Claude Code</li>
+              <li><span class="mark" style="--c: #8957e5" aria-hidden="true">G</span>GitHub Copilot</li>
+              <li><span class="mark" style="--c: #10a37f" aria-hidden="true">Cx</span>Codex</li>
+              <li><span class="mark" style="--c: #5b5b5b" aria-hidden="true">Cu</span>Cursor</li>
+              <li><span class="mark" style="--c: #4285f4" aria-hidden="true">G</span>Gemini CLI</li>
+              <li><span class="mark" style="--c: #09b6a2" aria-hidden="true">W</span>Windsurf</li>
+              <li><span class="mark" style="--c: #084ccf" aria-hidden="true">Z</span>Zed</li>
+              <li><span class="mark" style="--c: #a142f4" aria-hidden="true">J</span>Jules</li>
+              <li><span class="mark" style="--c: #14a44d" aria-hidden="true">A</span>Aider</li>
+              <li><span class="mark" style="--c: #e5265a" aria-hidden="true">Ju</span>Junie</li>
+              <li><span class="mark" style="--c: #f34e3f" aria-hidden="true">Am</span>Amp</li>
+              <li><span class="mark" style="--c: #4b5563" aria-hidden="true">oc</span>opencode</li>
+              <li><span class="mark" style="--c: #01a4ff" aria-hidden="true">Wa</span>Warp</li>
+              <li><span class="mark" style="--c: #c42b26" aria-hidden="true">M</span>Any MCP client</li>
+          </ul>
+          <ul class="marquee-track" aria-hidden="true">
+              <li><span class="mark" style="--c: #d97757" aria-hidden="true">C</span>Claude Code</li>
+              <li><span class="mark" style="--c: #8957e5" aria-hidden="true">G</span>GitHub Copilot</li>
+              <li><span class="mark" style="--c: #10a37f" aria-hidden="true">Cx</span>Codex</li>
+              <li><span class="mark" style="--c: #5b5b5b" aria-hidden="true">Cu</span>Cursor</li>
+              <li><span class="mark" style="--c: #4285f4" aria-hidden="true">G</span>Gemini CLI</li>
+              <li><span class="mark" style="--c: #09b6a2" aria-hidden="true">W</span>Windsurf</li>
+              <li><span class="mark" style="--c: #084ccf" aria-hidden="true">Z</span>Zed</li>
+              <li><span class="mark" style="--c: #a142f4" aria-hidden="true">J</span>Jules</li>
+              <li><span class="mark" style="--c: #14a44d" aria-hidden="true">A</span>Aider</li>
+              <li><span class="mark" style="--c: #e5265a" aria-hidden="true">Ju</span>Junie</li>
+              <li><span class="mark" style="--c: #f34e3f" aria-hidden="true">Am</span>Amp</li>
+              <li><span class="mark" style="--c: #4b5563" aria-hidden="true">oc</span>opencode</li>
+              <li><span class="mark" style="--c: #01a4ff" aria-hidden="true">Wa</span>Warp</li>
+              <li><span class="mark" style="--c: #c42b26" aria-hidden="true">M</span>Any MCP client</li>
+          </ul>
+        </div>
+      </div>
     </section>
 
     <!-- Why -->
@@ -426,7 +466,7 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
           <li><h3>Prompts and color</h3><p><code>oml create</code> asks for the folder, modules, server and agent. Green is passed, yellow needs a look, red failed. <code>oml config example</code> prints every setting.</p></li>
           <li><h3>Test accounts by role</h3><p>One account per role in <code>.oml/test-accounts.local.json</code>. Browser scripts log in with <code>{"login": "Manager"}</code>, and oml types the password.</p></li>
           <li><h3>16 UI skills</h3><p>Accessibility, layout, typography, color, motion and copy, rewritten for Reactive and Traditional Web. Read one with <code>oml doc better-ui</code>.</p></li>
-          <li><h3>Copilot hooks</h3><p><code>oml hooks install --agent copilot</code> guards VS Code agents. A hook never blocks a call because of an oml error.</p></li>
+          <li><h3>Hooks for every agent</h3><p><code>oml hooks install</code> guards Claude Code, GitHub Copilot, Codex and Gemini CLI: no <code>.oml</code> edits, no big files read whole. A hook never blocks a call because of an oml error.</p></li>
         </ul>
       </div>
     </section>
