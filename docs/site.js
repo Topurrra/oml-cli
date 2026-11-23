@@ -27,17 +27,6 @@
   });
   updateToggle();
 
-  // Agents strip: the Pause button stops and starts the moving row.
-  const pause = document.getElementById('logos-pause');
-  const marquee = document.querySelector('.marquee');
-  if (pause && marquee) {
-    pause.addEventListener('click', () => {
-      const paused = marquee.classList.toggle('paused');
-      pause.setAttribute('aria-pressed', String(paused));
-      pause.textContent = paused ? 'Play' : 'Pause';
-    });
-  }
-
   // Syntax colors. Only spans are added: textContent, and so what Copy copies, stays the same.
   const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
   const tok = (kind, s) => `<span class="t-${kind}">${esc(s)}</span>`;
