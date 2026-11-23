@@ -98,6 +98,15 @@ def _summary(text: str) -> str:
     return line if len(line) <= _SUMMARY_CHARS else line[: _SUMMARY_CHARS - 3] + "..."
 
 
+def _whole(text: str) -> str:
+    """A description as its author wrote it, up to the size kept for one
+    tool; past that it is cut and says by how much."""
+    text = str(text or "")
+    if len(text) <= _DESCRIPTION_CHARS:
+        return text
+    return "%s [... %d more chars of description not shown ...]" % (text[:_DESCRIPTION_CHARS], len(text) - _DESCRIPTION_CHARS)
+
+
 def _tokens(text: str) -> List[str]:
     return re.findall(r"[a-z0-9]+", text.lower())
 
@@ -400,11 +409,13 @@ class Catalog:
             % (tool, connector, (" Did you mean: %s?" % ", ".join("%s.%s" % (connector, c) for c in close)) if close else ""),
         )
 
-    def search(self, query: str, limit: Optional[int] = None, namespace: Optional[str] = None) -> List[Dict[str, Any]]:
-        return self.search_with_total(query, limit, namespace)[0]
+    def search(
+        self, query: str, limit: Optional[int] = None, namespace: Optional[str] = None, full: bool = False
+    ) -> List[Dict[str, Any]]:
+        return self.search_with_total(query, limit, namespace, full)[0]
 
     def search_with_total(
-        self, query: str, limit: Optional[int] = None, namespace: Optional[str] = None
+        self, query: str, limit: Optional[int] = None, namespace: Optional[str] = None, full: bool = False
     ) -> Tuple[List[Dict[str, Any]], int]:
         """Rank tools and snippets by word overlap. Deliberately simple: the
         ranking is easy to predict and needs no index or model.
@@ -416,11 +427,16 @@ class Catalog:
         project's helper functions for ``helpers``. With an empty query that
         is the list of what one server offers, each with its description and
         its policy, in the server's own order.
+
+        A description is one line, cut to fit a listing. ``full`` gives it
+        whole, as ``describe()`` does, for a caller that builds something out
+        of the list (a prompt, a table) and would otherwise ask once per tool.
         """
         limit = max(1, min(int(default_limit(query) if limit is None else limit), MAX_SEARCH_RESULTS))
         wanted = _tokens(str(query))
+        shown = _whole if full else _summary
         if namespace is not None:
-            return self._search_namespace(str(namespace), wanted, limit)
+            return self._search_namespace(str(namespace), wanted, limit, shown)
         scored = []
         for entry in self._all():
             score = _score(wanted, set(_tokens(entry.path)), set(_tokens(entry.description)))
@@ -428,7 +444,7 @@ class Catalog:
                 scored.append((-score, entry.path, {
                     "path": entry.path,
                     "signature": entry.signature(max_params=8),
-                    "description": _summary(entry.description),
+                    "description": shown(entry.description),
                     "policy": self._policy.decide(entry.path, None, entry.original_path).action,
                 }))
         for snippet in self._list_snippets():
@@ -437,14 +453,14 @@ class Catalog:
                 scored.append((-score, "~" + snippet["name"], {
                     "path": "snippet:" + snippet["name"],
                     "signature": "run(%r, **args)" % snippet["name"],
-                    "description": _summary(snippet.get("description", "")),
+                    "description": shown(snippet.get("description", "")),
                     "policy": "allow",
                 }))
-        scored.extend((-score, "~~" + hit["path"], hit) for score, hit in self._helper_hits(wanted))
+        scored.extend((-score, "~~" + hit["path"], hit) for score, hit in self._helper_hits(wanted, shown))
         scored.sort(key=lambda item: (item[0], item[1]))
         return [item[2] for item in scored[:limit]], len(scored)
 
-    def _helper_hits(self, wanted: List[str]) -> List[Tuple[int, Dict[str, Any]]]:
+    def _helper_hits(self, wanted: List[str], shown: Any = _summary) -> List[Tuple[int, Dict[str, Any]]]:
         """The project's helper functions that match, each with its score. A
         helper runs in the sandbox; what the policy decides is each tool call
         it makes, so there is no decision to show for it."""
@@ -453,13 +469,15 @@ class Catalog:
             rows = [(f["signature"].partition("(")[0], f["signature"], f["doc"]) for f in module["functions"]]
             if module.get("error"):
                 rows = [("helpers." + module["module"], "helpers." + module["module"], "This helper file does not parse: " + module["error"])]
-            for path, shown, doc in rows:
+            for path, signature, doc in rows:
                 score = _score(wanted, set(_tokens(path)), set(_tokens(doc + " " + module.get("doc", ""))))
                 if score or not wanted:
-                    hits.append((score, {"path": path, "signature": shown, "description": _summary(doc), "policy": "helper"}))
+                    hits.append((score, {"path": path, "signature": signature, "description": shown(doc), "policy": "helper"}))
         return hits
 
-    def _search_namespace(self, namespace: str, wanted: List[str], limit: int) -> Tuple[List[Dict[str, Any]], int]:
+    def _search_namespace(
+        self, namespace: str, wanted: List[str], limit: int, shown: Any = _summary
+    ) -> Tuple[List[Dict[str, Any]], int]:
         helpers = namespace == "helpers" and "helpers" not in self._connectors
         if not helpers and namespace not in self._connectors:
             raise ToolFailure(
@@ -468,7 +486,7 @@ class Catalog:
             )
         rows: List[Tuple[int, int, Dict[str, Any]]] = []
         if helpers:
-            rows = [(-score, index, hit) for index, (score, hit) in enumerate(self._helper_hits(wanted))]
+            rows = [(-score, index, hit) for index, (score, hit) in enumerate(self._helper_hits(wanted, shown))]
         else:
             for entry in self._load(namespace).values():
                 score = _score(wanted, set(_tokens(entry.path)), set(_tokens(entry.description)))
@@ -476,7 +494,7 @@ class Catalog:
                     rows.append((-score, len(rows), {
                         "path": entry.path,
                         "signature": entry.signature(max_params=8),
-                        "description": _summary(entry.description),
+                        "description": shown(entry.description),
                         "policy": self._policy.decide(entry.path, None, entry.original_path).action,
                     }))
         rows.sort(key=lambda item: (item[0], item[1]))  # best match first; without a query, the server's own order
@@ -534,10 +552,7 @@ class Catalog:
             return listing
         entry = self.resolve(target)
         decision = self._policy.decide(entry.path, None, entry.original_path)
-        description = entry.description
-        if len(description) > _DESCRIPTION_CHARS:
-            description = "%s [... %d more chars of description not shown ...]" % (
-                description[:_DESCRIPTION_CHARS], len(description) - _DESCRIPTION_CHARS)
+        description = _whole(entry.description)
         # The three parts share one budget, so that the whole description of
         # a tool fits in a value however large the server made its schema.
         signature = entry.signature()

@@ -93,9 +93,8 @@ def _patch():
 def _oml_tools(rt):
     """The oml tools as the server describes them: [(name, description, policy)], or [] when it is not reachable."""
     try:
-        hits = rt.search("", 50, "oml")  # names and policies; descriptions there are cut to one line
-        return [(h["path"].partition(".")[2], rt.describe(h["path"]).get("description") or h.get("description") or "", h.get("policy"))
-                for h in hits]
+        hits = rt.search("", 50, "oml", full=True)  # names, whole descriptions and policies
+        return [(h["path"].partition(".")[2], h.get("description") or "", h.get("policy")) for h in hits]
     except Exception:  # the prompt still helps without the server's own words
         return []
 

@@ -23,6 +23,7 @@ checked against a policy you control and written to a log.
 - [Instructions for the agent](#instructions-for-the-agent)
 - [Coming from 0.1](#coming-from-01)
 - [Coming from 0.2](#coming-from-02)
+- [Coming from 0.3.0](#coming-from-030)
 
 ## Set up, in three commands
 
@@ -173,7 +174,10 @@ host has. It gets:
 - what you write in `env`;
 - what `inherit_env` names: `["JAVA_HOME", "MYTOOL_*"]` passes those
   variables as they are on the host, with `*` and `?` as wildcards.
-  `true` passes everything.
+  `true` passes everything. A name or a glob after `!` is left out,
+  whatever else matches it: `["MYTOOL_*", "!MYTOOL_DEBUG"]` is the family
+  without that one, and `["*", "!AWS_*"]` is everything but those. The
+  order of the entries does not matter.
 
 An inherited variable whose name says it holds a credential (`TOKEN`,
 `KEY`, `SECRET`, `PASSWORD`, `AUTH` and the like) is removed from results,
@@ -489,7 +493,9 @@ codemode init --out tools/agents/codemode.json --home tools/agents/data --work-d
   itself, so later commands name it: `--config FILE`, or `CODEMODE_CONFIG`.
   Every command `init` prints already does. Relative paths in a config
   named this way are read from the folder a command runs in, so run from
-  the project root.
+  the project root. (Under a command of your own that finds the config by
+  itself, `CODEMODE_COMMAND` with no `{options}`, there is nothing to pass,
+  and `init` does not say so.)
 - `--home DIR` (or `CODEMODE_HOME`) is the data folder, as on every command.
 - `--work-dir DIR` is written into the config as `work_dir`.
 
@@ -563,7 +569,7 @@ config error, 3 paused, 5 not found, 6 still running.
 |---|---|
 | `tools.<namespace>.<tool>(**args)` | Call a tool. It returns a plain Python value. |
 | `call("namespace.tool", {...})` | The same, by name. With `on_error="return"` a failure comes back as a `ToolError` value instead of raising. |
-| `parallel([("namespace.tool", {...}), ...])` | Run independent calls at the same time. Results come back in order. |
+| `parallel([("namespace.tool", {...}), ...])` | Run independent calls at the same time. Results come back in order. It takes `on_error="return"` too. |
 | `repeat("namespace.tool", {...}, n=10)` | Run one call n times and get back only the failures. |
 | `search("words")` | Find tools. Returns one-line signatures; `.more` says how many matches were left out. `search(namespace="name")` lists what one namespace offers. |
 | `describe("namespace.tool")` | The signature, the schema and the policy of one tool. |
@@ -571,6 +577,7 @@ config error, 3 paused, 5 not found, 6 still running.
 | `grep(text, pattern)`, `tail(text, n)`, `summarize(text)` | Cut long text output down inside the program. |
 | `state` | A dict that persists between programs in this session. |
 | `args` | The arguments this program was started with. |
+| `project_root` | The project's folder. A program runs in an empty folder of its own: open a project file as `open(project_root + "/path")`. |
 | `step("name", fn)` | Record a value that changes between runs, such as the time or a random number. |
 | `helpers.<module>.<function>()` | This project's own helper functions, if it has any; `search()` lists them. |
 | `ToolError` | Raised when a call is denied, fails or is unknown. It has `.kind`, `.message` and `.hint`. |
@@ -680,3 +687,11 @@ New, and off until you use them: `inherit_env` on stdio servers;
 `approve --same-tool` and `--all-remaining`, with `approval.standing` to
 narrow them. A config that uses a new key is an error under 0.2, which
 rejects keys it does not know.
+
+## Coming from 0.3.0
+
+Nothing behaves differently for a project that ran 0.3.0. Added in 0.3.1:
+`parallel(..., on_error="return")`, the same option `call()` has;
+`project_root` in programs and helpers, and a hint when a relative path
+does not find a project file; `search --full` for whole descriptions; `!`
+in `inherit_env` to leave a variable out.

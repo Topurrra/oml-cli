@@ -204,6 +204,7 @@ class Pass:
         state_in: Dict[str, Any],
         args: Optional[Dict[str, Any]] = None,
         helpers: Optional[Dict[str, str]] = None,
+        project_root: str = "",
     ) -> PassOutcome:
         started = time.monotonic()
         self.deadline = started + float(self.limits["timeout_s"])
@@ -227,6 +228,7 @@ class Pass:
                 raise _Abort("ProtocolError", "the sandbox did not start with a ready frame")
             proc.send({
                 "op": "run", "code": code, "state": state_in, "args": args or {}, "helpers": helpers or {},
+                "project_root": project_root or "",
                 "vars_budget": int(self.limits["max_value_bytes"]),
             })
             while True:

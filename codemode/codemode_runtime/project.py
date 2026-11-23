@@ -394,7 +394,9 @@ def init(
         "notes": notes,
         "gitignore": _update_gitignore(folder, ignore_entries(folder, data_home, config.work_dir)),
     }
-    if out:
+    if out and not launcher.chooses_config_itself():
+        # Not under a command of the project's own that finds the config by
+        # itself: there the person has nothing to pass and nothing to remember.
         notes.append(
             "The config is not where the runtime looks by itself (%s in the project root or above the folder a command runs in). "
             "Name it on every command with --config, as the commands below do, or in CODEMODE_CONFIG. Relative paths in it "

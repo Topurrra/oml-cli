@@ -183,13 +183,20 @@ def _jsonable(value, what):
 # -- tool calls -----------------------------------------------------------
 
 
-def parallel(calls, return_errors=False):
+def parallel(calls, return_errors=False, on_error=None):
     """Run independent tool calls at the same time.
 
     ``calls`` is a list of ``("namespace.tool", {arguments})`` pairs. Results
-    come back in the same order. With ``return_errors=True`` a failed call
-    yields its ``ToolError`` in the list instead of raising.
+    come back in the same order. With ``on_error="return"`` a failed call
+    yields its ``ToolError`` in the list instead of raising, as it does for
+    ``call()``. ``return_errors=True`` is the older spelling of the same.
     """
+    if on_error is not None:
+        if on_error not in ("raise", "return"):
+            raise ValueError("on_error must be 'raise' or 'return', not %r" % (on_error,))
+        if return_errors and on_error == "raise":
+            raise ValueError("return_errors=True and on_error='raise' contradict each other; give on_error alone")
+        return_errors = on_error == "return"
     batch = []
     for entry in calls:
         if isinstance(entry, str):
@@ -783,6 +790,21 @@ _SHAPE_ERRORS = ("string indices must be", "is not subscriptable", "'NoneType' o
                  "list indices must be", "object is not iterable")
 
 
+def _relative_path_hint(exc):
+    """What to say when a program opened a file by a relative path and it
+    was not there: the program runs in an empty folder of its own."""
+    name = getattr(exc, "filename", None)
+    if not isinstance(name, str) or not name or os.path.isabs(name) or name.startswith("<"):
+        return ""
+    shown = name.replace("\\", "/")
+    if shown.startswith("./"):
+        shown = shown[2:]
+    return (
+        "A program runs in an empty folder of its own, so a relative path does not reach the project's files. "
+        "The project's folder is project_root: open(project_root + '/%s')." % shown
+    )
+
+
 def _describe_error(exc):
     kind = type(exc).__name__
     message = str(exc)
@@ -802,7 +824,9 @@ def _describe_error(exc):
         hint = _SHAPE_HINT
     elif isinstance(exc, (TypeError, AttributeError)) and any(needle in message for needle in _SHAPE_ERRORS):
         hint = _SHAPE_HINT
-    frames = [f for f in traceback.extract_tb(exc.__traceback__) if f.filename != _RUNNER_FILE]
+    elif isinstance(exc, (FileNotFoundError, NotADirectoryError)):
+        hint = _relative_path_hint(exc)
+    frames =[f for f in traceback.extract_tb(exc.__traceback__) if f.filename != _RUNNER_FILE]
     if isinstance(exc, SyntaxError) and str(exc.filename or "").startswith("<"):
         # The program itself did not parse. The frames are the parser's, not
         # the program's; the exception line already shows the place.
@@ -877,6 +901,9 @@ def _main():
         "shape": shape,
         "state": job.get("state") or {},
         "args": job.get("args") or {},
+        # The project's folder, as text. The program itself runs in an empty
+        # folder, so this is how it names a file of the project.
+        "project_root": str(job.get("project_root") or ""),
         "helpers": _Helpers(job.get("helpers") or {}),
         "ToolError": ToolError,
     }

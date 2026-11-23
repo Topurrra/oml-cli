@@ -45,17 +45,18 @@ Run a Python program that calls tools. Write one program per step, not one call 
 
 Inside the program:
 - tools.<namespace>.<tool>(**arguments) calls a tool and returns a plain Python value. \
-call("namespace.tool", {...}) does the same by name; with on_error="return" a failure comes \
-back as a ToolError value instead of raising.
+call("namespace.tool", {...}) does the same by name.
 - parallel([("namespace.tool", {...}), ...]) runs independent calls at the same time and \
-returns their results in order. repeat("namespace.tool", {...}, n=10) runs one call n times \
-and returns only the failures.
+returns their results in order. With on_error="return", call() and parallel() give a failure \
+back as a ToolError value instead of raising. repeat("namespace.tool", {...}, n=10) runs one \
+call n times and returns only the failures.
 - search("words") finds tools; search(namespace="name") lists what one namespace offers; \
 describe("namespace.tool") returns the signature and schema. Look a tool up before you call \
 it for the first time. shape(value) shows the keys and types of a result.
 - grep(text, pattern), tail(text, n) and summarize(text) cut long text output down.
 - state is a dict that persists between programs in this session. args holds the arguments \
-this program was started with.
+this program was started with. project_root is the project's folder: the program runs in an \
+empty folder of its own, so open a project file as open(project_root + "/path").
 - step("name", fn) records the value of fn(). Use it for the time, randomness and anything \
 else that would differ if the program ran again.
 - run("snippet", **args) runs a saved snippet.
@@ -280,6 +281,10 @@ class Runtime:
             "code": code,
             "code_sha256": sha256_hex(code),
             "args": args,  # part of the input: a resumed pass must see the same ones
+            # The project's folder, as the program is told it. Recorded like
+            # the arguments: a pass resumed from another folder, or by another
+            # process, must hand the program the folder it started with.
+            "project_root": launcher._portable(os.path.abspath(str(self.config.root or Path.cwd()))),
             "helpers_sha256": self._keep_helpers(self._current_helpers()),  # and the same helper code
             "reuse_from": reuse_from,
             "state_in": self.sessions.load(session),
@@ -578,7 +583,7 @@ class Runtime:
                 )
             outcome = self._pass(view, "verify", None, None).run(
                 self.executor, view.start["code"], view.start.get("state_in") or {}, view.start.get("args") or {},
-                self._helpers_of(view.start),
+                self._helpers_of(view.start), str(view.start.get("project_root") or ""),
             )
             detail = ""
             if outcome.status != "completed":
@@ -600,8 +605,13 @@ class Runtime:
 
     # -- discovery and listings (host side) ------------------------------
 
-    def search(self, query: str, limit: Optional[int] = None, namespace: Optional[str] = None) -> List[Dict[str, Any]]:
-        return self.catalog.search(query, limit, namespace)
+    def search(
+        self, query: str, limit: Optional[int] = None, namespace: Optional[str] = None, full: bool = False
+    ) -> List[Dict[str, Any]]:
+        """Tools, snippets and helpers that match, as ``{path, signature,
+        description, policy}``. ``namespace`` keeps it to one; ``full`` gives
+        whole descriptions in place of one line each."""
+        return self.catalog.search(query, limit, namespace, full)
 
     def describe(self, target: str) -> Dict[str, Any]:
         return self.catalog.describe(target)
@@ -674,7 +684,8 @@ class Runtime:
         self.store.append(exec_id, {"type": "pass_start", "pass": runner.pass_no, "pid": os.getpid()})
         try:
             outcome = runner.run(
-                self.executor, start["code"], start.get("state_in") or {}, start.get("args") or {}, self._helpers_of(start)
+                self.executor, start["code"], start.get("state_in") or {}, start.get("args") or {}, self._helpers_of(start),
+                str(start.get("project_root") or ""),
             )
         except KeyboardInterrupt:
             # Ctrl-C: the sandbox is already stopped (the pass kills it on

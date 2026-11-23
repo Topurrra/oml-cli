@@ -82,6 +82,15 @@ def own_command() -> Optional[str]:
     return _OPTIONS.sub(lambda match: (" " + options) if options else "", text).strip()
 
 
+def chooses_config_itself() -> bool:
+    """Is the runtime started through a command of the project's own that
+    picks the config and the data folder by itself? That is what
+    ``CODEMODE_COMMAND`` with no ``{options}`` in it says. A person then has
+    no ``--config`` to remember, and must not be told to pass one."""
+    text = (os.environ.get(COMMAND_VARIABLE) or "").strip()
+    return bool(text) and not _OPTIONS.search(text)
+
+
 def is_own_command(program: str, args: List[str]) -> bool:
     """Does this command line start the runtime through the project's own
     command? ``mytool code serve`` does when ``CODEMODE_COMMAND`` is

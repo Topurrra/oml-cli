@@ -56,17 +56,20 @@ _REFERENCE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 def check_inherit_env(value: Any, where: str) -> None:
     """Validate a connector's ``inherit_env`` at config load."""
-    if value is not True and value is not False and not (isinstance(value, list) and all(isinstance(v, str) and v for v in value)):
+    if value is not True and value is not False and not (isinstance(value, list) and all(isinstance(v, str) and v.lstrip("!") for v in value)):
         raise ConfigError(
             "%s must be true, false or a list of variable names (globs are allowed)" % where,
-            hint='Example: {"inherit_env": ["JAVA_HOME", "MYTOOL_*"]}. true passes the whole host environment, credentials included.',
+            hint='Example: {"inherit_env": ["JAVA_HOME", "MYTOOL_*", "!MYTOOL_DEBUG"]}. A name after ! is left out. '
+            "true passes the whole host environment, credentials included.",
         )
 
 
 def host_env(inherit: Any = None, environ: Optional[Mapping[str, str]] = None) -> "tuple[Dict[str, str], List[str]]":
     """What a child process gets from the host environment: the base list,
     plus what the connector's ``inherit_env`` names. ``True`` is everything;
-    a list holds names and globs.
+    a list holds names and globs, and a name or a glob after ``!`` is left
+    out whatever else matches it, even one of the base list:
+    ``["MYTOOL_*", "!MYTOOL_DEBUG"]``, or ``["*", "!HOME"]``.
 
     Returns the variables, and the values of the inherited ones whose names
     say they hold a credential (TOKEN, KEY, SECRET, ...): the child was
@@ -79,13 +82,17 @@ def host_env(inherit: Any = None, environ: Optional[Mapping[str, str]] = None) -
     fold = (lambda text: text.upper()) if IS_WINDOWS else (lambda text: text)
     base = {fold(name) for name in BASE_ENV}
     patterns = [fold(pattern) for pattern in inherit] if isinstance(inherit, list) else []
+    wanted = [pattern for pattern in patterns if not pattern.startswith("!")]
+    left_out = [pattern[1:] for pattern in patterns if pattern.startswith("!")]
     env: Dict[str, str] = {}
     secrets: List[str] = []
     for key, value in environ.items():
         name = fold(key)
+        if any(fnmatchcase(name, pattern) for pattern in left_out):
+            continue
         if name in base:
             env[key] = value
-        elif inherit is True or any(fnmatchcase(name, pattern) for pattern in patterns):
+        elif inherit is True or any(fnmatchcase(name, pattern) for pattern in wanted):
             env[key] = value
             if looks_secret(key):
                 secrets.append(value)

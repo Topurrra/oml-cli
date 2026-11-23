@@ -197,6 +197,25 @@ Each item has an ID that the tests quote.
   ones that do. A search with no namespace must be recorded exactly as it
   was before the parameter existed, or an execution paused under the older
   runtime would no longer resume.
+- **H14** One option under two names: `call(..., on_error="return")` and
+  `parallel(..., return_errors=True)` mean the same, and a program that
+  writes the first spelling on `parallel()` gets a `TypeError`. `parallel()`
+  must take `on_error` with the same two values and the same complaint
+  about a misspelt one; the older spelling must keep working; the two given
+  together and disagreeing must be an error, not a silent choice.
+- **H15** A program opens a file of the project by a relative path. It runs
+  in an empty folder of its own, so the file is not there, and the error
+  says only "No such file". The program must be able to learn where the
+  project is (`project_root`), in a helper too; the failure must say what
+  happened and what to write instead; and the value must be the one the
+  execution started with on every later pass, or a resumed program would
+  see another folder than the one it was approved for.
+- **H16** A listing shows one line of each description, cut at 160
+  characters. A caller that builds something from the list (a prompt, a
+  table of tools) needs the whole text and would ask once per tool. On
+  request (`search --full`) the listing must carry whole descriptions, with
+  the same limit and the same marker as `describe`; without the request it
+  must stay as short as it was.
 
 ## Calls: time limits, queues, large results, reuse (`engine.py`, `config.py`)
 
@@ -333,6 +352,12 @@ Each item has an ID that the tests quote.
   under a name that says it holds a credential, and is echoed back. It must
   be removed from the result like one named in `env`. A variable of the base
   list is never treated as one, whatever it is called.
+- **M19** `inherit_env` names a family of variables (`MYTOOL_*`) and one of
+  them must not reach the server: it changes what the server prints, or it
+  is a credential the server has no use for. A name or a glob after `!`
+  must be left out whatever else matches it, a variable of the base list
+  included; `["*", "!NAME"]` is everything but that one; the order of the
+  entries must not matter; `!` with nothing after it is a config error.
 
 ## A project's commands as tools (`connectors/commands.py`)
 
@@ -445,6 +470,12 @@ Each item has an ID that the tests quote.
   not lose the tool over it. With no guidance both texts are exactly as
   before. A value that is neither a text nor `{"file": ...}` is a config
   error.
+- **U14** `init --out` tells the person to name the config on every command.
+  Under a command of the project's own that finds the config by itself
+  (`CODEMODE_COMMAND` with no `{options}`) that is wrong advice: there is
+  nothing to pass, and the commands `init` prints carry no `--config`. The
+  note must not be printed there. Where the command does take the options
+  (`{options}`), and with no such command, it must still be.
 
 ## Entry points, command hints, odd files (`main.py`, `launcher.py`, `textio.py`, `cli.py`)
 

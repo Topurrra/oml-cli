@@ -21,7 +21,7 @@ _INSIDE = """\
 |---|---|
 | `tools.<namespace>.<tool>(**args)` | Call a tool. It returns a plain Python value. |
 | `call("namespace.tool", {...})` | The same, by name. With `on_error="return"` a failure comes back as a `ToolError` value instead of raising. |
-| `parallel([("namespace.tool", {...}), ...])` | Run independent calls at the same time. Results come back in order. |
+| `parallel([("namespace.tool", {...}), ...])` | Run independent calls at the same time. Results come back in order. It takes `on_error="return"` too. |
 | `repeat("namespace.tool", {...}, n=10)` | Run one call n times and get back only the failures. |
 | `search("words")` | Find tools. Returns one-line signatures; `.more` says how many matches were left out. `search(namespace="name")` lists what one namespace offers. |
 | `describe("namespace.tool")` | The signature, the schema and the policy of one tool. |
@@ -29,6 +29,7 @@ _INSIDE = """\
 | `grep(text, pattern)`, `tail(text, n)`, `summarize(text)` | Cut long text output down inside the program. |
 | `state` | A dict that persists between programs in this session. |
 | `args` | The arguments this program was started with. |
+| `project_root` | The project's folder. A program runs in an empty folder of its own: open a project file as `open(project_root + "/path")`. |
 | `step("name", fn)` | Record a value that changes between runs, such as the time or a random number. |
 | `helpers.<module>.<function>()` | This project's own helper functions, if it has any; `search()` lists them. |
 | `ToolError` | Raised when a call is denied, fails or is unknown. It has `.kind`, `.message` and `.hint`. |
