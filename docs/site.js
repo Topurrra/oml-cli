@@ -65,8 +65,19 @@
   });
   document.querySelectorAll('pre code.lang-json').forEach(code => { code.innerHTML = json(code.textContent); });
   document.querySelectorAll('pre code.lang-py').forEach(code => { code.innerHTML = python(code.textContent); });
-  // Commands written inline: the task table and the cards' chips.
-  document.querySelectorAll('#job-table td code').forEach(code => { code.innerHTML = shell(code.textContent); });
+  // The task table's commands: colored, each in a small terminal frame with its own Copy button.
+  document.querySelectorAll('#job-table td code').forEach(code => {
+    const text = code.textContent;
+    const frame = document.createElement('div');
+    frame.className = 'code cmd';
+    frame.innerHTML = `<pre><code>${shell(text)}</code></pre><button class="copy" type="button" aria-label="Copy: ${esc(text).replace(/"/g, '&quot;')}">Copy</button>`;
+    code.replaceWith(frame);
+  });
+  // Text between two commands in a cell (", then") is dropped; the frames stack instead.
+  document.querySelectorAll('#job-table td').forEach(td => {
+    if (!td.querySelector('.cmd')) return;
+    [...td.childNodes].forEach(n => { if (n.nodeType === Node.TEXT_NODE) n.remove(); });
+  });
 
   // Copy buttons: copy the text of the <code> in the same .code block.
   const copyText = async text => {
@@ -118,6 +129,12 @@
   // "I want to..." filter: every word must appear in the row.
   const search = document.getElementById('job-search');
   const rows = [...document.querySelectorAll('#job-table tbody tr')];
+  // What a row is about: its task and commands, not the Copy buttons.
+  const rowText = new Map(rows.map(row => {
+    const clone = row.cloneNode(true);
+    clone.querySelectorAll('button').forEach(b => b.remove());
+    return [row, clone.textContent.toLowerCase()];
+  }));
   const count = document.getElementById('job-count');
   const empty = document.getElementById('job-empty');
   const table = document.getElementById('job-table');
@@ -125,7 +142,7 @@
     const words = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
     let shown = 0;
     rows.forEach(row => {
-      const text = row.textContent.toLowerCase();
+      const text = rowText.get(row);
       row.hidden = !words.every(word => text.includes(word));
       if (!row.hidden) shown++;
     });

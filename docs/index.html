@@ -204,7 +204,7 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
                 <td data-label="Difference">All parts built, 63% cheaper</td>
               </tr>
               <tr>
-                <th scope="row">OUI wizard: 11 blocks, a screen and a structure, <code>oml code</code> vs MCP<span class="meta">Model Claude Haiku 5.5, November 2026 skill</span></th>
+                <th scope="row">A wizard UI: 11 blocks, a screen and a structure, <code>oml code</code> vs MCP<span class="meta">Model Claude Haiku 5.5, November 2026 skill</span></th>
                 <td data-label="OutSystems MCP">82/82 elements, 45 of 47 optional inputs made mandatory, $1.51, 1,073 s</td>
                 <td data-label="oml" class="win">82/82 elements, all inputs right, $0.76, 752 s</td>
                 <td data-label="Difference">50% cheaper, 2.1× fewer tokens</td>
@@ -374,7 +374,7 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
           </div>
           <p id="job-count" class="small muted" aria-live="polite"></p>
           <div class="table-wrap">
-            <table id="job-table" class="jobs-table" aria-labelledby="jobs-title">
+            <table id="job-table" class="jobs-table stack" aria-labelledby="jobs-title">
               <thead>
                 <tr><th scope="col">Job</th><th scope="col">Command</th></tr>
               </thead>
@@ -422,7 +422,7 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
         </div>
         <ul class="new-list">
           <li><h3>Warm workers</h3><p>Model commands take about 0.08 s instead of 2 to 5. A background oml keeps Service Studio loaded; <code>oml code</code> uses it too.</p></li>
-          <li><h3>Edit in place</h3><p>Agents change existing elements instead of copying them. Deletes and data risks wait for your yes. Entity data is never deleted.</p></li>
+          <li><h3>Change, don't duplicate</h3><p>In the staged copy, agents change the existing actions, screens and blocks instead of making copies such as <code>GetOrders2</code>. Deletes and data risks wait for your yes; entity data is never deleted.</p></li>
           <li><h3>Prompts and color</h3><p><code>oml create</code> asks for the folder, modules, server and agent. Green is passed, yellow needs a look, red failed. <code>oml config example</code> prints every setting.</p></li>
           <li><h3>Test accounts by role</h3><p>One account per role in <code>.oml/test-accounts.local.json</code>. Browser scripts log in with <code>{"login": "Manager"}</code>, and oml types the password.</p></li>
           <li><h3>16 UI skills</h3><p>Accessibility, layout, typography, color, motion and copy, rewritten for Reactive and Traditional Web. Read one with <code>oml doc better-ui</code>.</p></li>

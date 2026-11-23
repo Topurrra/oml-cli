@@ -389,8 +389,12 @@ td.win { color: var(--win); background: var(--win-bg); font-weight: 600; }
   background: color-mix(in srgb, var(--hue, var(--t-sub)) 9%, var(--card));
   border-color: color-mix(in srgb, var(--hue, var(--t-sub)) 28%, var(--line));
 }
-.jobs-table td code { background: transparent; border: 0; padding: 0; font-size: 13.5px; overflow-wrap: normal; }
-.jobs-table td code span { white-space: nowrap; }
+/* A task's command: a small terminal frame with its own Copy button */
+.code.cmd { display: flex; align-items: center; gap: 8px; padding-right: 6px; box-shadow: none; }
+.code.cmd + .code.cmd { margin-top: 6px; }
+.code.cmd pre { flex: 1; min-width: 0; padding: 8px 12px; font-size: 13px; line-height: 1.5; }
+.code.cmd pre code span { white-space: nowrap; }
+.code.cmd .copy { min-width: 56px; min-height: 28px; padding: 2px 8px; }
 
 /* I want to... */
 
@@ -517,6 +521,8 @@ td.win { color: var(--win); background: var(--win-bg); font-weight: 600; }
   table.stack tbody th { width: auto; padding: 12px 14px; background: var(--surface); border-bottom: 1px solid var(--line); }
   table.stack td { width: auto !important; padding: 10px 14px; border-bottom: 1px solid var(--line); }
   table.stack tr > :last-child { border-bottom: 0; }
+  table.stack[hidden], table.stack tr[hidden] { display: none; }
+  .jobs-table.stack td:first-child { font-weight: 600; border-bottom: 0; padding-bottom: 4px; }
   table.stack td[data-label]::before {
     content: attr(data-label); display: block; margin-bottom: 2px;
     font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted);
