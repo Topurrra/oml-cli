@@ -281,14 +281,17 @@ static class DocSearch
     // found too ("convert png to svg"). The title is `oml <command>`, the text the line's description, then its usage;
     // `oml <command> --help` prints the command's lines. Lines of one command share that command, so only the best one
     // is shown. A usage title instead scored 0.008 MRR higher on tune but flagged 3 more answerable queries as weak.
+    // The new form of a merged command is its own entry ("command:doc library", opened by `oml doc library --help`).
     static IEnumerable<SearchDoc> Commands() =>
         CliUsage.Text.Replace("\r\n", "\n").Split('\n').Select(l => l.Trim()).Where(l => l.StartsWith("oml ")).Select(line =>
         {
-            var command = line.Split(' ')[1];
+            var command = CliUsage.FormOf(line) ?? line.Split(' ')[1];
             var described = Regex.Match(line, @"^(.+?)\s+\(([^()]+)\)$");
+            // The dashboard opens `oml <one or two words> --help`; a longer form opens its command's help.
+            var help = command.Split(' ').Length <= 2 ? command : command.Split(' ')[0];
             return new SearchDoc
             {
-                Id = "command:" + command, Kind = "command", Title = "oml " + command, Open = $"oml {command} --help", TitleIsName = false,
+                Id = "command:" + command, Kind = "command", Title = "oml " + command, Open = $"oml {help} --help", TitleIsName = false,
                 // Scored: the command name (title) and the curated CommandWords only. The usage line's description is shown as the
                 // snippet but never scored: a word in it ("turns") made a command outrank the doc section for unrelated queries.
                 Body = CommandWords.GetValueOrDefault(command, ""),
@@ -314,11 +317,11 @@ static class DocSearch
         ["studio"] = "service studio reachable connected running open modules mcp",
         ["new"] = "create a new empty blank module",
         ["install"] = "copy staged module over the original target replace overwrite backup",
-        ["expression"] = "expression valid parse syntax formula check",
-        ["header"] = "module header version upgrade level key without loading",
+        ["spec expr"] = "expression valid parse syntax formula check",
+        ["inspect --header"] = "module header version upgrade level key without loading",
         ["query"] = "modelql graphql model graph query fields all elements of a type filter",
-        ["outsystems-docs"] = "download outsystems documentation docs offline local copy",
-        ["log"] = "usage log slow slowest commands failures statistics",
+        ["doc library"] = "download outsystems documentation docs offline local copy",
+        ["learn usage"] = "usage log slow slowest commands failures statistics",
         ["check"] = "code smells ai mentor quality lint technical debt",
         ["architecture"] = "layers violations dependencies graph cycles publish order of modules",
         ["memory"] = "remember decision notes next agent handoff brief project knowledge trap",
@@ -326,7 +329,7 @@ static class DocSearch
         ["translations"] = "translations languages excel resx",
         ["openapi"] = "openapi swagger contract generate file rest api service",
         ["app"] = "unpack extract list oap osp package application",
-        ["explorer-menu"] = "explorer right click context menu entries",
+        ["menu explorer"] = "explorer right click context menu entries",
         ["team-rules"] = "company coding rules standards conventions",
         ["dashboard"] = "web dashboard developers browser",
         ["font"] = "font woff2 convert",

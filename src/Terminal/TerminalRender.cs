@@ -403,18 +403,7 @@ internal static class TerminalRender
 
     // ------------------------------------------------------------------ help
 
-    static readonly (string area, string[] commands)[] HelpAreas =
-    [
-        ("Read", ["inspect", "describe", "find", "stats", "header", "expression", "tree", "openapi", "query", "validate"]),
-        ("Change", ["new", "apply", "install", "test"]),
-        ("Review", ["architecture", "check", "review"]),
-        ("Service Studio", ["studio", "pull", "publish", "references"]),
-        ("LifeTime and server", ["lifetime", "server"]),
-        ("Knowledge", ["spec", "doc", "explain-warning", "memory", "outsystems-docs", "team-rules"]),
-        ("Assets", ["app", "extension", "templates", "translations", "font", "image"]),
-        ("Maintenance", ["version", "model-types", "widget-types", "selftest", "doctor", "dashboard", "explorer-menu", "log", "batch"]),
-    ];
-
+    // The usage lines under the areas of CliUsage.Text (its "Area:" headings are not repeated as notes).
     public static string Help(string usage, string? command)
     {
         var lines = usage.Split('\n').Select(l => l.TrimEnd('\r')).ToList();
@@ -427,14 +416,14 @@ internal static class TerminalRender
             if (line.StartsWith("oml ", StringComparison.Ordinal))
             {
                 var cmd = line.Length > 4 ? line[4..].Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "" : "";
-                var area = HelpAreas.FirstOrDefault(a => a.commands.Contains(cmd)).area ?? "Other";
+                var area = CliUsage.AreaOf(cmd) ?? "Other";
                 if (!byArea.TryGetValue(area, out var areaLines)) { areaLines = new List<string>(); byArea[area] = areaLines; }
                 areaLines.Add(line);
             }
-            else if (line.Trim().Length > 0) notes.Add(line);
+            else if (line.Trim().Length > 0 && !CliUsage.IsArea(line)) notes.Add(line);
         }
 
-        foreach (var (area, _) in HelpAreas.Concat([("Other", [])]))
+        foreach (var area in CliUsage.Areas.Select(a => a.Area).Append("Other"))
         {
             if (!byArea.TryGetValue(area, out var areaLines) || areaLines.Count == 0) continue;
             sb.AppendLine(TerminalColors.Paint(area, TerminalColors.Bold + (TerminalColors.Enabled ? TerminalColors.Blue : "")));
@@ -798,7 +787,8 @@ internal static class TerminalRender
         Check("help groups areas", () =>
         {
             var help = Help(CliUsage.Text, null);
-            return help.Contains("Read") && help.Contains("Change") && help.Contains("Knowledge") && help.Contains("oml inspect");
+            return CliUsage.Areas.Length == 12 && help.Contains("Project") && help.Contains("Read a module") && help.Contains("For people") && help.Contains("oml inspect")
+                && !help.Contains("Project:");
         });
 
         return failures.Count == 0 ? "ok" : "FAIL\n" + string.Join("\n", failures);

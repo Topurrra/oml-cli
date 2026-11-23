@@ -4,13 +4,14 @@ Full usage and details for every command. [SKILL.md](../SKILL.md) has the short 
 
 #### CLI usage
 
-The following block matches the usage constant in `src/Core/Cli.cs`. `oml help --all` (also `oml --help --all`) prints all of it; `oml` alone, `oml help` and `oml --help` print the overview (`CliUsage.Overview`, grouped by area, with the commands to ask for more); `oml <command> --help` prints only that command's lines (`architecture-render`, used by the dashboard, has none and prints all).
+The following block matches the usage constant in `src/Core/Cli.cs`. `oml help --all` (also `oml --help --all`) prints all of it, under 12 areas (Project, Read a module, The whole system, Change a module, Quality, Service Studio, Server and LifeTime, Test, Agents, Look things up, Other files, For people); `oml` alone, `oml help` and `oml --help` print the overview (`CliUsage.Overview`, grouped by area, with the commands to ask for more); `oml <command> --help` prints only that command's lines (`architecture-render`, used by the dashboard, has none and prints all).
 
 ```text
 oml version
 oml new <out.oml> [--name N] [--kind WebResponsive|Mobile|Service|ReactiveLibrary|...]
 oml new <out.oml> --template <name-or-exported.oml> [--name N]
 oml new <out.oml> --from-template <template.oml> [--name N] [--kind K]
+oml new --templates   (local template/sample modules and bundles)
 oml migrate plan <old.oml> --name <NewModule> [--in <folder|file.oml>]... [--out <folder>] [--template <reactive.oml>] [--migrated <Old>=<New>]... [--copy-exposed]   (a Traditional Web module's move to Reactive: plan, specs for old and new module, screens translated or listed; changes no module)
 oml migrate status <old.oml> <new.oml> [--plan <folder>]   (by name: done, still to do, only in new, duplicates, screens by status)
 oml app list <file.oap|file.osp>
@@ -19,7 +20,6 @@ oml app check <file.oap|file.osp> --producers <folder|package> [--deep]
 oml app pack <out.oap> --name <AppName> <module.oml|extension.xif>...
 oml extension inspect <file.xif>
 oml extension new <out.xif> --name <Name> [--spec <spec.json>]
-oml templates           (local template/sample modules and bundles)
 oml inspect <module.oml> [--own] [--only entities,structures,actions,screens,blocks,references,timers,roles,processes,rest,static,siteProperties,uiFlows] [--history] [--changed-since <yyyy-mm-dd>]
 oml inspect --in <folder> [--recursive] [--own] [--only ...]   (every .oml in the folder in one process: {modules:[{file,...}]}, a broken file gives an error entry)
 oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [--history] [--css] [--sql [--out <file.sql>]]
@@ -27,10 +27,9 @@ oml export <module.oml> <Element>...   (a screen, web block, email, server actio
 oml query <module.oml> "<ModelQL>" [--limit N] [--max-chars N] [--live] | --fields <Type>   (read-only model questions: "Root { Entities { Name } }"; Studio may be closed)
 oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
 oml find <module.oml> --text "<words>" [--top N]  (this module's elements ranked by name, description, expressions, SQL, labels)
-oml stats <module.oml>
-oml header <file.oml>...   (the module header without loading the model: name, version, upgrade level, key, hashes, signature, type)
-oml header --diff <a.oml> <b.oml>   (which header fields differ)
-oml expression "<text>"   (parse an expression: ok and its canonical form, or the parse error; exit 1 on invalid)
+oml inspect <module.oml> --stats   (how many of each element kind)
+oml inspect --header <file.oml>...   (the module header without loading the model: name, version, upgrade level, key, hashes, signature, type)
+oml inspect --header --diff <a.oml> <b.oml>   (which header fields differ)
 oml architecture [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--out <file.html>] [--json <file.json>] [--force]
 oml architecture --in <folder|file.oml|file.oap>... --publish-order [--changed <names file|folder>] [--app <Name>]... [--layers <layers.json>]   (JSON: the modules producers first, cycles; writes no file)
 oml check [<module.oml>] [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--rules <oml-rules.json>] [--baseline <old-check.json>] [--out <report.html>] [--json <report.json>] [--fail-on high|medium|low]
@@ -49,15 +48,18 @@ oml spec [<key>]                   (reference for one spec key; no key lists the
 oml spec --search "<words>" [--top N]   (ranked search of the spec keys and sections)
 oml spec check <spec.json> [--module <source.oml>]   (checks a spec's shape without Service Studio; with --module also its names; exit 1 on problems)
 oml spec schema [--out <file.json>] [--force]   (JSON Schema for spec files)
+oml spec model-types [<TypeName>...]   (members of model/plugin types on the installed build; no name lists the useful types)
+oml spec widget-types   (registered widget descriptors)
+oml spec expr "<text>"   (parse an expression: ok and its canonical form, or the parse error; exit 1 on invalid)
 oml doc [<topic>[#section]]       (OutSystems rules for agents by topic; no topic lists them. Runs without Service Studio)
 oml doc --search "<words>" [--top N] [--in <folder> | --library]   (ranked search of doc sections, spec keys, recipes, warnings and commands; --library searches the OutSystems 11 docs instead; compact JSON)
-oml outsystems-docs [status]   (the local copy of the OutSystems 11 docs for doc --search --library: sources, commit, files)
-oml outsystems-docs fetch [--source product|support|howtos]... [--from <unzipped repository>]   (download or update the OutSystems 11 docs from GitHub: Markdown only, about 15 MB)
+oml doc library [status]   (the local copy of the OutSystems 11 docs for doc --search --library: sources, commit, files)
+oml doc library fetch [--source product|support|howtos]... [--from <unzipped repository>]   (download or update the OutSystems 11 docs from GitHub: Markdown only, about 15 MB)
 oml team-rules [list]   (your company skills: Markdown rules that override OutSystems best practices; oml doc <name> prints one)
 oml team-rules add <file.md> [--force]   (check a skill file (name and description frontmatter, size, secrets) and install it for this user)
 oml team-rules remove <name>   (uninstall one company skill; the source file stays)
-oml explain-warning <id | title words>       (cause and fix of a validation message, such as NoErrorHandlingInFlow)
-oml explain-warning --catalog [<prefix>]      (list the verification ids oml knows; a prefix narrows, such as Entity_)
+oml doc warning <id | title words>   (cause and fix of a validation message, such as NoErrorHandlingInFlow)
+oml doc warning --catalog [<prefix>]   (list the verification ids oml knows; a prefix narrows, such as Entity_)
 oml memory init [--module <file.oml> | --dir <folder>] [--force]   (create the store .oml/memory/memory.log in the project root folder (the current folder); no other command does)
 oml memory add "<one fact>" [--kind fact|decision|pref|trap|log|glossary|answer] [--module <Name>] [--elements A,B] [--why "<reason>"] [--tags a,b] [--supersedes <id>] [--conf 0-100] [--src <agent>] [--valid-from <date>] [--valid-until <date>]   (one record, 300 bytes at most; secrets are refused)
 oml memory recall "<question>" [--module <Name>] [--kind K] [--top N] [--include-stale]   (the best records for a question, ranked by use; read only)
@@ -93,14 +95,13 @@ oml image <logo.png> --to svg [--mode trace|embed] [--colors 1-32] [--tolerance 
 oml image <input> --to ico [--sizes 16,32,48]   (multi-size Windows icon or favicon; sizes 1-256)
 oml image batch <folder> [same options] [--out folder]
 
-oml model-types [<TypeName>...]   (members of model/plugin types on the installed build; no name lists the useful types)
-oml widget-types             (registered widget descriptors)
-oml selftest   (build check; also runs by itself on a Service Studio build not seen before; stops with exit 2 after 10 minutes)
 oml doctor [--text] [--selftest]   (checks the setup and says what to fix)
+oml doctor --selftest --show   (the whole self-test report; it also runs by itself on a new Service Studio build; stops with exit 2 after 10 minutes)
 oml menu   (for people: an interactive menu of everyday tasks that shows the command it runs; a bare oml in a terminal opens it; agents never use it)
 oml dashboard [--port N] [--no-open] [--module <file.oml>]   (local web dashboard for developers; reads only, on 127.0.0.1)
-oml explorer-menu [--remove | --status]   (Explorer right-click entries for the current user: fonts, images, .oml files, folders)
-oml log summary [--hours N] [--file <usage.jsonl>]   (per command: count, failures, median ms, top failures; --hours: oml vs agent time per session)
+oml dashboard --change <file.md> [--port N] [--no-open]   (an agent's change walkthrough on the dashboard)
+oml menu explorer [--remove | --status]   (Explorer right-click entries for the current user: fonts, images, .oml files, folders)
+oml learn usage [--hours N] [--file <usage.jsonl>]   (the usage log per command: count, failures, median ms, top failures; --hours: oml vs agent time per session)
 Output is compact JSON on stdout. Global --pretty includes empty fields and indents. Exit 0 ok, 1 model/validation failure, 2 usage/environment.
 --timings on a command that loads a module (apply, inspect, describe, validate, install, batch, ...) adds "timings": milliseconds per phase.
 ```
@@ -108,6 +109,7 @@ Output is compact JSON on stdout. Global --pretty includes empty fields and inde
 All commands use compact JSON by default. Null fields and empty arrays or objects are omitted.
 
 **Old names.** Commands were renamed to say what they do. The old name still works, with the same output and exit code (also as a step of `oml batch`, in the usage log and in the Explorer entries made earlier), but it is not shown in help or search: `census` -> `stats`, `meta` -> `header`, `expr` -> `expression`, `api` -> `model-types`, `widgets` -> `widget-types`, `setup` -> `explorer-menu`, `run` -> `batch`, `evolve` -> `learn`, `skills` -> `team-rules`, `library` -> `outsystems-docs`, `warn` -> `explain-warning`, `lt` -> `lifetime`, `dif` -> `show-change`, `test scaffold` -> `test bdd`. The usage log always records the new name.
+**Merged commands.** Thirteen commands became a form of another one; the old name still works the same way (output, exit code, `oml batch` step, `oml mcp` tool) and keeps its own `--help`, but help, search and this file show the new form: `stats` -> `inspect <m> --stats`, `header` -> `inspect --header`, `outsystems-docs` -> `doc library`, `explain-warning` -> `doc warning`, `model-types` -> `spec model-types`, `widget-types` -> `spec widget-types`, `expression` -> `spec expr`, `templates` -> `new --templates`, `log summary` -> `learn usage`, `explorer-menu` -> `menu explorer`, `selftest` -> `doctor --selftest --show`, `show-change` -> `dashboard --change`, `mock` -> `map mock`. The usage log records the old name for both. `oml doc warning` alone is still the warnings topic, and `oml spec types` and `oml spec widgets` are still spec keys.
 Use `--pretty` at any position for indented JSON with empty fields. This also works with `oml lifetime`.
 Two outputs keep empty fields in compact JSON, so a script can read them without a missing-field check: `architecture --publish-order` (`cycles`, `warnings`) and batch `publish --in --order` (`stoppedAt`, `notRun`).
 
@@ -297,22 +299,24 @@ A line has `ts` (UTC), `cmd` (the command, with the verb for `lifetime`, `app`, 
 
 For `oml learn` and memory recall a line can also hold: `session` (a hash of `OML_SESSION`, `CLAUDE_SESSION_ID` or `CLAUDE_CODE_SESSION_ID`, never the value; without one, a gap of 30 minutes starts a new session), `opts` (the option names, such as `--module`, never their values), `recalled` (the record ids a `memory recall` returned), `specKey` (the key path of the first spec problem, letters only, such as `entities.attributes`), `topic` (the id of `oml explain-warning <id>`) and, for a `doc --search` or `spec --search` with no good hit, `query` (its words, secrets masked, cut to 100 characters) with `found: false`.
 
-`oml log summary [--file <usage.jsonl>]` prints, per command: `count`, `failures`, `medianMs` and the five most common failure messages (`topFailures`). It shows where turns are lost, such as a command that fails again and again with the same message. Without `--file` it reads `OML_LOG` (when that is a file) or the default file. `--hours N` keeps only the last N hours, adds `totalSeconds` per command (sorted by it) and `sessions`: per session, `omlSeconds` (oml running commands), `betweenCommandsSeconds` (the rest: the agent thinking, or the user away) and the three `slowest` commands. It answers "was the agent slow, or oml?". A gap of 30 minutes starts a new session.
+`oml learn usage [--file <usage.jsonl>]` prints, per command: `count`, `failures`, `medianMs` and the five most common failure messages (`topFailures`). It shows where turns are lost, such as a command that fails again and again with the same message. Without `--file` it reads `OML_LOG` (when that is a file) or the default file. `--hours N` keeps only the last N hours, adds `totalSeconds` per command (sorted by it) and `sessions`: per session, `omlSeconds` (oml running commands), `betweenCommandsSeconds` (the rest: the agent thinking, or the user away) and the three `slowest` commands. It answers "was the agent slow, or oml?". A gap of 30 minutes starts a new session.
+Old name, still works: `oml log summary`.
 
 #### Module header and expressions: oml header, oml expression
 
 Two lightweight, model-free readers for agents. Both run in the launcher, need no Service Studio and answer in milliseconds.
 
 ```text
-oml header app.oml               the module header: format, name, version, last upgrade version, key, hashes, signature, eSpace type
-oml header --diff a.oml b.oml   which header fields differ between two files
-oml expression "Amount > 100"         parse an expression; ok + canonical form, or the parse error
+oml inspect --header app.oml               the module header: format, name, version, last upgrade version, key, hashes, signature, eSpace type
+oml inspect --header --diff a.oml b.oml   which header fields differ between two files
+oml spec expr "Amount > 100"         parse an expression; ok + canonical form, or the parse error
 ```
 
-- `oml header <file.oml>...` reads the module header **without loading the model**: the `OML` magic, then the header fields (name, description, version, last upgrade version, module key, content/general hashes, signature, element-order version, eSpace type, product, last-changed-by, last modified UTC, features). It never touches the compressed module fragments, so it is fast on folders with many modules (the same header read `app check` uses for producer keys). An older XML module is read through its root attributes; an old ZIP module (pre-OML11) reports its format and nothing else. Each file prints `path` and `info` (the fields above, plus `summary`); a file that is not a readable module prints `error` and gives exit 1. `hasLuvUpgrade` is true when the module's last upgrade version is older than its own version (it will be upgraded on the next open in Service Studio).
-- `oml header --diff <a.oml> <b.oml>` compares the two headers field by field and prints `same` plus the `differing` fields (`left` and `right`). This is the quick way to see what a save, a pull, or a round trip changed: a bumped `lastUpgradeVersion`, a new `elementsOrderVersion`, a regenerated `signature`, or a changed `contentHash`. Compare the open module's manual Save As against a pulled copy to see why the copy opens differently.
-- `oml expression "<text>"` parses an expression with the same parser `oml spec check` uses. Ok: `{"ok":true,"canonical":"<normalized text>"}` - keyword casing and spacing are normalized (`NOT A AND B` -> `not A and B`, `A+B` -> `A + B`), which is also how review reads expressions so whitespace changes are not edits. Invalid: `{"ok":false,"error":{...}}` with the parser's error id and position, and exit 1. It accepts the operators (`+ - * /`, comparisons, `and or not like`), literals (string, number, `#yyyy-M-d#`/`#H:m:s#` dates and times), identifiers, indexers, calls with named arguments, and record/list literals. It is a syntax check: it does not know whether a name or function exists (that needs a module).
+- `oml inspect --header <file.oml>...` reads the module header **without loading the model**: the `OML` magic, then the header fields (name, description, version, last upgrade version, module key, content/general hashes, signature, element-order version, eSpace type, product, last-changed-by, last modified UTC, features). It never touches the compressed module fragments, so it is fast on folders with many modules (the same header read `app check` uses for producer keys). An older XML module is read through its root attributes; an old ZIP module (pre-OML11) reports its format and nothing else. Each file prints `path` and `info` (the fields above, plus `summary`); a file that is not a readable module prints `error` and gives exit 1. `hasLuvUpgrade` is true when the module's last upgrade version is older than its own version (it will be upgraded on the next open in Service Studio).
+- `oml inspect --header --diff <a.oml> <b.oml>` compares the two headers field by field and prints `same` plus the `differing` fields (`left` and `right`). This is the quick way to see what a save, a pull, or a round trip changed: a bumped `lastUpgradeVersion`, a new `elementsOrderVersion`, a regenerated `signature`, or a changed `contentHash`. Compare the open module's manual Save As against a pulled copy to see why the copy opens differently.
+- `oml spec expr "<text>"` parses an expression with the same parser `oml spec check` uses. Ok: `{"ok":true,"canonical":"<normalized text>"}` - keyword casing and spacing are normalized (`NOT A AND B` -> `not A and B`, `A+B` -> `A + B`), which is also how review reads expressions so whitespace changes are not edits. Invalid: `{"ok":false,"error":{...}}` with the parser's error id and position, and exit 1. It accepts the operators (`+ - * /`, comparisons, `and or not like`), literals (string, number, `#yyyy-M-d#`/`#H:m:s#` dates and times), identifiers, indexers, calls with named arguments, and record/list literals. It is a syntax check: it does not know whether a name or function exists (that needs a module).
 - The same parser powers the expression checks in `oml spec check` (below) and the optional strict write guard `OML_EXPR_STRICT=1` (refuses an apply that writes an unparsable expression to a module property).
+- Old names, still work: `oml header`, `oml expression`. `oml inspect <module.oml> --stats` (old name `oml stats`) counts the elements of each kind; it loads the model.
 
 #### Migrate: oml migrate
 
@@ -379,23 +383,23 @@ Regenerate the schema after you update `oml`. The schema checks shape only; `oml
 
 #### Knowledge for agents: oml doc, oml explain-warning and search
 
-Short OutSystems rules for agents, in `skill/reference/` and `skill/rules.md`, embedded in `oml.exe` like the spec reference. `oml doc` and `oml explain-warning` run in the launcher, need no Service Studio and answer in milliseconds.
+Short OutSystems rules for agents, in `skill/reference/` and `skill/rules.md`, embedded in `oml.exe` like the spec reference. `oml doc` and `oml doc warning` run in the launcher, need no Service Studio and answer in milliseconds.
 
 ```text
 oml doc                          list the topics, one line each
 oml doc ui-reactive              print one topic (data-rules, logic-rules, security, rest, osui-patterns, warnings, rules, ...)
 oml doc ui-reactive#forms        print one section of a topic
 oml doc best-practices           best practices to follow for new elements
-oml explain-warning NoErrorHandlingInFlow   cause and fix of one validation message, by id
-oml explain-warning security warning        or by words of its title
+oml doc warning NoErrorHandlingInFlow   cause and fix of one validation message, by id
+oml doc warning security warning        or by words of its title
 oml doc --search "confirm popup before delete"   the 3 most likely sections, spec keys, recipes, warnings or commands
 oml spec --search "load detail on click"   the same, spec only
 ```
 
 - `oml doc <topic>` prints the Markdown file. The name is case-insensitive, may end in `.md`, and a unique start (`ui-react`) is enough. `#<section>` prints one section: from its heading to the next heading of the same level. The section is a heading anchor (`forms-and-validation`) or part of its title (`forms`). `oml doc rules` prints `skill/rules.md`, the rules every change follows.
 - An unknown topic or section exits 2 and lists the closest topics or all sections of the topic. A section name that matches several headings exits 2 and lists them.
-- `oml explain-warning <id>` prints the rows of `warnings.md` whose id matches (case-insensitive), under their group heading. When no id matches, it prints the rows whose title or ids contain every word. Nothing found exits 2 with up to five close ids, ranked by the search engine below. An id is close only when its row holds at least half of the query's words (or their typo fixes); when none is, the message says there is no close match.
-- `oml explain-warning --catalog [<prefix>]` lists the verification ids oml knows (the ids the IDE can emit: `Entity_*`, `InvalidFlow_*`, `Expression*`, `Parser*`, `Operator*`, `SQL_*`, ...). A prefix narrows the list (`oml explain-warning --catalog SQL`). An id in the catalog but without a `warnings.md` page prints a short note instead of "no match": it is a real verification id, just one oml ships no fix text for. The catalog is built into `oml.exe`; it has no model or network.
+- `oml doc warning <id>` (old name, still works: `oml explain-warning`) prints the rows of `warnings.md` whose id matches (case-insensitive), under their group heading. When no id matches, it prints the rows whose title or ids contain every word. Nothing found exits 2 with up to five close ids, ranked by the search engine below. An id is close only when its row holds at least half of the query's words (or their typo fixes); when none is, the message says there is no close match.
+- `oml doc warning --catalog [<prefix>]` lists the verification ids oml knows (the ids the IDE can emit: `Entity_*`, `InvalidFlow_*`, `Expression*`, `Parser*`, `Operator*`, `SQL_*`, ...). A prefix narrows the list (`oml explain-warning --catalog SQL`). An id in the catalog but without a `warnings.md` page prints a short note instead of "no match": it is a real verification id, just one oml ships no fix text for. The catalog is built into `oml.exe`; it has no model or network.
 - `apply` and `validate` add `hint` (the Fix cell of `warnings.md`) to each entry of `newErrors`, `reopenNewErrors`, `newWarnings`, `errors` and `warnings` whose `id` the file lists (other entries have no `hint` field, also with `--pretty`), so an agent seldom needs `oml explain-warning`. The generic plugin ids `CustomObjectWarning` and `CustomObjectError` get no hint; look up their `message`.
 
 **Search.** `oml doc --search "<words>"` lists the 3 most likely sections, each with the command that opens it. It searches every topic (split into its `##` and `###` sections; table rows and the rules of `rules.md` are entries of their own), every row of `warnings.md`, the spec sections and the spec key index, every recipe (its header comment and the keys it uses), and every usage line of `oml help --all` (so "convert png to svg" finds `oml image`). The words may be one quoted argument or several. Output is compact JSON, about 200 tokens for 3 hits (here with `--top 1`):
@@ -595,6 +599,7 @@ The shorthand `oml validate --warnings` omits the required module path. Use the 
 
 #### Packages, templates, and extensions
 
+`oml new --templates` lists the local template and sample modules and bundles for `oml new --template` (old name, still works: `oml templates`).
 `app list` reads application metadata, modules (name, key, kind, byte size), and application dependencies.
 For `.osp`, it includes every application and loose module. `app extract` writes `.oml` and `.xif` files with SHA-256 hashes.
 It checks all filenames before writing and refuses existing files and duplicate names. Input packages are read only.
@@ -654,7 +659,7 @@ The first stdout line is JSON: `{"url": "http://127.0.0.1:<port>/?key=<key>", "w
 
 #### Explorer right-click entries
 
-`oml explorer-menu` adds right-click entries to Windows Explorer for the current user, so developers can use the converters without a terminal. It needs no admin rights: it writes only under `HKCU\Software\Classes`. On Windows 11 the entries are under "Show more options" (or Shift+right-click).
+`oml menu explorer` (old name, still works: `oml explorer-menu`) adds right-click entries to Windows Explorer for the current user, so developers can use the converters without a terminal. It needs no admin rights: it writes only under `HKCU\Software\Classes`. On Windows 11 the entries are under "Show more options" (or Shift+right-click).
 
 | Right-click on | Entry | What it does |
 |---|---|---|
@@ -672,13 +677,13 @@ The first stdout line is JSON: `{"url": "http://127.0.0.1:<port>/?key=<key>", "w
 - **Never overwrites.** When an output exists, the entry uses the next free name: `Logo.optimized (2).webp`, `woff2 (2)`. OpenAPI is the exception: it refuses, as the command does.
 - **One item at a time.** The entries appear when one file or folder is selected. For many files, use the folder entries.
 - **Failures are visible.** Every run adds a line to `%LOCALAPPDATA%\oml-cli\setup.log` (`OML_SETUP_LOG=<file>` moves it). A failure shows a message box with the reason. In a folder action, a file that fails does not stop the others; the message lists the failed files.
-- The entries call `"<full path of oml.exe>" setup run <action> "<path>"`. If you move `oml.exe`, run `oml explorer-menu` again. Before you delete `oml.exe`, run `oml explorer-menu --remove`. A path to `oml.exe` with `%` in it is refused, because Explorer reads `%` as a placeholder.
+- The entries call `"<full path of oml.exe>" setup run <action> "<path>"`. If you move `oml.exe`, run `oml menu explorer` again. Before you delete `oml.exe`, run `oml menu explorer --remove`. A path to `oml.exe` with `%` in it is refused, because Explorer reads `%` as a placeholder.
 - A console window may flash for a moment when an entry starts; it closes by itself.
 
-`oml explorer-menu --status` lists every entry with its state: `installed`, `missing`, `incomplete` (no command; `oml explorer-menu` repairs it), `other oml.exe` (made by another copy of `oml.exe`; `oml explorer-menu` updates it) or `not made by oml`.
-`oml explorer-menu --remove` deletes the entries and the keys oml created for them, and nothing else.
+`oml menu explorer --status` lists every entry with its state: `installed`, `missing`, `incomplete` (no command; `oml menu explorer` repairs it), `other oml.exe` (made by another copy of `oml.exe`; `oml menu explorer` updates it) or `not made by oml`.
+`oml menu explorer --remove` deletes the entries and the keys oml created for them, and nothing else.
 
-oml marks each key it creates with the value `OmlSetup=oml-cli`. A key with an oml entry name (`oml.*`) without this mark was not made by oml: `oml explorer-menu` then refuses and changes nothing (exit 1, the error names the keys), and `--remove` leaves it and lists it under `skipped`. Running `oml explorer-menu` again is safe; it updates its own entries.
+oml marks each key it creates with the value `OmlSetup=oml-cli`. A key with an oml entry name (`oml.*`) without this mark was not made by oml: `oml menu explorer` then refuses and changes nothing (exit 1, the error names the keys), and `--remove` leaves it and lists it under `skipped`. Running `oml explorer-menu` again is safe; it updates its own entries.
 
 `oml explorer-menu run <font|image|ico|trace|openapi|dashboard|fonts|images|architecture> <path> [--no-ui]` is what the entries run. `--no-ui` prints JSON (`ok`, `output`, `open`, `message`, `log`) instead of opening Explorer or showing a message box; exit 0 ok, 1 failed. Started from a terminal without `--no-ui`, it prints the same JSON and also opens the result. `setup.log` keeps its last 1000 lines once it passes 256 KB. `--registry-root Software\oml-setup-test-<id>` is for the tests only: it writes under that throwaway key instead of `Software\Classes`.
 
@@ -700,7 +705,7 @@ It runs these checks, in this order. Each one has a `status` (`ok`, `warn`, `fai
 
 `ok` is `false` when any check fails. The exit code is `0` when nothing fails, and `1` otherwise.
 `--text` prints one line per check, with the fix below each warning or failure.
-`--selftest` runs the self-test now. Without it, the check reads the saved result. It never calls LifeTime.
+`--selftest` runs the self-test now. Without it, the check reads the saved result. It never calls LifeTime. `oml doctor --selftest --show` prints the whole self-test report instead of the checks (old name, still works: `oml selftest`).
 A self-test that does not finish in 10 minutes stops the process with exit 2 and an error (`OML_SELFTEST_LIMIT_SECONDS` changes the limit, and `OML_SELFTEST_RECORD` names another file for the record of checked builds; both for tests only).
 
 #### Service Studio publishing and reference refresh
@@ -830,7 +835,7 @@ Service Studio picks REST or SOAP per server with the flag `SoapWSRestMigration`
 
 Errors exit 2 with `error`: missing or bad settings; a refused login (HTTP 400 or 401: check the user and password); HTTP 403 (the user may not open that module); a redirect (set the final hostname); a connection or certificate failure. Certificates are checked, so a self-signed one is refused (Service Studio skips that check). A route that answers 404 adds `noRestRoute: true`, and the message says to open the module in Service Studio and run `oml pull`. An existing `--out` file is never overwritten, and a failed or empty download leaves no file.
 
-Check a pulled file with `oml header <file.oml>` before you change it. `tests/server-check.ps1` checks this against a local mock.
+Check a pulled file with `oml inspect --header <file.oml>` before you change it. `tests/server-check.ps1` checks this against a local mock.
 
 **An existing file.** `pull --app` never overwrites a file. The folder gets `oml-server.json`: per file the module key, version id and hash. A file that is the same module version from the same server is listed with `unchanged: true` and not downloaded again. Any other file is listed in `skipped`. An unknown application name lists the closest names.
 
@@ -1422,7 +1427,7 @@ The output has `ready`: one row per step with `status` (`done`, `skipped`, `fail
 **What the lineage follows.** Only what Service Studio itself sees, never field names: an argument expression that reads another call's output (`Fetch.Response.CustomerId`), an assignment into the record a Create or Update saves (`Rec.ExternalId = ...`), an aggregate or entity Get result passed to a call (`FindCustomers.List.Current.Customer.ExternalId`), and the inputs and outputs of wrapper actions in between (an integration module that calls the API inside a public server action). Processes start from an entity event (`launchOn`), an explicit `Launch<Process>` call or a timer. Screens and blocks that only show data are not traced.
 ## Mock
 
-`oml mock <Api.Method> | --api <Api> | --all [--personas <file.json>] [--out <folder>]` writes mock responses for consumed REST APIs, to paste into a mock server such as Castlemock. It reads the application map (`oml map build` first), so the mocks agree with each other across the chain.
+`oml map mock <Api.Method> | --api <Api> | --all [--personas <file.json>] [--out <folder>]` (old name, still works: `oml mock`) writes mock responses for consumed REST APIs, to paste into a mock server such as Castlemock. It reads the application map (`oml map build` first), so the mocks agree with each other across the chain.
 
 - **Personas.** By default five: `normal` (two items in every list), `empty` (empty lists), `many` (five items), `not-found` (404) and `error` (500). Every persona has its own request values, and one value per linked group.
 - **Linked groups.** Values the map links share one value per persona: GetClient's `Response.CustomerId`, the `Customer.ExternalId` it is saved in, and the `CustomerId` input of GetCreditLines that reads it. So the CustomerId that GetClient returns for a persona is the value that selects GetCreditLines' answer for the same persona. An input the map links to nothing still gets one value per persona.
@@ -1435,7 +1440,7 @@ The output has `ready`: one row per step with `status` (`done`, `skipped`, `fail
 
 ## Show change (the Dif page)
 
-`oml show-change <file.md> [--port N] [--no-open]` starts the dashboard on its Dif page for one Markdown file: a change walkthrough an agent writes for a person, such as `specs/orders-export.md`. The person reads what changes and why, opens the elements it names, sees the review of the staged module, and sends comments back. The idea comes from diffmap (MIT); oml rebuilds it for OutSystems modules, inside the dashboard, with no Node or npm.
+`oml dashboard --change <file.md> [--port N] [--no-open]` (old name, still works: `oml show-change`) starts the dashboard on its Dif page for one Markdown file: a change walkthrough an agent writes for a person, such as `specs/orders-export.md`. The person reads what changes and why, opens the elements it names, sees the review of the staged module, and sends comments back. The idea comes from diffmap (MIT); oml rebuilds it for OutSystems modules, inside the dashboard, with no Node or npm.
 
 The page shows normal Markdown (headings, lists, tables, code), and these oml parts. Relative paths are read from the Markdown file's folder.
 
@@ -1564,19 +1569,19 @@ The files hold this machine's `oml.exe` path, so they are personal and not commi
 
 ## OutSystems docs
 
-`oml outsystems-docs fetch` downloads the OutSystems 11 documentation, so `oml doc --search "<words>" --library` can answer platform questions: Service Center, LifeTime, Platform Server, deployment zones, network, errors. `oml doc --search` without `--library` searches only oml's own docs; a weak match there suggests `--library`.
+`oml doc library fetch` (old name, still works: `oml outsystems-docs`) downloads the OutSystems 11 documentation, so `oml doc --search "<words>" --library` can answer platform questions: Service Center, LifeTime, Platform Server, deployment zones, network, errors. `oml doc --search` without `--library` searches only oml's own docs; a weak match there suggests `--library`.
 
 **Sources.** Three public GitHub repositories of OutSystems: `docs-product` (product documentation, about 1,700 files), `docs-support` (troubleshooting and support, about 770) and `docs-howtos` (how-to guides, about 120). `--source product|support|howtos` fetches only the named ones; without it, all three.
 
 **What is copied.** Only the Markdown files under `src/` (no images) and the `LICENSE`, unchanged, at the newest commit of the default branch: about 12.5 MB, 2,600 files. A fetch makes 2 GitHub API calls per source and reads the files from `raw.githubusercontent.com`; the system proxy settings apply. A fetch of all three took 91 s on one machine. A new fetch replaces a source only when it completed, so a failed fetch keeps the last copy.
 
-**Update.** OutSystems changes these docs every week. `oml outsystems-docs update` asks GitHub for the newest commit of each fetched source (1 call each) and fetches again only the sources that changed; the others stay as they are. Each source in the output has `commit` (yours), `latest`, `upToDate`, and for a changed one `commits`, `changedPages` and the first 10 `pages` (paths under `src/`), then `updated` and `files`. `--check` only reports, downloads nothing, and adds `next: "oml outsystems-docs update"` when something changed. `--source` limits it to fetched sources. A source imported with `--from` (`"commit": "local copy"`) has no commit to compare, so it always counts as changed. One run on 2026-11-01 found 212 changed product pages, 41 support pages and 3 how-to pages after 9 days, and took about 2 minutes.
+**Update.** OutSystems changes these docs every week. `oml doc library update` asks GitHub for the newest commit of each fetched source (1 call each) and fetches again only the sources that changed; the others stay as they are. Each source in the output has `commit` (yours), `latest`, `upToDate`, and for a changed one `commits`, `changedPages` and the first 10 `pages` (paths under `src/`), then `updated` and `files`. `--check` only reports, downloads nothing, and adds `next: "oml outsystems-docs update"` when something changed. `--source` limits it to fetched sources. A source imported with `--from` (`"commit": "local copy"`) has no commit to compare, so it always counts as changed. One run on 2026-11-01 found 212 changed product pages, 41 support pages and 3 how-to pages after 9 days, and took about 2 minutes.
 
-**Where.** `%LOCALAPPDATA%\oml-cli\library\<repo>\`, with `source.json` (repository, commit, date, files, size). `oml outsystems-docs` prints them. Delete the folder to remove the library.
+**Where.** `%LOCALAPPDATA%\oml-cli\library\<repo>\`, with `source.json` (repository, commit, date, files, size). `oml doc library` prints them. Delete the folder to remove the library.
 
 **Licence.** The docs are CC BY-NC-ND 4.0, (c) OutSystems. oml does not ship them: each user downloads them for their own use. Do not share or change the copy.
 
-**No access to GitHub.** On a machine with access, download the repository as a ZIP (github.com/OutSystems/docs-product: Code > Download ZIP). Unzip it on the target machine, then run `oml outsystems-docs fetch --source product --from <unzipped folder>`. `source.json` then says `"commit": "local copy"`.
+**No access to GitHub.** On a machine with access, download the repository as a ZIP (github.com/OutSystems/docs-product: Code > Download ZIP). Unzip it on the target machine, then run `oml doc library fetch --source product --from <unzipped folder>`. `source.json` then says `"commit": "local copy"`.
 
 **Search.** `--library` searches all fetched sources (at most 10,000 files, 64 MB). A saved index, `library\index.bin` (about 55 MB), holds the sections and their term counts, so a search takes about 0.75 s instead of 1.8 s. `fetch` builds it; a search rebuilds it (about 2.5 s) when it is missing, damaged or older than a source. Delete it at any time. Each hit has `kind: "library"` and `open`: the full path of the file plus `#<section>`. Read that file section to answer. `--library` and `--in` do not go together.
 
