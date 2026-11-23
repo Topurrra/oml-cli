@@ -23,7 +23,7 @@ A request about a staged module, an `oml apply` result or two module versions is
 
 ## 3. Recon before judgment
 
-Read in one call: `oml inspect <module.oml> --own --only screens,blocks`, `oml describe <module.oml> <Screen> --css`, `oml config` and `oml team-rules`. Learn:
+Read in one call: `oml inspect <module.oml> --own --only screens,blocks`, `oml describe <module.oml> <Theme> <Screen> --css`, `oml config` and `oml team-rules`. Learn:
 
 - Reactive or Traditional Web, and OutSystems UI or OutSystems UI Web (or an older theme).
 - The theme's tokens (`--color-*`, `--space-*`, `--border-radius-*`, `--font-size-*`). An older Traditional Web theme may have no CSS variables.
