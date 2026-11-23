@@ -73,6 +73,8 @@ static partial class Dashboard
                 (true, "server/versions") => await ServerVersions(request.QueryString["module"]),
                 (false, "server/pull") => await ServerPull(Body()),
                 (false, "server/review") => await ServerReview(Body()),
+                (true, "config") => await ConfigShow(request.QueryString["dir"]),
+                (false, "config/set") => await ConfigSet(Body()),
                 (true, "code") => CodePrograms(request.QueryString["dir"] is { Length: > 0 } dir ? dir : null),
                 (true, "evolve") => await Evolve("show", request.QueryString["dir"]),
                 (true, "evolve/report") => await Evolve("report", request.QueryString["dir"]),
@@ -682,6 +684,39 @@ static partial class Dashboard
         var extra = Report(html, json);
         extra["configured"] = true;
         return Wrap(r with { Cli = CliText(args.Select(a => a == html ? kind + ".html" : a == json ? kind + ".json" : a)) }, extra);
+    }
+
+    // ---- the project settings (.oml/oml-config.json) ----
+    // `oml config show` and `oml config set`: the only settings file the dashboard writes, one key at a time, with the
+    // checks of oml config itself (unknown keys, kinds, ranges, locked settings). Never a login or a token: none is a setting.
+
+    static string? ProjectDir(string? dir)
+    {
+        if (string.IsNullOrWhiteSpace(dir)) return null;
+        var path = UserPath(dir, "a project folder");
+        if (!Directory.Exists(path)) throw new BadInput($"Folder not found: {path}");
+        return path;
+    }
+
+    static readonly Regex ConfigKey = new(@"^[A-Za-z]+(\.[A-Za-z]+)?$");
+
+    static async Task<Reply> ConfigShow(string? dir)
+    {
+        var args = new List<string> { "config", "show" };
+        if (ProjectDir(dir) is { } d) args.AddRange(["--dir", d]);
+        return Wrap(await Oml([.. args]), new JsonObject { ["folder"] = ProjectDir(dir) ?? Environment.CurrentDirectory });
+    }
+
+    static async Task<Reply> ConfigSet(JsonObject body)
+    {
+        var key = Str(body, "key");
+        if (key is null || key.Length > 60 || !ConfigKey.IsMatch(key)) throw new BadInput("Choose a setting, such as checks.browser.");
+        var value = body["value"] is JsonValue v && v.TryGetValue<string>(out var s) ? s : throw new BadInput("Give the new value.");
+        if (value.Length > 500 || value.Any(char.IsControl)) throw new BadInput("The value is longer than 500 characters or has a control character.");
+        if (value.StartsWith("--")) throw new BadInput("A value cannot start with --.");
+        var args = new List<string> { "config", "set", key, value };
+        if (ProjectDir(Str(body, "dir")) is { } d) args.AddRange(["--dir", d]);
+        return Wrap(await Oml([.. args]));
     }
 
     // ---- agent activity ----

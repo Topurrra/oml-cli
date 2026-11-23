@@ -12,9 +12,10 @@ import tools from './tools.js';
 import prompt from './prompt.js';
 import recipes from './recipes.js';
 import dif from './dif.js';
+import config from './config.js';
 
 export const PAGES = [
   home, modules, explorer, architecture, agents, activity, learned, server, lifetime, tools,
-  // Not in the sidebar: Work with agents shows them as tabs. Still reachable by URL: #/prompt, #/recipes, #/dif.
-  prompt, recipes, dif,
+  // Not in the sidebar: Work with agents shows them as tabs. Still reachable by URL: #/prompt, #/recipes, #/dif, #/config.
+  prompt, recipes, dif, config,
 ];

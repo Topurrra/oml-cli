@@ -6,7 +6,8 @@ deeper than one folder level. CSP is `script-src 'self'`: no inline scripts, no 
 serves these files from this folder instead, so a change shows on reload (`oml-dashboard-dev` in `.claude/launch.json`).
 
 The dashboard is for looking; it changes very little. The only actions that make something are the Developer
-tools (fonts and images) and Architecture; Get modules copies or downloads modules into the work folder.
+tools (fonts and images), Architecture, and Config (`oml config set`, one project setting at a time); Get modules
+copies or downloads modules into the work folder.
 
 ## Structure
 

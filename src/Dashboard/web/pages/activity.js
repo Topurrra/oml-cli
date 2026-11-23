@@ -39,10 +39,10 @@ export default {
     const programs = dataTable({
       caption: 'Code-mode programs', empty: 'No program has run in this folder yet.', searchPlaceholder: 'Search programs',
       columns: [
-        { key: 'started', label: 'Started', width: '22%', render: p => when(p.started), value: p => p.started || '' },
-        { key: 'statusText', label: 'Status', width: '18%', render: p => badge(...(STATUS[p.status] || ['', p.status])) },
-        { key: 'calls', label: 'Calls', width: '12%', num: true, render: p => [String(p.calls ?? ''), p.failed ? h('div', { class: 'tiny muted' }, `${p.failed} failed`) : null], value: p => p.calls || 0 },
-        { key: 'toolsText', label: 'Tools', width: '48%' },
+        { key: 'started', label: 'Started', width: '25%', render: p => when(p.started), value: p => p.started || '' },
+        { key: 'statusText', label: 'Status', width: '20%', render: p => badge(...(STATUS[p.status] || ['', p.status])) },
+        { key: 'calls', label: 'Calls', width: '20%', render: p => [String(p.calls ?? ''), p.failed ? h('span', { class: 'tiny muted' }, ` · ${p.failed} failed`) : null], value: p => p.calls || 0 },
+        { key: 'toolsText', label: 'Tools', width: '35%' },
       ],
       filters: [{ key: 'statusText', label: 'Status' }],
       sort: { key: 'started', desc: true },

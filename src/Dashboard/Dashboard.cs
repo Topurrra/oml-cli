@@ -351,7 +351,7 @@ static partial class Dashboard
 
     internal sealed record Result(int Code, JsonNode? Output, string Stderr, string Cli);
 
-    static readonly string[] LauncherCommands = ["doctor", "spec", "doc", "explain-warning", "font", "lifetime", "log", "learn", "server"];
+    static readonly string[] LauncherCommands = ["doctor", "spec", "doc", "explain-warning", "font", "lifetime", "log", "learn", "server", "config"];
 
     // The only way the dashboard runs oml. The arguments are built by DashboardApi.cs, never taken from the page as they are.
     internal static Task<Result> Oml(params string[] args)
@@ -423,6 +423,7 @@ static partial class Dashboard
                     "learn" => Refuse("The dashboard only reads: run oml learn accept, reject and undo yourself."),
                     "server" => ServerApi.Run(rest),
                     "review" => ServerApi.Review(rest),
+                    "config" => ProjectConfig.Run(rest),
                     _ => UsageLog.Summary(rest),
                 };
             }

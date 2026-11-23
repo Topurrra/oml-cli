@@ -21,8 +21,8 @@ export default {
     const elements = [...opts.elements];
     const chips = h('div', { class: 'signature', 'aria-live': 'polite' });
     const setList = h('div');
-    const findName = h('input', { type: 'search', id: 'p-find', class: 'code', placeholder: 'Customer_Validate or Customer*', spellcheck: 'false' });
-    const findIn = h('input', { type: 'text', id: 'p-in', class: 'code', placeholder: 'C:\\Work\\Producers', value: store.get('producers', ''), spellcheck: 'false' });
+    const findName = h('input', { type: 'search', id: 'p-find', class: 'code', placeholder: 'Element: Customer_Validate or Customer*', spellcheck: 'false' });
+    const findIn = h('input', { type: 'text', id: 'p-in', class: 'code', placeholder: 'Producer folders (optional)', value: store.get('producers', ''), spellcheck: 'false' });
     const findButton = iconButton('search', 'Find the element', null, { primary: true });
     const findOut = h('div', { class: 'stack' });
     const checks = {
@@ -32,7 +32,7 @@ export default {
       noPublish: ['Do not publish', opts.noPublish],
     };
     const boxes = Object.fromEntries(Object.entries(checks).map(([k, [, v]]) => [k, h('input', { type: 'checkbox', id: 'p-' + k, checked: v })]));
-    const output = h('textarea', { id: 'p-out', class: 'code', readonly: true, rows: 14 });
+    const output = h('textarea', { id: 'p-out', class: 'code prompt-text', readonly: true, rows: 20 });
 
     const clean = p => p.trim().replace(/^"(.*)"$/, '$1');
     const staged = p => p.replace(/\.oml$/i, '') + '.staged.oml';
@@ -103,7 +103,7 @@ export default {
       store.set('prompt', { mode: opts.mode, task: taskInput.value, elements, ...Object.fromEntries(Object.entries(boxes).map(([k, b]) => [k, b.checked])) });
       chips.replaceChildren(...elements.map((e, i) => h('span', { class: 'chip' }, e.name,
         h('button', { type: 'button', 'aria-label': 'Remove ' + e.name, onclick: () => { elements.splice(i, 1); build(); } }, '×'))));
-      if (!elements.length) add(chips, h('span', { class: 'muted small' }, 'No elements yet. Find them below and add them, so the names are exact.'));
+      if (!elements.length) add(chips, h('span', { class: 'muted small' }, 'No elements yet. Find them and add them, so the agent uses the exact names.'));
       const set = workset.list();
       setList.replaceChildren(set.length === 0 ? h('p', { class: 'hint' }, 'No working set yet. ', h('a', { href: '#/modules' }, 'Get modules'), ', or type one module below.') :
         h('ul', { class: 'checklist', 'aria-label': 'Modules of the task' }, set.map(m => {
@@ -139,28 +139,34 @@ export default {
     findName.addEventListener('keydown', e => { if (e.key === 'Enter') runFind(); });
 
     const kindControl = segmented('Task kind', [['small', 'Small task'], ['architect', 'Architect']], opts.mode, v => { opts.mode = v; build(); });
+    // One numbered block per step: a number, a title, a short hint, then the fields.
+    const step = (n, title, hint, ...content) => h('section', { class: 'p-step', 'aria-labelledby': 'p-step-' + n },
+      h('div', { class: 'p-step-head' }, h('span', { class: 'p-step-num', 'aria-hidden': 'true' }, String(n)), h('h3', { id: 'p-step-' + n }, title)),
+      h('div', { class: 'p-step-body' }, hint ? h('p', { class: 'hint p-step-hint' }, hint) : null, content));
 
-    add(main, h('div', { class: 'grid-2' },
-      h('section', { class: 'card', 'aria-label': 'Task details' },
-        h('div', { class: 'field' }, h('span', { class: 'label' }, h('strong', { class: 'small' }, 'Task kind')), kindControl),
-        h('div', { class: 'field' }, h('span', { class: 'label' }, h('strong', { class: 'small' }, '1. Modules (working set)')), setList),
-        h('div', { class: 'field' }, h('label', { for: 'p-module' }, 'Another module to change (optional)'), moduleInput),
-        h('div', { class: 'field' }, h('label', { for: 'p-task' }, '2. Task: what should the agent build or change?'), taskInput,
-          h('p', { class: 'hint' }, 'Describe one change with exact names, types, screens and behaviour. One task per message works best; split big features: data model first, then logic, then screens.')),
-        h('div', { class: 'field' }, h('span', { class: 'label' }, h('strong', { class: 'small' }, '3. Elements from other modules')), chips),
-        h('div', { class: 'grid-2' },
-          h('div', { class: 'field' }, h('label', { for: 'p-find' }, 'Find an element'), findName),
-          h('div', { class: 'field' }, h('label', { for: 'p-in' }, 'Producer folders (optional)'), findIn, h('p', { class: 'hint' }, 'Read only modules are searched too.'))),
-        h('div', { class: 'field' }, h('div', { class: 'row' }, findButton), findOut),
-        h('fieldset', { class: 'field' }, h('legend', { class: 'sr-only' }, 'Limits for the agent'),
-          h('p', {}, h('strong', { class: 'small' }, '4. Limits')),
-          Object.entries(checks).map(([k, [label]]) => h('label', { class: 'check', for: 'p-' + k }, boxes[k], label)))),
-      h('section', { class: 'card', 'aria-label': 'Task for the agent' },
+    add(main, h('div', { class: 'prompt-grid' },
+      h('section', { class: 'card prompt-form', 'aria-label': 'Task details' },
+        h('div', { class: 'prompt-kind' }, h('span', { class: 'prompt-kind-label', id: 'p-kind' }, 'Task kind'), kindControl,
+          h('span', { class: 'hint' }, opts.mode === 'architect' ? 'A strong model plans and checks; workers build.' : 'One agent, one module, one change.')),
+        step(1, 'Modules', 'From the working set. Change: the agent may change it. Read only: a producer it reads.', setList,
+          h('div', { class: 'field' }, h('label', { for: 'p-module' }, 'Another module to change (optional)'), moduleInput)),
+        step(2, 'Task', 'One change with exact names, types, screens and behaviour. Split big features: data model, then logic, then screens.',
+          h('label', { for: 'p-task', class: 'sr-only' }, 'What should the agent build or change?'), taskInput),
+        step(3, 'Elements from other modules', null, chips,
+          h('div', { class: 'toolbar' }, h('label', { for: 'p-find', class: 'sr-only' }, 'Find an element'), h('div', { class: 'grow' }, findName),
+            h('label', { for: 'p-in', class: 'sr-only' }, 'Producer folders (optional)'), h('div', { class: 'grow' }, findIn), findButton),
+          findOut),
+        step(4, 'Limits', null,
+          h('fieldset', { class: 'p-limits' }, h('legend', { class: 'sr-only' }, 'Limits for the agent'),
+            Object.entries(checks).map(([k, [label]]) => h('label', { class: 'check', for: 'p-' + k }, boxes[k], label))))),
+      h('section', { class: 'card prompt-out', 'aria-label': 'Task for the agent' },
         h('div', { class: 'card-head' }, h('h2', {}, 'Task for the agent'),
           h('div', { class: 'row' }, copyButton(() => output.value, 'Copy task', 'Task'), stepsButton)), stepsHint,
         h('label', { for: 'p-out', class: 'sr-only' }, 'Task text'), output,
         h('p', { class: 'hint' }, 'Paste it into your agent. Agents ask you before anything that changes a real module or an environment.'),
         cli('oml batch steps.json --continue'))));
+    // The hint under the task kind follows the choice.
+    kindControl.addEventListener('click', () => { kindControl.nextElementSibling.textContent = opts.mode === 'architect' ? 'A strong model plans and checks; workers build.' : 'One agent, one module, one change.'; });
     build();
 
     // tests/dashboard-check.ps1 opens #/prompt?selftest=1: the working set API and the prompt text are checked in the

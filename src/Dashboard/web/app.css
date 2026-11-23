@@ -324,6 +324,53 @@ td > .button:last-child { margin-top: 8px; }
 .icon-button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .report-part + .report-part { margin-top: 18px; }
 .report-part h3 { margin: 0 0 8px; }
+/* Work with agents > Write a task: numbered steps on the left, the task text on the right (it stays in view). */
+.prompt-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.prompt-out { position: sticky; top: 16px; }
+.prompt-kind { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 0 0 18px; margin: 0 0 4px; border-bottom: 1px solid var(--line); }
+.prompt-kind-label { font-weight: 600; font-size: 13px; }
+.prompt-kind .hint { margin: 0; flex: 1 1 160px; }
+.p-step { padding: 18px 0; border-bottom: 1px solid var(--line); }
+.p-step:last-child { border-bottom: 0; padding-bottom: 0; }
+.p-step-head { display: flex; align-items: center; gap: 10px; }
+.p-step-head h3 { margin: 0; font-size: 15px; }
+.p-step-num { width: 24px; height: 24px; border-radius: 50%; display: inline-grid; place-items: center; flex: none;
+  background: var(--accent-soft); color: var(--accent); font: 700 12px var(--mono); }
+.p-step-body { padding-left: 34px; min-width: 0; }
+.p-step-hint { margin: 6px 0 12px; }
+.p-step .field { margin: 12px 0 0; }
+.p-step textarea { min-height: 120px; }
+.p-step .signature { margin: 0 0 12px; }
+.p-step .toolbar { margin-top: 4px; }
+.p-limits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; margin: 4px 0 0; }
+.p-limits .check { margin: 0; }
+textarea.prompt-text { min-height: 420px; font-size: 13px; line-height: 1.6; background: var(--sunken); }
+@media (max-width: 1100px) { .prompt-grid { grid-template-columns: minmax(0, 1fr); } .prompt-out { position: static; } }
+/* Work with agents > Config: one row per setting, the text on the left and its control on the right. */
+.cfg-search { margin: 4px 0 0; }
+.cfg-group-hint { margin: 0 0 4px; }
+.cfg-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 300px); gap: 8px 24px; align-items: start; padding: 14px 0; border-top: 1px solid var(--line); }
+.cfg-group-hint + .cfg-row, .section-body > .cfg-row:first-child { border-top: 0; }
+.cfg-row.locked { opacity: .7; }
+.cfg-name { display: inline-flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 14px; margin: 0; }
+.cfg-key { font-size: 11.5px; color: var(--muted); }
+.cfg-about { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.cfg-default { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--warn); }
+.cfg-control { display: grid; gap: 6px; justify-items: end; }
+.cfg-control input[type="text"], .cfg-control input.cfg-number { width: 100%; }
+.cfg-control input.cfg-number { max-width: 120px; }
+.cfg-many { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 0; }
+.cfg-many .check.inline { margin: 0 0 0 14px; }
+.cfg-saved { font-size: 12px; color: var(--muted); min-height: 16px; text-align: right; }
+.cfg-saved.ok { color: var(--ok); }
+.cfg-saved .message { margin: 0; text-align: left; }
+/* A checkbox shown as an on/off switch. */
+input.switch { appearance: none; -webkit-appearance: none; width: 40px; height: 22px; border-radius: 999px; background: var(--line-strong); position: relative; cursor: pointer; transition: background .15s; margin: 0; }
+input.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
+input.switch:checked { background: var(--button); }
+input.switch:checked::after { transform: translateX(18px); }
+input.switch:disabled { cursor: default; opacity: .6; }
+@media (max-width: 700px) { .cfg-row { grid-template-columns: minmax(0, 1fr); } .cfg-control { justify-items: start; } .cfg-many { justify-content: flex-start; } }
 .picker-compact { display: grid; gap: 8px; }
 .explorer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .explorer-head h2 { margin: 0; }

@@ -495,6 +495,26 @@ try {
     $noHandler = @($validate.output.warnings | Where-Object id -eq 'NoErrorHandlingInFlow')
     Require ($validate.code -in 0, 1 -and $noHandler.Count -eq 1 -and $noHandler[0].hint -and $validate.cli -like 'oml validate * --warnings') 'validate endpoint'
 
+    # Project settings (Work with agents > Config): oml config show and set, one key at a time, in a folder of its own.
+    $cfgDir = Join-Path $Tmp "dash-$id-config"
+    New-Item -ItemType Directory -Force $cfgDir | Out-Null
+    $shown = Api "config?dir=$([uri]::EscapeDataString($cfgDir))"
+    Require ($shown.code -eq 0 -and @($shown.output.settings).Count -ge 40 -and $shown.output.file -match 'not there yet' -and $shown.cli -like 'oml config show --dir *') "config show: $($shown | ConvertTo-Json -Depth 3 -Compress)"
+    $set = Api 'config/set' @{ dir = $cfgDir; key = 'checks.browser'; value = 'off' }
+    $saved = Get-Content (Join-Path $cfgDir '.oml\oml-config.json') -Raw | ConvertFrom-Json
+    Require ($set.code -eq 0 -and $saved.checks.browser -eq $false) "config set: $($set | ConvertTo-Json -Depth 3 -Compress)"
+    $ltHost = Api 'config/set' @{ dir = $cfgDir; key = 'outsystems.lifetimeHost'; value = 'https://lt.example.com/x' }
+    Require ($ltHost.code -eq 0 -and $ltHost.output.value -eq 'lt.example.com') 'config set drops the scheme and path of a host'
+    $locked = Api 'config/set' @{ dir = $cfgDir; key = 'hooks.omlWrites'; value = 'off' }
+    Require ($locked.code -ne 0) 'config set: a locked setting stays on'
+    $badNumber = Api 'config/set' @{ dir = $cfgDir; key = 'performance.warmWorkers'; value = '99' }
+    Require ($badNumber.code -ne 0) 'config set: a number out of range is refused'
+    Refused 'config/set' @{ dir = $cfgDir; key = 'checks browser'; value = 'on' } 'config set with a bad key'
+    Refused 'config/set' @{ dir = $cfgDir; key = 'checks.browser'; value = '--dir' } 'config set with an option as the value'
+    Refused 'config/set' @{ dir = (Join-Path $Tmp 'no-such-project'); key = 'checks.browser'; value = 'on' } 'config set in a missing folder'
+    Remove-Item -LiteralPath $cfgDir -Recurse -Force
+    Write-Host 'ok   dashboard: project settings (config show, set, host clean-up, locked, range and input refusals)'
+
     # Timings, and a tree depth that is not a number.
     $timed = Api 'inspect' @{ path = $module; timings = $true }
     Require ($timed.code -eq 0 -and $timed.output.timings.total -gt 0 -and $timed.cli -like '*--timings') 'inspect with timings'
@@ -514,6 +534,7 @@ try {
             @{ page = 'modules'; hash = '#/modules'; expect = 'Platform server' }, @{ page = 'prompt'; hash = '#/prompt?selftest=1' }, @{ page = 'architecture'; hash = '#/architecture' }, @{ page = 'lifetime'; hash = '#/lifetime' },
             @{ page = 'server'; hash = '#/server'; expect = 'OrdersCore' }) +
             @('agents', 'recipes', 'activity', 'learned' | ForEach-Object { @{ page = $_; hash = "#/$_"; themes = @('light') } }) +
+            @(@{ page = 'config'; hash = '#/config'; themes = @('light'); expect = 'Checks agents run' }) +
             # An old address of a removed page opens where the thing is now.
             @(@{ page = 'tools'; hash = '#/assets'; themes = @('light'); expect = 'Fonts to WOFF2'; shot = 'assets-moved' })
         foreach ($target in $targets) {
