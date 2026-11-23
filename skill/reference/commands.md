@@ -1543,11 +1543,12 @@ Anything the hook cannot read is allowed: a broken hook never blocks work. Each 
 
 The message says to save one to three short records (recall first, `--supersedes` to correct one), not to save what the module already shows, and to finish with one line when nothing is worth keeping, so it never forces filler. A session that only read or answered gets no extra turn. `OML_MEMORY_REMINDER=0` turns it off.
 
-**Where** (`--dir`, else the current folder; `--agent claude|codex|gemini` for one, default all):
+**Where** (`--dir`, else the current folder; `--agent claude|copilot|codex|gemini` for one, default all):
 
 | File | Read by | Notes |
 |---|---|---|
-| `.claude\settings.local.json` (PreToolUse, Stop) | Claude Code; GitHub Copilot agent mode in VS Code, the Copilot app and Copilot CLI; Cursor | Copilot and Cursor read Claude Code's settings files, also when Copilot runs a Claude model. If a Copilot session ignores the hook, check that agent hooks are turned on in its settings (a preview feature in some versions). |
+| `.claude\settings.local.json` (PreToolUse, Stop) | Claude Code; Cursor | Cursor reads Claude Code's settings files. |
+| `.github\hooks\oml.json` (preToolUse, sessionStart, agentStop) | GitHub Copilot: VS Code agent mode, the Copilot app, Copilot CLI | Copilot's own format (version 1, a `powershell` line on Windows). In VS Code, agent hooks are a preview and run with **Copilot** as the session target; your organization may limit hooks. A file of oml's own: `remove` deletes it. |
 | `.codex\hooks.json` (PreToolUse, Stop) | Codex | Codex runs project hooks only after you trust the project. |
 | `.gemini\settings.json` (BeforeTool, AfterAgent) | Gemini CLI | oml adds its entries next to your other settings. |
 

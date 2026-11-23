@@ -118,7 +118,7 @@ static class CreateCommand
             "staged/", "*.staged.oml", "browser/out/", "*.blank.oml",
             "# oml: caches and local state (memory.log itself is kept)",
             ".oml/memory/memory.idx", ".oml/memory/.lock", ".oml/memory/memory.log.torn-*", ".oml/testdata/", ".oml/evolve/*/", ".oml/codemode/", ".oml/code/",
-            ".claude/settings.local.json", ".codex/hooks.json", ".gemini/settings.json", "") );
+            ".claude/settings.local.json", ".github/hooks/oml.json", ".codex/hooks.json", ".gemini/settings.json", "") );
         created.Add(".gitignore");
 
         // Modules and the application map.

@@ -184,7 +184,7 @@ Require ($r.Exit -eq 0 -and $r.Json.agents[0].installed -eq $false -and $r.Json.
 $r = Call 'hooks', 'install', '--dir', $project, '--agent', 'claude'
 Require ($r.Exit -eq 0 -and @($r.Json.agents).Count -eq 1 -and $r.Json.agents[0].installed -and -not $r.Json.agents[0].replaced -and -not (Test-Path (Join-Path $project '.codex'))) "install claude only: $($r.Text)"
 $r = Call 'hooks', 'install', '--dir', $project
-Require ($r.Exit -eq 0 -and @($r.Json.agents).Count -eq 3 -and ($r.Json.agents | Where-Object agent -eq 'claude').replaced) "install all: $($r.Text)"
+Require ($r.Exit -eq 0 -and @($r.Json.agents).Count -eq 4 -and ($r.Json.agents | Where-Object agent -eq 'claude').replaced) "install all: $($r.Text)"
 $s = Get-Content $settings -Raw | ConvertFrom-Json
 Require (@($s.hooks.PreToolUse).Count -eq 2 -and $s.permissions.allow[0] -eq 'Bash(git status)' -and $s.hooks.PreToolUse[0].hooks[0].command -eq 'echo mine') "install changed the user's settings: $(Get-Content $settings -Raw)"
 Require ($s.hooks.PreToolUse[1].matcher -match 'Read' -and $s.hooks.PreToolUse[1].matcher -match 'StrReplace' -and $s.hooks.PreToolUse[1].hooks[0].command -match 'oml\.exe"? hooks check$' -and (Get-Content $settings -Raw) -notmatch '\\u0022') "hook entry: $(Get-Content $settings -Raw)"
@@ -192,14 +192,18 @@ $codex = Get-Content (Join-Path $project '.codex\hooks.json') -Raw | ConvertFrom
 Require ($codex.hooks.PreToolUse[0].matcher -match 'apply_patch' -and $codex.hooks.PreToolUse[0].hooks[0].command -match 'hooks check$') "codex hooks.json: $(Get-Content (Join-Path $project '.codex\hooks.json') -Raw)"
 $gemini = Get-Content (Join-Path $project '.gemini\settings.json') -Raw | ConvertFrom-Json
 Require ($gemini.hooks.BeforeTool[0].matcher -match 'run_shell_command' -and $gemini.hooks.BeforeTool[0].hooks[0].timeout -eq 10000) "gemini settings.json: $(Get-Content (Join-Path $project '.gemini\settings.json') -Raw)"
+# Copilot's own format: version 1, camelCase events, flat entries with a powershell line on Windows.
+$copilotFile = Join-Path $project '.github\hooks\oml.json'
+$copilot = Get-Content $copilotFile -Raw | ConvertFrom-Json
+Require ($copilot.version -eq 1 -and $copilot.hooks.preToolUse[0].command -match 'hooks check$' -and $copilot.hooks.preToolUse[0].powershell -match '^& ".*oml\.exe" hooks check$' -and $copilot.hooks.sessionStart[0].command -match 'hooks session$' -and $copilot.hooks.agentStop[0].command -match 'hooks stop$' -and $copilot.hooks.preToolUse[0].timeoutSec -eq 10) "copilot oml.json: $(Get-Content $copilotFile -Raw)"
 foreach ($x in @(@($s, 'Stop'), @($codex, 'Stop'), @($gemini, 'AfterAgent'))) {
   $entry = @($x[0].hooks.($x[1]))
   Require ($entry.Count -eq 1 -and $entry[0].matcher -eq '' -and $entry[0].hooks[0].command -match 'oml\.exe"? hooks stop$') "end-of-turn hook $($x[1]): $($entry | ConvertTo-Json -Compress -Depth 5)"
 }
 $r = Call 'hooks', '--dir', $project
-Require ($r.Exit -eq 0 -and @($r.Json.agents | Where-Object { $_.installed -and $_.exeFound -and $_.memoryReminder }).Count -eq 3 -and -not $r.Json.next) "status after install: $($r.Text)"
+Require ($r.Exit -eq 0 -and @($r.Json.agents | Where-Object { $_.installed -and $_.exeFound -and $_.memoryReminder }).Count -eq 4 -and -not $r.Json.next) "status after install: $($r.Text)"
 $r = Call 'hooks', 'remove', '--dir', $project
-Require ($r.Exit -eq 0 -and @($r.Json.agents | Where-Object removed).Count -eq 3) "remove: $($r.Text)"
+Require ($r.Exit -eq 0 -and @($r.Json.agents | Where-Object removed).Count -eq 4 -and -not (Test-Path $copilotFile)) "remove: $($r.Text)"
 $s = Get-Content $settings -Raw | ConvertFrom-Json
 Require (@($s.hooks.PreToolUse).Count -eq 1 -and $s.hooks.PreToolUse[0].hooks[0].command -eq 'echo mine') "remove took more than oml's entry: $(Get-Content $settings -Raw)"
 Require (-not (Test-Path (Join-Path $project '.codex\hooks.json')) -and -not (Test-Path (Join-Path $project '.gemini\settings.json'))) "remove left files that held only oml's hook"
@@ -273,5 +277,5 @@ try {
   Write-Host 'ok   hooks: memory reminder once after a change or qa with nothing saved; quiet when continuing, without a store, before the session, after memory add, for reading only, when off'
 } finally { foreach ($n in $saved.Keys) { [Environment]::SetEnvironmentVariable($n, $saved[$n]) } }
 
-Write-Host "ok   hooks: $($cases.Count) decisions (large references, .oml writes by tool, patch and shell; Claude, Copilot, Cursor, Codex, Gemini payloads), unreadable input allowed, install/status/remove for 3 agents keep the user's settings, refusals"
+Write-Host "ok   hooks: $($cases.Count) decisions (large references, .oml writes by tool, patch and shell; Claude, Copilot, Cursor, Codex, Gemini payloads), unreadable input allowed, install/status/remove for 4 agents keep the user's settings, refusals"
 } finally { Remove-TestWorkFolder $Tmp }

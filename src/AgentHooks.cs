@@ -13,8 +13,11 @@ namespace OmlCli;
 //   - calling the test-data API other than through oml test data.
 // Anything it cannot read is allowed: a broken hook must never block the agent's work.
 // One check serves every agent that runs command hooks before a tool. `install` writes it where each one looks:
-//   claude  .claude\settings.local.json  Claude Code, and also GitHub Copilot (VS Code agent mode, the Copilot app and
-//           CLI) and Cursor, which read Claude Code's settings files;
+//   claude  .claude\settings.local.json  Claude Code and Cursor (Copilot reads it too, but how it treats matchers there
+//           is not documented);
+//   copilot .github\hooks\oml.json       GitHub Copilot's own format (VS Code with the Copilot harness, the Copilot app
+//           and CLI): version 1, camelCase events (preToolUse, sessionStart, agentStop), flat entries, no matcher; a
+//           file of oml's own, so install writes it whole and remove deletes it;
 //   codex   .codex\hooks.json            Codex (the project must be trusted in Codex);
 //   gemini  .gemini\settings.json        Gemini CLI (BeforeTool).
 // The files hold this machine's oml.exe path, so they are personal and not committed. `remove` takes out only oml's
@@ -27,12 +30,13 @@ namespace OmlCli;
 // quotes keeps them and gets a `powershell` line (& "path") for Copilot.
 static class AgentHooks
 {
-    const string Usage = "Usage: oml hooks [status|install|remove] [--dir <project folder>] [--agent claude|codex|gemini|all]   (oml hooks check is what the hook runs)";
+    const string Usage = "Usage: oml hooks [status|install|remove] [--dir <project folder>] [--agent claude|copilot|codex|gemini|all]   (oml hooks check is what the hook runs)";
 
     sealed record Target(string Agent, string File, string Event, string Matcher, string For, string StopEvent, string SessionEvent = "SessionStart");
     static readonly Target[] Targets =
     [
-        new("claude", Path.Combine(".claude", "settings.local.json"), "PreToolUse", "Read|Grep|Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Shell|StrReplace|Delete|WebFetch", "Claude Code, GitHub Copilot (VS Code, app, CLI), Cursor", "Stop"),
+        new("claude", Path.Combine(".claude", "settings.local.json"), "PreToolUse", "Read|Grep|Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Shell|StrReplace|Delete|WebFetch", "Claude Code, Cursor", "Stop"),
+        new("copilot", Path.Combine(".github", "hooks", "oml.json"), "preToolUse", "", "GitHub Copilot (VS Code, app, CLI)", "agentStop", "sessionStart"),
         new("codex", Path.Combine(".codex", "hooks.json"), "PreToolUse", "Bash|apply_patch|Edit|Write", "Codex", "Stop"),
         new("gemini", Path.Combine(".gemini", "settings.json"), "BeforeTool", "run_shell_command|write_file|replace|read_file|web_fetch", "Gemini CLI", "AfterAgent"),
     ];
@@ -104,7 +108,7 @@ static class AgentHooks
             next = verb switch
             {
                 "install" => "Each agent reads its hook when a session starts in this folder (Codex: trust the project first). oml hooks remove takes them out. oml config sets what the guards and the session profile do.",
-                "status" when loaded.Any(x => Entries(x.Root, x.T)?.Any(Ours) != true) => "oml hooks install adds the hook for every agent (--agent to choose one).",
+                "status" when loaded.Any(x => Entries(x.Root, x.T)?.Any(x.T.Agent == "copilot" ? OursFlat : Ours) != true) => "oml hooks install adds the hook for every agent (--agent to choose one).",
                 _ => null,
             },
         });
@@ -336,8 +340,54 @@ static class AgentHooks
 
     static JsonArray? Entries(JsonObject root, Target t, bool stop = false) => root["hooks"]?[stop ? t.StopEvent : t.Event] as JsonArray;
 
+    // Copilot's entries are flat: the command sits on the entry itself, with no matcher and no nested hooks list.
+    static bool OursFlat(JsonNode? entry) =>
+        entry?["command"] is JsonValue v && v.TryGetValue<string>(out var c) && c.Contains("oml", StringComparison.OrdinalIgnoreCase)
+        && (c.EndsWith(Marker, StringComparison.Ordinal) || c.EndsWith(StopMarker, StringComparison.Ordinal) || c.EndsWith(SessionMarker, StringComparison.Ordinal));
+
+    static object CopilotStatus(Target t, string file, JsonObject root)
+    {
+        var command = Entries(root, t)?.FirstOrDefault(OursFlat)?["command"]?.GetValue<string>();
+        var exe = command is null ? null : Regex.Match(command, "^\"([^\"]+)\"") is { Success: true } quoted ? quoted.Groups[1].Value : command[..^Marker.Length];
+        return new
+        {
+            agent = t.Agent, @for = t.For, file, installed = command is not null, memoryReminder = Entries(root, t, stop: true)?.Any(OursFlat) == true,
+            exeFound = exe is null ? (bool?)null : File.Exists(exe),
+            hint = exe is not null && !File.Exists(exe) ? "oml.exe moved: run oml hooks install again." : null,
+        };
+    }
+
+    static object CopilotInstall(Target t, string file)
+    {
+        var replaced = File.Exists(file);
+        JsonObject Entry(string marker)
+        {
+            var e = new JsonObject { ["type"] = "command", ["command"] = Command(marker), ["timeoutSec"] = 10 };
+            // On Windows Copilot runs the powershell line; the call operator makes a quoted path a command there.
+            if (OperatingSystem.IsWindows()) e["powershell"] = $"& \"{Exe}\"" + marker;
+            return e;
+        }
+        var root = new JsonObject
+        {
+            ["version"] = 1,
+            ["hooks"] = new JsonObject
+            {
+                [t.Event] = new JsonArray(Entry(Marker)),
+                [t.SessionEvent] = new JsonArray(Entry(SessionMarker)),
+                [t.StopEvent] = new JsonArray(Entry(StopMarker)),
+            },
+        };
+        Save(file, root);
+        return new
+        {
+            agent = t.Agent, @for = t.For, file, installed = true, memoryReminder = true, sessionProfile = true, replaced,
+            note = "In VS Code, choose Copilot as the session target (agent hooks are a preview there); your organization may limit hooks. The file holds this machine's oml path: keep it out of git.",
+        };
+    }
+
     static object Status(Target t, string file, JsonObject root)
     {
+        if (t.Agent == "copilot") return CopilotStatus(t, file, root);
         var entry = Entries(root, t)?.FirstOrDefault(Ours);
         var command = entry?["hooks"]?.AsArray().Select(h => h?["command"] is JsonValue v && v.TryGetValue<string>(out var c) ? c : null).FirstOrDefault(c => c?.EndsWith(Marker) == true);
         var exe = command is null ? null : Regex.Match(command, "^\"([^\"]+)\"") is { Success: true } quoted ? quoted.Groups[1].Value : command[..^Marker.Length];
@@ -356,6 +406,7 @@ static class AgentHooks
 
     static object Install(Target t, string file, JsonObject root)
     {
+        if (t.Agent == "copilot") return CopilotInstall(t, file);
         if (root["hooks"] is not JsonObject hooks) root["hooks"] = hooks = [];
         var replaced = false;
         foreach (var (eventName, matcher, marker) in new[] { (t.Event, t.Matcher, Marker), (t.StopEvent, "", StopMarker), (t.SessionEvent, "", SessionMarker) })
@@ -388,6 +439,12 @@ static class AgentHooks
 
     static object Remove(Target t, string file, JsonObject root)
     {
+        if (t.Agent == "copilot")
+        {
+            var mine = File.Exists(file) && Entries(root, t)?.Any(OursFlat) == true;
+            if (mine) File.Delete(file);
+            return new { agent = t.Agent, file, removed = mine };
+        }
         var removed = false;
         foreach (var eventName in new[] { t.Event, t.StopEvent, t.SessionEvent })
             if (root["hooks"]?[eventName] is JsonArray list)
