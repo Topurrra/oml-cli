@@ -107,7 +107,7 @@ internal static class TerminalRender
             RenderArray(sb, key, array, indent);
             return;
         }
-        Line(sb, indent, Bold(key) + ": " + Scalar(value), Width - indent, indent + KeyCap + 2);
+        Line(sb, indent, Bold(key) + ": " + Tone(Scalar(value)), Width - indent, indent + KeyCap + 2);
     }
 
     static void RenderBlockLine(StringBuilder sb, string key, JsonNode value, int indent)
@@ -149,7 +149,7 @@ internal static class TerminalRender
     static void Title(StringBuilder sb, string title, int indent)
     {
         var t = Words(title);
-        var line = TerminalColors.Paint(t, TerminalColors.Bold + (TerminalColors.Enabled ? TerminalColors.Blue : ""));
+        var line = TerminalColors.Paint(t, TerminalColors.Bold + (TerminalColors.Enabled ? TerminalColors.Cyan : ""));
         sb.Append(' ', indent).AppendLine(line);
         var width = Width - indent;
         sb.Append(' ', indent).AppendLine(Repeat(Bar, Math.Max(3, width)));
@@ -240,7 +240,7 @@ internal static class TerminalRender
             line.Append(' ', indent);
             for (var c = 0; c < columns.Count; c++)
             {
-                line.Append(Pad(Clip(row[c], widths[c]), widths[c]));
+                line.Append(Tone(Pad(Clip(row[c], widths[c]), widths[c])));
                 if (c < columns.Count - 1) line.Append("  ");
             }
             sb.AppendLine(line.ToString().TrimEnd());
@@ -373,6 +373,26 @@ internal static class TerminalRender
     internal static string Clip(string text, int width) => text.Length <= width ? text : text[..Math.Max(0, width - 1)] + Ellipsis;
     static string Repeat(string s, int n) => string.Concat(Enumerable.Repeat(s, Math.Max(0, n)));
     static string Bold(string text) => TerminalColors.Paint(text, TerminalColors.Bold);
+
+    // A value's colour by what it says, so a person sees at a glance what passed, what needs a look and what failed;
+    // an oml command to run is cyan. The text itself never changes (padding included), so tables stay aligned.
+    static readonly HashSet<string> Good = new(StringComparer.OrdinalIgnoreCase)
+        { "ok", "done", "passed", "pass", "true", "saved", "opened", "installed", "published", "alreadyOpen", "ready", "valid", "yes", "on" };
+    static readonly HashSet<string> Look = new(StringComparer.OrdinalIgnoreCase)
+        { "warn", "warning", "attention", "skipped", "skip", "pending", "opening", "partial", "stale", "changed", "unknown" };
+    static readonly HashSet<string> Bad = new(StringComparer.OrdinalIgnoreCase)
+        { "fail", "failed", "error", "notOpened", "refused", "invalid", "missing", "broken", "denied" };
+    internal static string Tone(string text)
+    {
+        if (!TerminalColors.Enabled) return text;
+        var word = text.Trim();
+        if (Good.Contains(word)) return TerminalColors.Paint(text, TerminalColors.Green);
+        if (Look.Contains(word)) return TerminalColors.Paint(text, TerminalColors.Yellow);
+        if (Bad.Contains(word)) return TerminalColors.Paint(text, TerminalColors.Red + TerminalColors.Bold);
+        if (word is "false" or "-" or "no" or "off" or "none") return TerminalColors.Paint(text, TerminalColors.Dim);
+        if (word.StartsWith("oml ", StringComparison.Ordinal)) return TerminalColors.Paint(text, TerminalColors.Cyan);
+        return text;
+    }
 
     // camelCase / snake_case to words, first letter capital: "serverActions" -> "Server actions".
     static string Words(string name)
@@ -709,7 +729,7 @@ internal static class TerminalRender
             line.Append(' ', indent);
             for (var c = 0; c < present.Length; c++)
             {
-                line.Append(Pad(Clip(row[c], widths[c]), widths[c]));
+                line.Append(Tone(Pad(Clip(row[c], widths[c]), widths[c])));
                 if (c < present.Length - 1) line.Append("  ");
             }
             sb.AppendLine(line.ToString().TrimEnd());

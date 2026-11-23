@@ -20,9 +20,17 @@ internal static class TerminalColors
     static bool Detect()
     {
         if (Environment.GetEnvironmentVariable("NO_COLOR") is { Length: > 0 }) return false;
+        var setting = ColorSetting();
+        if (setting == "never") return false;
+        if (setting == "always") { if (OperatingSystem.IsWindows()) TurnOnVirtualTerminal(); return true; }
         if (Environment.GetEnvironmentVariable("TERM") == "dumb") return false;
         if (Console.IsOutputRedirected) return false; // a pipe or a file never gets ANSI
         if (!OperatingSystem.IsWindows()) return Environment.GetEnvironmentVariable("TERM") is { Length: > 0 };
+        return TurnOnVirtualTerminal();
+    }
+
+    static bool TurnOnVirtualTerminal()
+    {
         try
         {
             var handle = GetStdHandle(StdOutput);
@@ -31,6 +39,24 @@ internal static class TerminalColors
             return SetConsoleMode(handle, mode | EnableVirtualTerminalProcessing);
         }
         catch { return false; }
+    }
+
+    // output.color of the project config (.oml/oml-config.json in this folder or above): auto, always or never. Read
+    // here, not through ProjectConfig, because this file is also built into Core.
+    static string ColorSetting()
+    {
+        try
+        {
+            for (var dir = new DirectoryInfo(Environment.CurrentDirectory); dir is not null; dir = dir.Parent)
+            {
+                var file = Path.Combine(dir.FullName, ".oml", "oml-config.json");
+                if (!File.Exists(file)) continue;
+                var root = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(file), documentOptions: new System.Text.Json.JsonDocumentOptions { CommentHandling = System.Text.Json.JsonCommentHandling.Skip, AllowTrailingCommas = true });
+                return (root?["output"]?["color"] ?? root?["output.color"])?.ToString() ?? "auto";
+            }
+        }
+        catch (Exception) { }
+        return "auto";
     }
 
     public const string Reset = "\x1b[0m";

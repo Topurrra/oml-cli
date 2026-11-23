@@ -96,6 +96,11 @@
     "copyExposed": false
   },
 
+  "output": {
+    // Colours in the readable view for people: auto (when the terminal shows them), always, never. NO_COLOR in the environment turns them off. Agents read JSON, which has no colours. One of: auto, always, never.
+    "color": "auto"
+  },
+
   "lane": {
     // Small changes (only CSS values or texts of existing elements) skip the browser check, the review file and questions.
     "fast": true

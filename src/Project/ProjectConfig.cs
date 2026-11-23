@@ -64,6 +64,7 @@ static class ProjectConfig
         new("migrate.serverStore", "bool", "true", null, "oml migrate keeps session variables that server logic writes (or sensitive, or records) in a server store (entity SessionValue). Off: they stay manual."),
         new("migrate.mergeServerCalls", "bool", "true", null, "oml migrate merges consecutive server calls of a screen action into one server action (one request). Off: each call stays."),
         new("migrate.copyExposed", "bool", "false", null, "oml migrate copies exposed REST and SOAP services into the new module (as --copy-exposed). Off: they stay in the old module."),
+        new("output.color", "choice", "auto", ["auto", "always", "never"], "Colours in the readable view for people: auto (when the terminal shows them), always, never. NO_COLOR in the environment turns them off. Agents read JSON, which has no colours."),
         new("lane.fast", "bool", "true", null, "Small changes (only CSS values or texts of existing elements) skip the browser check, the review file and questions."),
         new("browser", "choice", "oml", ["oml", "agent"], "Who opens the app to look at it: oml (oml browser, its own Edge or Chrome) or agent (the agent's built-in browser)."),
         new("app.devUrl", "text", "", null, "Base URL of the app in DEV, such as https://dev.example.com/Orders."),
