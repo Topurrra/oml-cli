@@ -234,10 +234,6 @@ h1 {
   padding: 8px 16px 8px 8px; border: 1px solid var(--line); border-radius: 999px;
   background: var(--card); font-weight: 600; font-size: 15px; box-shadow: var(--shadow);
 }
-.mark {
-  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--c); color: #fff; font: 700 11px var(--mono); letter-spacing: -0.02em;
-}
 @media (prefers-reduced-motion: reduce) {
   .marquee { flex-wrap: wrap; -webkit-mask-image: none; mask-image: none; }
   .marquee-track { flex-wrap: wrap; flex-shrink: 1; row-gap: 10px; }
