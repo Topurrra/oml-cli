@@ -27,17 +27,11 @@ function Invoke-Oml([string[]]$Arguments, [hashtable]$Environment = @{}, [string
   [pscustomobject]@{ Code = $p.ExitCode; Out = [Text.Encoding]::UTF8.GetString($out.ToArray()); Err = [Text.Encoding]::UTF8.GetString($err.ToArray()); Ms = $watch.ElapsedMilliseconds }
 }
 # What differs between two cold runs too: the time a report was made, how long it took (batch "ms", review
-# "elapsedSeconds"), and the order of a flow's edges (it changes from one process to the next). Everything else must match byte for byte.
+# "elapsedSeconds"). Everything else must match byte for byte, the order of a flow's nodes and edges too.
 function Normal([string]$text) {
   $text = $text -creplace '"generatedAt":"[^"]*"', '"generatedAt":""' -creplace '"(elapsedSeconds|seconds)":[0-9.]+', '"$1":0' -creplace '"ms":\d+', '"ms":0'
   # The human view: the same times, and seconds at the end of a line (elapsedSeconds, a module's time in a check table).
-  $text = $text -creplace '\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)?', '<time>' -creplace '(?m)\b\d+\.\d{1,3}[ \t]*(?=\r?$)', '<seconds>'
-  if ($text -cmatch '^\{"element":.*"edges":\[') {
-    $flow = $text | ConvertFrom-Json
-    $flow.edges = @($flow.edges | Sort-Object from, to, kind)
-    $text = $flow | ConvertTo-Json -Depth 30 -Compress
-  }
-  $text
+  $text -creplace '\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)?', '<time>' -creplace '(?m)\b\d+\.\d{1,3}[ \t]*(?=\r?$)', '<seconds>'
 }
 function Same($a, $b) { $a.Code -eq $b.Code -and (Normal $a.Out) -ceq (Normal $b.Out) -and (Normal $a.Err) -ceq (Normal $b.Err) }
 $cold = @{ OML_WARM = '0' }

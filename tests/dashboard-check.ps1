@@ -438,6 +438,10 @@ try {
     Require ($noFlow.code -ne 0 -and ($noFlow.output.error -match 'has no flow')) "flow of a block: $($noFlow | ConvertTo-Json -Depth 6 -Compress)"
     $cliFlow = & $Oml flow $module 'PvCard/RenderCard' | ConvertFrom-Json
     Require ($LASTEXITCODE -eq 0 -and @($cliFlow.nodes | Where-Object kind -eq 'Start').Count -eq 1) "oml flow: $($cliFlow | ConvertTo-Json -Depth 6 -Compress)"
+    # Every run lists the nodes and edges in the same order (the model's child order changes from one load to the next).
+    $warmWas = $env:OML_WARM; $env:OML_WARM = '0'
+    try { $runs = 1..3 | ForEach-Object { (& $Oml flow $module 'PvCard/RenderCard' | Out-String).Trim() } } finally { $env:OML_WARM = $warmWas }
+    Require (@($runs | Select-Object -Unique).Count -eq 1) "oml flow: the order changes between runs: $($runs -join ' | ')"
     # /dif-media serves a media file below the walkthrough's folder, with the key in the query, and nothing else.
     function Media([string]$Rel, [string]$Md = $difFile, [string]$K = $key) {
         Invoke-WebRequest ("$base/dif-media?key=" + [uri]::EscapeDataString($K) + '&md=' + [uri]::EscapeDataString($Md) + '&path=' + [uri]::EscapeDataString($Rel)) -UseBasicParsing -SkipHttpErrorCheck

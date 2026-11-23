@@ -18,11 +18,15 @@ static class FlowGraph
         if (nodes.Count == 0)
             throw new ModelError($"'{path}' has no flow. Name an action, a screen action, a data action or a preparation.");
         var ids = nodes.ToDictionary(n => n, n => ElementPaths.Segment((IObjectSignature)n, owner));
+        // The model's child order changes from one load to the next: sort nodes by position, then id, and list edges
+        // in that node order (each node's edges in FlowLayout.Edges' fixed order), so the output is the same every run.
+        nodes = nodes.OrderBy(n => n.VerticalPosition).ThenBy(n => n.HorizontalPosition)
+            .ThenBy(n => ids[n], StringComparer.Ordinal).ToList();
         return new
         {
             element = CheckRules.PathOf(owner),
             kind = ElementPaths.Kind(owner),
-            nodes = nodes.OrderBy(n => n.VerticalPosition).ThenBy(n => n.HorizontalPosition).Select(n => new
+            nodes = nodes.Select(n => new
             {
                 id = ids[n],
                 name = Model.NameOf(n),
