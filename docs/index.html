@@ -456,6 +456,8 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
           <p>Not in the latest release yet? <a href="#install">Build from source</a>. Details: <a href="https://github.com/Topurrra/oml-cli/blob/main/CHANGELOG.md">CHANGELOG.md</a>.</p>
         </div>
         <ul class="new-list">
+          <li><h3>Traditional Web to Reactive</h3><p><code>oml migrate plan</code> writes the specs for a new Reactive module: logic copied, screens translated by code, wrappers for entity actions. <code>migrate status</code> shows what is left; <code>migrate check</code> checks the copy.</p></li>
+          <li><h3>Project config</h3><p><code>.oml/oml-config.json</code> sets what agents do, skip and ask. Change it with <code>oml config set</code> or the dashboard's Config tab. Allow install without asking, and <code>apply</code> changes the module in one step, after a backup.</p></li>
           <li><h3>Warm workers</h3><p>Model commands take about 0.08 s instead of 2 to 5. A background oml keeps Service Studio loaded; <code>oml code</code> uses it too.</p></li>
           <li><h3>Change, don't duplicate</h3><p>In the staged copy, agents change the existing actions, screens and blocks instead of making copies such as <code>GetOrders2</code>. Deletes and data risks wait for your yes; entity data is never deleted.</p></li>
           <li><h3>Prompts and color</h3><p><code>oml create</code> asks for the folder, modules, server and agent. Green is passed, yellow needs a look, red failed. <code>oml config example</code> prints every setting.</p></li>
