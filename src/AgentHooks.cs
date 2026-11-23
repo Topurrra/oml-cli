@@ -68,9 +68,19 @@ static class AgentHooks
 
     public static int Run(string[] args)
     {
-        if (args is ["check"]) return Check(Console.In.ReadToEnd());
-        if (args is ["stop"]) return Stop(Console.In.ReadToEnd());
-        if (args is ["session"]) return Session(Console.In.ReadToEnd());
+        // A hook must never block the agent because of oml itself: anything unexpected allows the call (exit 0, {}).
+        if (args is ["check" or "stop" or "session"])
+            try
+            {
+                var input = Console.In.ReadToEnd();
+                return args[0] switch { "check" => Check(input), "stop" => Stop(input), _ => Session(input) };
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine("oml hook: skipped after an error in oml (" + e.GetType().Name + ": " + e.Message + "); the call is allowed.");
+                Console.Out.WriteLine("{}");
+                return 0;
+            }
         if (args is ["--help" or "-h"]) { Console.WriteLine(Usage); return 0; }
         var verb = args.Length > 0 && !args[0].StartsWith("--") ? args[0] : "status";
         var rest = args.Length > 0 && !args[0].StartsWith("--") ? args[1..] : args;

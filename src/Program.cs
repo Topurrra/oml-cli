@@ -24,6 +24,8 @@ public static class Program
             return 2;
         }
         if (filtered.FirstOrDefault() == "log" && CommandTable.Find(filtered) is { } log) return log.Run!(args, filtered);
+        // The agent hooks run before every tool call: no usage log line (no file write, no lock to wait for) and no menu.
+        if (filtered is ["hooks", "check" or "session" or "stop"]) return AgentHooks.Run(filtered[1..]);
         // The menu is for a person at a terminal: taken here, before the usage log copies stdout, and a bare `oml` only when MenuModel.Bare says so.
         if (filtered.FirstOrDefault() == "menu" && CommandTable.Find(filtered) is { } menu) return menu.Run!(args, filtered);
         // oml mcp: a long-running server; the usage log must not copy its protocol stream. Each call is logged on its own.
