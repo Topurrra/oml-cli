@@ -8,10 +8,10 @@ static class CliUsage
     // areas with the same commands (`oml commands --check` compares them). A command word belongs to one area.
     public const string Text = """
         Project:
-        oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--no-skill] [--no-library] [--no-doctor]   (a project ready to work in: folders, memory, config, skill, hooks, OutSystems docs, setup check; --in adds modules and the map)
+        oml create [<project|path>] [--dir <parent>] [--in <folder|.oap|.oml>]... [--author "<name>"] [--server <host>] [--hooks <agent>] [--no-skill] [--no-library] [--no-doctor]   (a project ready to work in; alone in a terminal it asks)
         oml config [show | init | example | set <key> <value>] [--dir <project>]   (the project profile, .oml/oml-config.json: what agents do, skip, ask; example: all settings; bare: what agents follow)
         oml skill refresh [--dir <project>]   (update a project's skill/ and AGENTS.md to this oml)
-        oml hooks [status|install|remove] [--dir <project>] [--agent claude|codex|gemini|all]   (agent guards: no big references read whole, no .oml edits, no test-data API around oml; the profile for a new session)
+        oml hooks [status|install|remove] [--dir <project>] [--agent claude|copilot|codex|gemini|all]   (agent guards: no big references read whole, no .oml edits, no test-data API; the profile at session start)
         oml doctor [--text] [--selftest]   (checks the setup and says what to fix)
         oml doctor --selftest --show   (the whole self-test report; it also runs by itself on a new Service Studio build)
         oml version
@@ -90,7 +90,7 @@ static class CliUsage
         oml browser try <url> [--css <file.css>] [--html <target>=<file.html>] [--append <target>=<file.html>] [--js <file.js>] [--screenshot <file.png>] [--no-session]   (preview planned UI in the running page before building it; nothing is saved)
         oml browser sweep <url> [--widths 390,768,1366] [--out <folder>] [--no-session]   (the page at each width the project supports: overflow and its causes, layout findings, widgets shown or hidden per width)
         oml browser diff <before.json> <after.json | url>   (what changed between two snapshots (page --snapshot): widgets added, removed, moved, resized, restyled, new text)
-        oml browser stop   (close the browser of oml browser start)
+        oml browser stop | accounts   (close the browser of oml browser start; the test accounts by role)
         oml browser raw <CDP method> [<params json>]   (any DevTools call on the session's page)
         Agents:
         oml code run [-f <program.py> | -] [--arg <name>=<value>]... [--detach] [--json]   (a Python program calls oml many times, in parallel, and returns only what it needs; exit 3: waits for approval)
