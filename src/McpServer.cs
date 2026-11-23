@@ -255,7 +255,7 @@ internal static class McpServer
             else
             {
                 JsonOutput.Pretty = args.Contains("--pretty");
-                code = Program.Dispatch(args, filtered);
+                code = WarmPool.Run(args, filtered, fromMcp: true) ?? Program.Dispatch(args, filtered);
             }
         }
         catch (Exception e)

@@ -195,6 +195,24 @@ try {
   Wait-Ready
   Write-Host 'ok   warm: a killed worker falls back to cold, and a new one starts'
 
+  # 8b. oml mcp (and so oml code) sends a call it would run itself to a worker: no Service Studio start per program.
+  Wait-Ready 1
+  $before = Commands
+  $requests = @(
+    '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"warm-check","version":"1"}}}',
+    '{"jsonrpc":"2.0","method":"notifications/initialized"}',
+    ('{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"read","arguments":{"args":["inspect",' + (ConvertTo-Json $mod) + ',"--own"]}}}')
+  ) -join "`n"
+  $psi = [Diagnostics.ProcessStartInfo]::new($Oml); $psi.ArgumentList.Add('mcp')
+  $psi.UseShellExecute = $false; $psi.RedirectStandardInput = $true; $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.WorkingDirectory = $Tmp
+  $psi.Environment['OML_WARM'] = '1'
+  $p = [Diagnostics.Process]::Start($psi)
+  $p.StandardInput.WriteLine($requests); $p.StandardInput.Close()
+  $mcpOut = $p.StandardOutput.ReadToEnd(); [void]$p.StandardError.ReadToEnd(); $p.WaitForExit()
+  Require ($mcpOut -match '"id":2' -and $mcpOut -notmatch '"isError":true') "warm: oml mcp call failed: $mcpOut"
+  Require ((Commands) -gt $before) "warm: oml mcp ran the call itself, not in a worker ($before before, $(Commands) after)"
+  Write-Host 'ok   warm: oml mcp (oml code) sends its calls to a worker'
+
   # 9. oml warm stop: no worker of this build runs after it, and the next command runs cold.
   $stop = (Invoke-Oml @('warm', 'stop') $warm).Out | ConvertFrom-Json
   Require ($stop.stopped -ge 1 -and (Ready-Workers).Count -eq 0 -and @((Status).running | Where-Object thisBuild).Count -eq 0) "warm: oml warm stop left a worker: $((Status) | ConvertTo-Json -Compress -Depth 5)"

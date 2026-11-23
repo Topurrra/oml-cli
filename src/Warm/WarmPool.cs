@@ -84,10 +84,12 @@ internal static class WarmPool
 
     // ---------------------------------------------------------------- the caller
 
-    // The command's exit code when a worker ran it, or null: then the caller runs it itself.
-    public static int? Run(string[] args, string[] filtered)
+    // The command's exit code when a worker ran it, or null: then the caller runs it itself. fromMcp: `oml mcp` sends
+    // a call it would run in its own process (oml code starts a new oml mcp for every program, which would load
+    // Service Studio again each time); its Console is the call's buffer, so the worker's output lands there.
+    public static int? Run(string[] args, string[] filtered, bool fromMcp = false)
     {
-        if (McpServer.Active || WarmWorker.Active || Program.LoadedCore is not null || !CommandTable.Warms(filtered)) return null;
+        if (McpServer.Active && !fromMcp || WarmWorker.Active || Program.LoadedCore is not null || !CommandTable.Warms(filtered)) return null;
         Settings settings;
         Build? build;
         try
