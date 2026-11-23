@@ -244,6 +244,23 @@ Three tools. Each takes `{"args": [...]}`, an oml command line such as `["inspec
 A result is `{"exit": <code>, "output": <the command's JSON, or its text>, "stderr": "<last 2000 characters>"}`. A command that fails is still a normal result. `isError` is true only when oml did not run the command: a command in the wrong tool (`output.useTool` names the right one), an unknown command or bad args. A `batch` through `read` may only have read steps, a gated step is never allowed in a batch, and `batch -` is refused.
 
 Commands run one at a time in the server's process, because they share the console and Service Studio's model. These run in a child oml process, at the same time as the others: every gated command (it may wait for a person, Service Studio or the network; `server` and `review --server` read OML_SERVER_HOST, _USER and _PASSWORD from your Windows user variables when the client did not pass them), `browser` (its session lives on, and a handoff waits for Enter) and `doctor` (it checks a fresh process, and its self-test has no time limit).
+
+#### Warm workers: oml warm
+
+A model command from a shell normally pays Service Studio's start-up (2 to 5 s) and the module load in every process. With warm workers (on by default) it goes to a background oml process that has the model loaded already, and a module it read before is still open (the cache rule of `oml batch`: a file whose write time or length changed is read again). A repeated `inspect` or `describe` then takes about 0.1 s instead of 2 to 5 s. The output, stderr and exit code are the same as a cold run, and the usage log has one line per command as before.
+
+- **What goes warm:** `inspect` (also `--stats` and `--header`), `describe`, `find`, `query` (not `--live`), `tree`, `flow`, `export`, `openapi`, `validate`, `check` and `architecture` (not `--team`), `review` (not `--server`), `apply`, `new`, `batch` (not steps from stdin), `spec check`, `test bdd` and `test scenarios`. `migrate` runs on its own and its child commands go warm. Everything else always runs in its own process: whatever is interactive, long-running, networked or signs in (`browser`, `studio`, `pull`, `install`, `publish`, `references`, `server`, `lifetime`, `mcp`, `code`, `dashboard`, `menu` itself, `create`, `config`, `doctor`, `selftest`, `test data`, `memory`, `learn`), `--help`, and any command until the self-test of the installed Service Studio build has passed once.
+- **Pool:** `performance.warmWorkers` workers (default 2, at most 8). A worker runs one command at a time; a command that finds every worker busy runs in its own process at once, so parallel agents never wait in line. The first command starts a worker in the background and runs on its own; the next ones use it.
+- **Lifetime:** a worker stops after `performance.warmIdleMinutes` without a command (default 20), on `oml warm stop`, or when its memory stays high. It belongs to one oml build and one Service Studio build: another build starts its own. It runs from a copy of oml's files (`%LOCALAPPDATA%\oml-cli\warm\bin-<build>`), so rebuilding or updating oml is never blocked.
+- **Safety:** anything that goes wrong on the warm path runs the command in its own process instead. A worker that dies in the middle of a command that already printed part of its answer is reported as a crash (exit 1, `hint`), like a crash of a normal run. The worker gets the caller's folder, environment (without OML_SERVER_* and OML_LIFETIME_* values, which the warm commands do not use) and console (human view, colors, width).
+- `performance.warm false` in `.oml/oml-config.json` turns it off for a project. `--timings` still works: `startup` is the calling process's, and `serviceStudioInit` is 0.
+
+```text
+oml warm [status]      the settings and the running workers (build, busy, commands, idle seconds, memory)
+oml warm stop [--all]  stop the workers of this oml build (--all: of every build); a running command finishes first
+```
+
+`oml doctor` names the running workers (`warm` in its JSON).
 #### Code mode
 
 `oml code run` runs one Python program that calls oml many times and returns only what it needs. Use it instead of single `oml` calls when a step needs logic between commands (filter, compare, decide), the same reads over many modules, or a few fields out of a large output. A fixed list of commands with no logic between them: `oml batch`. One command: run it directly.
@@ -1520,6 +1537,7 @@ The lines of a gallery (the block ends with a line that holds only `:::`):
 | `outsystems.odcMcpServer` | The address of the OutSystems MCP server of your ODC tenant (`https://<tenant>/mcp`). Agents use it for ODC apps; oml does not call it. |
 | `memory.*`, `docs.library`, `map.use` | `recall`, `write`, `reminder`; the docs library; the application map. |
 | `hooks.*` | `bigDocs`, `testDataApi`, `externalBrowser`, `sessionProfile`. Locked on: `omlWrites` (the only locked setting). |
+| `performance.*` | `warm` (on: model commands run in a warm oml worker, see [Warm workers](#warm-workers-oml-warm)), `warmWorkers` (1 to 8, default 2), `warmIdleMinutes` (1 to 1440, default 20). |
 
 The file holds no secrets: a text value that looks like one is refused. An unknown key or a wrong value is ignored and named in `problems`. A file that cannot be read gives the defaults and never blocks an agent.
 

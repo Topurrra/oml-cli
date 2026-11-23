@@ -9,7 +9,7 @@ namespace OmlCli;
 // Mcp: the tool of `oml mcp` that runs the command ("read", "write", "gated", or "read write" for both); null: no tool
 // runs it. McpTools adds the rules per subcommand and option. Hidden: no usage line in CliUsage.Text: the maintainer commands
 // and the old names of merged commands (CliUsage.Merged: the new form, such as `doc warning`, runs the old entry).
-internal sealed record Cmd(string Name, Func<string[], string[], int>? Run, Func<string[], bool>? When = null, bool NoTimings = false, bool Help = false, bool Hidden = false, string? Mcp = null);
+internal sealed record Cmd(string Name, Func<string[], string[], int>? Run, Func<string[], bool>? When = null, bool NoTimings = false, bool Help = false, bool Hidden = false, string? Mcp = null, bool Warm = false);
 
 internal static class CommandTable
 {
@@ -22,7 +22,7 @@ internal static class CommandTable
         new("server", (_, f) => ServerApi.Run(Rest(f)), NoTimings: true, Help: true, Mcp: "gated"),
         new("font", (_, f) => FontAssets.Run(Rest(f)), NoTimings: true, Help: true),
         new("doctor", (_, f) => Doctor.Run(Rest(f)), NoTimings: true, Help: true, Mcp: "read"),
-        new("spec", (_, f) => SpecCommand.Run(Rest(f)), NoTimings: true, Mcp: "read write"),
+        new("spec", (_, f) => SpecCommand.Run(Rest(f)), NoTimings: true, Mcp: "read write", Warm: true),
         new("doc", (_, f) => DocCommand.Run(Rest(f)), NoTimings: true, Mcp: "read"),
         new("explain-warning", (_, f) => DocCommand.Warn(Rest(f)), NoTimings: true, Hidden: true, Mcp: "read"),   // doc warning <id>
         new("memory", (_, f) => MemoryCommand.Run(Rest(f)), NoTimings: true, Mcp: "read"),
@@ -37,17 +37,17 @@ internal static class CommandTable
         // oml code: the code-mode runtime in codemode/ (Python); the arguments go to it as typed, --json included.
         new("code", (a, _) => CodeMode.Run(CodeMode.AfterCommand(a)), NoTimings: true),
         // oml test data: the module spec needs the producer module (Core); the rest calls the test-data API here.
-        new("test", (_, f) => TestDataCommand.Run(Rest(f, 2)), f => f.Length > 1 && f[1] == "data" && !(f.Length > 2 && f[2] == "module"), Mcp: "read"),
+        new("test", (_, f) => TestDataCommand.Run(Rest(f, 2)), f => f.Length > 1 && f[1] == "data" && !(f.Length > 2 && f[2] == "module"), Mcp: "read", Warm: true),
         new("outsystems-docs", (_, f) => Library.Run(Rest(f)), NoTimings: true, Help: true, Hidden: true),   // doc library
         new("team-rules", (_, f) => CompanySkills.Run(Rest(f)), NoTimings: true, Mcp: "read"),
         new("dashboard", (_, f) => Dashboard.Run(Rest(f)), NoTimings: true, Help: true),
         new("browser", (_, f) => Qa.QaCommand.Run(Rest(f)), NoTimings: true, Help: true, Mcp: "write"),
         new("show-change", (_, f) => Dashboard.Dif(Rest(f)), NoTimings: true, Help: true, Hidden: true),   // dashboard --change
         new("explorer-menu", (_, f) => Setup.Run(Rest(f)), _ => OperatingSystem.IsWindows(), NoTimings: true, Help: true, Hidden: true),   // menu explorer
-        new("architecture", TeamRun, f => f.Contains("--team"), Mcp: "read"),
-        new("check", TeamRun, f => f.Contains("--team"), Mcp: "read"),
+        new("architecture", TeamRun, f => f.Contains("--team"), Mcp: "read", Warm: true),
+        new("check", TeamRun, f => f.Contains("--team"), Mcp: "read", Warm: true),
         // oml review --server: pulls two versions from the platform server (a login), then Core reviews them.
-        new("review", (_, f) => ServerApi.Review(Rest(f)), f => f.Contains("--server"), Mcp: "read"),
+        new("review", (_, f) => ServerApi.Review(Rest(f)), f => f.Contains("--server"), Mcp: "read", Warm: true),
         // The launcher only prints image's help and refuses --timings; Core converts the image.
         new("image", null, NoTimings: true, Help: true),
         // Taken in Main, before the usage log wraps the call (a summary of the log is not itself logged); --help goes to Core.
@@ -57,17 +57,38 @@ internal static class CommandTable
         // `oml mcp`: a server on stdin and stdout. Taken in Main, before the usage log wraps it (each call is logged on its own).
         new("mcp", (_, f) => McpServer.Run(Rest(f)), f => !f.Contains("--help") && !f.Contains("-h"), NoTimings: true, Help: true),
         // Commands Core runs, listed here only for the tool of `oml mcp` that runs them.
-        new("version", null, Mcp: "read"), new("inspect", null, Mcp: "read"), new("describe", null, Mcp: "read"), new("find", null, Mcp: "read"),
-        new("tree", null, Mcp: "read"), new("flow", null, Mcp: "read"), new("stats", null, Hidden: true, Mcp: "read"), new("header", null, Hidden: true, Mcp: "read"),
-        new("expression", null, Hidden: true, Mcp: "read"), new("openapi", null, Mcp: "read"), new("export", null, Mcp: "read"), new("studio", null, Mcp: "read"),
-        new("app", null, Mcp: "read"), new("query", null, Mcp: "read"), new("validate", null, Mcp: "read"), new("batch", null, Mcp: "read write"),
-        new("apply", null, Mcp: "write"), new("new", null, Mcp: "write"),
+        // Warm: the command may run in a warm worker (WarmPool); Warms has the exceptions per subcommand and option.
+        new("version", null, Mcp: "read"), new("inspect", null, Mcp: "read", Warm: true), new("describe", null, Mcp: "read", Warm: true), new("find", null, Mcp: "read", Warm: true),
+        new("tree", null, Mcp: "read", Warm: true), new("flow", null, Mcp: "read", Warm: true), new("stats", null, Hidden: true, Mcp: "read", Warm: true), new("header", null, Hidden: true, Mcp: "read", Warm: true),
+        new("expression", null, Hidden: true, Mcp: "read"), new("openapi", null, Mcp: "read", Warm: true), new("export", null, Mcp: "read", Warm: true), new("studio", null, Mcp: "read"),
+        new("app", null, Mcp: "read"), new("query", null, Mcp: "read", Warm: true), new("validate", null, Mcp: "read", Warm: true), new("batch", null, Mcp: "read write", Warm: true),
+        new("apply", null, Mcp: "write", Warm: true), new("new", null, Mcp: "write", Warm: true),
         new("install", null, Mcp: "gated"), new("publish", null, Mcp: "gated"), new("references", null, Mcp: "gated"), new("pull", null, Mcp: "gated"),
         // Hidden maintainer commands: not in the usage text, not in help.
         new("terminal-test", (_, _) => { var result = TerminalRender.SelfTest(); Console.WriteLine(result); return result == "ok" ? 0 : 1; }, Hidden: true),
         new("commands", (_, f) => Commands(f), Hidden: true, Mcp: "read"),
         new("menu-test", (_, _) => { var result = MenuTest.Run(); Console.WriteLine(result); return result == "ok" ? 0 : 1; }, Hidden: true),
+        // oml warm status | stop: the warm workers (WarmPool). Hidden from the overview; commands.md documents it.
+        new("warm", (_, f) => WarmPool.Command(Rest(f)), NoTimings: true, Hidden: true),
     ];
+
+    // Whether a warm worker may run this command line (normalized, command first): the table's Warm field, except the
+    // forms that are interactive, reach a server or Service Studio, read stdin, or only print help or usage. Only
+    // commands that load modules, read files and write new files go warm; everything else always runs in its own process.
+    public static bool Warms(string[] f)
+    {
+        if (f.Length < 2 || f.Contains("--help") || f.Contains("-h") || !All.Any(c => c.Name == f[0] && c.Warm)) return false;
+        return f[0] switch
+        {
+            "spec" => f[1] == "check",                        // the other forms need no Service Studio
+            "test" => f[1] is "bdd" or "scenarios",           // test data calls a server
+            "query" => !f.Contains("--live"),                 // --live asks Service Studio
+            "check" or "architecture" => !f.Contains("--team"),   // --team downloads from LifeTime
+            "review" => !f.Contains("--server"),              // --server signs in to the platform server
+            "batch" => !f.Skip(1).Contains("-"),              // steps from stdin
+            _ => true,
+        };
+    }
 
     // The entry the launcher runs for these arguments, or null when Core does.
     public static Cmd? Find(string[] filtered) =>

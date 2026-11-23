@@ -14,18 +14,9 @@ internal static class TerminalRender
     const int MaxDepth = 6;
     const int MaxRows = 300;
 
-    static int Width => SafeWidth();
-    static int SafeWidth()
-    {
-        try { return Console.WindowWidth > 40 ? Console.WindowWidth : 100; }
-        catch { return 100; }
-    }
-    static bool Unicode { get; } = DetectUnicode();
-    static bool DetectUnicode()
-    {
-        try { return !Console.OutputEncoding.IsSingleByte; }
-        catch { return true; }
-    }
+    static int Width => ConsoleFacts.Width;
+    static bool Unicode => ConsoleFacts.Unicode ?? OwnUnicode;
+    static readonly bool OwnUnicode = ConsoleFacts.OwnUnicode();
     static string Bar => Unicode ? "─" : "-";
     static string Bullet => Unicode ? "•" : "-";
     static string Ellipsis => Unicode ? "…" : "...";

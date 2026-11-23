@@ -136,6 +136,7 @@ static class Doctor
             {
                 checks = checks.Select(c => new { name = c.Name, status = c.Status, detail = c.Detail, fix = c.Fix }),
                 ok,
+                warm = WarmPool.Summary(),   // left out when no warm worker runs
             });
         }
         return ok ? 0 : 1;

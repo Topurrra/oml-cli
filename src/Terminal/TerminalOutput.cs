@@ -27,7 +27,13 @@ internal static class TerminalOutput
         var env = Environment.GetEnvironmentVariable("OML_OUTPUT");
         if (env == "json") return false;
         if (env == "human") { ForceHuman = true; return true; }
-        return !Console.IsOutputRedirected && ForDevelopers(Command);
+        return !ConsoleFacts.OutputRedirected && ForDevelopers(Command);
+    }
+
+    // A warm worker, before each command: the state a fresh oml process starts with.
+    public static void Reset(string? command)
+    {
+        (InRun, ForceJson, ForceHuman, Command) = (false, false, null, command);
     }
 
     // Commands developers type themselves. Every other command (the agent loop: inspect, describe, apply, spec, batch,
@@ -87,7 +93,7 @@ internal static class TerminalOutput
 // stays clean. `oml outsystems-docs fetch` already prints its own bar; the commands that use this one do the same.
 internal static class TerminalProgress
 {
-    public static bool Active => !TerminalOutput.InRun && !Console.IsErrorRedirected;
+    public static bool Active => !TerminalOutput.InRun && !ConsoleFacts.ErrorRedirected;
 
     public static void Message(string text)
     {

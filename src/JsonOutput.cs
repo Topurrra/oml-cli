@@ -27,7 +27,7 @@ static class JsonOutput
     public static string Safe(string json, bool indented)
     {
         var first = json.AsSpan().IndexOfAnyExceptInRange('\0', '\x7F');
-        if (first < 0 || indented && !Console.IsOutputRedirected) return json;
+        if (first < 0 || indented && !ConsoleFacts.OutputRedirected) return json;
         var ascii = new StringBuilder(json.Length + 64).Append(json, 0, first);
         foreach (var c in json.AsSpan(first))
             if (c > '\x7F') ascii.Append("\\u").Append(((int)c).ToString("X4")); else ascii.Append(c);
