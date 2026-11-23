@@ -85,7 +85,7 @@ Bind Show Popup to a Boolean local; client actions set it to open or close. With
 ## Accessibility musts
 
 - Every screen has a title. Every Input has a Label whose Input Widget points to it.
-- Images have `alt` (empty for decoration). Decorative icons: `aria-hidden="true"`. Icon-only buttons: `aria-label`. Widget HTML attributes (`alt`, `aria-*`, `disable-virtualization`) are Service Studio only: list them for the user to add.
+- Images have `alt` (empty for decoration). Decorative icons: `aria-hidden="true"`. Icon-only buttons: `aria-label`. Set widget HTML attributes (`alt`, `aria-*`, `role`, `disable-virtualization`) with the widget's `attributes` key (`oml spec "Reactive UI and Mobile UI"`); each value is an expression, such as `"\"Close\""`.
 - Headings: an `AdvancedHtml` widget (HTML Element) with tag `h1` to `h6`.
 - `EnableAccessibilityFeatures` = True on the layout helps every screen; it is a layout change, so ask the user first.
 - Contrast: 4.5 to 1 below 24 px text, 3 to 1 from 24 px.
