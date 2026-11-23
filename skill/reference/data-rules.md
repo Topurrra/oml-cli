@@ -13,7 +13,7 @@ Entities, types, static entities, delete rules, indexes, aggregates, SQL and tra
 - Mandatory is checked by forms and validation, not by the database.
 - Attribute and variable defaults must be literals (or `NullDate()`, `NullIdentifier()`, `CurrDate()`, `CurrDateTime()` and similar).
 - Update Behavior "Changed Attributes" (entity `updateBehavior`) writes only attributes assigned after the record was read. A record built from scratch or copied whole can update nothing; assign attributes one by one.
-- A rename or delete leaves the old column and data in the database; a type change that cannot convert fails at publish. oml refuses both (rules 3 and 5).
+- An attribute rename or delete leaves the old column and data in the database; a type change that cannot convert fails at publish. oml refuses all three (rule 2). A shorter length, fewer decimals or a new mandatory setting needs the user's yes (rule 5).
 - A new attribute gets the type default in existing rows.
 
 ## Types and null
@@ -55,7 +55,7 @@ Entities, types, static entities, delete rules, indexes, aggregates, SQL and tra
 - Optional filter without Expand Inline (SQL Server syntax): `(@Name = '' OR {Customer}.[Name] LIKE '%' + @Name + '%')`.
 - Expand Inline pastes text into the SQL (injection risk). Only for fixed text chosen by the app. `IN` lists: `BuildSafe_InClauseIntegerList` or `BuildSafe_InClauseTextList`. A parameter can never be a column, a table or `ORDER BY` text.
 - Never touch tables named `OSSYS_`, `OSUSR_` or `OSLOG_` directly.
-- oml refuses SQL with DELETE, UPDATE, TRUNCATE, DROP, ALTER or MERGE (rule 6); SELECT and INSERT are allowed. Tell the user when a task needs more.
+- SQL with DELETE, UPDATE, TRUNCATE, DROP, ALTER or MERGE needs the user's yes (rule 6): apply stops with `needsApproval`. SELECT and INSERT are free.
 
 ## Transactions
 

@@ -125,8 +125,8 @@ internal static class McpServer
             "read" => $"Run an oml command that only reads. Commands: {commands}, help. Not: memory add/retract/dream/init, map build, team-rules add/remove, "
                       + "review --server, check or architecture --team, test data allow/create/update/cleanup. A batch here may only have read steps." + result,
             "write" => $"Run an oml command that writes new files: {commands}, memory add/retract/dream/init, map build, team-rules add/remove. "
-                       + "A batch goes here when a step writes (apply). browser runs in a child process." + result,
-            _ => $"Run a command that needs a person's approval first: {commands}, review --server, check or architecture --team, "
+                       + "A batch goes here when a step writes (apply). apply --user-approved is gated. browser runs in a child process." + result,
+            _ => $"Run a command that needs a person's approval first: {commands}, apply --user-approved, review --server, check or architecture --team, "
                  + "test data allow/create/update/cleanup. Runs in a child oml process." + result,
         };
     }

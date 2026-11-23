@@ -94,10 +94,6 @@ $numbers = Apply-Spec 'data-number-set' $numbers.Out '{ "edits": [ { "op": "setA
 Require ($numbers.Exit -eq 0 -and (Describe-Text $numbers.Out Caller).Contains('X = 2')) "number setArgs: $($numbers.Text)"
 Write-Host 'ok   data names, Id types, number arguments'
 $cases = @(
-  @{ name = 'identifier'; spec = '{ "entities": [ { "name": "Person", "identifier": "Name" } ] }'; problem = "refused: 'Person' is an existing entity. oml never changes its identifier" },
-  @{ name = 'update'; spec = '{ "entities": [ { "name": "Person", "updateBehavior": "changedAttributes" } ] }'; problem = 'oml never changes its update behavior' },
-  @{ name = 'set-label'; spec = '{ "edits": [ { "op": "set", "element": "Person", "properties": { "labelAttribute": "Active" } } ] }'; problem = 'oml never changes its label attribute' },
-  @{ name = 'set-auto'; spec = '{ "edits": [ { "op": "set", "element": "Person/Id", "properties": { "isAutoNumber": "No" } } ] }'; problem = 'mandatory or auto number setting' },
   @{ name = 'index-changed'; spec = '{ "entities": [ { "name": "Person", "indexes": [ { "name": "IX_CountryId_BirthDate", "attributes": ["BirthDate"] } ] } ] }'; problem = 'oml does not change existing indexes' },
   @{ name = 'index-attribute'; spec = '{ "entities": [ { "name": "Person", "indexes": [ { "attributes": ["Name", "Name"] } ] } ] }'; problem = 'an attribute is listed twice' },
   @{ name = 'index-missing'; spec = '{ "entities": [ { "name": "Person", "indexes": [ { "attributes": ["Missing"] } ] } ] }'; problem = "'Missing' is not an attribute of Person" },
@@ -112,10 +108,6 @@ $cases = @(
   @{ name = 'add-other'; spec = '{ "edits": [ { "op": "addToAggregate", "aggregate": "PeopleByYear/ByYear", "maxRecords": 5 } ] }'; problem = "addToAggregate does not take 'maxRecords'" },
   @{ name = 'add-not-aggregate'; spec = '{ "edits": [ { "op": "addToAggregate", "aggregate": "PeopleByYear", "filters": ["True"] } ] }'; problem = 'aggregate must be the path of an aggregate' },
   @{ name = 'set-args'; spec = '{ "edits": [ { "op": "setArgs", "element": "PeopleByYear/ByYear", "args": { "X": "1" } } ] }'; problem = 'node does not accept arguments' },
-  @{ name = 'set-public'; spec = '{ "edits": [ { "op": "set", "element": "Country", "properties": { "public": false } } ] }'; problem = "refused: 'Country' is an existing public entity. oml never makes it private: that breaks the modules that use it (rule 4)" },
-  @{ name = 'set-public-action'; spec = '{ "edits": [ { "op": "set", "element": "PeopleByYear", "properties": { "public": false } } ] }'; problem = "refused: 'PeopleByYear' is an existing public element. oml never makes it private" },
-  @{ name = 'public-key'; spec = '{ "structures": [ { "name": "PersonDto", "public": false } ] }'; problem = "refused: 'PersonDto' is an existing public element. oml never makes it private" },
-  @{ name = 'multi-tenant'; spec = '{ "edits": [ { "op": "set", "element": "Person", "properties": { "isMultiTenant": "Yes" } } ] }'; problem = 'oml never changes its multi-tenant setting' },
   @{ name = 'index-name'; spec = '{ "entities": [ { "name": "Person", "indexes": [ { "name": "Bad Name!", "attributes": ["Name"] } ] } ] }'; problem = "'Bad Name!' is not a valid index name" },
   @{ name = 'cache-screen'; spec = '{ "screens": [ { "name": "S", "aggregates": [ { "name": "Q", "sources": ["Person"], "cacheInMinutes": 5 } ] } ] }'; problem = 'cacheInMinutes applies only to aggregates in server actions' },
   @{ name = 'timeout-text'; spec = '{ "screens": [ { "name": "S", "aggregates": [ { "name": "Q", "sources": ["Person"], "timeout": "ten" } ] } ] }'; problem = 'timeout must be a whole number of seconds, got "ten"' },
@@ -135,6 +127,26 @@ foreach ($case in $cases) {
 $check = & $Oml spec check (Join-Path $Tmp 'data-sort-key.json') 2>&1
 Require ($LASTEXITCODE -ne 0 -and ($check -join '').Contains("sorts[0]: unknown key 'dynamc'")) "spec check missed a misspelled sort key: $check"
 Write-Host 'ok   data refusal paths'
+# Rule 5: a new identifier, auto number or multi-tenant setting on an existing entity waits for the user's yes (needsApproval).
+foreach ($case in @(
+  @{ name = 'identifier'; spec = '{ "entities": [ { "name": "Person", "identifier": "Name" } ] }'; what = "entity 'Person': identifier Id -> Name" },
+  @{ name = 'set-auto'; spec = '{ "edits": [ { "op": "set", "element": "Person/Id", "properties": { "isAutoNumber": "No" } } ] }'; what = "attribute 'Person/Id': auto number" },
+  @{ name = 'multi-tenant'; spec = '{ "edits": [ { "op": "set", "element": "Person", "properties": { "isMultiTenant": "Yes" } } ] }'; what = "entity 'Person': multi-tenant setting" })) {
+  $r = Apply-Spec "data-$($case.name)" $built $case.spec
+  $asked = @($r.Report.needsApproval | ForEach-Object { $_.what }) -join "`n"
+  Require ($r.Exit -eq 1 -and -not (Test-Path -LiteralPath $r.Out) -and $asked.Contains($case.what)) "$($case.name): expected needsApproval '$($case.what)', got $($r.Text)"
+}
+# Other entity settings save; public to private saves and is listed as breaking (rule 4).
+foreach ($case in @(
+  @{ name = 'update'; spec = '{ "entities": [ { "name": "Person", "updateBehavior": "allAttributes" } ] }' },
+  @{ name = 'set-label'; spec = '{ "edits": [ { "op": "set", "element": "Person", "properties": { "labelAttribute": "Active" } } ] }' },
+  @{ name = 'set-public'; spec = '{ "edits": [ { "op": "set", "element": "Country", "properties": { "public": false } } ] }'; breaking = "entity 'Country' was public and is now private" },
+  @{ name = 'set-public-action'; spec = '{ "edits": [ { "op": "set", "element": "PeopleByYear", "properties": { "public": false } } ] }'; breaking = "'PeopleByYear' was public and is now private" },
+  @{ name = 'public-key'; spec = '{ "structures": [ { "name": "PersonDto", "public": false } ] }'; breaking = "structure 'PersonDto' was public and is now private" })) {
+  $r = Apply-Spec "data-$($case.name)" $built $case.spec
+  Require ($r.Exit -eq 0 -and $r.Report.saved -and (-not $case.breaking -or (@($r.Report.breaking) -join "`n").Contains($case.breaking))) "$($case.name): expected a save $($case.breaking), got $($r.Text)"
+}
+Write-Host 'ok   data: rule 5 asks for the identifier, auto number and multi-tenant setting; other settings and public to private save'
 
 # Aggregate edits on an existing aggregate: add, then change and remove what was added.
 $add = Apply-Spec 'data-add' $built '{ "edits": [

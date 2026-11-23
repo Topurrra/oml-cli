@@ -500,12 +500,12 @@ internal static class TerminalRender
         if (root["summary"] is JsonObject summary)
         {
             var parts = new List<string>();
-            foreach (var key in new[] { "newErrors", "reopenNewErrors", "newWarnings", "problems" })
+            foreach (var key in new[] { "newErrors", "reopenNewErrors", "newWarnings", "problems", "needsApproval", "breaking" })
             {
                 var value = summary[key]?.GetValue<int>();
                 if (value is > 0) parts.Add($"{Words(key)} {value}");
             }
-            if (parts.Count > 0) sb.AppendLine(string.Join(", ", parts.Take(4)));
+            if (parts.Count > 0) sb.AppendLine(string.Join(", ", parts));
         }
         RenderObject(sb, Without(root, handled.ToArray()), 0, section: true);
     }

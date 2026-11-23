@@ -84,6 +84,9 @@ static class Content
             var selected = copy.Elements.Select(p => ElementPaths.Resolve(source, p) is var e && ElementPaths.Referenced(e)
                 ? throw new ModelError($"'{p}' in {copy.From} is an element of a module that it references; copy it from that producer module") : e).ToArray();
             if (selected.Length == 0) throw new ModelError("elements must not be empty");
+            // Rule 2: a pasted entity is a new table here, without the production data of the original.
+            if (selected.SelectMany(ProductionRules.Walk).OfType<OutSystems.Model.Data.IEntitySignature>().FirstOrDefault() is { } entity)
+                throw new ModelError(ProductionRules.Forbidden($"'{Model.NameOf(entity)}' is an entity: a copy of it makes a new, empty table in this module, and its data stays in {Path.GetFileName(copy.From)}.", "Reference the entity from its module instead (\"references\"), and copy the other elements."));
             foreach (var item in selected)
                 if (Refs.All(m).FirstOrDefault(x => x.owner == ((OutSystems.Model.Applications.IModule)m).Name
                     && item.GetInterface().IsInstanceOfType(x.element) && Model.NameOf(x.element) == Model.NameOf(item)).element is IObjectSignature held)
@@ -133,9 +136,9 @@ static class Content
             {
                 if (Items(m, group.Item2).FirstOrDefault(x => Model.NameOf(x) == file.Name) is { } found)
                 {
-                    // As for other elements: public may be given; ProductionRules refuses public to private (rule 4).
+                    // As for other elements: public may be given; ProductionRules lists public to private as breaking (rule 4).
                     if (file.Public is { } makePublic) Set(found, "Public", makePublic);
-                    // A script's code is UI (rule 3): the spec's file replaces it when it differs. The saved module keeps the
+                    // A script's code is UI: the spec's file replaces it when it differs. The saved module keeps the
                     // code without comments and blank lines, so both sides are compared that way (and without line endings).
                     if (group.Item3 == "script" && System.IO.File.ReadAllText(file.File) is var code
                         && !Reuse.SameText(Reuse.Code(Reflect.Get(found, "JavaScript") as string), Reuse.Code(code)))
@@ -170,7 +173,7 @@ static class Content
             var css = theme.StyleSheet is null ? null : File.Exists(theme.StyleSheet) ? File.ReadAllText(theme.StyleSheet) : theme.StyleSheet;
             if (item is not null)
             {
-                // A style sheet and a base theme are UI (rule 3): what the spec gives replaces the theme's; what it leaves out stays.
+                // A style sheet and a base theme are UI: what the spec gives replaces the theme's; what it leaves out stays.
                 if (css is not null)
                 {
                     // A theme made with Theme Editor: the model puts Theme Editor's part before any text set, and the

@@ -122,7 +122,10 @@ Require ($r.result.isError -eq $true -and (Body $r).output.useTool -eq 'gated') 
 Send @{ jsonrpc = '2.0'; id = 35; method = 'tools/call'; params = @{ name = 'admin'; arguments = @{ args = @('inspect') } } }
 $r = Receive
 Require ($r.id -eq 35 -and $r.error.code -eq -32602) "unknown tool: $($r | ConvertTo-Json -Depth 10 -Compress)"
-Write-Host 'ok   mcp: refused: install and review --server through read (gated), memory add (write), unknown command, bad args, unknown tool'
+# apply --user-approved saves deletes and data-risk changes: only through gated, so a person says yes.
+$r = Ask 36 'write' @('apply', 'M.oml', 'spec.json', 'Staged2.oml', '--user-approved')
+Require ($r.result.isError -eq $true -and (Body $r).output.useTool -eq 'gated') "apply --user-approved through write: $($r.result.content[0].text)"
+Write-Host 'ok   mcp: refused: install and review --server through read (gated), apply --user-approved through write (gated), memory add (write), unknown command, bad args, unknown tool'
 
 # 6. Batch: read-only steps run through read; a write or gated step cannot ride along; no steps on stdin.
 $r = Ask 40 'read' @('batch', 'reads.json')

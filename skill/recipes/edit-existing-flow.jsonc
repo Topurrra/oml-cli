@@ -3,7 +3,7 @@
 // Insert a normalizing assignment, add a screen note, restyle the screen, replace its title, set a property, rename a node.
 // Rename paths to match the existing elements; inspect the result before reuse.
 // Flow nodes may be renamed in existing actions; module elements and parameters may not.
-// A listed existing screen takes a new styleSheet (UI, rule 3); replaceWidgets swaps the widgets inside a path from 'oml tree'.
+// A listed existing screen takes a new styleSheet (UI); replaceWidgets swaps the widgets inside a path from 'oml tree'.
 // styleSheet replaces the whole sheet; read the current one with 'oml describe <module> <Screen> --css' and edit it.
 // Find replaceWidgets paths cheaply: 'oml tree <module> <Screen> --depth 2', then 'oml tree <module> <Screen>/<path> --depth 2'.
 // Related keys: edits, insertNodes, addWidgets, replaceWidgets, styleSheet, set, rename. Edits run in order.

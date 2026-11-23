@@ -326,6 +326,10 @@ static class ProjectConfig
         // Core reads it in FlowLayout.Apply: "keep" leaves flows that existed before the apply as they are.
         if (!v.On("apply.autoLayout") && Environment.GetEnvironmentVariable("OML_FLOW_LAYOUT") is not { Length: > 0 })
             Environment.SetEnvironmentVariable("OML_FLOW_LAYOUT", "keep");
+        // Core reads them in Apply: deletes of existing elements and data-risk changes save without --user-approved. Always
+        // from the profile, never from the caller's environment.
+        Environment.SetEnvironmentVariable("OML_AUTO_APPROVE_DELETES", v.On("autoApprove.deletes") ? "1" : null);
+        Environment.SetEnvironmentVariable("OML_AUTO_APPROVE_DATA", v.On("autoApprove.dataDeletion") ? "1" : null);
         if (Environment.GetEnvironmentVariable("OML_STUDIO_URL") is { Length: > 0 } || Environment.GetEnvironmentVariable("OML_STUDIO_PORT") is { Length: > 0 }) return;
         if (v.Get("outsystems.mcpServer") is not { Length: > 0 } url || !Uri.TryCreate(url, UriKind.Absolute, out var uri)) return;
         Environment.SetEnvironmentVariable("OML_STUDIO_URL", url);

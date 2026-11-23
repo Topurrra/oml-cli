@@ -5,13 +5,13 @@ using OutSystems.Model;
 namespace OmlCli;
 
 // Listed elements that already exist (see Reuse): actions, screens, blocks, platform elements, REST, emails, variables.
-// Rule 4 for inputs and outputs is checked once, in ProductionRules.Validate, whatever path made the change.
+// Rule 4 for inputs and outputs is found once, in ProductionRules.Validate, whatever path made the change (listed as breaking).
 partial class Builder
 {
     // The spec's JSON, to tell keys the spec sets from record defaults (Reuse.Item).
     public JsonNode? Raw { get; init; }
     // What a creation list changed on an existing element, for the report's `changed`: lifecycle handlers it did not
-    // set yet ("onParametersChanged of block Badge -> SetX") and UI settings replaced (rule 3 allows UI changes).
+    // set yet ("onParametersChanged of block Badge -> SetX") and UI settings replaced.
     public List<string> Changed { get; } = new();
     void Change(string what) { if (!Changed.Contains(what)) Changed.Add(what); }
     readonly HashSet<object> replacedAt = new(ReferenceEqualityComparer.Instance); // the elements replaceWidgets changed
@@ -30,14 +30,14 @@ partial class Builder
         ReuseFlow(action, s.Flow, label);
     }
 
-    // As for a new element; ProductionRules.Validate refuses public to private (rule 4) and lists a server action made public (rule 7).
+    // As for a new element; ProductionRules.Validate lists public to private as breaking (rule 4) and lists a server action made public (rule 7).
     static void SetPublic(object element, bool? value)
     {
         if (value is { } isPublic) Reflect.Property(element, "Public", writable: true)?.SetValue(element, isPublic);
     }
 
-    // New inputs, outputs and locals are added as addVariables adds them, and an input's mandatory setting is set
-    // as the spec says; rule 4 then refuses what would break a public element. A changed type is a problem.
+    // New inputs, outputs and locals are added as addVariables adds them; an input's type and mandatory setting are set
+    // as the spec says. What breaks a public element is listed as breaking (rule 4).
     void ReuseVariables(object owner, string label, JsonObject? raw, params (string key, string collection, string factory, List<VarSpec>? vars)[] groups)
     {
         foreach (var (key, collection, factory, vars) in groups)
@@ -50,8 +50,10 @@ partial class Builder
                 var oldType = Reflect.Get(old, "DataType") as OutSystems.Model.Types.ITypeSignature;
                 if (Reuse.Has(Reuse.Item(raw, key, v.Name), "type") && Model.Resolve(m, v.Type, new List<string>(), label) is { } type
                     && Model.Describe(m, type) != Model.Describe(m, oldType))
-                    problems.Add(Reuse.Changed($"{label}.{key}.{v.Name}", [$"type ({v.Type}; module: {Model.Describe(m, oldType)})"],
-                        "Add a new input or output instead, or change the type by hand in Service Studio."));
+                {
+                    Reflect.Property(old, "DataType", writable: true)?.SetValue(old, type);
+                    Change($"type of {key[..^1]} {label}.{v.Name}");
+                }
                 if (key == "inputs" && v.Mandatory is { } mandatory && Reflect.Get(old, "IsMandatory") is bool isMandatory && isMandatory != mandatory)
                     Reflect.Property(old, "IsMandatory", writable: true)?.SetValue(old, mandatory);
                 existing.Add($"{key[..^1]} {label}.{v.Name}");
@@ -119,8 +121,8 @@ partial class Builder
         return null;
     }
 
-    // Screens and blocks: settings must match; new named parts go through the addParts path (rule 4 for events
-    // included). A different styleSheet or text title is replaced and missing requiredScripts are added (UI, rule 3);
+    // Screens and blocks: settings must match; new named parts go through the addParts path (breaking events
+    // included). A different styleSheet or text title is replaced and missing requiredScripts are added (UI);
     // widgets, placeholders, layout and preparation are not compared and are named in the report's warnings.
     void ReuseScreen(object screen, ScreenSpec s, bool block, string label)
     {
@@ -176,13 +178,10 @@ partial class Builder
         foreach (var e in s.Events ?? new())
             if (Elements(Reflect.Get(screen, "Events")).FirstOrDefault(x => Model.NameOf(x) == e.Name) is { } old)
             {
-                // Making an event optional is safe; making one mandatory breaks the instances without a handler (rule 4).
+                // As the spec says. An event made mandatory on a public block is listed as breaking (rule 4).
                 if (Reflect.Get(old, "IsMandatory") is bool mandatory && mandatory != e.Mandatory)
-                {
-                    if (mandatory) Reflect.Property(old, "IsMandatory", writable: true)!.SetValue(old, false);
-                    else problems.Add($"{label}.events.{e.Name}: refused: '{e.Name}' is an existing optional event. oml never makes an existing event mandatory (rule 4): block instances without a handler would break. Add a new event instead.");
-                }
-                // New event inputs are added as addVariables adds them; rule 4 refuses a changed type on a public block.
+                    Reflect.Property(old, "IsMandatory", writable: true)!.SetValue(old, e.Mandatory);
+                // New event inputs are added as addVariables adds them; a changed type is set (breaking on a public block, rule 4).
                 ReuseVariables(old, $"{label}.events.{e.Name}", Reuse.Item(raw, "events", e.Name), ("inputs", "InputParameters", "CreateInputParameter", e.Inputs));
                 existing.Add($"event {path}.{e.Name}");
             }

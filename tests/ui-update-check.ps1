@@ -235,7 +235,7 @@ Require ($LASTEXITCODE -eq 0 -and $fr.saved) "apply with file values: $($fr | Co
 Require ((& $Oml inspect $fo | ConvertFrom-Json).module.javaScript -ceq $js) 'module JavaScript from a file is not byte-identical'
 Require ((Css $fo Files).Contains(".home { content: `"\201C`"; }")) 'styleSheet from a file not stored'
 Require ((Text $fo Files) -match 'Length\(Name\) \+ 1') 'expression from a file not stored'
-# SQL from a file: stored, and the production rule still refuses data-changing SQL.
+# SQL from a file: stored, and data-changing SQL still waits for the user's yes (rule 6).
 [IO.File]::WriteAllText((Join-Path $specDir 'code/top.sql'), "SELECT {Customer}.*`nFROM {Customer}`nWHERE {Customer}.[Name] LIKE 'a\%'")
 [IO.File]::WriteAllText((Join-Path $specDir 'code/wipe.sql'), 'DELETE FROM {Customer}')
 foreach ($sql in 'top', 'wipe') {
@@ -248,7 +248,7 @@ Require ($LASTEXITCODE -eq 0 -and $sr.saved) "apply with a SQL file: $($sr | Con
 $sqlText = Text $so Find # describe joins the lines with spaces
 Require ($sqlText.Contains("FROM {Customer} WHERE {Customer}.[Name] LIKE 'a\%'")) "SQL from a file not stored: $sqlText"
 $sw = & $Oml apply $blank (Join-Path $specDir 'wipe.json') (Join-Path $dir 'wipe.oml') | ConvertFrom-Json
-Require (-not $sw.saved -and (@($sw.problems) -join ' ').Contains('SQL contains DELETE')) "a DELETE from a SQL file was not refused: $($sw | ConvertTo-Json -Compress -Depth 10)"
+Require (-not $sw.saved -and (@($sw.needsApproval | ForEach-Object { $_.what }) -join ' ').Contains('contains DELETE')) "a DELETE from a SQL file did not ask: $($sw | ConvertTo-Json -Compress -Depth 10)"
 # UTF-16 with a BOM is read; a note key (_ or $) is not resolved; a script file path is relative to the spec's folder
 # first (the working folder of this check is the repository root, which has no code/lib2.js).
 [IO.File]::WriteAllText((Join-Path $specDir 'code/u16.js'), 'var u16 = "\\";', [Text.UnicodeEncoding]::new($false, $true))

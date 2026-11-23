@@ -4,10 +4,10 @@
     {
       "id": 1,
       "prompt": "In Orders.oml the Customer entity has a Phone attribute (Text, length 20). Rename it to PhoneNumber and make it length 50. Do not run anything; tell me exactly what you would do.",
-      "expected_output": "Refuses the rename and the length change on an existing attribute (rules 3 and 5): the user does them by hand in Service Studio, or the agent adds a new attribute instead.",
+      "expected_output": "Refuses the attribute rename (rule 2): the user renames it by hand in Service Studio, or the agent adds a new attribute instead. The longer length is fine (rule 5 allows a longer length).",
       "files": [],
       "expectations": [
-        "Says the rename or the length change must be done by hand in Service Studio, or is refused",
+        "Says the attribute rename must be done by hand in Service Studio, or is refused",
         "Offers a new attribute as the alternative"
       ],
       "checks": [

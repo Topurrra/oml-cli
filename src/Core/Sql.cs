@@ -8,7 +8,6 @@ partial class Builder
     // Adapted from OutSystems/outsystems11-mcp examples/AddServerActionWithAdvancedQuery.cs (MIT).
     void Sql(object node, JsonElement spec, string where)
     {
-        ProductionRules.Sql(node, spec.GetProperty("sql").GetString() ?? "");
         references.Add(($"{where}.sql", () =>
         {
             foreach (var output in spec.GetProperty("outputs").EnumerateArray())

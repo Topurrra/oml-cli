@@ -129,11 +129,11 @@ static partial class SelfTest
                 Expect(changed, "PersonStats", "query Sorted: Person only with Country on Person.CountryId = Country.Code where Person.Salary >= 0 order by SortBy [dynamic], Country.Name desc max 10");
         }
 
-        // Changing how existing rows are keyed, read or written is refused, through entity keys and through set.
+        // A new identifier on an existing entity changes how its rows are keyed: it waits for the user's yes (rule 5).
+        // Other entity settings may change.
         Refused("data-identifier", built, """{ "entities": [ { "name": "Person", "identifier": "Name" } ] }""",
-            "refused: 'Person' is an existing entity. oml never changes its identifier");
-        Refused("data-active", built, """{ "edits": [ { "op": "set", "element": "Person", "properties": { "isActiveAttribute": null } } ] }""",
-            "oml never changes its is active attribute");
+            "entity 'Person': identifier Id -> Name. That changes how existing rows are keyed.");
+        Built("data-active", built, """{ "edits": [ { "op": "set", "element": "Person", "properties": { "isActiveAttribute": null } } ] }""");
         Refused("data-index", built, """{ "entities": [ { "name": "Person", "indexes": [ { "attributes": ["Missing"] } ] } ] }""",
             "'Missing' is not an attribute of Person");
         // Deleting a filter, sort or group of a grouped aggregate can drop its source; oml refuses such a delete.

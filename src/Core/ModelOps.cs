@@ -201,19 +201,15 @@ partial class Builder
         throw new ModelError(why ?? $"no Create* method of {ModelTypes.Short(parentType)} fits");
     }
 
-    // { "op": "remove", "element": "<path>" }: only an element this spec created; the same removal as delete.
+    // { "op": "remove", "element": "<path>" }: the same removal as delete. An existing entity or attribute is refused (rule 2);
+    // any other existing element saves only with the user's yes (rule 3, needsApproval).
     void RemoveOp(JsonElement edit, string label)
     {
         UsedModelOps = true;
         var path = Text(edit, "element") ?? throw new ModelError("'element' is required");
-        var target = ElementPaths.Resolve(m, path, write: true);
-        if (rules.Existed(target))
-            throw new ModelError($"refused: '{path}' existed before this spec. remove takes only elements this spec created (add, or a creation key). "
-                + "To take out an existing flow node, widget or local variable use {\"op\": \"delete\"}; existing entities, attributes, actions, parameters, screens and other "
-                + "named elements are deleted by hand in Service Studio (rules 2 and 3).");
+        ElementPaths.Resolve(m, path, write: true);
         nestedEdits++;
-        // A new entity or attribute holds no data yet: no allowDataLoss to ask for.
-        try { EditOne(JsonSerializer.SerializeToElement(new { op = "delete", element = path, allowDataLoss = true }), label); }
+        try { EditOne(JsonSerializer.SerializeToElement(new { op = "delete", element = path }), label); }
         finally { nestedEdits--; }
     }
 

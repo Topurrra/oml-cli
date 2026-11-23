@@ -17,17 +17,12 @@ partial class Builder
         if (!Inspect.IsBlock(block)) throw new ModelError("events are only for blocks; a screen cannot fire events");
         if (events.GroupBy(e => e.Name).FirstOrDefault(g => g.Count() > 1) is { } twice)
             throw new ModelError($"event '{twice.Key}' is listed more than once; give each event of a block a unique name");
-        // Rule 4: consumers of an existing public block break on any new event; existing instances of any
-        // existing block have no handler, so a new event there must be optional.
-        var existed = rules.Existed(block);
-        if (rules.WasPublic(block))
-            throw new ModelError($"refused: '{Model.NameOf(block)}' is an existing public block. A new event changes its signature and can break the modules that use it; create a new block instead, or add the event by hand in Service Studio.");
+        // A new event on an existing public block is allowed: the report lists it as breaking (rule 4). Instances of the
+        // block in this module that lack a handler for a new mandatory event are validation errors of this apply.
         foreach (var e in events)
         {
             var where = $"{label}.events.{e.Name}";
             if (Elements(Reflect.Get(block, "Events")).Any(x => Model.NameOf(x) == e.Name)) { existing.Add($"event {Model.NameOf(block)}.{e.Name}"); continue; }
-            if (existed && e.Mandatory)
-            { problems.Add($"{where}: refused: '{Model.NameOf(block)}' is an existing block, and its existing instances have no handler for a new mandatory event; add it with \"mandatory\": false"); continue; }
             var evt = Reflect.Call(block, "CreateEvent", e.Name, services.NewKey())!;
             if (!Fresh(evt, e.Name, where)) continue;
             Reflect.Property(evt, "IsMandatory", writable: true)!.SetValue(evt, e.Mandatory);

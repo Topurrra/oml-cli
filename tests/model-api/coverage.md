@@ -6,8 +6,8 @@ Every public Model API interface reachable from `IESpace`, and each of its membe
 **covered** when a spec key changes it, **rule** when only a production rule (skill/rules.md) stands in the way, and
 **not covered** otherwise. Getter-only properties and query methods are **read-only**. **Out of scope** members change
 the model but are not a change a spec should make (history stamps, session and file operations, reference refresh).
-*With rule* counts covered members that are refused on elements that existed before the spec (renames, deletes,
-attribute types, signatures). *Covered %* is covered / (changes - out of scope).
+*With rule* counts covered members that a production rule refuses or holds for the user's yes on elements that existed before
+the spec (entity and attribute deletes, attribute renames and types, other deletes, data risks). *Covered %* is covered / (changes - out of scope).
 
 How a member counts as covered: oml's apply code calls it (read from oml's own IL, starting at `Apply`; *by name* means
 through `Reflect.Call` or a property written by name), or the generic `set` of `edits` and of widget and node
@@ -17,23 +17,23 @@ element an element path reaches). A covered member is reachable from a spec; it 
 | Area | Types | Members | Read-only | Changes | Out of scope | Covered | With rule | Rule | Not covered | Covered % |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | UI (Reactive and Mobile) | 89 | 739 | 423 | 316 | 10 | 298 | 0 | 0 | 8 | 97.4 |
-| UI (Traditional Web) | 80 | 733 | 371 | 362 | 24 | 331 | 1 | 0 | 7 | 97.9 |
-| UI (shared) | 24 | 263 | 128 | 135 | 43 | 76 | 10 | 0 | 16 | 82.6 |
-| data | 34 | 267 | 125 | 142 | 49 | 82 | 22 | 0 | 11 | 88.2 |
+| UI (Traditional Web) | 80 | 733 | 371 | 362 | 24 | 331 | 0 | 0 | 7 | 97.9 |
+| UI (shared) | 24 | 263 | 128 | 135 | 43 | 76 | 0 | 0 | 16 | 82.6 |
+| data | 34 | 267 | 125 | 142 | 49 | 82 | 4 | 0 | 11 | 88.2 |
 | data queries | 17 | 142 | 61 | 81 | 9 | 63 | 0 | 0 | 9 | 87.5 |
 | integrations | 46 | 237 | 20 | 217 | 0 | 217 | 0 | 0 | 0 | 100 |
-| logic | 57 | 365 | 130 | 235 | 57 | 163 | 8 | 0 | 15 | 91.6 |
-| module | 77 | 486 | 235 | 251 | 53 | 148 | 3 | 8 | 42 | 74.7 |
+| logic | 57 | 365 | 130 | 235 | 57 | 163 | 1 | 0 | 15 | 91.6 |
+| module | 77 | 486 | 235 | 251 | 53 | 148 | 0 | 6 | 44 | 74.7 |
 | plugins | 68 | 224 | 118 | 106 | 4 | 64 | 0 | 0 | 38 | 62.7 |
-| processes | 26 | 220 | 104 | 116 | 16 | 92 | 6 | 0 | 8 | 92 |
-| **total** | 518 | 3676 | 1715 | 1961 | 265 | 1534 | 50 | 8 | 154 | 90.4 |
+| processes | 26 | 220 | 104 | 116 | 16 | 92 | 0 | 0 | 8 | 92 |
+| **total** | 518 | 3676 | 1715 | 1961 | 265 | 1534 | 5 | 6 | 156 | 90.4 |
 
 ## Why members are not covered
 
 | Status | Reason | Members |
 |---|---|---:|
 | not-covered | no spec key calls it | 108 |
-| not-covered | not an element: no element path reaches it | 36 |
+| not-covered | not an element: no element path reaches it | 38 |
 | not-covered | set cannot convert a value to Byte[] | 10 |
 | out-of-scope | history field: Service Studio records who changed what and when | 185 |
 | out-of-scope | metadata other tools keep on an element (managedBy), not part of the module's behavior | 55 |
@@ -49,13 +49,11 @@ element an element path reaches). A covered member is reachable from a spec; it 
 
 | Rule | Not covered at all | Covered on new elements only |
 |---|---:|---:|
-| rule 3: renaming an existing element breaks its users | 0 | 11 |
-| rule 4: a mandatory event breaks instances without a handler | 0 | 1 |
-| rule 4: an existing public element must not become private | 0 | 17 |
-| rule 4: an existing public element's signature is used by other modules | 1 | 3 |
-| rule 5: changes how existing rows are keyed, read or written | 1 | 9 |
-| rule 5: existing columns hold production data | 6 | 8 |
-| rule 6: only read-only SQL and INSERT | 0 | 1 |
+| rule 2: an existing attribute is never renamed | 1 | 0 |
+| rule 2: an existing attribute's data type never changes | 1 | 1 |
+| rule 5: a shorter length, fewer decimals, a new mandatory setting or an auto number change needs the user's yes | 3 | 1 |
+| rule 5: changes how existing rows are keyed: needs the user's yes | 1 | 2 |
+| rule 6: SQL that changes data needs the user's yes | 0 | 1 |
 
 ## Types with the most members not covered
 
@@ -64,9 +62,9 @@ element an element path reaches). A covered member is reachable from a spec; it 
 | OutSystems.Model.Extensions.IEntity | module | 6 | ConvertDefaultValueToFromNullInDatabase, Description, LogicalDatabase, Name, TableOrViewDefaultName, CreateAttribute |
 | OutSystems.Model.Extensions.IExtensionResource | module | 5 | Content, DeployAction, Description, Filename, Path |
 | ServiceStudio.PluginAPI.Model.Integration.ICustomAction | plugins | 5 | CreateActionInput, CreateActionOutput |
+| OutSystems.Model.Extensions.IStructureAttribute | module | 4 | Decimals, Description, Length, Name |
 | OutSystems.Model.UI.IUIFlow | UI (shared) | 4 | Instantiate |
 | ServiceStudio.PluginAPI.Model.UI.IWidget | plugins | 4 | BehavesAs, ChangeParent, MoveAfter, MoveBefore |
-| OutSystems.Model.Extensions.IEntityAttribute | module | 3 | Description, IsIgnored, Name |
 | OutSystems.Model.Extensions.IParameter | module | 3 | DataType, Description, Name |
 | OutSystems.Model.Extensions.IStructure | module | 3 | Description, FullTypeName, IsPlainStructure |
 | OutSystems.Model.UI.IImage | UI (shared) | 3 | SetImageContent, SetTranslationBehavior |
@@ -77,8 +75,8 @@ element an element path reaches). A covered member is reachable from a spec; it 
 | ServiceStudio.PluginAPI.Model.UI.Legacy.IComboBox | plugins | 3 | AddSpecialValue, SetSourceField, SetSourceRecord |
 | OutSystems.Model.Data.IRecord | data | 2 | Icon, SetTranslationBehavior |
 | OutSystems.Model.Extensions.IAction | module | 2 | Description, Icon |
+| OutSystems.Model.Extensions.IEntityAttribute | module | 2 | Description, IsIgnored |
 | OutSystems.Model.Extensions.IExtension | module | 2 | CreatedByTool, CreateResource |
-| OutSystems.Model.Extensions.IStructureAttribute | module | 2 | Description, Name |
 | OutSystems.Model.IObject | module | 2 | Duplicate |
 | OutSystems.Model.Logic.Integrations.IIntegration | logic | 2 | Icon, SetTranslationBehavior |
 | OutSystems.Model.Processes.IActivityTrigger | processes | 2 | SetIdFilter, SetTenantIdFilter |

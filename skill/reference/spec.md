@@ -8,11 +8,11 @@ Typed spec records accept case-insensitive property names. Raw object key checks
 
 Creation lists reuse existing names. Listing an existing element: new parts are added under the same rules as addParts; changed settings are refused.
 New parts are attributes, static records, action inputs, outputs and locals, screen or block inputs, locals, aggregates, data actions, actions, events and event inputs, REST methods, and lifecycle handlers (such as `onParametersChanged`) the screen or block does not set yet.
-A refused setting names the key and the edit op to use; settings of roles, site properties, timers, REST methods and module variables are compared too. A supplied `description` is applied, and an input's `mandatory` is set (rule 4 decides).
-An existing flow is compared by node names and node count only (comments do not count). UI settings are replaced (rule 3), and the report's `changed` lists them: a different `styleSheet` of a screen, block, email or theme, a text `title` of a screen, and new `requiredScripts`. Widgets, placeholders, layout, processes and other email settings are not compared: the report's `warnings` name what was not applied and the op that changes it (`replaceWidgets`, `addWidgets`). A restated screen or block aggregate is compared by `sources`, `maxRecords`, `fetch`, `timeout` and `onAfterFetch`; change filters, joins and sorts with edits.
-An omitted `public` keeps the element's setting. `"public": true` makes an existing element public (also images, scripts and resources; a theme only through `edits.set`); `false` on any existing public element is refused (rule 4). The report's `changed` lists each existing element made public, by any path (`public of entity Sector`). A server action that becomes public, new or existing, adds a `PublicServerAction` new warning: confirm it with the user (rule 7). Service actions do not get this warning, because other modules call them by design; exposed REST methods have no public setting. A creation-list spec applied again on its own result saves and changes nothing.
-Rule 4 is checked on every path (creation lists, `addVariables`, `addParts`, `set`): on an existing public element apply refuses a new mandatory input, an input made mandatory, a type change, any input change on a public client action or Reactive or Mobile block or screen, a new output except on server and service actions, and a type change of an event input on a public block.
-A new library (blocks made public in this work, with no consumer yet) still counts as existing once it is in the source module: a second apply cannot add an input to a public block it made. While the library is in development, keep the module from before the library as the apply source and apply the whole library spec to it each time (one spec, or several parts in one apply). Check that nothing uses the block yet with `oml map uses <Block>` before you change a published one; once another module uses it, add a new block instead (rule 4).
+A refused setting names the key and the edit op to use; settings of roles, site properties, timers, REST methods and module variables are compared too. A supplied `description` is applied; an input's `type` and `mandatory`, an event's `mandatory`, an attribute's `length`, `decimals` and `mandatory`, and the entity keys are set (the production rules decide, see Production rules below).
+An existing flow is compared by node names and node count only (comments do not count). UI settings are replaced, and the report's `changed` lists them: a different `styleSheet` of a screen, block, email or theme, a text `title` of a screen, and new `requiredScripts`. Widgets, placeholders, layout, processes and other email settings are not compared: the report's `warnings` name what was not applied and the op that changes it (`replaceWidgets`, `addWidgets`). A restated screen or block aggregate is compared by `sources`, `maxRecords`, `fetch`, `timeout` and `onAfterFetch`; change filters, joins and sorts with edits.
+An omitted `public` keeps the element's setting. `"public": true` makes an existing element public (also images, scripts and resources; a theme only through `edits.set`); `false` on an existing public element is allowed and listed in `breaking` (rule 4). The report's `changed` lists each existing element made public, by any path (`public of entity Sector`). A server action that becomes public, new or existing, adds a `PublicServerAction` new warning: confirm it with the user (rule 7). Service actions do not get this warning, because other modules call them by design; exposed REST methods have no public setting. A creation-list spec applied again on its own result saves and changes nothing.
+Rule 4 is checked on every path (creation lists, `addVariables`, `addParts`, `set`, `remove`): on an existing public element apply saves and lists in `breaking` a new mandatory input, an input made mandatory, a type change, a removed input or output, any input change on a public client action or Reactive or Mobile block or screen, a new output except on server and service actions, and a new, removed or mandatory event or an event input type change on a public block, each with what the consumer modules must do.
+A public element changed in place breaks the modules that use it until they refresh references. Check who uses it with `oml map uses <Element>` and tell the user. Never make a copy (`Block2`) to avoid the change (rule 4).
 Edits are ordered operations. Repeating them is not an idempotent desired-state update.
 
 Field notation in this reference names a nested key or an accepted value:
@@ -63,7 +63,7 @@ One row per top-level key: what it creates or changes, and the section of this f
 | `layout`, `placeholders`, `template` | Layout blocks and generated list or detail screens. | Layouts and scaffolding |
 | `edits` | Changes to existing elements. | Edits |
 | `edits` with `add`, `remove`, `move`, typed `set` | Any Model API object by type and member name: add a child with its `Create*` method, remove what the spec made, reorder a list. | Generic model operations |
-| `edits` with `delete` | Deletion of elements created earlier in the same spec. Existing elements are refused (see rules.md). | Deletion |
+| `edits` with `delete` | Deletion of elements. An existing entity or attribute is refused; any other existing element needs the user's yes (`needsApproval`). | Deletion |
 | `copy` | Clipboard copy from read-only modules; explicit dependencies; IPP checks. | Copy, translations, resources, and folders |
 | `locales`, `translate`, `translations` | Locales and module resource translations; file import where the host supports it. | Copy, translations, resources, and folders |
 | `keepComments` | Keep comments in `styleSheet` and `javaScript` (removed by default). | Comments in styleSheet and javaScript |
@@ -123,7 +123,7 @@ Index column order is the `attributes` order. Index names use ASCII letters, dig
 On an existing entity, indexes and attributes are added; an existing index with the same name is reused only when it is equal.
 New non-unique indexes are fine. A unique index on an existing entity adds a `UniqueIndexOnExistingEntity` new warning: publish fails if production has
 duplicate values, so ask the user to check for duplicates first.
-The other entity keys must match the existing values, or apply refuses them (rule 5), also through `edits.set`.
+The other entity keys change an existing entity too. A new `identifier`, `autoNumber` or `multiTenant` needs the user's yes (rule 5, `needsApproval`), also through `edits.set`.
 
 Types use Service Studio names: `Text`, `Integer`, `Long Integer`, `Decimal`, `Boolean`, `Date`, `Time`, `Date Time`,
 `Email`, `Phone Number`, `Currency`, `Binary Data`, `<Entity> Identifier`, `List of <type>`, or a record name.
@@ -215,7 +215,7 @@ Examples include `CoreServices.Customer Identifier` and `List of CoreServices.Cu
 Plain names prefer owned elements, then a unique reference. Ambiguity reports qualified candidates and refuses the change.
 The module can rename a second same-named reference to `Customer2`; use its actual local name.
 
-Aliases only rename writable referenced elements added by this spec. Renaming a reference already present in the source is refused. They do not change the producer module or replace the reference.
+Aliases only rename writable referenced elements added by this spec. Renaming a reference already present in the source is refused (it belongs to the referenced module). They do not change the producer module or replace the reference.
 A repeated alias reuses the alias name. Later specs and expressions must use that name.
 Refused or silently renamed aliases become problems.
 
@@ -518,7 +518,7 @@ Switch connector targets come from Link. Tree uses node labels when Name is abse
 SQL nodes work where the installed model allows `ISQLNode`, including server flows and Traditional Web Preparation.
 They also work in `edits.insertNodes`.
 
-Statements containing DELETE, UPDATE, TRUNCATE, DROP, ALTER, or MERGE as whole SQL keywords are refused, case-insensitively. String literals, quoted identifiers, and comments are ignored. SELECT and INSERT are allowed. This applies to new, edited, and copied SQL nodes. SQL that was already in the module and is not changed is left alone. There is no override.
+Statements containing DELETE, UPDATE, TRUNCATE, DROP, ALTER, or MERGE as whole SQL keywords need the user's yes (rule 6): apply stops with `needsApproval`, and saves with `--user-approved` (or `autoApprove.dataDeletion`). Case does not matter. String literals, quoted identifiers, and comments are ignored. SELECT and INSERT are free. This applies to new, edited, and copied SQL nodes. SQL that was already in the module and is not changed is left alone.
 
 | Key | Meaning |
 |---|---|
@@ -742,7 +742,7 @@ A block tells its parent that something happened with an event. Reactive and Mob
 - `triggerEvent` flow node: `{ "kind": "triggerEvent", "event": "<event>", "args": { ... } }`. Only in a client action of the block that owns the event; anywhere else apply refuses it.
 - `events` on a BlockInstance: `{ "<event>": "<action>" }` or `{ "<event>": { "action": "<action>", "args": { ... } } }`. The handler is a client action of the screen or block that holds the instance. A handler input with no arg gets the event input of the same name. Args are expressions; they can use the event's inputs. A handler input that is neither in args nor an event input is refused.
 - A mandatory event must have a handler on every instance. Apply refuses an instance without one and names the event.
-- Existing blocks (`addParts` edit): a new event on an existing public block is refused (rule 4: it changes the block's signature for other modules). On an existing block that is not public, a new event must be `"mandatory": false`, because its existing instances have no handler. Renaming or deleting an existing event, and making an existing optional event mandatory, are refused.
+- Existing blocks (`addParts` edit): a new event is added. On a public block it is listed in `breaking` (rule 4). A new mandatory event, or one made mandatory, needs a handler on every instance in this module, or validation refuses the save. Renaming an existing event saves; deleting one needs the user's yes (rule 3).
 - `onParametersChanged` on a block names a block action. It runs when the parent changes an input of the block, not on the first render: also call the action from `onReady`.
 
 ```json
@@ -893,8 +893,10 @@ The scaffold fixture verifies a local layout on bare CrossDevice. The self-test 
 Edits run after creation in list order. Expression writes run after edits; expressions must use final names. Each problem prevents the final staged save. The examples assume the elements they name exist.
 
 Existing means present in the source module before this spec started. Elements created in this spec remain editable and deletable, including after the internal data-model reload.
-Existing entities (regular or static), their attributes and static records, structures and attributes, server/service/client actions and input/output parameters, screens, blocks, roles, exceptions, site properties, timers, REST clients/services and methods, and processes cannot be renamed or deleted. Setting Name or a static record Identifier cannot bypass this rule.
-Existing entity, static entity, and structure attributes cannot change DataType, Length, Decimals, or IsMandatory through edits. Creation lists skip existing attributes. New attributes and parameters can be added. Flow nodes, widgets, and local variables remain editable and removable.
+The production rules (rules.md) hold for every edit, found by key when the build ends:
+- Refused (rule 2): deleting an existing entity or attribute, renaming an attribute (also through Name), changing an attribute's `DataType`.
+- Needs the user's yes (`needsApproval`, then `--user-approved`): deleting any other existing element (rule 3); a shorter `Length`, fewer `Decimals`, `IsMandatory` true or a changed `IsAutoNumber` on an entity attribute, a new `IdentifierAttribute` or `IsMultiTenant` (rule 5); SQL that changes data (rule 6).
+- Free: renames of other elements (a public one is listed in `breaking`), structure attributes, other settings, flow nodes, widgets and local variables.
 
 | Operation | Keys | Behavior |
 |---|---|---|
@@ -907,8 +909,8 @@ Existing entity, static entity, and structure attributes cannot change DataType,
 | `addVariables` | action, inputs, outputs, locals | Adds variables; names must be free. |
 | `setAccess` | screen, anonymous, registered, roles | Replaces access memberships. Omitted flags false, roles empty. |
 | `set` | element, properties | Property map uses interface-first reflection, expression setters, and reference lookup. |
-| `rename` | element, to | Refuses existing protected elements, occupied names, or model renaming. Use instead of setting Name. |
-| `delete` | element, allowDataLoss for data | See deletion rules below. |
+| `rename` | element, to | Renames any element except an existing attribute (rule 2). Refuses occupied names and model renaming. Use instead of setting Name. |
+| `delete` | element | See deletion rules below. |
 | `addToAggregate` | aggregate, sources, joins, filters, sorts, groupBy, aggregates, calculated, group keys | Adds parts to an existing aggregate with the query keys. |
 | `setArgs` | element, args | Sets arguments of a call, navigation or other node by parameter name. A number or true/false is used as the expression. |
 | `repoint` | element, action | Makes an existing Execute node call another action (`Name` or `Module.Name`). The node keeps its place, name and key, so `Node.Output` readers stay. Arguments are set again by parameter name; an argument with no input of that name, or a mandatory input without one, is refused. Already calling it: no change. |
@@ -985,7 +987,7 @@ Prefer a named key when one exists (`entities`, `screens`, `addVariables`, ...):
 |---|---|---|
 | `add` | `parent` (path; default the module), `type`, `name`, `properties`, `args`, `factory`, `first`/`last`/`before`/`after` | Makes a `type` with the parent's `Create*` method, names it, sets `properties`, places it. `args`: the method's other parameters by name. |
 | `set` | `element`, `type`, `properties` | As in Edits; with `type`, the element must be that type and `oml spec check` checks every key and value. |
-| `remove` | `element` | Removes an element this spec created. An existing one is refused. |
+| `remove` | `element` | Removes an element, as `delete` does: an existing entity or attribute is refused, any other existing element needs the user's yes. |
 | `move` | `element`, `first`/`last`/`before`/`after` | Changes the order of attributes, parameters, widgets or records. Existing elements may move. |
 
 Values: `true`/`false`, numbers, text, an enum value by name (`"Ignore"`), a type (`"Text"`, `"Order Identifier"`),
@@ -1001,9 +1003,9 @@ an element by name, or `{ "element": "<path>" }` for an element without a name o
 ] }
 ```
 
-The production rules hold for every operation: no rename or delete of existing elements, no change to an existing
-attribute's type, length, decimals or mandatory setting, no break of a public signature. After the build, apply also
-runs the before/after check of `oml review`: rules 2 to 6 refuse the save, rule 7 is a warning.
+The production rules hold for every operation, as for edits: rule 2 refuses, rules 3, 5 and 6 need the user's yes,
+a public signature change is listed in `breaking`. After the build, apply also runs the security check of `oml review`:
+rule 7 risks and a unique index on an existing entity are warnings.
 An element made with `add` gets only what the factory gives it: a new entity has no `Id` (use `entities`), a static
 record has no values (use `staticEntities`). Validation then names what is missing.
 
@@ -1012,11 +1014,12 @@ block, or at a screen; `{ "destination": ..., "args": { ... } }` also sets argum
 
 ### Deletion
 
-Existing entities of every kind, attributes, static records, and other protected elements cannot be deleted. Deleting a parent that contains a protected element is also refused. Do the deletion manually in Service Studio if required. There is no override; allowDataLoss does not permit deletion of existing data definitions.
+Existing entities of every kind and their attributes are never deleted (rule 2), also as part of a deleted parent, with any flag or setting. The user does it by hand in Service Studio.
+Any other existing element (actions, screens, blocks, structures and their attributes, static records, parameters, events, roles, exceptions, site properties, timers, REST methods, processes) is deleted only with the user's yes: apply stops with `needsApproval` (`kind: "delete"`); ask, then run the same apply with `--user-approved` and a new staged path. `autoApprove.deletes` in the project profile saves without the flag. The saved report lists each one in `approved`.
 
 For entities and attributes created in the same spec:
 
-- Data deletion requires `allowDataLoss: true`. Identifier attributes cannot be deleted alone.
+- Identifier attributes cannot be deleted alone. `allowDataLoss` is no longer needed.
 - Referenced-module data cannot be deleted.
 - Data deletions run in edit order after expression binding.
 - The reference graph checks aggregates, SQL, variable/parameter/attribute types, foreign keys, widgets, and generated CRUD calls. Any usage refuses deletion and lists consumer paths. Remove or change consumers explicitly first.
@@ -1047,7 +1050,7 @@ Locales, translation imports, translation writes, and folders run after logic an
 
 | Key | Behavior and limits |
 |---|---|
-| `copy` | `from` is a read-only source module. `elements` uses the same paths as `tree`. Paste uses `Serialize` and `DeserializeInto`. Module elements paste into the module. Screens and blocks paste into `into`, default `MainFlow`; a missing flow is created. The `created` report lists pasted names. Clashes, missing pasted elements, and new producer signatures are problems and prevent saving. Add dependencies explicitly with `references`. Clipboard IPP checks remain active. |
+| `copy` | `from` is a read-only source module. `elements` uses the same paths as `tree`. An entity is refused (rule 2: the paste is a new, empty table); reference it with `references` instead. Paste uses `Serialize` and `DeserializeInto`. Module elements paste into the module. Screens and blocks paste into `into`, default `MainFlow`; a missing flow is created. The `created` report lists pasted names. Clashes, missing pasted elements, and new producer signatures are problems and prevent saving. Add dependencies explicitly with `references`. Clipboard IPP checks remain active. |
 | `locales` | Culture names map to the installed `Culture` enum (`ka-GE` maps to `KA_GE`). Unknown values are problems. Existing locales are reused. |
 | `translate` | Calls `CreateOrUpdateTranslation` on the module. `text` is the API resource ID, such as `MandatoryInput`; it is not a widget path or a search for displayed text. Creates the locale if needed. Values survive save/reopen and appear under `inspect.content.translations`. |
 | `translations` | `{ "import": "ModuleLanguage.ka-GE.resX" }` calls `LoadTextResources`. Refusals prevent saving. On 11.55.92 the headless host refuses ResX format detection, so file round trips are unavailable. Use `translate` for module resource IDs. |
@@ -1057,7 +1060,7 @@ Locales, translation imports, translation writes, and folders run after logic an
 | `resources` | `name`, `file`, optional `public` (false). Stores the exact file bytes. |
 | `folders` | `name`, `area`, `elements` paths. Reuses folders with the same area and name. Moves elements by their typed `Folder` property. `entities` is an alias for `ServerEntities`. Other areas match installed `ESpaceTreeFolder` names without case sensitivity: `serverActions`, `clientActions`, `serviceActions`, `structures`, `images`, `resources`, `scripts`, `themes`, `siteProperties`, `timers`, `roles`, `processes`, and others listed by `oml model-types ESpaceTreeFolder`. Rejects elements outside the requested area. |
 
-Image, script and resource creation lists reuse existing names without updating their content. An existing theme takes a different `styleSheet` and `baseTheme` (UI, rule 3); the report's `changed` lists `styleSheet of theme <name>` and `baseTheme of theme <name>`. Left out, they keep the theme's values. A module has no style sheet of its own: put module-wide CSS in a theme.
+Image, script and resource creation lists reuse existing names without updating their content. An existing theme takes a different `styleSheet` and `baseTheme` (UI); the report's `changed` lists `styleSheet of theme <name>` and `baseTheme of theme <name>`. Left out, they keep the theme's values. A module has no style sheet of its own: put module-wide CSS in a theme.
 `inspect.content` lists content, locales, module translations, and folder entries. `tree` shows `folder`, `requiredScripts`, and image `ref` values.
 
 Export text resources with:

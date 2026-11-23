@@ -34,7 +34,7 @@ partial class Builder
         var flow = m.MobileFlows.FirstOrDefault(f => f.Name == e.Flow) ?? NewMobileFlow(e.Flow);
         if (ElementPaths.Children(flow).FirstOrDefault(n => Model.NameOf(n) == e.Name) is { } found)
         {
-            // A style sheet is UI (rule 3): a different one replaces the email's.
+            // A style sheet is UI: a different one replaces the email's.
             if (e.StyleSheet is not null && found is OutSystems.Model.UI.IEmail && Reuse.Css(Reflect.Get(found, "StyleSheet") as string) != Reuse.Css(e.StyleSheet))
             {
                 Queue(label, m, found, "StyleSheet", JsonSerializer.SerializeToElement(e.StyleSheet));

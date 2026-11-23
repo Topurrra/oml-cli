@@ -92,14 +92,12 @@ Setup per harness, task examples and the agent hooks: [oml-full.md](oml-full.md#
 
 ## Safety
 
-Agents must assume everything in a module is already in production. `apply` refuses to:
+Agents must assume everything in a module is already in production. `apply` always refuses to:
 
-- delete an existing entity, or rename or delete existing elements, parameters or attributes;
-- break the signature of an existing public element;
-- change an existing attribute's type, length or settings;
-- add SQL that changes data (`DELETE`, `UPDATE`, `DROP`, ...).
+- delete an existing entity or attribute, change an attribute's data type, or rename an attribute;
+- make an entity again (deleted and created with the same name) or copy one from another module: both make a new, empty table.
 
-It prints the manual step instead, for you to do in Service Studio. Install, publish, deploy and data deletion always ask a person first. All 11 rules: [skill/rules.md](skill/rules.md).
+It prints the manual step instead, for you to do in Service Studio. `apply` saves only after your yes (`needsApproval`, then `--user-approved`): a delete of any other existing element, a shorter length, fewer decimals, a new mandatory setting or identifier, and SQL that changes data (`DELETE`, `UPDATE`, `DROP`, ...). Renames and public signature changes save; the report lists what breaks for the modules that use them. Install, publish and deploy ask a person first. All 11 rules: [skill/rules.md](skill/rules.md).
 
 ## What it covers
 

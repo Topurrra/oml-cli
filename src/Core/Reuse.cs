@@ -29,17 +29,20 @@ static class Reuse
     public static string Changed(string what, IEnumerable<string> keys, string op) =>
         $"{what} exists, and a creation list does not change it: {string.Join(", ", keys)} differ{(keys.Count() == 1 ? "s" : "")} from the module. {op}";
 
-    // Rule 5 keys of an existing attribute are refused; default, delete rule and description follow other rules.
+    // An existing attribute listed again: length, decimals and mandatory are set as the spec says (a shorter length,
+    // fewer decimals or a new mandatory setting on an entity attribute then needs the user's yes, rule 5). An entity
+    // attribute's type never changes (rule 2); a structure attribute's may. Default, delete rule and JSON name go through edits set.
     public static void Attribute(IESpace m, IAttribute old, AttrSpec a, JsonObject? raw, string where, List<string> problems)
     {
-        var shape = new List<string>();
         if (Has(raw, "type") && Model.Resolve(m, a.Type, new List<string>(), where) is { } type
-            && Model.Describe(m, type) != Model.Describe(m, old.DataType)) shape.Add($"type ({a.Type}; module: {Model.Describe(m, old.DataType)})");
-        if (a.Length is { } length && length != old.Length) shape.Add($"length ({length}; module: {old.Length})");
-        if (a.Decimals is { } decimals && decimals != old.Decimals) shape.Add($"decimals ({decimals}; module: {old.Decimals})");
-        if (Has(raw, "mandatory") && a.Mandatory != old.IsMandatory) shape.Add($"mandatory ({a.Mandatory.ToString().ToLowerInvariant()}; module: {old.IsMandatory.ToString().ToLowerInvariant()})");
-        if (shape.Count > 0)
-            problems.Add(Changed($"{where}: attribute", shape, "oml never changes the type, length, decimals or mandatory setting of an existing attribute (rule 5): add a new attribute, or change it by hand in Service Studio."));
+            && Model.Describe(m, type) != Model.Describe(m, old.DataType))
+        {
+            if (old is IEntityAttribute) problems.Add($"{where}: " + ProductionRules.Forbidden($"'{where}' is an existing attribute (a column with production data); changing its data type ({Model.Describe(m, old.DataType)} to {a.Type}) can lose that data."));
+            else old.DataType = type;
+        }
+        if (a.Length is { } length && length != old.Length) old.Length = length;
+        if (a.Decimals is { } decimals && decimals != old.Decimals) old.Decimals = decimals;
+        if (Has(raw, "mandatory") && a.Mandatory != old.IsMandatory) old.IsMandatory = a.Mandatory;
         var other = new List<string>();
         if (a.Default is not null && Norm(a.Default) != Norm(old.DefaultValue?.Text)) other.Add("default");
         if (a.DeleteRule is not null && old.DataType is IIdentifierType && !(Reflect.Get(old, "DeleteRule")?.ToString() ?? "").Equals(a.DeleteRule, StringComparison.OrdinalIgnoreCase)) other.Add("deleteRule");

@@ -1,6 +1,6 @@
 # Rule 7 and the public setting, for every kind with a public setting, through the creation list and edits.set:
 # private to public is allowed; a server action that becomes public (new or existing) adds a PublicServerAction
-# new warning; a service action never does; public to private on an existing element is refused (rule 4).
+# new warning; a service action never does; public to private on an existing element saves and is listed as breaking (rule 4).
 # All applies run in one `oml batch`, so Service Studio loads once.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
@@ -49,7 +49,7 @@ $specs = [ordered]@{
   again = '{ "serverActions": [{ "name": "SA", "public": true }] }'
   blockEvent = '{ "blocks": [{ "name": "B", "public": true, "events": [{ "name": "OnDone", "mandatory": false }] }] }'
   many = '{ "serverActions": [' + ((1..13 | ForEach-Object { '{ "name": "Many' + $_.ToString('00') + '", "public": true }' }) -join ', ') + '] }'
-  # public to private: one creation list and one edits list for every kind (SA included); each one is refused
+  # public to private: one creation list and one edits list for every kind (SA included); each one is breaking
   privList = '{ ' + (& $listed $false) + ', "serverActions": [{ "name": "SA", "public": false }], "edits": [{ "op": "set", "element": "Look", "properties": { "Public": false } }] }'
   privSet = '{ ' + (& $setAll $false).TrimEnd(']') + ', { "op": "set", "element": "SA", "properties": { "Public": false } }] }'
   svcBase = '{ "serviceActions": [{ "name": "SvA" }, { "name": "SvP", "public": true }], "serverActions": [{ "name": "Helper" }] }'
@@ -81,11 +81,12 @@ function Saved($name, [string[]]$warned) {
     Require (@($w[0].samples.message) -contains "server action $($warned[0]) is public: other modules can call it (rule 7).") "$name`: message"
   }
 }
-function Refused($name, [string[]]$texts) {
+# Public to private saves (rule 4 allows it) and is listed in "breaking", with what the consumer modules must do.
+function Breaking($name, [string[]]$texts) {
   $r = $byName[$name]
-  $problems = @($r.output.problems) -join "`n"
-  Require ($r.exitCode -eq 1 -and -not $r.output.saved -and -not (Test-Path (P "$name.oml"))) "$name was not refused: $($r.output | ConvertTo-Json -Depth 8 -Compress)"
-  foreach ($t in $texts) { Require ($problems.Contains($t)) "$name`: no problem with '$t': $problems" }
+  $breaking = @($r.output.breaking) -join "`n"
+  Require ($r.exitCode -eq 0 -and $r.output.saved -and $r.output.summary.breaking -ge $texts.Count) "$name was not saved with breaking changes: $($r.output | ConvertTo-Json -Depth 8 -Compress)"
+  foreach ($t in $texts) { Require ($breaking.Contains($t)) "$name`: no breaking change with '$t': $breaking" }
 }
 
 Require ($byName['base'].exitCode -eq 0) "base: $($byName['base'].output | ConvertTo-Json -Depth 8 -Compress)"
@@ -107,11 +108,11 @@ foreach ($r in $results[$steps.Count..($results.Count - 1)]) {
   Require ($r.exitCode -eq 0 -and @($r.output.matches | Where-Object { $_.source -eq 'this module' -and $_.isPublic -eq $true }).Count -eq 1) "$($r.args -join ' ') is not public: $($r.output | ConvertTo-Json -Depth 5 -Compress)"
 }
 Require (@($results | Where-Object { $_.args[1] -eq 'Logo' })[0].output.matches[0].kind -eq 'Image') 'find: an image is not kind Image'
-$private = foreach ($k in $kinds + , @('element', 'SA')) { "refused: '$($k[1])' is an existing public $(if ($k[0] -in 'entity', 'static entity') { 'entity' } else { 'element' }). oml never makes it private" }
-Refused 'privList' $private; Refused 'privSet' $private
-Write-Host "ok   public: private to public for $($kinds.Count) kinds and server actions (creation list and set), PublicServerAction for server actions only (13 in one message), public to private refused"
+$private = foreach ($k in $kinds + , @('element', 'SA')) { "'$($k[1])' was public and is now private: the modules that use it break." }
+Breaking 'privList' $private; Breaking 'privSet' $private
+Write-Host "ok   public: private to public for $($kinds.Count) kinds and server actions (creation list and set), PublicServerAction for server actions only (13 in one message), public to private listed as breaking"
 
 Saved 'svcBase' @(); Saved 'svcList' @('Helper'); Saved 'svcSet' @()
-Refused 'svcPriv' @("refused: 'SvP' is an existing public element. oml never makes it private")
+Breaking 'svcPriv' @("'SvP' was public and is now private")
 Write-Host 'ok   public: service actions get no PublicServerAction warning'
 } finally { Remove-TestWorkFolder $Tmp }

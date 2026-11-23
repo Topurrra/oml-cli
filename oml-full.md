@@ -43,7 +43,7 @@ oml config set checks.browser off    # no browser runs
 oml config set author "Your Name"    # the name Service Studio shows on changes
 ```
 
-Asking before install, publish, deploy and data deletion cannot be turned off.
+Agents ask before install, publish, deploy, deletes and data risks unless the profile turns that off (`autoApprove.*`). Entity data is never deleted.
 
 ## Read a module
 
@@ -270,22 +270,26 @@ Output is compact JSON on stdout. Exit codes: 0 ok, 1 model or validation failur
 
 ## Safety
 
-Agents must assume everything in a module is already in production, with data and other modules using it. `apply` refuses, and prints the manual step instead:
+Agents must assume everything in a module is already in production, with data and other modules using it. `apply` always refuses, with any flag or setting, and prints the manual step instead:
 
-- deleting an existing entity;
-- renaming or deleting existing elements, parameters or attributes;
-- breaking the signature of an existing public element;
-- changing an existing attribute's type, length, decimals, mandatory or auto number setting;
+- deleting an existing entity or attribute, changing an attribute's data type, renaming an attribute;
+- an entity deleted and created again, or copied from another module (a new, empty table).
+
+`apply` stops with `needsApproval` and saves nothing until you say yes (the agent then applies again with `--user-approved`; in `oml mcp` and `oml code` that call is gated):
+
+- deleting any other existing element: actions, screens, blocks, structures, static records, parameters, roles and the like;
+- a shorter length, fewer decimals, a new mandatory setting or an auto number change on an existing attribute; a new identifier or multi-tenant setting;
 - SQL that changes data (`DELETE`, `UPDATE`, `TRUNCATE`, `DROP`, `ALTER`, `MERGE`).
 
-A server action that becomes public gets a warning, and the agent asks you. Elements created in the same spec stay fully editable. All 11 rules: [skill/rules.md](skill/rules.md).
+The project profile can save these without the question: `autoApprove.deletes` and `autoApprove.dataDeletion`. Everything else saves: renames, edits, restructures and public signature changes. The report lists what changed in existing elements (`changed`, `approved`) and, in `breaking`, each change that breaks the modules using a public element, with what they must do (refresh references, fix callers). A server action that becomes public gets a warning, and the agent asks you. All 11 rules: [skill/rules.md](skill/rules.md).
 
 | Step | Who |
 |---|---|
 | Read, write specs, apply, validate, check, review, browser | Agent |
 | Install a staged file | Agent, after you confirm |
 | Publish, Refresh All, server and LifeTime calls | Agent, after you confirm |
-| Delete or rename existing elements, change existing attributes | You, in Service Studio |
+| Delete existing elements, change data at risk | Agent, after you confirm |
+| Delete entities or attributes, retype or rename attributes | You, in Service Studio |
 | Final design touches, logic review | You |
 
 ## Not supported

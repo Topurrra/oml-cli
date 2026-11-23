@@ -16,7 +16,7 @@ namespace OmlCli;
 //   rule        nothing in a spec changes it, and a production rule (skill/rules.md) forbids the change.
 //   read-only   a getter-only property or a query method (Get*, Is*, Find*, ...).
 //   not-covered a member that changes the model and no spec key reaches; `reason` says what is missing.
-// A covered member may still be refused on existing elements: `existingRule` names that rule. The rules come from the
+// A covered member may still be refused or held for the user's yes on existing elements: `existingRule` names that rule. The rules come from the
 // same tables ProductionRules enforces. Nothing here is written by hand per member, so a new Service Studio build
 // gives a new file that can be diffed with the old one.
 static class ModelCoverage
@@ -95,23 +95,18 @@ static class ModelCoverage
     // Rules on existing elements, from the tables ProductionRules enforces. (interface name or "*", member, rule, why)
     static IEnumerable<(string iface, string member, int rule, string why)> RuleTable()
     {
-        foreach (var c in ProductionRules.ContractTypes)
-        {
-            yield return (c, "Name", 3, "renaming an existing element breaks its users");
-            yield return (c, "Delete", c.Contains("Entity") ? 2 : 3, "deleting an existing element breaks its users and loses data");
-        }
+        // Rule 2, always refused: an existing entity attribute is never renamed, retyped or deleted.
+        yield return ("IEntityAttribute", "Name", 2, "an existing attribute is never renamed");
+        yield return ("IEntityAttribute", "Delete", 2, "an existing attribute and its data are never deleted");
         foreach (var p in ProductionRules.AttributeShape)
-            yield return ("IAttribute", p, 5, "existing columns hold production data");
-        foreach (var (p, _) in ProductionRules.EntityShape)
-            yield return ("IEntity", p, 5, "changes how existing rows are keyed, read or written");
-        foreach (var p in new[] { "DataType", "IsMandatory" })
-        {
-            yield return ("IInputParameter", p, 4, "an existing public element's signature is used by other modules");
-            yield return ("IOutputParameter", p, 4, "an existing public element's signature is used by other modules");
-        }
-        yield return ("*", "Public", 4, "an existing public element must not become private");
-        yield return ("IBlockEvent", "IsMandatory", 4, "a mandatory event breaks instances without a handler");
-        yield return ("ISQLNode", "Statement", 6, "only read-only SQL and INSERT");
+            yield return ("IEntityAttribute", p, p == "DataType" ? 2 : 5, p == "DataType" ? "an existing attribute's data type never changes"
+                : "a shorter length, fewer decimals, a new mandatory setting or an auto number change needs the user's yes");
+        // Rule 2 for entities; rule 3 (the user's yes) for every other existing element. Renames are allowed.
+        foreach (var c in ProductionRules.ContractTypes)
+            yield return (c, "Delete", c.Contains("Entity") ? 2 : 3, c.Contains("Entity") ? "an existing entity and its data are never deleted" : "deleting an existing element needs the user's yes");
+        foreach (var p in ProductionRules.EntityDataRisk)
+            yield return ("IEntity", p, 5, "changes how existing rows are keyed: needs the user's yes");
+        yield return ("ISQLNode", "Statement", 6, "SQL that changes data needs the user's yes");
     }
 
     // Members that change the model but are not a change a spec should make, and why. By member name.
@@ -248,8 +243,8 @@ static class ModelCoverage
             ["build"] = Model.InstalledBuild(), ["generatedBy"] = "oml model-coverage --out tests/model-api",
             ["statuses"] = new JsonObject
             {
-                ["covered"] = "a spec key changes it (keys); existingRule: refused on elements that existed before the spec",
-                ["rule"] = "no spec key changes it and a production rule forbids the change",
+                ["covered"] = "a spec key changes it (keys); existingRule: refused, or held for the user's yes, on elements that existed before the spec",
+                ["rule"] = "no spec key changes it and a production rule refuses it or holds it for the user's yes",
                 ["read-only"] = "a getter-only property or a query method",
                 ["not-covered"] = "changes the model, no spec key reaches it (reason)",
                 ["out-of-scope"] = "changes the model but is not a change a spec should make (reason)",
@@ -523,8 +518,8 @@ static class ModelCoverage
         b.AppendLine("**covered** when a spec key changes it, **rule** when only a production rule (skill/rules.md) stands in the way, and");
         b.AppendLine("**not covered** otherwise. Getter-only properties and query methods are **read-only**. **Out of scope** members change");
         b.AppendLine("the model but are not a change a spec should make (history stamps, session and file operations, reference refresh).");
-        b.AppendLine("*With rule* counts covered members that are refused on elements that existed before the spec (renames, deletes,");
-        b.AppendLine("attribute types, signatures). *Covered %* is covered / (changes - out of scope).");
+        b.AppendLine("*With rule* counts covered members that a production rule refuses or holds for the user's yes on elements that existed before");
+        b.AppendLine("the spec (entity and attribute deletes, attribute renames and types, other deletes, data risks). *Covered %* is covered / (changes - out of scope).");
         b.AppendLine();
         b.AppendLine("How a member counts as covered: oml's apply code calls it (read from oml's own IL, starting at `Apply`; *by name* means");
         b.AppendLine("through `Reflect.Call` or a property written by name), or the generic `set` of `edits` and of widget and node");

@@ -9,7 +9,7 @@ record ReferenceSpec(string Producer, JsonElement Elements, string? Extension = 
 
 static class ModuleReferences
 {
-    public static void Alias(IESpace m, Dictionary<string, string>? aliases, List<string> problems, ProductionRules rules)
+    public static void Alias(IESpace m, Dictionary<string, string>? aliases, List<string> problems)
     {
         foreach (var (qualified, alias) in aliases ?? new())
         {
@@ -23,7 +23,6 @@ static class ModuleReferences
                 if (!Refs.All(m).Any(x => x.owner != ((OutSystems.Model.Applications.IModule)m).Name && ReferenceEquals(x.element, target)))
                     throw new ModelError("only referenced elements can be aliased");
                 var property = Reflect.Property(target, "Name", writable: true) ?? throw new ModelError("reference name is not writable on this build");
-                rules.RenameReference((IObjectSignature)target);
                 property.SetValue(target, alias);
                 if (Model.NameOf(target) != alias) throw new ModelError($"alias {alias}: {NameClash.Taken(target, alias)}; the model renamed it {Model.NameOf(target)}");
             }

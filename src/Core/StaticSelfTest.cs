@@ -84,7 +84,7 @@ static partial class SelfTest
         File.WriteAllText(spec, """{"referenceAliases":{"StaticProducer.Status":"ProducerStatus"}}""");
         var aliasOut = Path.Combine(dir, "alias.oml");
         var (aliasCode, aliasReport) = Apply.Execute(Path.Combine(dir, "alias-source.oml"), spec, aliasOut);
-        if (aliasCode != 1 || File.Exists(aliasOut) || !JsonSerializer.Serialize(aliasReport).Contains("refused:"))
+        if (aliasCode != 1 || File.Exists(aliasOut) || !JsonSerializer.Serialize(aliasReport).Contains("cannot be changed here"))
             failures.Add("existing reference alias refusal: " + JsonSerializer.Serialize(aliasReport));
     }
 }

@@ -73,6 +73,16 @@
     },
     {
       "name": "RuleTimerAction"
+    },
+    {
+      "name": "RulePublic",
+      "public": true,
+      "inputs": [
+        {
+          "name": "Id",
+          "type": "Integer"
+        }
+      ]
     }
   ],
   "clientActions": [

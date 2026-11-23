@@ -38,7 +38,7 @@ static class CliUsage
         oml check [<module.oml>] [--in <folder|file.oml|file.oap>]... [--app <Name>]... [--team <Name>] [--layers <layers.json>] [--rules <oml-rules.json>] [--baseline <old-check.json>] [--out <report.html>] [--json <report.json>] [--fail-on high|medium|low]
         oml check --init-rules [--out <oml-rules.json>]   (writes the team rules file: every rule, on/off, severity, options)
         oml check --diff <before.oml> <after.oml> [--rules <oml-rules.json>]   (findings fixed and introduced per rule; exit 1 when one is introduced)
-        oml review <before.oml> <after.oml> [--md <file.md>] [--out <file.html>] [--notes <file.md>] [--rules <oml-rules.json>]   (what changed, production-rule risks, new check findings)
+        oml review <before.oml> <after.oml> [--md <file.md>] [--out <file.html>] [--notes <file.md>] [--rules <oml-rules.json>]   (what changed, rule risks, new findings)
         oml review <before.oml> <after.oml> --prepare <folder> | --import <findings.json>   (blind logic review: a packet for a reviewer agent; its findings checked)
         oml review --server <Module> <v1> <v2> [--keep <folder>] [review options]   (two server versions: a number, published or latest)
         oml openapi <module.oml> [--api <RestServiceName>] [--out <file.json|folder>] [--server <url>]...
@@ -52,7 +52,7 @@ static class CliUsage
         oml mock <Api.Method> | --api <Api> | --all [--personas <file.json>] [--out <folder>] [--project <name>]   (mock responses for a mock server such as Castlemock, chained by the map: one persona keeps its values across APIs)
         oml tree <module.oml> <ElementName> [--depth N]   (object tree of one action, screen, entity, ...; at most 250 parts)
         oml validate <module.oml> [--warnings]
-        oml apply <source.oml> <spec.json>... <staged-out.oml> [--describe A,B,...] [--describe-created] [--report <report.json>]
+        oml apply <source.oml> <spec.json>... <staged-out.oml> [--describe A,B,...] [--describe-created] [--report <report.json>] [--user-approved]
         oml apply --batch <index.json>   (many modules in one process: {items:[{source,spec,staged}]}; one combined summary; exit 1 if any item failed)
         oml spec [<key>]                   (reference for one spec key; no key lists them. Runs without Service Studio)
         oml spec --search "<words>" [--top N]   (ranked search of the spec keys and sections)
