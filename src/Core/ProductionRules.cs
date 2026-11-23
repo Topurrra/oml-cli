@@ -6,7 +6,14 @@ using OutSystems.Model.Types;
 
 namespace OmlCli;
 
-// Capture before any spec work. Global keys survive the data/logic scratch reload.
+// The production rules of skill/rules.md that `oml apply` enforces, and the risks `oml review` lists. Capture before any
+// spec work; global keys survive the data/logic scratch reload, so the change is found by key, not by name.
+//   forbidden (rule 2): an existing entity or attribute deleted, an attribute retyped or renamed, an entity made again
+//     with a new key. Always refused.
+//   delete (rule 3): any other existing element deleted. Saved only with the user's yes (--user-approved, autoApprove.deletes).
+//   data (rules 5 and 6): a change that can lose production data. Saved only with the user's yes (--user-approved, autoApprove.dataDeletion).
+//   breaking (rule 4): a renamed public element or a changed public signature. Allowed; reported with what consumers must do.
+//   security (rule 7): a warning.
 sealed class ProductionRules
 {
     readonly HashSet<string> source;
@@ -14,8 +21,10 @@ sealed class ProductionRules
     readonly Dictionary<string, string> sourceSql;
     readonly Dictionary<string, (IObjectSignature element, string name, string? shape, bool? isPublic)> definitions;
     readonly HashSet<string> wasPublic, wasPrivate;
+    readonly IESpace origin; // the module before: it stays open to the end, for the names of its types
     public ProductionRules(IESpace module)
     {
+        origin = module;
         var elements = Walk(module).ToList();
         source = elements.Select(Key).ToHashSet();
         // Elements of producer modules hold no data here; "Remove Unused Dependencies" may drop them.
@@ -26,7 +35,7 @@ sealed class ProductionRules
         sourceSql = elements.OfType<OutSystems.Model.Logic.Nodes.ISQLNode>().GroupBy(Key).ToDictionary(g => g.Key, g => g.First().Statement ?? "");
         definitions = elements.Where(Protected).ToDictionary(Key, o => (o, Name(o), Shape(o), Public(o)));
         // Every own element that is public, of any kind (images, scripts, resources, themes and process
-        // activities included): rule 4 refuses making it private.
+        // activities included): making it private breaks its consumers (rule 4).
         wasPublic = elements.Where(o => Public(o) == true && !referenced.Contains(Key(o))).Select(Key).ToHashSet();
         wasPrivate = elements.Where(o => Public(o) == false && !referenced.Contains(Key(o))).Select(Key).ToHashSet();
         var traditional = WebUi.IsTraditional(module);
@@ -65,10 +74,11 @@ sealed class ProductionRules
                 problems.Add($"{Consumed(before.element).Message} Changed: {string.Join(", ", changed)}.");
     }
 
-    // Rule 4: the inputs and outputs of each existing public action, block and screen, by name.
-    // events: a block's events and the types of their inputs.
-    sealed record Contract(string kind, Dictionary<string, (string type, bool mandatory)> inputs, Dictionary<string, string> outputs,
-        Dictionary<string, Dictionary<string, string>> events);
+    // Rule 4: the inputs, outputs and events of each existing public action, block and screen, by key (a renamed
+    // parameter is reported as a rename, not as one removed and one added).
+    sealed record Param(string name, string type, bool mandatory);
+    sealed record Contract(string kind, Dictionary<string, Param> inputs, Dictionary<string, Param> outputs,
+        Dictionary<string, (string name, bool mandatory, Dictionary<string, Param> inputs)> events);
     readonly Dictionary<string, Contract> signatures;
     // server: server and service actions; client: client actions; reactive and web: blocks and screens.
     static string? SignatureKind(IObjectSignature o, bool traditional) =>
@@ -80,65 +90,78 @@ sealed class ProductionRules
         static IEnumerable<IObjectSignature> Parameters(object owner, string collection) => Reflect.Get(owner, collection) is System.Collections.IEnumerable list
             ? list.OfType<IObjectSignature>() : Enumerable.Empty<IObjectSignature>();
         string Type(IObjectSignature p) => Model.Describe(module, Reflect.Get(p, "DataType") as ITypeSignature);
-        return new(kind,
-            Parameters(o, "InputParameters").GroupBy(p => Name(p)).ToDictionary(g => g.Key, g => (Type(g.First()), Reflect.Get(g.First(), "IsMandatory") is true)),
-            Parameters(o, "OutputParameters").GroupBy(p => Name(p)).ToDictionary(g => g.Key, g => Type(g.First())),
-            Parameters(o, "Events").GroupBy(e => Name(e)).ToDictionary(g => g.Key,
-                g => Parameters(g.First(), "InputParameters").GroupBy(p => Name(p)).ToDictionary(p => p.Key, p => Type(p.First()))));
+        Dictionary<string, Param> Of(object owner, string collection) => Parameters(owner, collection).GroupBy(Key)
+            .ToDictionary(g => g.Key, g => new Param(Name(g.First()), Type(g.First()), Reflect.Get(g.First(), "IsMandatory") is true));
+        return new(kind, Of(o, "InputParameters"), Of(o, "OutputParameters"),
+            Parameters(o, "Events").GroupBy(Key).ToDictionary(g => g.Key, g => (Name(g.First()), Reflect.Get(g.First(), "IsMandatory") is true, Of(g.First(), "InputParameters"))));
     }
     static string What(string kind) => kind switch
     {
         "server" => "public server or service action", "client" => "public client action",
         "reactive" => "public Reactive or Mobile block or screen", _ => "public Traditional Web block or screen",
     };
-    // A Reactive block or screen of a library still in development may have no consumer yet: say how to change it then.
-    static string InDevelopment(string kind, string name) => kind == "reactive"
-        ? $" If no module uses it yet (check: oml map uses {name}), apply the library spec to the module from before the library instead, so '{name}' is new there."
-        : "";
 
-    // Each change that breaks the modules using a public element (rule 4), worded by its direction.
-    static IEnumerable<string> SignatureProblems(string name, Contract before, Contract after, string? start = null)
+    // Each change of a public element's signature that breaks the modules using it (rule 4), with what they must do.
+    // Allowed: the report lists it. A new optional input of a server or service action or a Traditional Web block or
+    // screen, and a new output of a server or service action, break nothing.
+    static IEnumerable<string> BreakingChanges(string name, Contract before, Contract after)
     {
-        start ??= $"refused: '{name}' is an existing {What(before.kind)}.";
-        var fixedInputs = before.kind is "client" or "reactive"; // no input change at all, not even an optional one
-        foreach (var (input, (type, mandatory)) in after.inputs)
+        var start = $"{What(before.kind)} '{name}'";
+        var fixedInputs = before.kind is "client" or "reactive"; // a Reactive caller breaks on any input change
+        foreach (var (key, input) in after.inputs)
         {
-            if (!before.inputs.TryGetValue(input, out var old))
+            if (!before.inputs.TryGetValue(key, out var old))
             {
-                if (mandatory) yield return $"{start} A new mandatory input '{input}' breaks every module that uses it (rule 4). {(fixedInputs ? "Create a new element instead." : "Add it as optional (\"mandatory\": false), or create a new element.")}";
-                else if (fixedInputs) yield return $"{start} Any new input, even an optional one ('{input}'), breaks the modules that use it (rule 4). Create a new element instead.{InDevelopment(before.kind, name)}";
+                if (input.mandatory) yield return $"{start}: new mandatory input '{input.name}'. Callers in other modules must pass it.";
+                else if (fixedInputs) yield return $"{start}: new input '{input.name}'. Modules that use it must refresh references.";
                 continue;
             }
-            if (old.type != type) yield return $"{start} Changing the type of input '{input}' ({old.type} to {type}) breaks the modules that use it (rule 4). Add a new input or element instead.{InDevelopment(before.kind, name)}";
-            if (!old.mandatory && mandatory) yield return $"{start} Making input '{input}' mandatory breaks the modules that leave it out (rule 4). Keep it optional.";
-            if (old.mandatory && !mandatory && fixedInputs) yield return $"{start} Making input '{input}' optional changes its signature and breaks the modules that use it (rule 4); that is allowed only on server and service actions and Traditional Web blocks and screens.";
+            if (old.type != input.type) yield return $"{start}: input '{input.name}' changed type ({old.type} to {input.type}). Callers must pass the new type.";
+            if (!old.mandatory && input.mandatory) yield return $"{start}: input '{input.name}' is mandatory now. Callers that leave it out must pass it.";
+            if (old.mandatory && !input.mandatory && fixedInputs) yield return $"{start}: input '{input.name}' is optional now. Modules that use it must refresh references.";
         }
-        // An event input's type is part of the block's contract: handlers in other modules read it.
-        foreach (var (evt, inputs) in after.events)
-            if (before.events.TryGetValue(evt, out var oldInputs))
-                foreach (var (input, type) in inputs)
-                    if (oldInputs.TryGetValue(input, out var oldType) && oldType != type)
-                        yield return $"{start} Changing the type of input '{input}' of event '{evt}' ({oldType} to {type}) breaks the handlers in the modules that use it (rule 4). Add a new event instead.";
-        foreach (var (output, type) in after.outputs)
+        foreach (var (key, input) in before.inputs.Where(p => !after.inputs.ContainsKey(p.Key)))
+            yield return $"{start}: input '{input.name}' was removed. Callers must stop passing it.";
+        foreach (var (key, output) in after.outputs)
         {
-            if (!before.outputs.TryGetValue(output, out var old))
-            { if (before.kind != "server") yield return $"{start} A new output '{output}' breaks the modules that use it (rule 4); only public server and service actions may get new outputs."; }
-            else if (old != type) yield return $"{start} Changing the type of output '{output}' ({old} to {type}) breaks the modules that use it (rule 4). Add a new output or element instead.";
+            if (!before.outputs.TryGetValue(key, out var old))
+            { if (before.kind != "server") yield return $"{start}: new output '{output.name}'. Modules that use it must refresh references."; }
+            else if (old.type != output.type) yield return $"{start}: output '{output.name}' changed type ({old.type} to {output.type}). Callers that read it must handle the new type.";
         }
+        foreach (var (key, output) in before.outputs.Where(p => !after.outputs.ContainsKey(p.Key)))
+            yield return $"{start}: output '{output.name}' was removed. Callers that read it must stop.";
+        // An event and its inputs are part of a block's contract: instances in other modules handle it.
+        foreach (var (key, evt) in after.events)
+        {
+            if (!before.events.TryGetValue(key, out var old))
+            {
+                yield return evt.mandatory ? $"{start}: new mandatory event '{evt.name}'. Every instance in other modules must get a handler."
+                    : $"{start}: new optional event '{evt.name}'. Modules that use the block must refresh references.";
+                continue;
+            }
+            if (evt.mandatory && !old.mandatory) yield return $"{start}: event '{evt.name}' is mandatory now. Instances in other modules without a handler must get one.";
+            foreach (var (inputKey, input) in evt.inputs)
+                if (old.inputs.TryGetValue(inputKey, out var oldInput) && oldInput.type != input.type)
+                    yield return $"{start}: input '{input.name}' of event '{evt.name}' changed type ({oldInput.type} to {input.type}). Handlers in other modules must read the new type.";
+        }
+        foreach (var (key, evt) in before.events.Where(e => !after.events.ContainsKey(e.Key)))
+            yield return $"{start}: event '{evt.name}' was removed. Handlers in other modules must be removed.";
     }
     static readonly string[] AttributeProperties = { "DataType", "Length", "Decimals", "IsMandatory", "IsAutoNumber" };
     // `oml model-coverage` reads the same tables this class enforces.
     internal static IReadOnlyList<string> AttributeShape => AttributeProperties;
     internal static IReadOnlyList<(string property, string what)> EntityShape => EntitySettings;
+    internal static IReadOnlyList<string> EntityDataRisk => ["IdentifierAttribute", "IsMultiTenant"];
     internal static IEnumerable<string> ContractTypes => Contracts.Order(StringComparer.Ordinal);
-    // Entity settings that change how published rows are keyed, read or written (EntityOptions sets them on new entities).
+    // Entity settings that change how published rows are keyed, read or written. Only the identifier and the
+    // multi-tenant setting need the user's yes (rule 5); the others may change.
     static readonly (string property, string what)[] EntitySettings =
     {
         ("IdentifierAttribute", "identifier"), ("IsActiveAttribute", "is active attribute"), ("LabelAttribute", "label attribute"),
         ("OrderByAttribute", "order by attribute"), ("ExposeReadOnly", "expose read only setting"), ("UpdateBehavior", "update behavior"),
         ("IsMultiTenant", "multi-tenant setting"),
     };
-    // What rule 5 protects: an attribute's column shape, or an entity's settings.
+    // An attribute's column shape, or an entity's settings.
     static string? Shape(IObjectSignature o) =>
         (o is IAttributeSignature && o.Parent is IEntitySignature or IStructureSignature ? AttributeProperties
             : o is IEntitySignature ? EntitySettings.Select(x => x.property).ToArray() : null) is { } properties
@@ -178,6 +201,11 @@ sealed class ProductionRules
         && (o is not IParameterSignature || o.Parent?.Parent is not OutSystems.Model.UI.IWidgetSignature)
         // What a process node owns (the Close or Start activity action Service Studio makes for it, its parameters) goes with the node.
         && o.Parent is not OutSystems.Model.Processes.Nodes.IProcessNode && o.Parent?.Parent is not OutSystems.Model.Processes.Nodes.IProcessNode;
+    // An entity attribute: a column with production data.
+    static bool IsColumn(IObjectSignature o) => o is IAttributeSignature && o.Parent is IEntitySignature;
+    bool Own(IObjectSignature o) => source.Contains(Key(o)) && !referenced.Contains(Key(o));
+    // An entity's generated actions (CreateOrder, GetOrder) follow the entity.
+    static bool EntityAction(IObjectSignature o) => o.GetType().GetInterfaces().Any(i => i.Name.Contains("EntityAction"));
     // Any change to an element of a referenced module (a proxy) is refused with this one message.
     internal static ModelError Consumed(IObjectSignature o)
     {
@@ -192,51 +220,173 @@ sealed class ProductionRules
     internal static string? ConsumedClash(object created, string name) =>
         NameClash.HolderElement(created, name) is { } held && ElementPaths.Referenced(held) ? Consumed(held).Message : null;
     static string Name(IObjectSignature o) => Model.NameOf(o) ?? Reflect.Get(o, "Identifier")?.ToString() ?? ElementPaths.Kind(o);
-    static ModelError Refuse(IObjectSignature o, string operation) => new(
-        $"refused: '{Name(o)}' is an existing {(o is IEntitySignature ? "entity" : "element")}. oml never {operation} existing {(o is IEntitySignature ? "entities" : "elements")}; {(operation == "deletes" ? "delete" : "rename")} it manually in Service Studio if you really want to.");
+
+    // Rule 2: what oml never does, with any flag or setting.
+    internal static string Forbidden(string text, string fix = "Undo that part of the spec; to change an attribute, add a new one.") =>
+        $"refused: {text} oml never does this, with any flag or setting (rule 2). {fix} If the user wants it anyway, they do it by hand in Service Studio.";
+    static ModelError Refuse(IObjectSignature o, string what) => new(Forbidden(o is IEntitySignature
+        ? $"'{Name(o)}' is an existing entity with production data; {what} it loses that data."
+        : $"'{Name(o.Parent!)}/{Name(o)}' is an existing attribute (a column with production data); {what} it can lose that data."));
+    // Renames are allowed (a public element's rename is reported as breaking), except an existing attribute's.
     public void Rename(IObjectSignature o)
     {
-        if (Protected(o)) throw Refuse(o, "renames");
+        if (IsColumn(o) && Own(o)) throw Refuse(o, "renaming");
     }
-    // References are not protected against removal, but an existing local name is still an existing name.
-    public void RenameReference(IObjectSignature o)
-    {
-        if (source.Contains(Key(o))) throw Refuse(o, "renames");
-    }
+    // Deletes of existing elements need the user's yes (found by Validate); an existing entity or attribute is never deleted.
     public void Delete(IObjectSignature o)
     {
-        // Deleting a containing flow/folder must not bypass protection of its members.
-        foreach (var child in Walk(o)) if (Protected(child)) throw Refuse(child, "deletes");
+        // Deleting a containing element must not bypass the protection of its members.
+        foreach (var child in Walk(o))
+            if (child is IEntitySignature && Own(child) || IsColumn(child) && Own(child)) throw Refuse(child, "deleting");
     }
+    public void Set(object target, string property, JsonElement value)
+    {
+        if (target is not IObjectSignature o) return;
+        if (property.Equals("Name", StringComparison.OrdinalIgnoreCase)
+            || (property.Equals("Identifier", StringComparison.OrdinalIgnoreCase) && o is OutSystems.Model.Data.IRecord)) Rename(o);
+        if (IsColumn(o) && Own(o) && new[] { "DataType", "Type" }.Contains(property, StringComparer.OrdinalIgnoreCase))
+            throw Refuse(o, "changing the data type of");
+    }
+
+    // What Validate found that needs the user's yes: kind "delete" or "data", the element, and what changes, in plain words.
+    internal sealed record Approval(string Kind, string Element, string What);
+    public List<Approval> NeedsApproval { get; } = new();
+    // Breaking changes to public elements (rule 4), each with what the consumer modules must do.
+    public List<string> Breaking { get; } = new();
+    // Security warnings found by key (rule 7): an existing public entity made writable.
+    public List<string> Warnings { get; } = new();
+
+    // One finding of the comparison by key. Kind: forbidden, delete, data, breaking, security. Breaks: a delete that also
+    // breaks the modules that use the element (it was public, or its owner was).
+    internal sealed record Finding(string Kind, int Rule, string Element, string Text, bool Breaks = false);
+
     public void Validate(IESpace module, List<string> problems)
     {
         // Catch indirect SDK mutations too: dependency cleanup, clipboard operations, and property side effects.
         // Static record value slots can share an attribute's key; compare definition objects only.
         ValidateConsumed(module, problems);
         var all = Walk(module).Where(o => !o.WasDeleted).ToList();
-        var current = all.Where(Protected).GroupBy(Key).ToDictionary(g => g.Key, g => g.First());
-        foreach (var o in all.Where(o => wasPublic.Contains(Key(o)) && Public(o) == false).GroupBy(Key).Select(g => g.First()))
-            problems.Add(PublicRefusal(o).Message);
         // A UI flow reads as public when it holds a public screen or block; the screen or block is the change.
         MadePublic = all.Where(o => wasPrivate.Contains(Key(o)) && Public(o) == true && !o.GetType().GetInterfaces().Any(i => i.Name == "IUIFlowSignature")).GroupBy(Key).Select(g => g.First())
             .Select(o => $"public of {NameClash.Kind(o)} {Name(o)}").Order(StringComparer.Ordinal).ToList();
+        NeedsApproval.Clear(); Breaking.Clear(); Warnings.Clear();
+        foreach (var f in Compare(module, all))
+            switch (f.Kind)
+            {
+                case "forbidden": problems.Add(Forbidden(f.Text)); break;
+                case "delete" or "data":
+                    NeedsApproval.Add(new(f.Kind, f.Element, f.Text));
+                    if (f.Breaks) Breaking.Add(f.Text);
+                    break;
+                case "breaking": Breaking.Add(f.Text); break;
+                case "security": Warnings.Add($"rule {f.Rule}: {f.Text}"); break;
+            }
+    }
+
+    // The module before (this snapshot) against `after`, by key: what the production rules say about each change.
+    List<Finding> Compare(IESpace after, List<IObjectSignature> all)
+    {
+        var findings = new List<Finding>();
+        var current = all.Where(Protected).GroupBy(Key).ToDictionary(g => g.Key, g => g.First());
+        var made = new Lazy<HashSet<string>>(() => all.Where(o => !source.Contains(Key(o)) && Model.NameOf(o) is not null)
+            .Select(o => NameClash.Kind(o) + "\n" + PathOf(o, Name(o))).ToHashSet());
+        foreach (var o in all.Where(o => wasPublic.Contains(Key(o)) && Public(o) == false).GroupBy(Key).Select(g => g.First()))
+            findings.Add(new("breaking", 4, Name(o), $"{NameClash.Kind(o)} '{Name(o)}' was public and is now private: the modules that use it break. They must stop using it."));
+        // Public for consumers: the element itself, or its owner (a parameter, a structure attribute, an event).
+        bool PublicFor(IObjectSignature o) => wasPublic.Contains(Key(o)) || o.Parent is { } owner && wasPublic.Contains(Key(owner));
+        bool Gone(IObjectSignature o) => definitions.ContainsKey(Key(o)) && !current.ContainsKey(Key(o));
         foreach (var (key, before) in definitions)
         {
-            if (!current.TryGetValue(key, out var after)) problems.Add(Refuse(before.element, "deletes").Message);
-            else if (Name(after) != before.name) problems.Add(Refuse(before.element, "renames").Message);
-            else if (signatures.TryGetValue(key, out var contract))
-                problems.AddRange(SignatureProblems(before.name, contract, Signature(module, after, contract.kind)));
-            else if (Shape(after) != before.shape) problems.Add(before.element is IEntitySignature entity
-                ? EntityOptions.Refusal(entity, string.Join(", ", EntitySettings.Where(x => Value(before.shape, x.property) != Value(Shape(after), x.property)).Select(x => x.what)))
-                : AttributeRefusal(before.element).Message);
+            if (EntityAction(before.element)) continue;
+            var kind = NameClash.Kind(before.element);
+            var path = PathOf(before.element, before.name);
+            if (!current.TryGetValue(key, out var now))
+            {
+                // One finding per deleted element, not one more per attribute, parameter or record inside it.
+                var owner = before.element.Parent;
+                for (; owner is not null && owner is not IESpace; owner = owner.Parent) if (Gone(owner)) break;
+                if (owner is not null && owner is not IESpace) continue;
+                // Created again with the same name, it is still a new element: references hold the old key.
+                var again = made.Value.Contains(kind + "\n" + path);
+                if (before.element is IEntitySignature)
+                    findings.Add(new("forbidden", 2, path, again
+                        ? $"{kind} '{path}' was deleted and created again with the same name: that makes a new, empty table, and the app loses the production data of the old one."
+                        : $"{kind} '{path}' was deleted: its production data is lost, and the modules that use it break."));
+                else if (IsColumn(before.element))
+                    findings.Add(new("forbidden", 2, path, $"attribute '{path}' was deleted{(again ? " and created again with the same name, which makes a new, empty column" : "")}: its production data is lost."));
+                else
+                {
+                    // A parameter or event of a public action, block or screen: its signature line says what breaks.
+                    var breaks = wasPublic.Contains(key) || before.element.Parent is { } p && wasPublic.Contains(Key(p)) && !signatures.ContainsKey(Key(p));
+                    findings.Add(new("delete", 3, path, $"{kind} '{path}' was deleted{(again ? " and created again with the same name, which makes a new element" : "")}."
+                        + (breaks ? " The modules that use it break; they must stop using it." : ""), breaks));
+                }
+                continue;
+            }
+            if (Name(now) != before.name)
+            {
+                if (IsColumn(before.element)) findings.Add(new("forbidden", 2, path, $"attribute '{path}' was renamed to '{Name(now)}'."));
+                else if (PublicFor(before.element))
+                    findings.Add(new("breaking", 4, PathOf(now, Name(now)), $"{kind} '{path}' was renamed to '{Name(now)}': the modules that use it must refresh references."));
+            }
+            if (signatures.TryGetValue(key, out var contract))
+                findings.AddRange(BreakingChanges(Name(now), contract, Signature(after, now, contract.kind)).Select(t => new Finding("breaking", 4, Name(now), t)));
+            else if (Shape(now) is var shape && shape != before.shape) findings.AddRange(ShapeFindings(before.element, before.shape, now, shape, before.isPublic, after));
+        }
+        foreach (var node in all.OfType<OutSystems.Model.Logic.Nodes.ISQLNode>())
+            if (!UnchangedSql(node) && DataChangingKeyword(node.Statement ?? "") is { } keyword)
+                findings.Add(new("data", 6, Model.OwnerName(node) ?? Name(node), $"SQL '{Name(node)}' contains {keyword}: it changes data in production."));
+        return findings;
+    }
+
+    // A changed attribute or entity: what each changed setting means for production data.
+    IEnumerable<Finding> ShapeFindings(IObjectSignature before, string? old, IObjectSignature now, string? shape, bool? wasPublicEntity, IESpace after)
+    {
+        var element = PathOf(now, Name(now));
+        if (now is IEntitySignature)
+        {
+            var names = EntitySettings.Select(x => (x.property, x.what)).ToArray();
+            string Text(string property) => $"{Value(old, property, names, origin)} -> {Value(shape, property, names, after)}";
+            bool Changed(string property) => Value(old, property, names) != Value(shape, property, names);
+            if (Changed("IdentifierAttribute")) yield return new("data", 5, element, $"entity '{element}': identifier {Text("IdentifierAttribute")}. That changes how existing rows are keyed.");
+            if (Changed("IsMultiTenant")) yield return new("data", 5, element, $"entity '{element}': multi-tenant setting {Text("IsMultiTenant")}. That changes which existing rows each tenant sees.");
+            // A public entity that other modules may now write to weakens security (rule 7).
+            if (wasPublicEntity == true && Value(old, "ExposeReadOnly", names) == "True" && Value(shape, "ExposeReadOnly", names) == "False")
+                yield return new("security", 7, Name(now), $"entity '{Name(now)}' is public and Expose Read Only is No now: other modules can now write to this public entity.");
+            yield break;
+        }
+        var properties = AttributeProperties.Select(p => (p, Words(p))).ToArray();
+        var changed = properties.Where(x => Value(old, x.Item1, properties) != Value(shape, x.Item1, properties)).ToList();
+        string Change((string property, string what) x) => $"{x.what} {Value(old, x.property, properties, origin)} -> {Value(shape, x.property, properties, after)}";
+        if (!IsColumn(now))
+        {
+            // A structure attribute holds no data; the modules that use a public structure must refresh references.
+            if (before.Parent is { } owner && wasPublic.Contains(Key(owner)) && changed.Count > 0)
+                yield return new("breaking", 4, element, $"attribute '{element}' of a public structure changed: {string.Join(", ", changed.Select(Change))}. The modules that use the structure must refresh references.");
+            yield break;
+        }
+        int? Number(string? s, string property) => int.TryParse(Value(s, property, properties), out var n) ? n : null;
+        foreach (var x in changed)
+        {
+            switch (x.Item1)
+            {
+                case "DataType":
+                    yield return new("forbidden", 2, element, $"attribute '{element}' changed its data type ({Change(x)}): production data can fail to convert."); break;
+                case "Length" when Number(shape, "Length") < Number(old, "Length"):
+                    yield return new("data", 5, element, $"attribute '{element}': shorter {Change(x)}. Longer values in production are cut."); break;
+                case "Decimals" when Number(shape, "Decimals") < Number(old, "Decimals"):
+                    yield return new("data", 5, element, $"attribute '{element}': fewer {Change(x)}. Values in production are rounded."); break;
+                case "IsMandatory" when Value(shape, "IsMandatory", properties) == "True":
+                    yield return new("data", 5, element, $"attribute '{element}' is mandatory now. Existing rows without a value break."); break;
+                case "IsAutoNumber":
+                    yield return new("data", 5, element, $"attribute '{element}': {Change(x)}. That changes how new rows get their identifier."); break;
+            }
         }
     }
+
     static bool? Public(IObjectSignature o) => Reflect.Get(o, "Public") as bool?;
-    // Rule 4 checks events and signatures only on elements that were public before this apply.
+    // Rule 4 lists events and signatures only on elements that were public before this apply.
     public bool WasPublic(object o) => o is IObjectSignature s && wasPublic.Contains(Key(s));
-    // Public to private breaks the consumers of the element (rule 4). Private to public is allowed (rule 7).
-    internal static ModelError PublicRefusal(IObjectSignature o) => new(
-        $"refused: '{Name(o)}' is an existing public {(o is IEntitySignature ? "entity" : "element")}. oml never makes it private: that breaks the modules that use it (rule 4); change it manually in Service Studio if you really want to.");
     // Rule 7: every server action of the module that is public now and was not before (new or made public).
     // Service actions and exposed REST methods are made to be called from outside, so they are not listed.
     public IEnumerable<string> NewPublicServerActions(IESpace module) => module.ServerActions
@@ -244,32 +394,11 @@ sealed class ProductionRules
     // Existing own elements that this apply made public, by any path (creation lists, content, edits.set), for the
     // report's `changed` ("public of entity Sector"). Set by Validate.
     public List<string> MadePublic { get; private set; } = new();
-    static string? Value(string? shape, string property) =>
-        shape?.Split('|').ElementAtOrDefault(Array.FindIndex(EntitySettings, x => x.property == property));
-    static ModelError AttributeRefusal(IObjectSignature o) => new(
-        $"refused: '{Name(o.Parent!)}/{Name(o)}' is an existing attribute. oml never changes its type, length, decimals, mandatory or auto number setting; change it manually in Service Studio if you really want to.");
-    public void Set(object target, string property, JsonElement value)
+
+    // The data-changing keyword in a statement (rule 6), or null. SQL strings, quoted identifiers, parameters and
+    // comments are not keywords; nested block comments are supported.
+    public static string? DataChangingKeyword(string statement)
     {
-        if (target is not IObjectSignature o) return;
-        if (property.Equals("Name", StringComparison.OrdinalIgnoreCase)
-            || (property.Equals("Identifier", StringComparison.OrdinalIgnoreCase) && o is OutSystems.Model.Data.IRecord)) Rename(o);
-        if (property.Equals("Public", StringComparison.OrdinalIgnoreCase) && WasPublic(o) && value.ValueKind == JsonValueKind.False) throw PublicRefusal(o);
-        if (source.Contains(Key(o)) && o is IAttributeSignature && (o.Parent is IEntitySignature or IStructureSignature)
-            && new[] { "DataType", "Type", "Length", "Decimals", "IsMandatory", "Mandatory", "IsAutoNumber", "AutoNumber" }.Contains(property, StringComparer.OrdinalIgnoreCase))
-            throw AttributeRefusal(o);
-        // Rule 4: making an existing event mandatory breaks every instance that has no handler.
-        if (source.Contains(Key(o)) && o is OutSystems.Model.UI.IBlockEvent { IsMandatory: false } && property.Equals("IsMandatory", StringComparison.OrdinalIgnoreCase)
-            && value.ValueKind == JsonValueKind.True)
-            throw new ModelError($"refused: '{Name(o)}' is an existing optional event. oml never makes an existing event mandatory: block instances without a handler would break. Add a new event instead.");
-        if (source.Contains(Key(o)) && o is IEntitySignature entity
-            && EntitySettings.FirstOrDefault(x => x.property.Equals(property, StringComparison.OrdinalIgnoreCase)) is { property: not null } setting)
-            throw new ModelError(EntityOptions.Refusal(entity, setting.what));
-        if (o is OutSystems.Model.Logic.Nodes.ISQLNode && property.Equals("Statement", StringComparison.OrdinalIgnoreCase))
-            Sql(o, value.GetString() ?? "");
-    }
-    public static void Sql(object node, string statement)
-    {
-        // SQL strings/quoted identifiers and comments are not keywords. Support nested block comments.
         var tokens = new System.Text.StringBuilder();
         for (var i = 0; i < statement.Length;)
         {
@@ -301,14 +430,7 @@ sealed class ProductionRules
             else { tokens.Append(c); i++; }
         }
         var match = Regex.Match(tokens.ToString(), @"\b(DELETE|UPDATE|TRUNCATE|DROP|ALTER|MERGE)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        if (match.Success) throw new ModelError($"refused: '{Model.NameOf(node)}' SQL contains {match.Value.ToUpperInvariant()}. oml never applies data-changing SQL; change it manually in Service Studio if you really want to.");
-    }
-
-    // The data-changing keyword in a statement (rule 6), or null: the same tokenizer as Sql.
-    public static string? DataChangingKeyword(string statement)
-    {
-        try { Sql(new object(), statement); return null; }
-        catch (ModelError e) { return Regex.Match(e.Message, @"SQL contains (\w+)\.").Groups[1].Value; }
+        return match.Success ? match.Value.ToUpperInvariant() : null;
     }
 
     // `oml review`: one risk of a change. Info: worth a look, not a broken rule.
@@ -319,59 +441,11 @@ sealed class ProductionRules
     // its rule (rules.md) and says what changed; nothing is refused here.
     internal List<Risk> Risks(IESpace after)
     {
-        var risks = new List<Risk>();
         var all = Walk(after).Where(o => !o.WasDeleted).ToList();
-        var current = all.Where(Protected).GroupBy(Key).ToDictionary(g => g.Key, g => g.First());
-        var recreated = new Lazy<HashSet<string>>(() => all.Where(o => !source.Contains(Key(o)) && Model.NameOf(o) is not null)
-            .Select(o => NameClash.Kind(o) + "\n" + Name(o)).ToHashSet());
-        foreach (var o in all.Where(o => wasPublic.Contains(Key(o)) && Public(o) == false).GroupBy(Key).Select(g => g.First()))
-            risks.Add(new(4, Name(o), $"{NameClash.Kind(o)} '{Name(o)}' was public and is now private: the modules that use it break."));
-        foreach (var (key, before) in definitions)
-        {
-            // An entity's generated actions follow the entity: its own rename or delete is the risk.
-            if (before.element.GetType().GetInterfaces().Any(i => i.Name.Contains("EntityAction"))) continue;
-            var kind = NameClash.Kind(before.element);
-            var path = PathOf(before.element, before.name);
-            if (!current.TryGetValue(key, out var now))
-            {
-                // A deleted entity or action is one risk, not one more per attribute or parameter.
-                if (before.element.Parent is { } owner && definitions.ContainsKey(Key(owner)) && !current.ContainsKey(Key(owner))) continue;
-                // Created again with the same name, it is still a new element: references hold the old key.
-                var again = recreated.Value.Contains(kind + "\n" + before.name) ? " and created again with the same name, which makes a new element" : "";
-                risks.Add(new(before.element is IEntitySignature ? 2 : 3, path, $"{kind} '{path}' was deleted{again}: {Loss(before.element)}"));
-                continue;
-            }
-            if (Name(now) != before.name)
-                risks.Add(new(3, PathOf(now, Name(now)), $"{kind} '{path}' was renamed to '{Name(now)}': the modules that use the old name break."));
-            if (signatures.TryGetValue(key, out var contract))
-                foreach (var text in SignatureProblems(before.name, contract, Signature(after, now, contract.kind), $"'{Name(now)}' is a {What(contract.kind)}."))
-                    risks.Add(new(4, Name(now), text));
-            else if (Shape(now) is var shape && shape != before.shape)
-            {
-                var entity = now is IEntitySignature;
-                var names = entity ? EntitySettings.Select(x => (x.property, x.what)).ToArray() : AttributeProperties.Select(p => (p, Words(p))).ToArray();
-                var changed = names.Where(x => Value(before.shape, x.Item1, names) != Value(shape, x.Item1, names)).ToList();
-                // A public entity that other modules may now write to weakens security (rule 7), not the data shape.
-                if (entity && before.isPublic == true && Value(before.shape, "ExposeReadOnly", names) == "True" && Value(shape, "ExposeReadOnly", names) == "False")
-                {
-                    risks.Add(new(7, Name(now), $"entity '{Name(now)}' is public and Expose Read Only is No now: other modules can now write to this public entity."));
-                    changed.RemoveAll(x => x.Item1 == "ExposeReadOnly");
-                }
-                if (changed.Count == 0) continue;
-                var text = string.Join(", ", changed.Select(x => $"{x.Item2} {Value(before.shape, x.Item1, names, reviewed)} -> {Value(shape, x.Item1, names, after)}"));
-                var element = PathOf(now, Name(now));
-                risks.Add(new(5, element, $"{(entity ? "entity" : "attribute")} '{element}' changed: {text}. " + (entity ? "That changes how existing rows are keyed, read or written."
-                    : now.Parent is IEntitySignature ? "Production data can be cut off or fail to convert."
-                    : "Values passed through this structure can be cut off or fail to convert, and the modules that use it may break.")));
-            }
-        }
+        var risks = Compare(after, all).Select(f => new Risk(f.Rule, f.Element, f.Text)).ToList();
         foreach (var name in NewPublicServerActions(after))
             risks.Add(new(7, name, $"server action '{name}' is public now: other modules (and their users) can call it. Make sure that is wanted."));
-        foreach (var node in all.OfType<OutSystems.Model.Logic.Nodes.ISQLNode>())
-            if (!UnchangedSql(node) && DataChangingKeyword(node.Statement ?? "") is { } keyword)
-                risks.Add(new(6, Model.OwnerName(node) ?? Name(node), $"SQL '{Name(node)}' contains {keyword}: it changes data in production."));
         Access(after, all, risks);
-        Events(all, risks);
         foreach (var entity in all.OfType<IEntitySignature>().Where(e => source.Contains(Key(e)) && !referenced.Contains(Key(e))))
         {
             foreach (var index in EntityOptions.Indexes(entity).Where(i => Reflect.Get(i, "Unique") is true))
@@ -388,16 +462,6 @@ sealed class ProductionRules
     // Owner/Name for attributes and parameters, so the line says whose they are.
     static string PathOf(IObjectSignature o, string name) =>
         o is IAttributeSignature or IParameterSignature && o.Parent is { } owner ? Name(owner) + "/" + name : name;
-
-    // What a delete takes with it, by kind.
-    static string Loss(IObjectSignature o) => o switch
-    {
-        IEntitySignature => "its production data is deleted with it, and the modules that use it break.",
-        IAttributeSignature when o.Parent is IEntitySignature => "its column and production data are deleted, and the modules that use it break.",
-        IAttributeSignature => "the modules and APIs that use the structure break.",
-        IParameterSignature => "the modules that use its owner break.",
-        _ => "the modules that use it break.",
-    };
 
     // Rule 7: who may open a screen. Anonymous lets everyone in; Registered lets every logged-in user in.
     void Access(IESpace after, List<IObjectSignature> all, List<Risk> risks)
@@ -427,24 +491,6 @@ sealed class ProductionRules
         }
     }
 
-    // Rule 4: an existing public block gets no new event, and an optional event stays optional.
-    void Events(List<IObjectSignature> all, List<Risk> risks)
-    {
-        foreach (var block in all.Where(o => Inspect.IsBlock(o) && blockEvents.ContainsKey(Key(o))))
-        {
-            var old = blockEvents[Key(block)];
-            foreach (var evt in (Reflect.Get(block, "Events") as System.Collections.IEnumerable)?.OfType<IObjectSignature>() ?? [])
-            {
-                var mandatory = Reflect.Get(evt, "IsMandatory") is true;
-                if (!old.TryGetValue(Name(evt), out var was))
-                    risks.Add(new(4, Name(block) + "/" + Name(evt), $"public block '{Name(block)}' has a new {(mandatory ? "mandatory" : "optional")} event '{Name(evt)}': "
-                        + (mandatory ? "every instance in other modules now needs a handler, so they break." : "the modules that use the block must be refreshed to handle it.")));
-                else if (mandatory && !was)
-                    risks.Add(new(4, Name(block) + "/" + Name(evt), $"event '{Name(evt)}' of public block '{Name(block)}' is mandatory now: instances in other modules without a handler break."));
-            }
-        }
-    }
-
     static string Words(string property) => Regex.Replace(property.StartsWith("Is") ? property[2..] : property, "(?<=[a-z])(?=[A-Z])", " ").ToLowerInvariant();
     // One property of a shape string. A type is stored by key; `module` turns it back into its name.
     static string Value(string? shape, string property, (string property, string what)[] names, IESpace? module = null)
@@ -457,15 +503,13 @@ sealed class ProductionRules
     }
     static List<string> Roles(object screen) => (Reflect.Get(screen, "Roles") as System.Collections.IEnumerable)?.Cast<object>().Select(r => Model.NameOf(r) ?? "").ToList() ?? new();
     // Review only, from the module before: screens that allowed Anonymous, the roles of each screen, the unique
-    // indexes, each entity attribute's delete rule, and each public block's events (name -> mandatory).
+    // indexes and each entity attribute's delete rule.
     readonly HashSet<string> anonymousScreens = new(), uniqueIndexes = new();
     readonly Dictionary<string, List<string>> screenRoles = new();
     readonly Dictionary<string, string> deleteRules = new();
-    readonly Dictionary<string, Dictionary<string, bool>> blockEvents = new();
-    IESpace? reviewed; // the module before, for the names of its types
     public static ProductionRules ForReview(IESpace before)
     {
-        var rules = new ProductionRules(before) { reviewed = before };
+        var rules = new ProductionRules(before);
         var anonymous = Reflect.Get(before, "AnonymousRole") is { } a ? Model.NameOf(a) : null;
         var elements = Walk(before).ToList();
         foreach (var screen in elements.OfType<OutSystems.Model.UI.IScreenSignature>())
@@ -480,9 +524,6 @@ sealed class ProductionRules
             foreach (var attribute in entity.Attributes)
                 if (Reflect.Get(attribute, "DeleteRule")?.ToString() is { } rule) rules.deleteRules[Key(attribute)] = rule;
         }
-        foreach (var block in elements.Where(o => Inspect.IsBlock(o) && rules.WasPublic(o)))
-            rules.blockEvents[Key(block)] = ((Reflect.Get(block, "Events") as System.Collections.IEnumerable)?.OfType<IObjectSignature>() ?? [])
-                .GroupBy(Name).ToDictionary(g => g.Key, g => Reflect.Get(g.First(), "IsMandatory") is true);
         return rules;
     }
 }

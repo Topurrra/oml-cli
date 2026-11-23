@@ -136,7 +136,8 @@ foreach ($case in @(
   Require ($r.Exit -eq 1 -and ($r.Report.problems -join ' ') -match $case[1]) "entity refusal '$($case[1])': $($r.Text)"
 }
 $existing = Apply $entity.Out 'entity-existing' '{ "entities": [ { "name": "P", "multiTenant": false } ] }'
-Require ($existing.Exit -eq 1 -and ($existing.Report.problems -join ' ') -match 'multi-tenant') "existing multi-tenant changed: $($existing.Text)"
+# A new multi-tenant setting on an existing entity changes which rows each tenant sees: it waits for the user's yes (rule 5).
+Require ($existing.Exit -eq 1 -and -not $existing.Report.saved -and (@($existing.Report.needsApproval | ForEach-Object { $_.what }) -join ' ') -match 'multi-tenant') "existing multi-tenant changed: $($existing.Text)"
 Write-Host 'ok   entity options, static identifiers and delete rules'
 
 # Spec check (#56) and the hint (#57, #68).

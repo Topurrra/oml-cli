@@ -8,7 +8,7 @@ OutSystems skill (examples/*.cs, integration-examples/*.md) with the spec that d
 
 `add`, `remove`, `move`, and `set` with `type`: see `oml spec add` (skill/reference/spec.md, "Generic model operations").
 Positive case: [seed.json](seed.json) then [ops-positive.json](ops-positive.json). Refusals, each with the message it
-must give: [refusals.json](refusals.json) (production rules 2 to 5, unknown type, unknown member, bad enum, bad
+must give: [refusals.json](refusals.json) (rule 2 refusals and rule 3 and 5 stops for the user's yes, unknown type, unknown member, bad enum, bad
 number, taken name, unknown sibling, missing values).
 
 ## Changes agents need
@@ -49,9 +49,9 @@ From the official skill's examples, the usage log and the coverage map. "Before"
 | 30 | A comment node with an arrow to a node | AddListScreen | no | not covered: oml makes comment nodes without arrows |
 | 31 | A built-in event's parameter type on an existing table (OnSort ClickedColumn) | AddListScreen | at creation (`onSort`) | not tested on an existing table |
 | 32 | Elements with keys the agent chooses | int-01 to int-04 | no | out of scope: oml makes the keys |
-| 33 | Delete or rename existing entities, attributes, actions, parameters, screens | Delete*.cs, SetName, SetAttributeName | refused | refused (rules 2 and 3), tested |
-| 34 | Change type, length, mandatory or identifier of an existing attribute or entity | ChangeAttributes, ChangeIdentifierAttribute | refused | refused (rule 5), tested |
-| 35 | A mandatory input on an existing public action | AddParameter | refused | refused (rule 4), tested |
+| 33 | Delete or rename existing entities, attributes, actions, parameters, screens | Delete*.cs, SetName, SetAttributeName | refused | entity and attribute delete and attribute rename refused (rule 2); other deletes ask the user (rule 3); renames apply; tested |
+| 34 | Change type, length, mandatory or identifier of an existing attribute or entity | ChangeAttributes, ChangeIdentifierAttribute | refused | type refused (rule 2); shorter length, mandatory, identifier ask the user (rule 5); longer length applies; tested |
+| 35 | A mandatory input on an existing public action | AddParameter | refused | applies, listed in `breaking` (rule 4), tested |
 | 36 | Read the module | ProbeModelWithException, ProbeModuleInventory | `oml inspect`, `describe`, `query` | not a spec: reading needs no change |
 
 Found on the way: `addParts` adds an aggregate that widget expressions in the same spec cannot read yet; give the

@@ -79,7 +79,7 @@ static partial class SelfTest
                 if (!JsonSerializer.Serialize(Apply.Execute(labelled, replace, Path.Combine(dir, "form-label-broken.oml")).report).Contains("NameInput is the target of MainFlow/LabelCheck/Lbl"))
                     failures.Add("form validation: replaceWidgets removing a Label's target was not refused");
             }
-            // A listed existing screen takes a new title and styleSheet (UI, rule 3); both must be stored.
+            // A listed existing screen takes a new title and styleSheet (UI); both must be stored.
             File.WriteAllText(replace, """{ "screens": [{ "name": "FormCheck", "title": "\"Check\"", "styleSheet": ".check { color: red; }" }] }""");
             var (titleCode, titleReport) = Apply.Execute(output, replace, Path.Combine(dir, "form-titled.oml"));
             if (titleCode != 0) failures.Add("form validation: title and styleSheet on an existing screen: " + JsonSerializer.Serialize(titleReport));

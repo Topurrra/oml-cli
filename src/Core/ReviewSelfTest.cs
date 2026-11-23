@@ -49,9 +49,10 @@ static class ReviewSelfTest
             {
                 void Set(object o, string property, object? value) => Reflect.Property(o, property, writable: true)!.SetValue(o, value);
                 var entities = m.Entities.ToList();
-                Set(entities.Single(e => e.Name == "Order"), "Name", "Purchase");                                     // rule 3: rename
-                Set(entities.Single(e => e.Name == "Customer").Attributes.Single(a => a.Name == "Name"), "Length", 100); // rule 5
-                ((IObjectSignature)entities.Single(e => e.Name == "Legacy")).Delete();                                 // rule 2
+                Set(entities.Single(e => e.Name == "Order"), "Name", "Purchase");                                     // a private rename: no risk
+                Set(entities.Single(e => e.Name == "Customer").Attributes.Single(a => a.Name == "Name"), "Length", 20);  // rule 5
+                ((IObjectSignature)entities.Single(e => e.Name == "Legacy")).Delete();                                 // rule 2: an entity made again
+                m.CreateServerEntity("Legacy", services.NewKey());
                 Set(m.ServerActions.Single(a => a.Name == "Shared"), "Public", false);                                  // rule 4: private
                 var input = Reflect.Call(m.ServerActions.Single(a => a.Name == "FindCustomer"), "CreateInputParameter", "Region", services.NewKey())!;
                 Set(input, "DataType", m.TextType); Set(input, "IsMandatory", true);                                   // rule 4: signature
@@ -116,31 +117,31 @@ static class ReviewSelfTest
             string Details(string name) => string.Join(" | ", Change(name)?["details"]!.AsArray().Select(d => d!.GetValue<string>()) ?? []);
             Check(Change("Purchase")?["change"]?.GetValue<string>() == "renamed" && Details("Purchase").Contains("renamed from Order to Purchase") && Change("Order") is null,
                 "a renamed entity must be one 'renamed' change, not a delete and an add: " + JsonSerializer.Serialize(changes));
-            Check(Change("Legacy")?["change"]?.GetValue<string>() == "removed", "a deleted entity is 'removed'");
-            Check(Details("Customer").Contains("attribute Name: length 50 -> 100"), "attribute length change: " + Details("Customer"));
+            Check(Change("Legacy")?["change"]?.GetValue<string>() == "recreated", "an entity deleted and made again is 'recreated': " + JsonSerializer.Serialize(Change("Legacy")));
+            Check(Details("Customer").Contains("attribute Name: length 50 -> 20"), "attribute length change: " + Details("Customer"));
             Check(Details("Work").Contains("step Second moved: now after Start (was after First)"), "a moved step: " + Details("Work"));
             Check(Details("Work").Contains("step Big: condition Amount > 100 -> Amount > 200"), "a changed condition: " + Details("Work"));
             Check(!System.Text.RegularExpressions.Regex.IsMatch(Details("Work"), "step \\w+ (added|removed)"), "a moved step is not an add and a remove: " + Details("Work"));
             var risks = document["risks"]!.AsArray().Select(r => (rule: r!["rule"]!.GetValue<int>(), text: r["text"]!.GetValue<string>(), info: r["info"] is not null)).ToList();
             bool Risk(int rule, string words) => risks.Any(r => r.rule == rule && r.text.Contains(words));
-            Check(Risk(3, "'Order' was renamed to 'Purchase'"), "rule 3 rename");
-            Check(Risk(2, "'Legacy' was deleted"), "rule 2 deleted entity");
+            Check(!risks.Any(r => r.text.Contains("'Order' was renamed")), "a private entity's rename is no risk");
+            Check(Risk(2, "'Legacy' was deleted and created again with the same name: that makes a new, empty table"), "rule 2 entity made again, found by key");
             Check(!risks.Any(r => r.text.Contains("'Code'")), "a deleted entity's attributes are not risks of their own");
-            Check(Risk(5, "length 50 -> 100"), "rule 5 attribute length");
+            Check(Risk(5, "shorter length 50 -> 20"), "rule 5 attribute length");
             Check(Risk(4, "'Shared' was public and is now private"), "rule 4 public to private");
             Check(Risk(4, "new mandatory input 'Region'"), "rule 4 signature");
             Check(Risk(6, "contains DELETE"), "rule 6 data-changing SQL");
             Check(Risk(7, "'Home' allows Anonymous now"), "rule 7 Anonymous");
-            Check(Risk(3, "'Work/Amount' was deleted: the modules that use its owner break"), "rule 3 deleted parameter, named Owner/Name");
-            Check(Risk(4, "public block 'Card' has a new optional event 'OnClear'"), "rule 4 new event on a public block");
-            Check(Risk(4, "event 'OnPick' of public block 'Card' is mandatory now"), "rule 4 event made mandatory");
+            Check(Risk(3, "'Work/Amount' was deleted."), "rule 3 deleted parameter, named Owner/Name");
+            Check(Risk(4, "'Card': new optional event 'OnClear'"), "rule 4 new event on a public block");
+            Check(Risk(4, "'Card': event 'OnPick' is mandatory now"), "rule 4 event made mandatory");
             Check(Risk(7, "other modules can now write to this public entity"), "rule 7 Expose Read Only on a public entity");
             Check(!risks.Any(r => r.rule == 5 && r.text.Contains("expose read only")), "a writable public entity is rule 7, not rule 5");
             Check(Risk(7, "'Staff' allows Registered now"), "rule 7 Registered added to a screen with only custom roles");
             Check(risks.Any(r => r.rule == 7 && r.info && r.text.Contains("'Desk' can now be opened by the role Clerk")), "info: a role added to a screen");
             Check(risks.Any(r => r.rule == 1 && r.info && r.text.Contains("delete rule Protect -> Delete") && r.text.Contains("cascade deletes")), "info: delete rule changed to Delete");
-            Check(risks.Count(r => !r.info) == 12 && risks.Count(r => r.info) == 2, $"expected 12 risks and 2 info, got: " + string.Join(" | ", risks.Select(r => r.text)));
-            Check(document["summary"]!["risks"]!.GetValue<int>() == 12 && document["summary"]!["info"]!.GetValue<int>() == 2 && document["note"]!.GetValue<string>() == Review.NotCovered, "summary and note");
+            Check(risks.Count(r => !r.info) == 11 && risks.Count(r => r.info) == 2, $"expected 11 risks and 2 info, got: " + string.Join(" | ", risks.Select(r => r.text)));
+            Check(document["summary"]!["risks"]!.GetValue<int>() == 11 && document["summary"]!["info"]!.GetValue<int>() == 2 && document["note"]!.GetValue<string>() == Review.NotCovered, "summary and note");
             Check(Details("Status").Contains("record Open: value Label \"Open\" -> \"Opened\""), "a static record's value: " + Details("Status"));
 
             // Changed lines for --md and --out: one line changed between unchanged ones.

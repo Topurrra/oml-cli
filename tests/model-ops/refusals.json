@@ -1,6 +1,8 @@
 [
-  { "name": "remove-existing", "where": "apply", "expect": "existed before this spec",
+  { "name": "remove-existing-attribute", "where": "apply", "expect": "(rule 2)",
     "spec": { "edits": [{ "op": "remove", "element": "Customer/Email" }] } },
+  { "name": "remove-existing-action", "where": "apply", "expect": "server action 'Helper' was deleted",
+    "spec": { "edits": [{ "op": "remove", "element": "Helper" }] } },
   { "name": "set-wrong-type", "where": "apply", "expect": "not a IStructure",
     "spec": { "edits": [{ "op": "set", "element": "Customer", "type": "IStructure", "properties": { "Description": "x" } }] } },
   { "name": "set-unknown-member", "where": "apply", "expect": "Closest: Description",
@@ -11,10 +13,10 @@
     "spec": { "edits": [{ "op": "add", "type": "IServerEntity", "name": "Note", "properties": { "IsMultiTenant": "Maybe" } }] } },
   { "name": "add-bad-enum-apply", "where": "apply", "expect": "is not a IsMultiTenant value",
     "spec": { "edits": [{ "op": "add", "type": "IServerEntity", "name": "Note", "properties": { "IsMultiTenant": "Maybe" } }] } },
-  { "name": "add-mandatory-input-public", "where": "apply", "expect": "rule 4",
-    "spec": { "edits": [{ "op": "add", "parent": "GetCustomerName", "type": "IInputParameter", "name": "Extra", "properties": { "DataType": "Text", "IsMandatory": true } }] } },
-  { "name": "set-existing-attribute-length", "where": "apply", "expect": "is an existing attribute",
+  { "name": "set-existing-attribute-shorter", "where": "apply", "expect": "shorter length 100 -> 50",
     "spec": { "edits": [{ "op": "set", "element": "Customer/Name", "type": "IEntityAttribute", "properties": { "Length": 50 } }] } },
+  { "name": "set-existing-attribute-type", "where": "apply", "expect": "(rule 2)",
+    "spec": { "edits": [{ "op": "set", "element": "Customer/Score", "type": "IEntityAttribute", "properties": { "DataType": "Text" } }] } },
   { "name": "add-unknown-type", "where": "check", "expect": "Closest: IEntityAttribute",
     "spec": { "edits": [{ "op": "add", "parent": "Customer", "type": "IEntityAtribute", "name": "X" }] } },
   { "name": "add-wrong-parent", "where": "apply", "expect": "at one of those",
@@ -27,6 +29,6 @@
     "spec": { "edits": [{ "op": "move", "element": "Customer/Email", "before": "Nope" }] } },
   { "name": "add-record-without-values", "where": "apply", "expect": "Required Property Value",
     "spec": { "edits": [{ "op": "add", "parent": "Status", "type": "IRecord", "name": "Pending" }] } },
-  { "name": "add-public-to-private-rename", "where": "apply", "expect": "never renames existing entities",
-    "spec": { "edits": [{ "op": "set", "element": "Customer", "type": "IEntity", "properties": { "Name": "Client" } }] } }
+  { "name": "rename-existing-attribute", "where": "apply", "expect": "(rule 2)",
+    "spec": { "edits": [{ "op": "set", "element": "Customer/Score", "type": "IEntityAttribute", "properties": { "Name": "Points" } }] } }
 ]

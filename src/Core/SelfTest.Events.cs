@@ -135,17 +135,22 @@ static partial class SelfTest
                     { "name": "Caller", "public": true, "flow": [{ "kind": "execute", "action": "Callee" }] }] }
                 """, "A valid expression must be set for parameter 'A'");
 
-            // Existing blocks: rule 3 (no rename or delete of an event), rule 4 (no new mandatory event, no event on a public block).
-            Refuse("rename of an existing event", built, """{ "edits": [{ "op": "rename", "element": "MainFlow/Picker/OnPick", "to": "OnChoose" }] }""", "refused: 'OnPick'");
-            Refuse("delete of an existing event", built, """{ "edits": [{ "op": "delete", "element": "MainFlow/Picker/OnSpare" }] }""", "refused: 'OnSpare'");
-            Refuse("existing event made mandatory", built, """{ "edits": [{ "op": "set", "element": "MainFlow/Picker/OnClose", "properties": { "IsMandatory": true } }] }""", "existing optional event");
-            Refuse("new mandatory event on an existing block", built, """{ "edits": [{ "op": "addParts", "screen": "MainFlow/Picker", "events": [{ "name": "OnLater" }] }] }""", "existing instances have no handler");
+            // Existing blocks: a rename saves (rule 4 lists it on a public block), a delete asks (rule 3). A new mandatory event, or
+            // one made mandatory, leaves this module's instances without a handler: the model's validation refuses that.
+            Accept("rename of an existing event", built, """{ "edits": [{ "op": "rename", "element": "MainFlow/Picker/OnPick", "to": "OnChoose" }] }""");
+            Refuse("delete of an existing event", built, """{ "edits": [{ "op": "delete", "element": "MainFlow/Picker/OnSpare" }] }""", "'OnSpare' was deleted");
+            Refuse("existing event made mandatory", built, """{ "edits": [{ "op": "set", "element": "MainFlow/Picker/OnClose", "properties": { "IsMandatory": true } }] }""", "OnClose");
+            Refuse("new mandatory event on an existing block", built, """{ "edits": [{ "op": "addParts", "screen": "MainFlow/Picker", "events": [{ "name": "OnLater" }] }] }""", "OnLater");
             Accept("new optional event on an existing block", built, """{ "edits": [{ "op": "addParts", "screen": "MainFlow/Picker", "events": [{ "name": "OnLater", "mandatory": false }] }] }""");
             var publicBlock = Path.Combine(dir, "events-public.oml");
             // A new block made public in its own spec, for the rule 4 check of a new event on an existing public block.
             File.WriteAllText(spec, """{ "blocks": [{ "name": "SharedPicker" }], "edits": [{ "op": "set", "element": "MainFlow/SharedPicker", "properties": { "Public": true } }] }""");
             if (Apply.Execute(built, spec, publicBlock).code != 0) failures.Add("events: could not create the public block SharedPicker for the rule 4 check");
-            else Refuse("new event on an existing public block", publicBlock, """{ "edits": [{ "op": "addParts", "screen": "MainFlow/SharedPicker", "events": [{ "name": "OnLater", "mandatory": false }] }] }""", "existing public block");
+            else
+            {
+                var (sharedCode, sharedReport) = Run(publicBlock, """{ "edits": [{ "op": "addParts", "screen": "MainFlow/SharedPicker", "events": [{ "name": "OnLater", "mandatory": false }] }] }""");
+                if (sharedCode != 0 || !Says(sharedReport, "new optional event 'OnLater'")) failures.Add("events: a new event on an existing public block did not save as breaking: " + JsonSerializer.Serialize(sharedReport));
+            }
 
             // Handlers through addWidgets: a handled instance is accepted, an unhandled one names the mandatory event.
             Accept("addWidgets instance with handler", built, """{ "edits": [{ "op": "addWidgets", "screen": "MainFlow/PickHost", "widgets": [{ "type": "BlockInstance", "name": "Third", "sourceBlock": "Picker", "args": { "ItemId": "3" }, "events": { "OnPick": "Handle" } }] }] }""");

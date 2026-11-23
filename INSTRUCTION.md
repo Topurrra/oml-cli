@@ -118,7 +118,7 @@ Every command prints JSON; add `--pretty` to read it yourself.
 ## 5. What agents will never do
 
 The production rules are in [skill/rules.md](skill/rules.md). In short:
-- **No destructive changes:** never delete or rename existing elements or data, never break a public element's signature, never write SQL that changes data, never weaken security.
+- **No data loss:** never delete entities or attributes, retype or rename attributes, or rebuild an entity; ask before other deletes, data-risk changes and data-changing SQL; report public signature changes as breaking; never weaken security.
 - **No `.oml` file edits by hand:** only through `oml apply`, to a new staged file.
 - **No install, publish or deploy without your yes.**
 

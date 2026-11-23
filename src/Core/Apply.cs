@@ -39,7 +39,8 @@ record Spec(List<EntitySpec>? Entities = null, List<RecordSpec>? Structures = nu
     List<EmailSpec>? Emails = null, List<JsonElement>? ExternalSites = null, List<JsonElement>? UiFlows = null, List<JsonElement>? Tests = null, List<JsonElement>? EntityDiagrams = null);
 
 /// `--describe` names and `--describe-created` for `oml apply`: the report then carries describe output.
-record ApplyOptions(List<string> Describe, bool DescribeCreated);
+/// UserApproved (`--user-approved`): the user said yes to the deletes and data changes that a run without it listed in `needsApproval`.
+record ApplyOptions(List<string> Describe, bool DescribeCreated, bool UserApproved = false);
 
 static class Apply
 {
@@ -69,7 +70,7 @@ static class Apply
     }
 
     // What an agent must see even when the tool output is cut short: the summary, then the lists that decide the next step.
-    static readonly string[] FirstKeys = ["summary", "saved", "phase", "problems", "newErrors", "reopenNewErrors", "newWarnings", "warnings", "describe", "describeErrors", "staged", "next"];
+    static readonly string[] FirstKeys = ["summary", "saved", "phase", "problems", "needsApproval", "newErrors", "reopenNewErrors", "newWarnings", "warnings", "approved", "breaking", "describe", "describeErrors", "staged", "next"];
 
     static int Count(JsonNode? list) => list is JsonArray a ? a.Sum(x => x is JsonObject o && o["count"] is { } c ? c.GetValue<int>() : 1) : 0;
 
@@ -77,6 +78,8 @@ static class Apply
     {
         var summary = new JsonObject { ["saved"] = report["saved"]?.GetValue<bool>() ?? false };
         foreach (var key in new[] { "newErrors", "reopenNewErrors", "newWarnings", "problems" }) summary[key] = Count(report[key]);
+        // Only when there are some: what waits for the user's yes, and what breaks the modules that use a public element.
+        foreach (var key in new[] { "needsApproval", "breaking" }) if (Count(report[key]) is > 0 and var n) summary[key] = n;
         var shaped = new JsonObject { ["summary"] = summary };
         foreach (var key in FirstKeys.Skip(1).Concat(report.Select(p => p.Key)).Distinct().ToList())
             if (report[key] is { } value) { report.Remove(key); shaped[key] = value; }
@@ -97,8 +100,8 @@ static class Apply
         return kept;
     }
 
-    public static (int code, object report) Execute(string source, string specPath, string output) =>
-        Execute(source, [specPath], output, null);
+    public static (int code, object report) Execute(string source, string specPath, string output, bool userApproved = false) =>
+        Execute(source, [specPath], output, userApproved ? new ApplyOptions([], false, UserApproved: true) : null);
 
     public static (int code, object report) Execute(string source, IReadOnlyList<string> specPaths, string output, ApplyOptions? options, bool dryRun = false)
     {
@@ -191,16 +194,21 @@ static class Apply
         && e.TryGetProperty("op", out var op) && op.ValueKind == System.Text.Json.JsonValueKind.String
         && (op.GetString() is "add" or "remove" or "move" || (op.GetString() == "set" && e.TryGetProperty("type", out _)))) == true;
 
-    // The before/after check of `oml review` on a change made with generic operations. Rules 2 to 6 refuse the save; a
-    // rule 7 risk or a new unique index is a warning, as everywhere else (the user decides).
-    static void ReviewCheck(ProductionRules before, IESpace after, List<string> problems, List<string> warnings)
+    // The before/after check of `oml review` on a change made with generic operations: a rule 7 risk or a new unique
+    // index is a warning, as everywhere else (the user decides). Rules 2 to 6 are ProductionRules.Validate's, on every apply.
+    static void ReviewCheck(ProductionRules before, IESpace after, List<string> warnings)
     {
-        foreach (var risk in before.Risks(after).Where(r => !r.Info))
-        {
-            if (risk.Rule == 7 || risk.Text.StartsWith("unique index", StringComparison.Ordinal)) warnings.Add($"rule {risk.Rule}: {risk.Text}");
-            else problems.Add($"refused (rule {risk.Rule}, before/after check): {risk.Text} Undo that part of the spec, or ask the user to make this change by hand in Service Studio.");
-        }
+        foreach (var risk in before.Risks(after).Where(r => !r.Info && (r.Rule == 7 || r.Text.StartsWith("unique index", StringComparison.Ordinal))))
+            if ($"rule {risk.Rule}: {risk.Text}" is var warning && !warnings.Contains(warning)) warnings.Add(warning);
     }
+
+    // Who said yes: --user-approved for both kinds, or the project's autoApprove.deletes and autoApprove.dataDeletion
+    // (the launcher sets these variables from the project profile on every run). Null: nobody yet.
+    static string? ApprovedBy(string kind, bool userApproved) => userApproved ? "--user-approved"
+        : Environment.GetEnvironmentVariable(kind == "delete" ? "OML_AUTO_APPROVE_DELETES" : "OML_AUTO_APPROVE_DATA") == "1"
+            ? (kind == "delete" ? "autoApprove.deletes" : "autoApprove.dataDeletion") : null;
+
+    internal const string ApprovalNext = "Nothing was saved. Ask the user about each needsApproval item, in plain words, and wait. On a clear yes, run the same oml apply again with --user-approved and a NEW staged path. On a no, take that part out of the spec.";
 
     // raw: the spec's JSON, to tell keys the spec sets on an existing element from record defaults (Reuse).
     static (int code, object report) Execute(Spec spec, System.Text.Json.Nodes.JsonNode? raw, IESpace m, string source, string output, int commentsRemoved, IReadOnlyList<string>? specs, ApplyOptions? options, List<IESpace> opened, List<string>? pathWarnings = null, bool dryRun = false, HashSet<int>? skipEdits = null)
@@ -225,11 +233,11 @@ static class Apply
         var existing = new List<string>();
         var problems = new List<string>();
         var warnings = new List<string>(pathWarnings ?? []);
-        var changed = new List<string>(); // UI settings replaced on existing elements (rule 3)
+        var changed = new List<string>(); // what apply changed on existing elements
         var sheetsBefore = Timings.Measure("style sheet snapshot", () => StyleSheets(m));
 
         ModuleReferences.Add(m, spec.References, created, existing, problems, warnings);
-        ModuleReferences.Alias(m, spec.ReferenceAliases, problems, rules);
+        ModuleReferences.Alias(m, spec.ReferenceAliases, problems);
 
         // Themes (content) first: module.defaultTheme may name a theme this spec creates.
         Timings.Measure("content", () => Content.Before(m, spec, created, existing, changed, problems));
@@ -300,7 +308,7 @@ static class Apply
             return (s, st);
         }).Where(x => !refused.Contains(x.s)).ToList();
 
-        // Pass 2: attributes. Existing attributes are never retyped: changing a published column can lose data.
+        // Pass 2: attributes. An existing attribute listed again goes through Reuse.Attribute (its type never changes, rule 2).
         foreach (var (s, e, isNew) in entities)
         {
             if (s.Description is not null) e.Description = s.Description;
@@ -437,16 +445,20 @@ static class Apply
         {
             rules.Validate(m, problems);
             changed.AddRange(rules.MadePublic.Where(c => !changed.Contains(c)));
-            if (review is not null && problems.Count == 0) ReviewCheck(review, m, problems, warnings);
+            warnings.AddRange(rules.Warnings.Where(w => !warnings.Contains(w)));
+            if (review is not null && problems.Count == 0) ReviewCheck(review, m, warnings);
             var newPublic = rules.NewPublicServerActions(m).ToList();
             // More than the 12 samples a report keeps: one message names them all, so the agent can ask about each.
             if (newPublic.Count > 12) notices.Add(("PublicServerAction", "", $"server actions {string.Join(", ", newPublic)} are public: other modules can call them (rule 7).", newPublic.Count));
             else notices.AddRange(newPublic.Select(a => ("PublicServerAction", a, $"server action {a} is public: other modules can call it (rule 7).", 1)));
-            // Include copied SQL nodes and statements written by edits; unchanged existing SQL is left alone.
-            foreach (var sql in ProductionRules.Walk(m).OfType<OutSystems.Model.Logic.Nodes.ISQLNode>().Where(s => !rules.UnchangedSql(s)))
-                try { ProductionRules.Sql(sql, sql.Statement); }
-                catch (ModelError e) { problems.Add(e.Message); }
         });
+        // Deletes of existing elements (rule 3) and changes that can lose production data (rules 5 and 6) save only with the user's yes.
+        var userApproved = options?.UserApproved == true;
+        var approved = rules.NeedsApproval.Where(a => ApprovedBy(a.Kind, userApproved) is not null)
+            .Select(a => new { kind = a.Kind, element = a.Element, what = a.What, by = ApprovedBy(a.Kind, userApproved) }).ToList();
+        var pending = rules.NeedsApproval.Where(a => ApprovedBy(a.Kind, userApproved) is null)
+            .Select(a => new { kind = a.Kind, element = a.Element, what = a.What }).ToList();
+        var breaking = rules.Breaking.Count > 0 ? rules.Breaking.Distinct().ToList() : null;
 
         build?.Dispose();
         var after = Model.Errors(m, "validate built");
@@ -456,10 +468,13 @@ static class Apply
         var newErrors = Subtract(after, baseline).Concat(scriptErrors).ToArray();
         if (problems.Count > 0 || newErrors.Length > 0)
         {
-            return (1, new { saved = false, problems, warnings, newErrors = Model.Grouped(newErrors), changed, existing });
+            return (1, new { saved = false, problems, needsApproval = pending.Count > 0 ? pending : null, warnings, newErrors = Model.Grouped(newErrors), changed, existing,
+                next = pending.Count > 0 ? "Fix the problems and newErrors first. The needsApproval items also need the user's yes: ask, and on a clear yes apply again with --user-approved and a NEW staged path." : null });
         }
 
         if (dryRun) return (0, new { saved = false, dryRun = true }); // spec check --module: the build ran, nothing is written
+        if (pending.Count > 0)
+            return (1, new { saved = false, needsApproval = pending, breaking, warnings, changed, created, existing, next = ApprovalNext });
         if (author is { } writer && historyBefore is not null)
         {
             var (made, touched) = Authorship.Touched(historyBefore, Timings.Measure("author snapshot", () => ReviewModel.Read(m)));
@@ -481,6 +496,8 @@ static class Apply
             commentsRemoved = commentsRemoved > 0 ? commentsRemoved : (int?)null, // characters stripped from styleSheet/javaScript
             created,
             changed,
+            approved = approved.Count > 0 ? approved : null, // deletes and data changes saved with the user's yes: the user checks them
+            breaking, // public elements whose consumers must refresh references or change their calls (rule 4)
             author,
             removedDependencies,
             existing,
@@ -492,6 +509,7 @@ static class Apply
             describeErrors,
             describeCreatedMore = describeMore,
             next = $"Run oml review {Arg(source)} {Arg(output)} --md <new .md> and show it; ask before oml install."
+                   + (breaking is not null ? " Tell the user each breaking change: the modules that use these public elements must refresh references and fix their callers." : "")
                    + (author is null && created.Count + changed.Count > 0 ? " " + Authorship.Ask : ""),
         });
     }

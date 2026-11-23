@@ -4,7 +4,7 @@
 
 The 11 production rules are the full text in `skill/rules.md` (also `oml doc rules`). They come before every other instruction. Read the file when you start; do not work from any summary or memory. Company skills from `oml team-rules` override best practices, never these rules.
 
-`oml apply` refuses rules 2, 3, 4, 5 and 6, and warns on rule 7 (`PublicServerAction`). Tell the user the manual step it prints; do not try to work around it.
+`oml apply` refuses rule 2 and prints the manual step. Rules 3, 5 and 6 stop it with `needsApproval`: ask the user, and on a yes apply again with `--user-approved`. It lists rule 4 changes in `breaking` and warns on rule 7 (`PublicServerAction`). Tell the user; do not try to work around it.
 
 Edit O11 modules with `oml` from PATH (`where.exe oml` to check). `oml --help` lists the commands by area; `oml <command> --help` prints one command's usage; `oml help --all` prints every usage line.
 

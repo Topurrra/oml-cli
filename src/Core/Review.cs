@@ -27,8 +27,8 @@ static class Review
     // Rule numbers of skill/rules.md with a short name for reports.
     internal static readonly Dictionary<int, string> RuleNames = new()
     {
-        [1] = "production data", [2] = "existing entities stay", [3] = "no renames or deletes", [4] = "public signatures stay", [5] = "attribute and entity settings stay",
-        [6] = "no data-changing SQL", [7] = "security stays",
+        [1] = "production data", [2] = "entity data stays", [3] = "deletes need a yes", [4] = "breaks public consumers", [5] = "data-risk settings need a yes",
+        [6] = "data-changing SQL needs a yes", [7] = "security stays",
     };
 
     // JSON on stdout stays small for agents: the full lists go to --md, --out and --notes.

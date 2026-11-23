@@ -2,8 +2,8 @@
   "build": "11.55.97.65412",
   "generatedBy": "oml model-coverage --out tests/model-api",
   "statuses": {
-    "covered": "a spec key changes it (keys); existingRule: refused on elements that existed before the spec",
-    "rule": "no spec key changes it and a production rule forbids the change",
+    "covered": "a spec key changes it (keys); existingRule: refused, or held for the user\u0027s yes, on elements that existed before the spec",
+    "rule": "no spec key changes it and a production rule refuses it or holds it for the user\u0027s yes",
     "read-only": "a getter-only property or a query method",
     "not-covered": "changes the model, no spec key reaches it (reason)",
     "out-of-scope": "changes the model but is not a change a spec should make (reason)"
@@ -28,7 +28,7 @@
       "changes": 362,
       "out-of-scope": 24,
       "covered": 331,
-      "coveredWithRule": 1,
+      "coveredWithRule": 0,
       "rule": 0,
       "not-covered": 7,
       "coveredPercent": 97.9
@@ -40,7 +40,7 @@
       "changes": 135,
       "out-of-scope": 43,
       "covered": 76,
-      "coveredWithRule": 10,
+      "coveredWithRule": 0,
       "rule": 0,
       "not-covered": 16,
       "coveredPercent": 82.6
@@ -52,7 +52,7 @@
       "changes": 142,
       "out-of-scope": 49,
       "covered": 82,
-      "coveredWithRule": 22,
+      "coveredWithRule": 4,
       "rule": 0,
       "not-covered": 11,
       "coveredPercent": 88.2
@@ -88,7 +88,7 @@
       "changes": 235,
       "out-of-scope": 57,
       "covered": 163,
-      "coveredWithRule": 8,
+      "coveredWithRule": 1,
       "rule": 0,
       "not-covered": 15,
       "coveredPercent": 91.6
@@ -100,9 +100,9 @@
       "changes": 251,
       "out-of-scope": 53,
       "covered": 148,
-      "coveredWithRule": 3,
-      "rule": 8,
-      "not-covered": 42,
+      "coveredWithRule": 0,
+      "rule": 6,
+      "not-covered": 44,
       "coveredPercent": 74.7
     },
     "plugins": {
@@ -124,7 +124,7 @@
       "changes": 116,
       "out-of-scope": 16,
       "covered": 92,
-      "coveredWithRule": 6,
+      "coveredWithRule": 0,
       "rule": 0,
       "not-covered": 8,
       "coveredPercent": 92
@@ -137,9 +137,9 @@
     "changes": 1961,
     "out-of-scope": 265,
     "covered": 1534,
-    "coveredWithRule": 50,
-    "rule": 8,
-    "not-covered": 154,
+    "coveredWithRule": 5,
+    "rule": 6,
+    "not-covered": 156,
     "coveredPercent": 90.4
   },
   "types": [
@@ -226,8 +226,7 @@
           "status": "covered",
           "keys": [
             "edits.set"
-          ],
-          "existingRule": "rule 5: changes how existing rows are keyed, read or written"
+          ]
         },
         {
           "member": "TableNameOverride",
@@ -504,8 +503,7 @@
           "keys": [
             "edits.set",
             "entities"
-          ],
-          "existingRule": "rule 5: changes how existing rows are keyed, read or written"
+          ]
         },
         {
           "member": "Folder",
@@ -528,7 +526,7 @@
             "entities, structures",
             "staticEntities"
           ],
-          "existingRule": "rule 5: changes how existing rows are keyed, read or written"
+          "existingRule": "rule 5: changes how existing rows are keyed: needs the user\u0027s yes"
         },
         {
           "member": "IsActiveAttribute",
@@ -539,8 +537,7 @@
             "edits.set",
             "entities",
             "staticEntities"
-          ],
-          "existingRule": "rule 5: changes how existing rows are keyed, read or written"
+          ]
         },
         {
           "member": "IsMultiTenant",
@@ -553,7 +550,7 @@
             "entities",
             "timers, roles, siteProperties (by name)"
           ],
-          "existingRule": "rule 5: changes how existing rows are keyed, read or written"
+          "existingRule": "rule 5: changes how existing rows are keyed: needs the user\u0027s yes"
         },
         {
           "member": "IsRestrictedInQueries",
@@ -588,8 +585,7 @@
             "edits.set",
             "entities",
             "staticEntities"
-          ],
-          "existingRule": "rule 5: changes how existing rows are keyed, read or written"
+          ]
         },
         {
           "member": "LabelPlural",
@@ -638,8 +634,7 @@
             "edits.set",
             "entities",
             "staticEntities"
-          ],
-          "existingRule": "rule 5: changes how existing rows are keyed, read or written"
+          ]
         },
         {
           "member": "Public",
@@ -654,8 +649,7 @@
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)",
             "staticEntities"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         },
         {
           "member": "ShowTenantIdentifier",
@@ -686,8 +680,7 @@
           "keys": [
             "edits.set",
             "entities"
-          ],
-          "existingRule": "rule 5: changes how existing rows are keyed, read or written"
+          ]
         },
         {
           "member": "UseTranslations",
@@ -751,7 +744,7 @@
             "staticEntities",
             "timers, roles, siteProperties (by name)"
           ],
-          "existingRule": "rule 5: existing columns hold production data"
+          "existingRule": "rule 2: an existing attribute\u0027s data type never changes"
         },
         {
           "member": "DeleteRule",
@@ -773,7 +766,7 @@
             "entities",
             "entities, structures"
           ],
-          "existingRule": "rule 5: existing columns hold production data"
+          "existingRule": "rule 5: a shorter length, fewer decimals, a new mandatory setting or an auto number change needs the user\u0027s yes"
         },
         {
           "member": "Label",
@@ -868,8 +861,7 @@
           "signature": "AutoNumber IsAutoNumber { get; }",
           "status": "read-only",
           "keys": [
-            "apply (Describe.cs)",
-            "entities"
+            "apply (Describe.cs)"
           ]
         },
         {
@@ -1058,8 +1050,7 @@
             "references (by name)",
             "restClients (by name)",
             "staticEntities"
-          ],
-          "existingRule": "rule 3: renaming an existing element breaks its users"
+          ]
         },
         {
           "member": "OrderByAttribute",
@@ -1448,8 +1439,7 @@
             "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         },
         {
           "member": "TargetDirectory",
@@ -1608,8 +1598,7 @@
           "status": "covered",
           "keys": [
             "edits.set"
-          ],
-          "existingRule": "rule 5: changes how existing rows are keyed, read or written"
+          ]
         },
         {
           "member": "TableNameOverride",
@@ -1972,8 +1961,7 @@
             "processes (by name)",
             "references (by name)",
             "restClients (by name)"
-          ],
-          "existingRule": "rule 3: renaming an existing element breaks its users"
+          ]
         },
         {
           "member": "TextResources",
@@ -2159,8 +2147,7 @@
             "entities, structures",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         },
         {
           "member": "TextResources",
@@ -2398,8 +2385,7 @@
             "references (by name)",
             "restClients (by name)",
             "restClients, restServices"
-          ],
-          "existingRule": "rule 3: renaming an existing element breaks its users"
+          ]
         }
       ]
     },
@@ -2794,7 +2780,7 @@
           "kind": "property",
           "signature": "IEntityAttribute IdentifierAttribute { get; set; }",
           "status": "rule",
-          "rule": "rule 5: changes how existing rows are keyed, read or written"
+          "rule": "rule 5: changes how existing rows are keyed: needs the user\u0027s yes"
         },
         {
           "member": "IdentifierType",
@@ -2843,14 +2829,14 @@
           "kind": "property",
           "signature": "IBasicType DataType { get; set; }",
           "status": "rule",
-          "rule": "rule 5: existing columns hold production data"
+          "rule": "rule 2: an existing attribute\u0027s data type never changes"
         },
         {
           "member": "Decimals",
           "kind": "property",
           "signature": "Nullable\u003CInt32\u003E Decimals { get; set; }",
           "status": "rule",
-          "rule": "rule 5: existing columns hold production data"
+          "rule": "rule 5: a shorter length, fewer decimals, a new mandatory setting or an auto number change needs the user\u0027s yes"
         },
         {
           "member": "Description",
@@ -2871,21 +2857,21 @@
           "kind": "property",
           "signature": "Boolean IsMandatory { get; set; }",
           "status": "rule",
-          "rule": "rule 5: existing columns hold production data"
+          "rule": "rule 5: a shorter length, fewer decimals, a new mandatory setting or an auto number change needs the user\u0027s yes"
         },
         {
           "member": "Length",
           "kind": "property",
           "signature": "Nullable\u003CInt32\u003E Length { get; set; }",
           "status": "rule",
-          "rule": "rule 5: existing columns hold production data"
+          "rule": "rule 5: a shorter length, fewer decimals, a new mandatory setting or an auto number change needs the user\u0027s yes"
         },
         {
           "member": "Name",
           "kind": "property",
           "signature": "String Name { get; set; }",
-          "status": "not-covered",
-          "reason": "not an element: no element path reaches it"
+          "status": "rule",
+          "rule": "rule 2: an existing attribute is never renamed"
         },
         {
           "member": "SetDefaultValue",
@@ -3204,8 +3190,8 @@
           "member": "IsMandatory",
           "kind": "property",
           "signature": "Boolean IsMandatory { get; set; }",
-          "status": "rule",
-          "rule": "rule 4: an existing public element\u0027s signature is used by other modules"
+          "status": "not-covered",
+          "reason": "not an element: no element path reaches it"
         }
       ]
     },
@@ -3350,15 +3336,14 @@
           "status": "covered",
           "keys": [
             "references (by name)"
-          ],
-          "existingRule": "rule 5: existing columns hold production data"
+          ]
         },
         {
           "member": "Decimals",
           "kind": "property",
           "signature": "Nullable\u003CInt32\u003E Decimals { get; set; }",
-          "status": "rule",
-          "rule": "rule 5: existing columns hold production data"
+          "status": "not-covered",
+          "reason": "not an element: no element path reaches it"
         },
         {
           "member": "Description",
@@ -3374,15 +3359,14 @@
           "status": "covered",
           "keys": [
             "references (by name)"
-          ],
-          "existingRule": "rule 5: existing columns hold production data"
+          ]
         },
         {
           "member": "Length",
           "kind": "property",
           "signature": "Nullable\u003CInt32\u003E Length { get; set; }",
-          "status": "rule",
-          "rule": "rule 5: existing columns hold production data"
+          "status": "not-covered",
+          "reason": "not an element: no element path reaches it"
         },
         {
           "member": "Name",
@@ -5571,8 +5555,7 @@
             "processes (by name)",
             "references (by name)",
             "restClients, restServices (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element\u0027s signature is used by other modules"
+          ]
         },
         {
           "member": "SetDefaultValue",
@@ -8435,8 +8418,7 @@
             "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         }
       ]
     },
@@ -8614,8 +8596,7 @@
             "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         },
         {
           "member": "TextResources",
@@ -8740,8 +8721,7 @@
             "processes (by name)",
             "references (by name)",
             "restClients (by name)"
-          ],
-          "existingRule": "rule 3: renaming an existing element breaks its users"
+          ]
         },
         {
           "member": "RevokeRoleAction",
@@ -8778,8 +8758,7 @@
             "restClients, restServices (by name)",
             "sql (by name)",
             "timers, roles, siteProperties (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element\u0027s signature is used by other modules"
+          ]
         },
         {
           "member": "ExpandInline",
@@ -9013,8 +8992,7 @@
             "emails, sendEmail",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         }
       ]
     },
@@ -9108,8 +9086,7 @@
             "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         }
       ]
     },
@@ -9325,8 +9302,7 @@
             "processes (by name)",
             "references (by name)",
             "restClients (by name)"
-          ],
-          "existingRule": "rule 3: renaming an existing element breaks its users"
+          ]
         },
         {
           "member": "TextResources",
@@ -11434,10 +11410,9 @@
           "keys": [
             "apply (ProductionRules.cs)",
             "edits.set",
-            "entities, structures",
             "sql (by name)"
           ],
-          "existingRule": "rule 6: only read-only SQL and INSERT"
+          "existingRule": "rule 6: SQL that changes data needs the user\u0027s yes"
         },
         {
           "member": "Target",
@@ -11950,8 +11925,7 @@
             "restClients, restServices (by name)",
             "sql (by name)",
             "timers, roles, siteProperties (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element\u0027s signature is used by other modules"
+          ]
         },
         {
           "member": "IsCloseActivityInput",
@@ -12203,8 +12177,7 @@
             "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         },
         {
           "member": "CreateInputParameter",
@@ -12557,8 +12530,7 @@
             "processes (by name)",
             "references (by name)",
             "restClients (by name)"
-          ],
-          "existingRule": "rule 3: renaming an existing element breaks its users"
+          ]
         },
         {
           "member": "Priority",
@@ -12914,8 +12886,7 @@
             "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         },
         {
           "member": "StartOn",
@@ -13360,8 +13331,7 @@
             "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         },
         {
           "member": "Roles",
@@ -13870,8 +13840,7 @@
             "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         },
         {
           "member": "Targets",
@@ -14032,8 +14001,7 @@
             "restClients, restServices (by name)",
             "sql (by name)",
             "timers, roles, siteProperties (by name)"
-          ],
-          "existingRule": "rule 5: existing columns hold production data"
+          ]
         },
         {
           "member": "Decimals",
@@ -14045,8 +14013,7 @@
             "edits.set",
             "entities, structures",
             "restClients, restServices"
-          ],
-          "existingRule": "rule 5: existing columns hold production data"
+          ]
         },
         {
           "member": "DefaultValue",
@@ -14089,8 +14056,7 @@
             "restClients, restServices",
             "restClients, restServices (by name)",
             "staticEntities"
-          ],
-          "existingRule": "rule 5: existing columns hold production data"
+          ]
         },
         {
           "member": "Length",
@@ -14102,8 +14068,7 @@
             "edits.set",
             "entities, structures",
             "restClients, restServices"
-          ],
-          "existingRule": "rule 5: existing columns hold production data"
+          ]
         },
         {
           "member": "Metadata",
@@ -14127,8 +14092,7 @@
             "references (by name)",
             "restClients (by name)",
             "staticEntities"
-          ],
-          "existingRule": "rule 3: renaming an existing element breaks its users"
+          ]
         },
         {
           "member": "CreateMetadata",
@@ -14430,8 +14394,7 @@
             "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         },
         {
           "member": "StyleSheet",
@@ -14542,15 +14505,13 @@
           "status": "covered",
           "keys": [
             "actions and flows (by name)",
-            "apply (ProductionRules.cs)",
             "copy (by name)",
             "edits.set",
             "events, triggerEvent (by name)",
             "processes (by name)",
             "references (by name)",
             "restClients, restServices (by name)"
-          ],
-          "existingRule": "rule 4: a mandatory event breaks instances without a handler"
+          ]
         },
         {
           "member": "Metadata",
@@ -14571,8 +14532,7 @@
             "processes (by name)",
             "references (by name)",
             "restClients (by name)"
-          ],
-          "existingRule": "rule 3: renaming an existing element breaks its users"
+          ]
         },
         {
           "member": "TextResources",
@@ -14741,8 +14701,7 @@
             "processes (by name)",
             "references (by name)",
             "restClients (by name)"
-          ],
-          "existingRule": "rule 3: renaming an existing element breaks its users"
+          ]
         },
         {
           "member": "StyleSheet",
@@ -15073,8 +15032,7 @@
             "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         },
         {
           "member": "TextResources",
@@ -15388,8 +15346,7 @@
             "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         },
         {
           "member": "TextResources",
@@ -15599,8 +15556,7 @@
             "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         },
         {
           "member": "Roles",
@@ -15749,8 +15705,7 @@
             "processes (by name)",
             "references (by name)",
             "restClients (by name)"
-          ],
-          "existingRule": "rule 3: renaming an existing element breaks its users"
+          ]
         }
       ]
     },
@@ -15853,8 +15808,7 @@
             "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         },
         {
           "member": "RequiredScripts",
@@ -16165,8 +16119,7 @@
             "edits.set",
             "images, scripts, themes, resources, folders, locales, translations (by name)",
             "screens, blocks [Traditional Web] (by name)"
-          ],
-          "existingRule": "rule 4: an existing public element must not become private"
+          ]
         },
         {
           "member": "StyleSheet",
@@ -19081,8 +19034,7 @@
             "processes (by name)",
             "references (by name)",
             "restClients (by name)"
-          ],
-          "existingRule": "rule 3: renaming an existing element breaks its users"
+          ]
         },
         {
           "member": "Nodes",

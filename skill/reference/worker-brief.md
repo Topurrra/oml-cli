@@ -35,7 +35,7 @@ Warnings listed under expected warnings are fine. Report them; do not fix them.
 
 ## Rules
 
-- Follow `skill/rules.md`. Existing elements exist in production: do not rename, delete or change them.
+- Follow `skill/rules.md`. Existing elements exist in production: change them only as this brief says, in place. Never make a copy. Apply says `refused` or `needsApproval`: stop and report it.
 - Never run `install`, `publish`, `lifetime` or `pull`. Never run the `oml references` command.
 - Producer element: use only the `Module.Name` in the task. More than one candidate, or none: stop and report. Do not choose.
 - Put no credentials in any file.

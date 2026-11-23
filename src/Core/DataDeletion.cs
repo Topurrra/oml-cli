@@ -12,9 +12,8 @@ partial class Builder
 
     void DeleteData(IObjectSignature target, JsonElement edit)
     {
+        // An existing entity or attribute is never deleted (rule 2); one this spec made holds no data yet.
         rules.Delete(target);
-        if (!edit.TryGetProperty("allowDataLoss", out var allow) || allow.ValueKind != JsonValueKind.True)
-            throw new ModelError("data deletion requires allowDataLoss: true: publishing removes the table/column from the model and the app loses access; O11 keeps physical data until cleanup (data handling is platform-dependent)");
         var entity = target as IEntitySignature ?? target.Parent as IEntitySignature;
         if (entity is not null && ReferenceEquals(entity.IdentifierAttribute, target))
             throw new ModelError("the identifier attribute cannot be deleted alone");

@@ -28,17 +28,19 @@ public static partial class Cli
         var positional = new List<string>();
         var describe = new List<string>();
         var describeCreated = false;
+        var userApproved = false;
         string? report = null;
         for (var i = 1; i < args.Count; i++)
         {
             if (args[i] == "--describe" && i + 1 < args.Count) describe.AddRange(args[++i].Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries));
             else if (args[i] == "--describe-created") describeCreated = true;
+            else if (args[i] == "--user-approved") userApproved = true;
             else if (args[i] == "--report" && i + 1 < args.Count && !args[i + 1].StartsWith("--")) report = args[++i];
-            else if (args[i].StartsWith("--")) throw new CliError($"apply accepts --describe <A,B,...>, --describe-created and --report <report.json>, not '{args[i]}'.", 2);
+            else if (args[i].StartsWith("--")) throw new CliError($"apply accepts --describe <A,B,...>, --describe-created, --report <report.json> and --user-approved, not '{args[i]}'.", 2);
             else positional.Add(args[i]);
         }
         if (positional.Count < 3) throw new CliError("apply needs <source.oml> <spec.json>... <staged-out.oml>.", 2);
-        return Apply.Run(positional[0], positional.Skip(1).SkipLast(1).ToList(), positional[^1], new ApplyOptions(describe, describeCreated), report);
+        return Apply.Run(positional[0], positional.Skip(1).SkipLast(1).ToList(), positional[^1], new ApplyOptions(describe, describeCreated, userApproved), report);
     }
 
     static int? CmdInstall(List<string> args)

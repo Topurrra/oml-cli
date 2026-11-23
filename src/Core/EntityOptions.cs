@@ -12,9 +12,9 @@ record EntitySpec(string Name, List<AttrSpec>? Attributes = null, bool? Public =
     bool? MultiTenant = null, bool? ExposeProcessEvents = null, string? Label = null, string? LabelPlural = null)
     : RecordSpec(Name, Attributes, Public, Description);
 
-/// Entity options and indexes. A new entity takes every option. An existing entity only gets new indexes
-/// (an additive change); its other options must equal what it has, because changing them changes how
-/// published data is keyed, read or written (rule 5).
+/// Entity options and indexes. New and existing entities take every option and new indexes. On an existing entity a
+/// new identifier, auto number or multi-tenant setting changes how published rows are keyed: apply then asks for the
+/// user's yes (rule 5, ProductionRules.Validate). Existing indexes are not changed.
 static class EntityOptions
 {
     public static void Apply(IESpace m, IEntity e, EntitySpec s, bool isNew, List<string> created, List<string> existing, List<string> problems, List<string> warnings)
@@ -70,28 +70,28 @@ static class EntityOptions
         }
         else
         {
-            void Same(bool given, bool equal, string what)
+            // An existing entity takes them too. The identifier, auto number and multi-tenant setting change how rows are
+            // keyed: ProductionRules.Validate asks for the user's yes (rule 5). The others may change.
+            if (identifier is not null && !ReferenceEquals(e.IdentifierAttribute, identifier)) e.IdentifierAttribute = identifier;
+            if (s.AutoNumber is { } auto && e.IdentifierAttribute is IEntityAttribute id && (id.IsAutoNumber == AutoNumber.Yes) != auto)
             {
-                if (given && !equal) problems.Add(Refusal(e, what));
+                if (auto && !ReferenceEquals(id.DataType, m.IntegerType) && !ReferenceEquals(id.DataType, m.LongIntegerType))
+                    problems.Add($"entity {s.Name}: autoNumber needs an Integer or Long Integer identifier; {id.Name} is {Model.Describe(m, id.DataType)}");
+                else id.IsAutoNumber = auto ? AutoNumber.Yes : AutoNumber.No;
             }
-            Same(identifier is not null, ReferenceEquals(e.IdentifierAttribute, identifier), "identifier");
-            Same(s.AutoNumber is not null, (e.IdentifierAttribute?.IsAutoNumber == AutoNumber.Yes) == s.AutoNumber, "auto number");
-            Same(label is not null, ReferenceEquals(e.LabelAttribute, label), "label attribute");
-            Same(orderBy is not null, ReferenceEquals(e.OrderByAttribute, orderBy), "order by attribute");
-            Same(isActive is not null, ReferenceEquals(e.IsActiveAttribute, isActive), "is active attribute");
-            Same(s.ExposeReadOnly is not null, e.ExposeReadOnly == s.ExposeReadOnly, "expose read only setting");
-            Same(update is not null, e.UpdateBehavior == update, "update behavior");
-            Same(s.MultiTenant is not null, e.IsMultiTenant.ToString() == (s.MultiTenant == true ? "Yes" : "No"), "multi-tenant setting");
-            Same(s.ExposeProcessEvents is not null, e.ExposeProcessEvents == s.ExposeProcessEvents, "expose process events setting");
+            if (label is not null) e.LabelAttribute = label;
+            if (orderBy is not null) e.OrderByAttribute = orderBy;
+            if (isActive is not null) e.IsActiveAttribute = isActive;
+            if (s.ExposeReadOnly is { } readOnly && e.ExposeReadOnly != readOnly) e.ExposeReadOnly = readOnly;
+            if (update is { } u && e.UpdateBehavior != u) e.UpdateBehavior = u;
+            if (s.MultiTenant is { } tenant && e.IsMultiTenant.ToString() != (tenant ? "Yes" : "No")) e.IsMultiTenant = tenant ? BooleanWithInheritance.Yes : BooleanWithInheritance.No;
+            if (s.ExposeProcessEvents is { } events && e.ExposeProcessEvents != events) e.ExposeProcessEvents = events;
         }
 
         foreach (var ix in s.Indexes ?? new()) Index(e, s.Name, ix, isNew, created, existing, problems, warnings);
     }
 
     static T Fail<T>(List<string> problems, string message) { problems.Add(message); return default!; }
-
-    internal static string Refusal(IEntitySignature e, string what) =>
-        $"refused: '{e.Name}' is an existing entity. oml never changes its {what}; change it manually in Service Studio if you really want to.";
 
     // ---- indexes ----
     // The typed API has no index factory. The entity's EntityIndices collection and its element types come from the

@@ -39,7 +39,9 @@ $js = Join-Path $dir 'helper.js'
 $png = Join-Path $dir 'dot.png'
 [IO.File]::WriteAllBytes($png, [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aB1sAAAAASUVORK5CYII='))
 $built = Apply-Content $Source @{
-  copy = @(@{from=$producer; elements=@('ContentAction','ContentEntity','ContentDto','MainFlow/ContentPage','MainFlow/ContentBlock'); into='CopiedFlow'})
+  # An entity is never copied (rule 2: the paste would be a new, empty table); this module makes its own.
+  copy = @(@{from=$producer; elements=@('ContentAction','ContentDto','MainFlow/ContentPage','MainFlow/ContentBlock'); into='CopiedFlow'})
+  entities = @(@{ name='ContentEntity'; attributes=@(@{name='Name'}) })
   serverActions = @(@{name='UseCopy';flow=@(@{kind='execute'; action='ContentAction'})})
   locales = @('ka-GE','en-US')
   translate = @(@{locale='ka-GE';text='MandatoryInput';translation='Content required'})
@@ -67,6 +69,7 @@ $repeat = Apply-Content $built @{folders=@(@{name='Validation';area='serverActio
 $i = & $Oml inspect $repeat | ConvertFrom-Json
 if (@($i.content.folders | Where-Object name -eq 'Validation').Count -ne 1 -or $i.content.folders.elements -notcontains 'UseCopy') { throw 'Folder reuse failed' }
 $null = Apply-Content $built @{copy=@(@{from=$producer;elements=@('ContentAction')})} 'clash' -Refuse
+$null = Apply-Content $Source @{copy=@(@{from=$producer;elements=@('ContentEntity')})} 'copy-entity' -Refuse
 $null = Apply-Content $built @{locales=@('unknown-culture')} 'culture' -Refuse
 $null = Apply-Content $built @{folders=@(@{name='Wrong';area='images';elements=@('UseCopy')})} 'wrong-area' -Refuse
 $null = Apply-Content $built @{images=@(@{name='Missing';file=(Join-Path $dir 'missing.png')})} 'missing-file' -Refuse

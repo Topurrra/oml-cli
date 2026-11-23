@@ -1,7 +1,7 @@
 # An existing element listed in a creation list: new parts are added (as addParts and addVariables add them),
 # changed settings are problems that name the key and the op, and the same spec applied again saves.
-# Rule 4 (inputs and outputs of existing public elements) is checked on all three paths: creation list,
-# addVariables and addParts.
+# Rule 4 (inputs, outputs and events of existing public elements) is reported as breaking on all three paths: creation list,
+# addVariables and addParts; the change saves.
 param([string]$Oml, [string]$Tmp)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib.ps1')
@@ -24,6 +24,18 @@ function Refused($source, $json, [string[]]$texts, $what) {
   $r = Apply-Spec $source $json
   Require ($r.Exit -eq 1 -and -not $r.Report.saved) "$what was not refused: $($r.Text)"
   foreach ($t in $texts) { Require ($r.Problems.Contains($t)) "$what`: no problem with '$t': $($r.Problems)" }
+}
+# A breaking change of a public element (rule 4): saved, and a breaking line with every given text.
+function Breaks($source, $json, [string[]]$texts, $what) {
+  $r = Apply-Spec $source $json
+  Require ($r.Exit -eq 0 -and $r.Report.saved) "$what was refused: $($r.Text)"
+  $breaking = @($r.Report.breaking) -join "`n"
+  foreach ($t in $texts) { Require ($breaking.Contains($t)) "$what`: no breaking change with '$t': $($r.Text)" }
+}
+# A change that can lose production data (rule 5): not saved, needsApproval names it.
+function Asks($source, $json, $text, $what) {
+  $r = Apply-Spec $source $json
+  Require ($r.Exit -eq 1 -and -not $r.Report.saved -and (@($r.Report.needsApproval | ForEach-Object { $_.what }) -join "`n").Contains($text)) "$what did not ask: $($r.Text)"
 }
 # An accepted change: saved, and every given entry in created.
 function Accepted($source, $json, [string[]]$created, $what) {
@@ -83,48 +95,51 @@ Require ($again.Exit -eq 0 -and $again.Report.saved -and -not $again.Report.crea
 Require ((@($again.Report.warnings) -join ' ') -match 'screen Home exists: its widgets' -and -not ($again.Report.newWarnings | Where-Object id -eq 'ExistingElementNotChanged')) "re-apply warnings: $($again.Text)"
 Require (-not ((@($again.Report.warnings) -join ' ') -match 'aggregate')) "a restated existing aggregate must not be a warning: $($again.Text)"
 
-# Entities: a new attribute is added; a changed length, type or default of an existing one is refused.
+# Entities: a new attribute is added; a longer length is set, a shorter one asks (rule 5); a type change is refused (rule 2); a default goes through set.
 $null = Accepted $m '{ "entities": [{ "name": "Customer", "attributes": [{ "name": "Name", "length": 50 }, { "name": "Email" }] }] }' @('attribute Customer.Email') 'entity: new attribute'
-Refused $m '{ "entities": [{ "name": "Customer", "attributes": [{ "name": "Name", "length": 100 }] }] }' @('Customer.Name: attribute exists', 'length (100; module: 50)', 'rule 5') 'entity: changed length'
+$null = Accepted $m '{ "entities": [{ "name": "Customer", "attributes": [{ "name": "Name", "length": 100 }] }] }' @() 'entity: longer length'
+Asks $m '{ "entities": [{ "name": "Customer", "attributes": [{ "name": "Name", "length": 20 }] }] }' "attribute 'Customer/Name': shorter length 50 -> 20" 'entity: shorter length'
+Refused $m '{ "entities": [{ "name": "Customer", "attributes": [{ "name": "Code", "type": "Integer" }] }] }' @("'Customer.Code' is an existing attribute", '(rule 2)') 'entity: changed type'
 Refused $m '{ "entities": [{ "name": "Customer", "attributes": [{ "name": "Code", "default": "\"X\"" }] }] }' @('default differs', 'edits "set"') 'entity: changed default'
 # Defaults: case and spaces outside text literals do not count; inside a literal every character does.
 $null = Accepted $m '{ "entities": [{ "name": "Customer", "attributes": [{ "name": "Flag", "type": "boolean", "default": "false" }] }] }' @() 'entity: same default, other case'
 Refused $m '{ "entities": [{ "name": "Customer", "attributes": [{ "name": "Label", "default": "\"ab\"" }] }] }' @('Customer.Label: attribute exists', 'default differs') 'entity: text literal without its space'
-# Structures: same rules.
+# Structures: a structure attribute holds no data; its type may change.
 $null = Accepted $m '{ "structures": [{ "name": "Dto", "attributes": [{ "name": "A", "type": "Integer" }, { "name": "B" }] }] }' @('attribute Dto.B') 'structure: new attribute'
-Refused $m '{ "structures": [{ "name": "Dto", "attributes": [{ "name": "A", "type": "Text" }] }] }' @('Dto.A: attribute exists', 'type (Text; module: Integer)') 'structure: changed type'
+$null = Accepted $m '{ "structures": [{ "name": "Dto", "attributes": [{ "name": "A", "type": "Text" }] }] }' @() 'structure: changed type'
 # Static entities: a new record is added; a changed record is refused.
 $null = Accepted $m '{ "staticEntities": [{ "name": "Status", "records": [{ "identifier": "Active", "label": "Active" }, { "identifier": "Closed" }] }] }' @('record Status.Closed') 'static entity: new record'
 Refused $m '{ "staticEntities": [{ "name": "Status", "records": [{ "identifier": "Active", "label": "On" }] }] }' @('Status.Active: static record exists', 'label differs') 'static entity: changed record'
 
-# Actions: an input type, function and a different flow are refused. Public is allowed (tests/public-check.ps1).
-Refused $m '{ "serverActions": [{ "name": "Calc", "inputs": [{ "name": "X", "type": "Text" }] }] }' @('Calc.inputs.X exists', 'type (Text; module: Integer)') 'action: input type'
+# Actions: an input type is set; function and a different flow are refused. Public is allowed (tests/public-check.ps1).
+$r = Accepted $m '{ "serverActions": [{ "name": "Check", "inputs": [{ "name": "N", "type": "Long Integer" }] }] }' @() 'action: input type'
+Require ((@($r.Report.changed) -join '|').Contains('type of input serverAction Check.N') -and -not $r.Report.breaking) "action: a private action's input type is a change, not breaking: $($r.Text)"
 Refused $m '{ "serverActions": [{ "name": "Calc", "function": true }] }' @('serverAction Calc exists', 'function differs') 'action: function'
 Refused $m '{ "serverActions": [{ "name": "Calc", "flow": [{ "kind": "assign", "name": "Other", "assign": { "Y": "1" } }] }] }' @('flow (node Other is not in it)', 'insertNodes') 'action: flow'
 Refused $m '{ "serverActions": [{ "name": "Calc", "flow": [{ "kind": "assign", "name": "Set", "assign": { "Y": "X + 1" } }, { "kind": "assign", "assign": { "Y": "2" } }] }] }' @('flow (2 nodes; module: 1)') 'action: flow with one more node'
 
-# Rule 4 on public elements, through the creation list, addVariables and addParts.
+# Rule 4 on public elements, through the creation list, addVariables and addParts: each saves and is listed as breaking.
 $r = Accepted $m '{ "serverActions": [{ "name": "PubCalc", "inputs": [{ "name": "Z", "type": "Integer", "mandatory": false, "description": "Optional." }], "outputs": [{ "name": "W", "type": "Integer", "description": "More." }] }] }' @('input serverAction PubCalc.Z', 'output serverAction PubCalc.W') 'rule 4: optional input and output on a public server action'
 $null = Accepted $m '{ "serverActions": [{ "name": "PubCalc", "inputs": [{ "name": "X", "type": "Integer", "mandatory": false }] }] }' @() 'rule 4: input made optional on a public server action'
-Refused $m '{ "serverActions": [{ "name": "PubCalc", "inputs": [{ "name": "Z", "type": "Integer" }] }] }' @("refused: 'PubCalc' is an existing public server or service action. A new mandatory input 'Z'", 'rule 4') 'rule 4: creation list, new mandatory input'
-Refused $m '{ "edits": [{ "op": "addVariables", "action": "PubCalc", "inputs": [{ "name": "Z", "type": "Integer", "mandatory": true }] }] }' @("A new mandatory input 'Z'") 'rule 4: addVariables, new mandatory input'
-Refused $m '{ "edits": [{ "op": "set", "element": "PubClient/A", "properties": { "IsMandatory": true } }] }' @("Making input 'A' mandatory") 'rule 4: set, input made mandatory'
-Refused $m '{ "clientActions": [{ "name": "PubClient", "inputs": [{ "name": "A", "type": "Text", "mandatory": true }] }] }' @("Making input 'A' mandatory") 'rule 4: creation list, input made mandatory'
-Refused $m '{ "clientActions": [{ "name": "PubClient", "inputs": [{ "name": "C", "type": "Text", "mandatory": false }] }] }' @("existing public client action. Any new input, even an optional one ('C')") 'rule 4: creation list, optional input on a public client action'
-Refused $m '{ "clientActions": [{ "name": "PubClient", "inputs": [{ "name": "B", "type": "Text", "mandatory": false }] }] }' @("Making input 'B' optional") 'rule 4: input made optional on a public client action'
-Refused $m '{ "clientActions": [{ "name": "PubClient", "outputs": [{ "name": "W", "type": "Integer" }] }] }' @("A new output 'W'", 'only public server and service actions') 'rule 4: creation list, output on a public client action'
-Refused $m '{ "edits": [{ "op": "addVariables", "action": "PubClient", "outputs": [{ "name": "W", "type": "Integer" }] }] }' @("A new output 'W'") 'rule 4: addVariables, output on a public client action'
-Refused $m '{ "blocks": [{ "name": "Shared", "inputs": [{ "name": "BJ", "type": "Integer", "mandatory": false }] }] }' @("existing public Reactive or Mobile block or screen. Any new input, even an optional one ('BJ')", "If no module uses it yet (check: oml map uses Shared)") 'rule 4: creation list, optional input on a public block'
-Refused $m '{ "edits": [{ "op": "addParts", "screen": "MainFlow/Shared", "inputs": [{ "name": "BJ", "type": "Integer", "mandatory": false }] }] }' @("Any new input, even an optional one ('BJ')") 'rule 4: addParts, optional input on a public block'
-Refused $m '{ "edits": [{ "op": "addParts", "screen": "MainFlow/Shared", "inputs": [{ "name": "BK", "type": "Integer" }] }] }' @("A new mandatory input 'BK'", 'Create a new element instead') 'rule 4: addParts, mandatory input on a public block'
-Refused $m '{ "blocks": [{ "name": "Shared", "inputs": [{ "name": "BI", "type": "Integer", "mandatory": true }] }] }' @("Making input 'BI' mandatory") 'rule 4: input made mandatory on a public block'
-Refused $m '{ "blocks": [{ "name": "Shared", "inputs": [{ "name": "BM", "type": "Integer", "mandatory": false }] }] }' @("Making input 'BM' optional") 'rule 4: input made optional on a public block'
-Refused $m '{ "edits": [{ "op": "set", "element": "PubCalc/X", "properties": { "DataType": "Text" } }] }' @("Changing the type of input 'X' (Integer to Text)") 'rule 4: set, input type on a public action'
+Breaks $m '{ "serverActions": [{ "name": "PubCalc", "inputs": [{ "name": "Z", "type": "Integer" }] }] }' @("public server or service action 'PubCalc': new mandatory input 'Z'. Callers in other modules must pass it.") 'rule 4: creation list, new mandatory input'
+Breaks $m '{ "edits": [{ "op": "addVariables", "action": "PubCalc", "inputs": [{ "name": "Z", "type": "Integer", "mandatory": true }] }] }' @("new mandatory input 'Z'") 'rule 4: addVariables, new mandatory input'
+Breaks $m '{ "edits": [{ "op": "set", "element": "PubClient/A", "properties": { "IsMandatory": true } }] }' @("input 'A' is mandatory now") 'rule 4: set, input made mandatory'
+Breaks $m '{ "clientActions": [{ "name": "PubClient", "inputs": [{ "name": "A", "type": "Text", "mandatory": true }] }] }' @("input 'A' is mandatory now") 'rule 4: creation list, input made mandatory'
+Breaks $m '{ "clientActions": [{ "name": "PubClient", "inputs": [{ "name": "C", "type": "Text", "mandatory": false }] }] }' @("public client action 'PubClient': new input 'C'. Modules that use it must refresh references.") 'rule 4: creation list, optional input on a public client action'
+Breaks $m '{ "clientActions": [{ "name": "PubClient", "inputs": [{ "name": "B", "type": "Text", "mandatory": false }] }] }' @("input 'B' is optional now") 'rule 4: input made optional on a public client action'
+Breaks $m '{ "clientActions": [{ "name": "PubClient", "outputs": [{ "name": "W", "type": "Integer" }] }] }' @("new output 'W'") 'rule 4: creation list, output on a public client action'
+Breaks $m '{ "edits": [{ "op": "addVariables", "action": "PubClient", "outputs": [{ "name": "W", "type": "Integer" }] }] }' @("new output 'W'") 'rule 4: addVariables, output on a public client action'
+Breaks $m '{ "blocks": [{ "name": "Shared", "inputs": [{ "name": "BJ", "type": "Integer", "mandatory": false }] }] }' @("public Reactive or Mobile block or screen 'Shared': new input 'BJ'") 'rule 4: creation list, optional input on a public block'
+Breaks $m '{ "edits": [{ "op": "addParts", "screen": "MainFlow/Shared", "inputs": [{ "name": "BJ", "type": "Integer", "mandatory": false }] }] }' @("new input 'BJ'") 'rule 4: addParts, optional input on a public block'
+Breaks $m '{ "edits": [{ "op": "addParts", "screen": "MainFlow/Shared", "inputs": [{ "name": "BK", "type": "Integer" }] }] }' @("new mandatory input 'BK'") 'rule 4: addParts, mandatory input on a public block'
+Breaks $m '{ "blocks": [{ "name": "Shared", "inputs": [{ "name": "BI", "type": "Integer", "mandatory": true }] }] }' @("input 'BI' is mandatory now") 'rule 4: input made mandatory on a public block'
+Breaks $m '{ "blocks": [{ "name": "Shared", "inputs": [{ "name": "BM", "type": "Integer", "mandatory": false }] }] }' @("input 'BM' is optional now") 'rule 4: input made optional on a public block'
+Breaks $m '{ "edits": [{ "op": "set", "element": "PubClient/A", "properties": { "DataType": "Integer" } }] }' @("public client action 'PubClient': input 'A' changed type (Text to Integer). Callers must pass the new type.") 'rule 4: set, input type on a public action'
 
-# Blocks: a new optional event is added; a new mandatory event and any new event on a public block are refused.
+# Blocks: new events are added and an event's mandatory setting is set; on a public block that is breaking (rule 4).
 $null = Accepted $m '{ "blocks": [{ "name": "Picker", "events": [{ "name": "OnPick", "mandatory": false }, { "name": "OnClose", "mandatory": false }] }] }' @('event Picker.OnClose') 'block: new optional event'
-Refused $m '{ "blocks": [{ "name": "Picker", "events": [{ "name": "OnPick" }, { "name": "OnNew" }] }] }' @("'OnPick' is an existing optional event", 'new mandatory event') 'block: mandatory events'
-Refused $m '{ "blocks": [{ "name": "Shared", "events": [{ "name": "OnLater", "mandatory": false }] }] }' @('existing public block') 'block: event on a public block'
+$null = Accepted $m '{ "blocks": [{ "name": "Picker", "events": [{ "name": "OnPick" }, { "name": "OnNew" }] }] }' @('event Picker.OnNew') 'block: mandatory events on a private block'
+Breaks $m '{ "blocks": [{ "name": "Shared", "events": [{ "name": "OnLater", "mandatory": false }] }] }' @("'Shared': new optional event 'OnLater'. Modules that use the block must refresh references.") 'block: event on a public block'
 # Screens: new parts are added and listed as created; access changes are refused; a styleSheet is replaced (UI).
 $r = Accepted $m '{ "screens": [{ "name": "Home", "locals": [{ "name": "M", "type": "Text" }], "aggregates": [{ "name": "GetMore", "sources": ["Customer"], "maxRecords": 5 }], "actions": [{ "name": "Go", "flow": [] }] }] }' @('local screen Home.M', 'aggregate Home/GetMore', 'screenAction Home/Go') 'screen: new parts'
 $null = Accepted $m '{ "screens": [{ "name": "Home", "styleSheet": ".a{ color: red; }\n" }, { "name": "Open", "access": { "anonymous": true, "registered": true } }] }' @() 'screen: same styleSheet and access, written differently'
@@ -139,7 +154,7 @@ $null = Accepted $m '{ "screens": [{ "name": "Home", "aggregates": [{ "name": "G
 Refused $m '{ "screens": [{ "name": "Home", "aggregates": [{ "name": "GetCustomers", "sources": ["Customer"], "maxRecords": 99 }] }] }' @('screen Home/GetCustomers exists', 'maxRecords differs', 'addToAggregate') 'screen: changed aggregate'
 # Events: a new input of an existing event is added (as addVariables adds it); its type on a public block is rule 4.
 $null = Accepted $m '{ "blocks": [{ "name": "Picker", "events": [{ "name": "OnPick", "mandatory": false, "inputs": [{ "name": "W", "type": "Text", "mandatory": false }] }] }] }' @('input block Picker.events.OnPick.W') 'block: new input of an existing event'
-Refused $m '{ "edits": [{ "op": "set", "element": "MainFlow/Shared/OnE/V", "properties": { "DataType": "Text" } }] }' @("Changing the type of input 'V' of event 'OnE' (Integer to Text)", 'rule 4') 'rule 4: event input type on a public block'
+Breaks $m '{ "edits": [{ "op": "set", "element": "MainFlow/Shared/OnE/V", "properties": { "DataType": "Text" } }] }' @("input 'V' of event 'OnE' changed type (Integer to Text)") 'rule 4: event input type on a public block'
 # System events: the same handler again is reused; another one is refused.
 Refused $m '{ "systemEvents": { "onApplicationReady": "Boot2" } }' @('OnApplicationReady already exists and does not just call Boot2') 'system event: another handler'
 
@@ -148,7 +163,7 @@ Refused $m '{ "siteProperties": [{ "name": "Limit", "type": "Integer", "default"
 Refused $m '{ "clientVariables": [{ "name": "Mode", "default": "\"b\"" }] }' @('clientVariable Mode exists', 'default differs') 'client variable: default'
 Refused $m '{ "restClients": [{ "name": "Api", "actions": [{ "name": "GetX", "method": "GET", "url": "/y" }] }] }' @('restClient Api.GetX exists', 'url differs') 'REST: changed url'
 $null = Accepted $m '{ "restClients": [{ "name": "Api", "actions": [{ "name": "GetZ", "method": "GET", "url": "/z" }] }] }' @('restClient Api.GetZ') 'REST: new method on an existing client'
-Write-Host 'ok   reuse: listed existing elements add new parts and refuse changes; rule 4 on creation lists, addVariables, addParts and set'
+Write-Host 'ok   reuse: listed existing elements add new parts and refuse changes; rule 4 breaking changes on creation lists, addVariables, addParts and set'
 
 # The field case: an existing block listed again with a new screen action gets it, listed in created (F12).
 $r = Accepted $m '{ "blocks": [{ "name": "Picker", "actions": [{ "name": "Refresh", "flow": [] }] }] }' @('screenAction Picker/Refresh') 'block: new screen action'

@@ -42,7 +42,7 @@ static class CliUsage
         oml spec model-types [<TypeName>...]   (members of model/plugin types on the installed build; no name lists the useful types)
         oml spec widget-types   (registered widget descriptors)
         oml spec expr "<text>"   (parse an expression: ok and its canonical form, or the parse error; exit 1 on invalid)
-        oml apply <source.oml> <spec.json>... <staged-out.oml> [--describe A,B,...] [--describe-created] [--report <report.json>]
+        oml apply <source.oml> <spec.json>... <staged-out.oml> [--describe A,B,...] [--describe-created] [--report <report.json>] [--user-approved]
         oml apply --batch <index.json>   (many modules in one process: {items:[{source,spec,staged}]}; one combined summary; exit 1 if any item failed)
         oml new <out.oml> [--name N] [--kind WebResponsive|Mobile|Service|ReactiveLibrary|...]
         oml new <out.oml> --template <name-or-exported.oml> [--name N]
@@ -57,7 +57,7 @@ static class CliUsage
         oml check --init-rules [--out <oml-rules.json>]   (writes the team rules file: every rule, on/off, severity, options)
         oml check --diff <before.oml> <after.oml> [--rules <oml-rules.json>]   (findings fixed and introduced per rule; exit 1 when one is introduced)
         oml validate <module.oml> [--warnings]
-        oml review <before.oml> <after.oml> [--md <file.md>] [--out <file.html>] [--notes <file.md>] [--rules <oml-rules.json>]   (what changed, production-rule risks, new check findings)
+        oml review <before.oml> <after.oml> [--md <file.md>] [--out <file.html>] [--notes <file.md>] [--rules <oml-rules.json>]   (what changed, rule risks, new findings)
         oml review <before.oml> <after.oml> --prepare <folder> | --import <findings.json>   (blind logic review: a packet for a reviewer agent; its findings checked)
         oml review --server <Module> <v1> <v2> [--keep <folder>] [review options]   (two server versions: a number, published or latest)
         oml team-rules [list]   (your company skills: Markdown rules that override OutSystems best practices; oml doc <name> prints one)

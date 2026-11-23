@@ -134,11 +134,16 @@ function Plain([string]$t) { ([System.Net.WebUtility]::HtmlDecode(($t -replace '
 # The site names the newer user-visible options.
 $siteText = Get-Content -Raw (Join-Path $repo 'docs/index.html')
 foreach ($o in '--timings') { if (-not $siteText.Contains($o)) { Fail "docs/index.html does not mention $o" } }
-$site = [regex]::Matches((Get-Content -Raw (Join-Path $repo 'docs/index.html')), '<li><span class="badge[^"]*">[^<]*</span><div>(.*?)</div></li>')
+$site = [regex]::Matches((Get-Content -Raw (Join-Path $repo 'docs/index.html')), '<li><span class="badge[^"]*">([^<]*)</span><div>(.*?)</div></li>')
 if ($site.Count -ne $ruleLines.Count) { Fail "docs/index.html lists $($site.Count) rules; rules.md has $($ruleLines.Count)" }
 for ($i = 1; $i -le $site.Count; $i++) {
-  if ((Plain $site[$i - 1].Groups[1].Value) -ne (Plain ($ruleLines[$i] -replace '^\d+\. ', ''))) { Fail "docs/index.html rule $i differs from rules.md" }
+  if ((Plain $site[$i - 1].Groups[2].Value) -ne (Plain ($ruleLines[$i] -replace '^\d+\. ', ''))) { Fail "docs/index.html rule $i differs from rules.md" }
+  # The badge says what apply does: "Enforced by apply" exactly for the rules marked (enforced) (2, 3, 5, 6), "Reported by apply" for rule 4.
+  $badge = if ($ruleLines[$i].Contains('**(enforced)**')) { 'Enforced by apply' } elseif ($i -eq 4) { 'Reported by apply' } else { 'Agent guidance' }
+  if ($site[$i - 1].Groups[1].Value -ne $badge) { Fail "docs/index.html rule $i badge is '$($site[$i - 1].Groups[1].Value)', expected '$badge'" }
 }
+# The production rules apply enforces: 2 is refused, 3, 5 and 6 stop for the user's yes.
+if ((@($ruleLines.Keys | Where-Object { $ruleLines[$_].Contains('**(enforced)**') } | Sort-Object) -join ',') -ne '2,3,5,6') { Fail 'rules.md must mark rules 2, 3, 5 and 6 (enforced)' }
 
 # 7d. the architect skill files (loaded only by an architect, never by default): ASCII, size, and SKILL.md points to them
 foreach ($x in @(@('skill/architect.md', 2500), @('skill/reference/worker-brief.md', 700))) {

@@ -148,7 +148,7 @@ static class DocSearch
 
     // Sections of a markdown text: the text under the first heading, then one entry per heading of level 2 or more with
     // the text up to the next heading. With rows, each table row is an entry of its own (title: its first cell). With
-    // numbered, each numbered line is one too (rules.md: "Rule 2: Never delete an existing entity").
+    // numbered, each numbered line is one too (rules.md: "Rule 2: Never delete or rebuild entity data").
     internal static List<SearchDoc> Markdown(string text, string name, string kind, Func<string?, string> open, bool rows, bool numbered = false)
     {
         var docs = new List<SearchDoc>();
