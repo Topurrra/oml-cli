@@ -91,6 +91,12 @@ static class AgentHooks
             else if (rest[i] == "--agent" && i + 1 < rest.Length) agent = rest[++i].ToLowerInvariant();
             else return Fail($"Unknown or incomplete option {rest[i]}. {Usage}");
         }
+        if (verb == "install" && !rest.Contains("--agent") && Prompt.Person())
+        {
+            agent = Prompt.Choose("Which agent do you use?", [("claude", "Claude Code, Cursor"), ("copilot", "GitHub Copilot: VS Code, app, CLI"), ("codex", "Codex"), ("gemini", "Gemini CLI"), ("all", "every one of them")], "all");
+            if (agent is null) return Fail("Nothing was installed.");
+            Prompt.Same($"oml hooks install --agent {agent}" + (dir is null ? "" : $" --dir {dir}"));
+        }
         var targets = agent == "all" ? Targets : Targets.Where(t => t.Agent == agent).ToArray();
         if (targets.Length == 0) return Fail($"Unknown agent '{agent}'. {Usage}");
         dir = Path.GetFullPath(dir ?? Directory.GetCurrentDirectory());

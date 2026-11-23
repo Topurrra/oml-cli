@@ -224,7 +224,7 @@ static class CreateCommand
 
     // A person at a terminal, not an agent or a script: the same test as the bare `oml` menu.
     // OML_ASK=1 asks also with redirected input (the tests answer through a pipe).
-    static bool Person() => Environment.GetEnvironmentVariable("OML_ASK") == "1" || MenuModel.Bare(Console.IsInputRedirected, Console.IsOutputRedirected, Environment.GetEnvironmentVariable) == BareChoice.Menu;
+    static bool Person() => Prompt.Person();
 
     // `oml create` alone, for a person: one question per setting, with the value Enter keeps in brackets. Returns the
     // command line it stands for (printed, so the person learns it), or null when the person stopped.

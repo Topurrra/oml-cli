@@ -376,6 +376,10 @@ Unit 'create-check' {
   try { & (Join-Path $tests 'create-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL create checks: $_" }
 }
+Unit 'prompt-check' {
+  try { & (Join-Path $tests 'prompt-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL prompt checks: $_" }
+}
 Unit 'testdata-check' {
   try { & (Join-Path $tests 'testdata-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL test data checks: $_" }

@@ -429,6 +429,26 @@ static class ProjectConfig
                 Save(root, old);
                 TerminalOutput.PrintObject(new { file = PathIn(root), next = "Edit the file or use oml config set <key> <value>. oml config show explains every setting." });
                 return 0;
+            case ["set"] or ["set", _] when Prompt.Person():
+            {
+                var asked = rest.Count > 1 ? rest[1] : Prompt.Ask("Setting (such as ui.targets or checks.browser; oml config show lists them)");
+                if (asked is null || Find(asked) is not { } chosen) return Fail(asked is null ? "Nothing was changed." : $"Unknown setting '{asked}'.", "oml config show lists the settings.");
+                Console.WriteLine(TerminalColors.Paint("  " + chosen.About, TerminalColors.Dim));
+                var now = Load(RootOf(start) ?? start).Get(chosen.Key);
+                var value = chosen.Kind switch
+                {
+                    "bool" => Prompt.Choose(chosen.Key, [("on", ""), ("off", "")], now == "true" ? "on" : "off"),
+                    "choice" => Prompt.Choose(chosen.Key, chosen.Choices!.Select(c => (c, "")).ToList(), now),
+                    "list" => Prompt.Ask($"{chosen.Key}: one or more of {string.Join(", ", chosen.Choices!)}, comma-separated", now),
+                    _ => Prompt.Ask(chosen.Key, now),
+                };
+                if (value is null) return Fail("Nothing was changed.");
+                Prompt.Same($"oml config set {chosen.Key} {(value.Contains(' ') ? $"\"{value}\"" : value)}");
+                var (askedBad, askedHint, askedSaved, askedCurrent) = Change(RootOf(start) ?? start, chosen, value);
+                if (askedBad is not null) return Fail(askedBad, askedHint);
+                TerminalOutput.PrintObject(new { file = PathIn(RootOf(start) ?? start), key = chosen.Key, value = askedSaved, profile = Profile(askedCurrent!) });
+                return 0;
+            }
             case ["set", var key, .. var words] when words.Count > 0:
                 if (Find(key) is not { } setting) return Fail($"Unknown setting '{key}'.", "oml config show lists the settings.");
                 var target = RootOf(start) ?? start;

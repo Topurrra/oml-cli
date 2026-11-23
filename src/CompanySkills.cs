@@ -38,6 +38,7 @@ static class CompanySkills
     public static int Run(string[] args) => args switch
     {
         [] or ["list"] => List(),
+        ["add"] when Prompt.Person() => Prompt.Ask("Company rules file to add (.md with name and description frontmatter)") is { Length: > 0 } asked ? Add(asked, force: false) : Fail("Nothing was added."),
         ["add", var file] => Add(file, force: false),
         ["add", var file, "--force"] => Add(file, force: true),
         ["add", "--force", var forced] => Add(forced, force: true),
