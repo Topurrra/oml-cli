@@ -114,6 +114,8 @@ try {
     foreach ($extra in @(Get-ChildItem -LiteralPath (Join-Path $stage 'codemode') -Recurse -Directory -Force | Where-Object { $_.Name -in '__pycache__', 'tests' })) {
         if (Test-Path -LiteralPath $extra.FullName) { Remove-Item -LiteralPath $extra.FullName -Recurse -Force }
     }
+    # VENDORED.md is the maintainer's local sync notes (gitignored): never in the package.
+    Remove-Item -LiteralPath (Join-Path $stage 'codemode/VENDORED.md') -ErrorAction SilentlyContinue
     foreach ($required in @('codemode/oml_code.py', 'codemode/codemode_runtime/cli.py', 'codemode/oml_helpers/oml.py', 'codemode/LICENSE')) {
         if (-not (Test-Path -LiteralPath (Join-Path $stage $required) -PathType Leaf)) { throw "Package is missing $required." }
     }
