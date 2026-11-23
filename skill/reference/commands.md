@@ -805,7 +805,7 @@ The API adaptation derives from OutSystems/outsystems-pipeline. Its license is `
 
 | Setting | Meaning |
 |---|---|
-| `OML_SERVER_HOST` | The environment's hostname, as you connect to it in Service Studio, with an optional port. No `https://` or path. |
+| `OML_SERVER_HOST` | The environment's hostname, as you connect to it in Service Studio, with an optional port. No `https://` or path. Or set it once per project: `oml config set outsystems.serverHost <host>` (the variable wins). |
 | `OML_SERVER_USER` | Your Service Studio user name. |
 | `OML_SERVER_PASSWORD` | Its password, from the process environment only. Never printed, logged or saved. |
 | `OML_SERVER_INSECURE_LOCALHOST=1` | Tests only: HTTP for exact `127.0.0.1` or `localhost`. |

@@ -69,6 +69,7 @@ static class ProjectConfig
         new("app.devUrl", "text", "", null, "Base URL of the app in DEV, such as https://dev.example.com/Orders."),
         new("author", "text", "", null, "The name written as creator and last modifier of what oml creates or changes in this project; empty means not set. The variable OML_AUTHOR wins over it.", Max: 100),
         new("outsystems.mcpServer", "url-local", "", null, "Address of Service Studio's MCP server (O11), such as http://127.0.0.1:41820/mcp. oml publish, pull, references and studio use it; empty means the default port. Only this computer (127.0.0.1 or localhost)."),
+        new("outsystems.serverHost", "text", "", null, "The platform server of the DEV environment, such as dev.example.com (https:// is dropped). oml server and the dashboard use it to list and download modules with Service Studio closed; OML_SERVER_HOST wins over it. The login stays in OML_SERVER_USER and OML_SERVER_PASSWORD, never in this file.", Max: 255),
         new("outsystems.odcMcpServer", "url", "", null, "Address of the OutSystems MCP server of your ODC tenant, such as https://mytenant.outsystems.dev/mcp. Agents use it for ODC apps; oml itself does not call it."),
         new("code.use", "bool", "true", null, "Agents run a step of three or more oml calls with logic between them as one oml code program. Off: they chain commands and use oml batch."),
         new("memory.recall", "bool", "true", null, "Agents recall project memory at the start of a task."),
@@ -254,6 +255,8 @@ static class ProjectConfig
             lines.Add("Browser: look at the app with your own built-in browser tool. Never start Edge, Chrome or Firefox from a shell. Use oml browser only for saved test runs the user asks for.");
         if (v.Get("outsystems.mcpServer") is { Length: > 0 } studioMcp)
             lines.Add($"Service Studio MCP server (O11): {studioMcp}. oml pull, publish, references and studio already use it; call it yourself only for a step oml has no command for.");
+        if (ServerHost(v) is { Length: > 0 } serverHost)
+            lines.Add($"Platform server: {serverHost}. oml server lists, downloads and checks modules there with Service Studio closed.");
         if (v.Get("outsystems.odcMcpServer") is { Length: > 0 } odcMcp)
             lines.Add($"OutSystems MCP server (ODC): {odcMcp}. Use it for ODC apps as skill/reference/odc.md says; ask before publish and deploy there too.");
         if (!v.On("code.use")) lines.Add("Do not use oml code; chain commands and use oml batch.");
@@ -309,6 +312,15 @@ static class ProjectConfig
         var v = Load(cwd);
         if (v.File is null || v.Error is not null || !v.On("hooks.sessionProfile")) return null;
         return "oml project profile (.oml/oml-config.json, set by the user; follow it: it overrides the defaults of the skill and AGENTS.md):\n- " + string.Join("\n- ", Profile(v));
+    }
+
+    // The platform server host: OML_SERVER_HOST, else outsystems.serverHost of the project; scheme and path dropped.
+    internal static string ServerHost(Values v)
+    {
+        var text = Environment.GetEnvironmentVariable("OML_SERVER_HOST") is { Length: > 0 } env ? env : v.Get("outsystems.serverHost");
+        text = text.Trim();
+        if (text.Contains("://")) text = text[(text.IndexOf("://") + 3)..];
+        return text.Split('/')[0];
     }
 
     // The author name for what oml creates or changes: OML_AUTHOR when it is a valid name, else the profile's `author`;

@@ -19,6 +19,7 @@ static partial class Dashboard
     static string? ServerSetting(string name)
     {
         if (Environment.GetEnvironmentVariable(name) is { Length: > 0 } set) return set;
+        if (name == "OML_SERVER_HOST" && ProjectConfig.Load(null).Get("outsystems.serverHost") is { Length: > 0 }) return ProjectConfig.ServerHost(ProjectConfig.Load(null));
         if (!OperatingSystem.IsWindows()) return null;
         try
         {

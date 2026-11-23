@@ -443,12 +443,12 @@ static partial class ServerApi
         // The three settings, before any request and before the command's own input checks.
         public void Settings()
         {
-            Host = Environment.GetEnvironmentVariable("OML_SERVER_HOST");
+            Host = ProjectConfig.ServerHost(ProjectConfig.Load(null)) is { Length: > 0 } host ? host : null;
             User = Environment.GetEnvironmentVariable("OML_SERVER_USER");
             var missing = new[] { ("OML_SERVER_HOST", Host), ("OML_SERVER_USER", User), ("OML_SERVER_PASSWORD", Password) }
                 .Where(p => string.IsNullOrWhiteSpace(p.Item2)).Select(p => p.Item1).ToArray();
             if (missing.Length > 0)
-                throw new ServerError($"Set {string.Join(", ", missing)} in the environment: OML_SERVER_HOST is the server's hostname (no https://), OML_SERVER_USER and OML_SERVER_PASSWORD are the login you use in Service Studio.");
+                throw new ServerError($"Set {string.Join(", ", missing)} in the environment: OML_SERVER_HOST is the server's hostname (no https://; or outsystems.serverHost in .oml/oml-config.json), OML_SERVER_USER and OML_SERVER_PASSWORD are the login you use in Service Studio.");
             if (User!.Any(char.IsControl) || Password!.Any(char.IsControl)) throw new ServerError("OML_SERVER_USER or OML_SERVER_PASSWORD holds a control character.");
         }
 

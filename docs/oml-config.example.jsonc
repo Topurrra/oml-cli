@@ -115,6 +115,8 @@
   "outsystems": {
     // Address of Service Studio's MCP server (O11), such as http://127.0.0.1:41820/mcp. oml publish, pull, references and studio use it; empty means the default port. Only this computer (127.0.0.1 or localhost).
     "mcpServer": "",
+    // The platform server of the DEV environment, such as dev.example.com (https:// is dropped). oml server and the dashboard use it to list and download modules with Service Studio closed; OML_SERVER_HOST wins over it. The login stays in OML_SERVER_USER and OML_SERVER_PASSWORD, never in this file.
+    "serverHost": "",
     // Address of the OutSystems MCP server of your ODC tenant, such as https://mytenant.outsystems.dev/mcp. Agents use it for ODC apps; oml itself does not call it.
     "odcMcpServer": ""
   },
