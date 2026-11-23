@@ -53,34 +53,41 @@
   <main id="main">
 
     <!-- Hero -->
-    <section id="top" class="hero wrap" aria-labelledby="hero-title">
-      <div class="hero-text">
-        <p class="eyebrow">OutSystems 11 · command line · AI agents</p>
-        <h1 id="hero-title">oml<span class="cursor" aria-hidden="true">_</span></h1>
-        <p class="lead">OutSystems 11 from the command line, built for AI agents.</p>
-        <p>oml reads, changes, checks and reviews OutSystems 11 modules through the typed Model API of your installed Service Studio. It never edits OML XML. Use it yourself, or give its skill to any AI agent.</p>
-        <div class="actions">
-          <a class="button primary" href="https://github.com/Topurrra/oml-cli/releases/latest">Download for Windows</a>
-          <a class="button" href="https://github.com/Topurrra/oml-cli">View on GitHub</a>
-          <a class="text-link" href="#quick-start">Quick start</a>
-        </div>
-        <p class="small muted">Needs Windows, Service Studio 11 and the .NET 10 runtime. MIT license.</p>
-      </div>
-
-      <div class="hero-code">
-        <div class="code">
-          <div class="code-head">
-            <span>The loop · PowerShell</span>
-            <button class="copy" type="button" aria-label="Copy the loop commands">Copy</button>
+    <section id="top" class="hero-band" aria-labelledby="hero-title">
+      <div class="hero wrap">
+        <div class="hero-text">
+          <p class="eyebrow">OutSystems 11 · command line · AI agents</p>
+          <h1 id="hero-title">oml<span class="cursor" aria-hidden="true">_</span></h1>
+          <p class="lead">OutSystems 11 from the command line. Built for AI agents.</p>
+          <p>Read, change, check and review modules through Service Studio's own Model API. Every change goes to a staged copy first. Use it yourself, or give its skill to any agent.</p>
+          <div class="actions">
+            <a class="button primary" href="https://github.com/Topurrra/oml-cli/releases/latest">Download for Windows</a>
+            <a class="button" href="https://github.com/Topurrra/oml-cli">View on GitHub</a>
+            <a class="text-link" href="#quick-start">Quick start</a>
           </div>
-<pre><code>oml create orders --in C:\Exports\Orders.oml
+          <ul class="pills" aria-label="At a glance">
+            <li><strong>0.08 s</strong> per command, warm</li>
+            <li><strong>3×</strong> fewer tokens than the MCP</li>
+            <li><strong>11</strong> production rules</li>
+          </ul>
+          <p class="small muted">Windows · Service Studio 11 · .NET 10 runtime · MIT license</p>
+        </div>
+
+        <div class="hero-code">
+          <div class="code">
+            <div class="code-head">
+              <span>The loop · PowerShell</span>
+              <button class="copy" type="button" aria-label="Copy the loop commands">Copy</button>
+            </div>
+<pre><code class="lang-sh">oml create orders --in C:\Exports\Orders.oml
 cd orders
-oml inspect modules\Orders.oml --own --only entities,actions,screens
+oml inspect modules\Orders.oml --own
 oml apply modules\Orders.oml specs\change.json staged\Orders.oml
 oml review modules\Orders.oml staged\Orders.oml --out review.html
 oml install staged\Orders.oml modules\Orders.oml</code></pre>
+          </div>
+          <p class="small muted"><code>apply</code> never touches the source. <code>install</code> replaces it only when the staged file has no errors, and keeps a backup.</p>
         </div>
-        <p class="small muted"><code>apply</code> never changes the source file. <code>install</code> replaces it only when the staged file has zero validation errors, and keeps a backup.</p>
       </div>
     </section>
 
@@ -90,7 +97,7 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
         <div class="section-head">
           <p class="eyebrow">Why oml</p>
           <h2 id="why-title">More than the OutSystems MCP</h2>
-          <p>Agents that change OutSystems modules need to be cheap, fast and safe. This is how oml compares with Service Studio's own MCP server and the official O11 skill.</p>
+          <p>Agents that change OutSystems modules must be cheap, fast and safe. Here is oml next to Service Studio's MCP server and the official O11 skill.</p>
         </div>
 
         <div class="table-wrap">
@@ -102,33 +109,33 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
             <tbody>
               <tr>
                 <th scope="row">Works on</th>
-                <td data-label="OutSystems MCP">Modules open in Service Studio (newer builds can find and open them)</td>
-                <td data-label="oml">Module files: many modules, many agents. Service Studio may be closed for reading and checks.</td>
+                <td data-label="OutSystems MCP">Modules open in Service Studio</td>
+                <td data-label="oml">Module files. Many modules, many agents. Service Studio can stay closed for reads and checks.</td>
               </tr>
               <tr>
                 <th scope="row">A change</th>
-                <td data-label="OutSystems MCP">Goes into a working copy that Studio's Compare-and-Merge shows. No production rules.</td>
-                <td data-label="oml">Goes into a staged copy. Production rules are enforced, you review it, then it is installed with a backup.</td>
+                <td data-label="OutSystems MCP">Goes into a working copy. No production rules.</td>
+                <td data-label="oml">Goes into a staged copy. Rules are enforced, you review it, install keeps a backup.</td>
               </tr>
               <tr>
-                <th scope="row">Token use</th>
-                <td data-label="OutSystems MCP">A 70 KB skill to read first, then one call per read or C# change</td>
-                <td data-label="oml">A 2.8k-token skill, compact JSON, short <code>describe</code> answers, and <code>oml code</code>: one program runs many calls and returns only the answer.</td>
+                <th scope="row">Tokens</th>
+                <td data-label="OutSystems MCP">A 70 KB skill, then one call per read or C# change</td>
+                <td data-label="oml">A short skill, compact JSON, and <code>oml code</code>: many calls, one answer.</td>
               </tr>
               <tr>
                 <th scope="row">Parallel agents</th>
-                <td data-label="OutSystems MCP">One edit session per module: a second agent waits</td>
-                <td data-label="oml">Each agent has its own file; one command merges the results.</td>
+                <td data-label="OutSystems MCP">One edit session per module. A second agent waits.</td>
+                <td data-label="oml">Each agent has its own file. One command merges them.</td>
               </tr>
               <tr>
-                <th scope="row">Checks and review</th>
-                <td data-label="OutSystems MCP">Studio's TrueChange messages and Compare-and-Merge</td>
-                <td data-label="oml">36 AI Mentor-like rules, a plain-words review of two versions, architecture maps.</td>
+                <th scope="row">Checks</th>
+                <td data-label="OutSystems MCP">TrueChange and Compare-and-Merge</td>
+                <td data-label="oml">36 AI Mentor-like rules, a plain-words review, architecture maps.</td>
               </tr>
               <tr>
                 <th scope="row">Server versions</th>
-                <td data-label="OutSystems MCP">The latest version only (Studio 11.55.98+)</td>
-                <td data-label="oml">Pull, compare and check any version of any module, with scores over time.</td>
+                <td data-label="OutSystems MCP">The latest only (Studio 11.55.98+)</td>
+                <td data-label="oml">Pull, compare and check any version, with scores over time.</td>
               </tr>
               <tr>
                 <th scope="row">Running app</th>
@@ -137,13 +144,13 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
               </tr>
               <tr>
                 <th scope="row">More</th>
-                <td data-label="OutSystems MCP">Any Model API change through C# code</td>
-                <td data-label="oml">Traditional Web to Reactive migration, LifeTime deploys, project memory, offline OutSystems docs search, test data, mocks.</td>
+                <td data-label="OutSystems MCP">Any Model API change through C#</td>
+                <td data-label="oml">Reactive migration, LifeTime deploys, project memory, offline docs, test data, mocks, UI skills.</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p class="note">oml uses Service Studio's MCP server too: for pull, publish, Refresh All and live queries; the ones that change something after you confirm. Compared with the official skill as of November 2026. For ODC, use OutSystems' ODC MCP server.</p>
+        <p class="note">oml also uses Service Studio's MCP server, for pull, publish, Refresh All and live queries; changes there wait for your yes. Compared as of November 2026. For ODC, use OutSystems' ODC MCP server.</p>
       </div>
     </section>
 
@@ -153,7 +160,7 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
         <div class="section-head">
           <p class="eyebrow">Benchmarks</p>
           <h2 id="benchmarks-title">Same task, same module, same model</h2>
-          <p>The OutSystems MCP side uses Service Studio's MCP server with the official OutSystems skill for O11. Each row is one run unless it says otherwise, so read the numbers as a direction, not a guarantee.</p>
+          <p>The MCP side uses Service Studio's MCP server with the official O11 skill. Most rows are one run: read them as a direction, not a promise.</p>
         </div>
 
         <ul class="stats" aria-label="Headline results">
@@ -208,24 +215,25 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
 
         <div class="split">
           <div>
-            <h3>Call overhead, no model</h3>
-            <p>The time oml itself needs for the calls, on the TraditionalWebSample modules. <code>oml mcp</code> loads Service Studio's model once and keeps a module that was only read open between calls.</p>
+            <h3>oml's own speed, no model</h3>
+            <p>Starting Service Studio's model takes 2 to 5 seconds. Warm workers keep it loaded in the background, so only the first command pays for it. <code>oml mcp</code> and <code>oml code</code> use the same workers.</p>
           </div>
           <div class="table-wrap">
             <table class="mini">
-              <caption class="sr-only">Call overhead of oml mcp</caption>
+              <caption class="sr-only">Time oml itself needs for a call</caption>
               <thead>
-                <tr><th scope="col">Calls</th><th scope="col">One <code>oml.exe</code> per call</th><th scope="col">Through <code>oml mcp</code></th></tr>
+                <tr><th scope="col">Call</th><th scope="col">Cold</th><th scope="col">Warm</th></tr>
               </thead>
               <tbody>
-                <tr><th scope="row">5 inspects, one after another</th><td>9.4 s</td><td class="win">13 ms</td></tr>
-                <tr><th scope="row">4 inspects in parallel</th><td>2.4 s</td><td class="win">5 ms</td></tr>
+                <tr><th scope="row">One <code>inspect</code> or <code>describe</code></th><td>1.9 s</td><td class="win">0.07 s</td></tr>
+                <tr><th scope="row">An <code>oml code</code> program with an oml call</th><td>5 s</td><td class="win">0.33 s</td></tr>
+                <tr><th scope="row">5 inspects through <code>oml mcp</code></th><td>9.4 s</td><td class="win">13 ms</td></tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        <p class="note">Every table, the 1.1.0 vs 1.2.0 runs, why the gap exists and how to re-run them: <a href="https://github.com/Topurrra/oml-cli/blob/main/BENCHMARKS.md">BENCHMARKS.md</a>.</p>
+        <p class="note">Every table, the history and how to run them again: <a href="https://github.com/Topurrra/oml-cli/blob/main/BENCHMARKS.md">BENCHMARKS.md</a>.</p>
       </div>
     </section>
 
@@ -241,10 +249,10 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
         <ol class="steps">
           <li>
             <h3>Start a project</h3>
-            <p>Modules, skill, settings and docs in one folder.</p>
+            <p>Modules, skill and settings in one folder. Run <code>oml create</code> alone and it asks its questions.</p>
             <div class="code">
               <div class="code-head"><span>PowerShell</span><button class="copy" type="button" aria-label="Copy: start a project">Copy</button></div>
-<pre><code>oml create orders --in C:\Exports\Orders.oml
+<pre><code class="lang-sh">oml create orders --in C:\Exports\Orders.oml
 cd orders</code></pre>
             </div>
           </li>
@@ -253,33 +261,33 @@ cd orders</code></pre>
             <p>Compact JSON, sized for agents.</p>
             <div class="code">
               <div class="code-head"><span>PowerShell</span><button class="copy" type="button" aria-label="Copy: read the module">Copy</button></div>
-<pre><code>oml inspect modules\Orders.oml --own --only entities,actions,screens</code></pre>
+<pre><code class="lang-sh">oml inspect modules\Orders.oml --own --only entities,actions,screens</code></pre>
             </div>
           </li>
           <li>
             <h3>Write a spec and apply it</h3>
-            <p>A minimal <code>specs\change.json</code>, applied to a staged file.</p>
+            <p>A small <code>specs\change.json</code>, applied to a staged file.</p>
             <div class="code">
               <div class="code-head"><span>specs\change.json</span><button class="copy" type="button" aria-label="Copy: example spec">Copy</button></div>
-<pre><code>{ "entities": [ { "name": "ReviewNote", "attributes": [ { "name": "Text", "length": 250, "mandatory": true } ] } ] }</code></pre>
+<pre><code class="lang-json">{ "entities": [ { "name": "ReviewNote", "attributes": [ { "name": "Text", "length": 250, "mandatory": true } ] } ] }</code></pre>
             </div>
             <div class="code">
               <div class="code-head"><span>PowerShell</span><button class="copy" type="button" aria-label="Copy: apply the spec">Copy</button></div>
-<pre><code>oml apply modules\Orders.oml specs\change.json staged\Orders.oml</code></pre>
+<pre><code class="lang-sh">oml apply modules\Orders.oml specs\change.json staged\Orders.oml</code></pre>
             </div>
           </li>
           <li>
             <h3>Review, then install</h3>
-            <p>What changed in plain words. Install keeps a backup.</p>
+            <p>What changed, in plain words. Install keeps a backup.</p>
             <div class="code">
               <div class="code-head"><span>PowerShell</span><button class="copy" type="button" aria-label="Copy: review and install">Copy</button></div>
-<pre><code>oml review modules\Orders.oml staged\Orders.oml --out review.html
+<pre><code class="lang-sh">oml review modules\Orders.oml staged\Orders.oml --out review.html
 oml install staged\Orders.oml modules\Orders.oml</code></pre>
             </div>
           </li>
         </ol>
 
-        <p class="note">No module file yet? Open the module in Service Studio and run <code>oml pull</code>, or get the published version with <code>oml server pull</code>. Not a terminal person? Type <code>oml</code> for a menu that shows each command it runs, or <code>oml dashboard</code> for a local web page. A command is slow on a big module? Add <code>--timings</code> to see where the time goes.</p>
+        <p class="note">No <code>.oml</code> file yet? <code>oml pull</code> saves the module open in Service Studio; <code>oml server pull</code> gets the published one. Rather click than type? <code>oml</code> alone opens a menu, <code>oml dashboard</code> a local web page. A slow command? Add <code>--timings</code>.</p>
       </div>
     </section>
 
@@ -288,65 +296,65 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
       <div class="wrap">
         <div class="section-head">
           <p class="eyebrow">What it covers</p>
-          <h2 id="features-title">Every job, from reading a module to deploying it</h2>
-          <p>Each command has more options: <code>oml &lt;command&gt; --help</code>, or <a href="https://github.com/Topurrra/oml-cli/blob/main/skill/reference/commands.md">commands.md</a>.</p>
+          <h2 id="features-title">From reading a module to deploying it</h2>
+          <p>Every command has more options: <code>oml &lt;command&gt; --help</code>, or <a href="https://github.com/Topurrra/oml-cli/blob/main/skill/reference/commands.md">commands.md</a>.</p>
         </div>
 
         <ul class="cards">
           <li class="card">
             <h3>Read a module</h3>
-            <p>What a module holds, what one element does, which module owns it. ModelQL questions too.</p>
+            <p>What a module holds, what an element does, which module owns it.</p>
             <p class="chips"><code>inspect</code> <code>describe</code> <code>find</code> <code>query</code> <code>flow</code> <code>tree</code> <code>export</code></p>
           </li>
           <li class="card">
             <h3>Change a module</h3>
-            <p>Data, logic, UI and REST from a JSON spec, written to a staged file. 20 recipes to copy from.</p>
+            <p>Data, logic, UI and REST from a JSON spec, into a staged file. 20 recipes to copy.</p>
             <p class="chips"><code>apply</code> <code>validate</code> <code>install</code> <code>new</code> <code>spec</code> <code>translations</code></p>
           </li>
           <li class="card">
             <h3>Check and review</h3>
-            <p>36 AI Mentor-like rules in seconds, a plain-words review of two versions, a zoomable architecture page.</p>
+            <p>36 AI Mentor-like rules in seconds, a plain-words review, a zoomable architecture page.</p>
             <p class="chips"><code>check</code> <code>review</code> <code>architecture</code></p>
           </li>
           <li class="card">
             <h3>Platform server</h3>
-            <p>Every module and version on the server, with Service Studio closed. An end-of-day environment score.</p>
+            <p>Every module and version on the server, Service Studio closed. A daily environment score.</p>
             <p class="chips"><code>server modules</code> <code>server pull</code> <code>server check</code> <code>review --server</code></p>
           </li>
           <li class="card">
             <h3>Service Studio and LifeTime</h3>
-            <p>Save the open module, 1-Click Publish, Refresh All, LifeTime tags and deploys. Each asks first.</p>
+            <p>Save, 1-Click Publish, Refresh All, tags and deploys. Each one asks first.</p>
             <p class="chips"><code>pull</code> <code>publish</code> <code>references</code> <code>studio</code> <code>lifetime</code></p>
           </li>
           <li class="card">
             <h3>Migrate to Reactive</h3>
-            <p>Plan and specs for a Traditional Web module, progress by name, and a check that the new module is a correct copy.</p>
+            <p>A plan and specs for a Traditional Web module, progress by name, and a check of the new module.</p>
             <p class="chips"><code>migrate plan</code> <code>migrate status</code> <code>migrate check</code></p>
           </li>
           <li class="card">
             <h3>Running app</h3>
-            <p>After a publish to DEV: what users see, why a widget looks wrong, overflow at each width, CSS previews that save nothing.</p>
-            <p class="chips"><code>browser page</code> <code>browser look</code> <code>browser sweep</code> <code>browser try</code> <code>browser run</code> <code>browser diff</code></p>
+            <p>What users see, why a widget looks wrong, overflow at each width, CSS previews, logins by role.</p>
+            <p class="chips"><code>browser page</code> <code>browser look</code> <code>browser sweep</code> <code>browser try</code> <code>browser run</code> <code>browser accounts</code></p>
           </li>
           <li class="card">
             <h3>Tests, data and mocks</h3>
-            <p>What to test after a change, BDD test screens, test data on DEV that cleans up exactly what it made.</p>
-            <p class="chips"><code>test scenarios</code> <code>test bdd</code> <code>test data</code> <code>mock</code></p>
+            <p>What to test after a change, BDD test screens, DEV test data that cleans up after itself.</p>
+            <p class="chips"><code>test scenarios</code> <code>test bdd</code> <code>test data</code> <code>map mock</code></p>
           </li>
           <li class="card">
             <h3>Whole applications</h3>
-            <p>Map every module once, then ask who uses an element and what breaks if it changes.</p>
+            <p>Map every module once. Then ask who uses an element and what breaks if it changes.</p>
             <p class="chips"><code>map build</code> <code>map uses</code> <code>map impact</code> <code>map data</code> <code>map api</code></p>
           </li>
           <li class="card">
             <h3>Agents</h3>
-            <p>Code mode, an MCP server, batches, project memory, offline OutSystems docs and optional hooks.</p>
+            <p>Code mode, an MCP server, batches, project memory, offline docs, hooks and 16 UI skills.</p>
             <p class="chips"><code>code</code> <code>mcp</code> <code>batch</code> <code>memory</code> <code>learn</code> <code>hooks</code> <code>doc</code></p>
           </li>
           <li class="card">
             <h3>For people</h3>
-            <p>A menu that shows the command it runs, a local dashboard, an agent's change walkthrough, Explorer right-click entries.</p>
-            <p class="chips"><code>menu</code> <code>dashboard</code> <code>show-change</code> <code>explorer-menu</code></p>
+            <p>Commands that ask what they need, a menu, a local dashboard, change walkthroughs, Explorer entries.</p>
+            <p class="chips"><code>create</code> <code>menu</code> <code>dashboard</code> <code>dashboard --change</code> <code>menu explorer</code></p>
           </li>
           <li class="card">
             <h3>Packages and assets</h3>
@@ -381,22 +389,25 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
                 <tr><td>Compare two published versions on the server</td><td><code>oml review --server &lt;Module&gt; 4 published</code></td></tr>
                 <tr><td>Get a module without opening Service Studio</td><td><code>oml server pull &lt;Module&gt; --out M.oml</code></td></tr>
                 <tr><td>Check the whole environment every evening</td><td><code>oml server check</code></td></tr>
-                <tr><td>Fix a Service Studio error</td><td><code>oml explain-warning &lt;id&gt;</code></td></tr>
+                <tr><td>Fix a Service Studio error</td><td><code>oml doc warning &lt;id&gt;</code></td></tr>
                 <tr><td>Move a Traditional Web module to Reactive</td><td><code>oml migrate plan old.oml --name NewModule</code></td></tr>
                 <tr><td>See a screen the way users see it</td><td><code>oml browser page &lt;url&gt;</code></td></tr>
                 <tr><td>Find why a widget looks wrong</td><td><code>oml browser look &lt;url&gt; &lt;widget&gt;</code></td></tr>
+                <tr><td>Test a screen as a role</td><td><code>oml browser accounts</code></td></tr>
+                <tr><td>Make a screen look better</td><td><code>oml doc better-ui</code></td></tr>
                 <tr><td>Know what to test after a change</td><td><code>oml test scenarios before.oml after.oml</code></td></tr>
                 <tr><td>Publish after review (asks first)</td><td><code>oml publish &lt;Module&gt;</code></td></tr>
                 <tr><td>Deploy with LifeTime (asks first)</td><td><code>oml lifetime tag</code>, <code>oml lifetime deploy</code></td></tr>
                 <tr><td>Run many oml calls in one step</td><td><code>oml code run -f program.py</code></td></tr>
                 <tr><td>Map who calls what across apps</td><td><code>oml map build &lt;project&gt;</code>, then <code>oml map impact &lt;element&gt;</code></td></tr>
+                <tr><td>See every setting, to copy and change</td><td><code>oml config example</code></td></tr>
               </tbody>
             </table>
           </div>
           <p id="job-empty" class="empty" hidden>No task matches. Try one word, such as <q>server</q> or <q>screen</q>, or search <a href="https://github.com/Topurrra/oml-cli/blob/main/oml-full.md">oml-full.md</a>.</p>
         </div>
 
-        <p class="note">Every feature and use case in short: <a href="https://github.com/Topurrra/oml-cli/blob/main/oml-full.md">oml-full.md</a>. Every spec key: <a href="https://github.com/Topurrra/oml-cli/blob/main/skill/reference/spec.md">spec.md</a>. Not supported: debugging, SOAP, and ODC (use the OutSystems MCP for ODC).</p>
+        <p class="note">Everything oml does: <a href="https://github.com/Topurrra/oml-cli/blob/main/oml-full.md">oml-full.md</a>. Every spec key: <a href="https://github.com/Topurrra/oml-cli/blob/main/skill/reference/spec.md">spec.md</a>. Not supported: debugging, SOAP and ODC.</p>
       </div>
     </section>
 
@@ -405,15 +416,16 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
       <div class="wrap">
         <div class="section-head">
           <p class="eyebrow">Recently added</p>
-          <h2 id="new-title">New in the changelog</h2>
-          <p>If the latest release does not have these yet, <a href="#install">build from source</a>. Details: <a href="https://github.com/Topurrra/oml-cli/blob/main/CHANGELOG.md">CHANGELOG.md</a>.</p>
+          <h2 id="new-title">What's new</h2>
+          <p>Not in the latest release yet? <a href="#install">Build from source</a>. Details: <a href="https://github.com/Topurrra/oml-cli/blob/main/CHANGELOG.md">CHANGELOG.md</a>.</p>
         </div>
         <ul class="new-list">
-          <li><h3><code>oml code</code></h3><p>One Python program runs many oml calls in parallel and returns only its last expression. Install, publish, server and LifeTime calls pause until a person runs <code>oml code approve &lt;id&gt;</code>.</p></li>
-          <li><h3><code>oml mcp</code></h3><p>An MCP server on stdio with three tools: <code>read</code>, <code>write</code> and <code>gated</code>. Service Studio's model loads once, so an inspect takes milliseconds.</p></li>
-          <li><h3>Server versions</h3><p><code>server pull --app</code> saves every module of an application. <code>review --server</code> compares two server versions in one step. <code>server check</code> gives an end-of-day environment score.</p></li>
-          <li><h3>Traditional Web to Reactive</h3><p><code>migrate plan</code> writes the plan and specs and changes no module. <code>migrate status</code> shows progress; <code>migrate check</code> checks the new module is a correct copy.</p></li>
-          <li><h3>Browser checks</h3><p><code>browser look</code> explains why an element looks as it does. <code>browser sweep</code> checks each width for overflow. <code>browser try</code> previews CSS, HTML or JavaScript in the live page and saves nothing.</p></li>
+          <li><h3>Warm workers</h3><p>Model commands take about 0.08 s instead of 2 to 5. A background oml keeps Service Studio loaded; <code>oml code</code> uses it too.</p></li>
+          <li><h3>Edit in place</h3><p>Agents change existing elements instead of copying them. Deletes and data risks wait for your yes. Entity data is never deleted.</p></li>
+          <li><h3>Asks, in color</h3><p><code>oml create</code> asks for the folder, modules, server and agent. Green is passed, yellow needs a look, red failed. <code>oml config example</code> prints every setting.</p></li>
+          <li><h3>Test accounts by role</h3><p>One account per role in <code>.oml/test-accounts.local.json</code>. Browser scripts log in with <code>{"login": "Manager"}</code>, and oml types the password.</p></li>
+          <li><h3>16 UI skills</h3><p>Accessibility, layout, typography, color, motion and copy, rewritten for Reactive and Traditional Web. Read one with <code>oml doc better-ui</code>.</p></li>
+          <li><h3>Copilot hooks</h3><p><code>oml hooks install --agent copilot</code> guards VS Code agents. A hook never blocks a call because of an oml error.</p></li>
         </ul>
       </div>
     </section>
@@ -424,7 +436,7 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
         <div class="section-head">
           <p class="eyebrow">AI agents</p>
           <h2 id="agents-title">Give the skill to any agent</h2>
-          <p>Put the <code>skill/</code> folder in your project (<code>oml create</code> does it). The default load is about 2.8k tokens; the rest is read only when a task needs it.</p>
+          <p>Put the <code>skill/</code> folder in your project (<code>oml create</code> does it). Only a short skill loads by default; the rest is read when a task needs it.</p>
         </div>
 
         <div class="split">
@@ -434,16 +446,16 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
               <li>Read the module.</li>
               <li>Copy a recipe into a spec.</li>
               <li><code>apply</code> to a staged file.</li>
-              <li><code>validate</code>, fix and repeat.</li>
+              <li><code>validate</code>, fix, repeat.</li>
             </ol>
             <p>It asks you before anything that touches a real module or environment.</p>
 
             <h3>Many calls, one program</h3>
-            <p>With <code>oml code</code>, the agent writes one program instead of many tool calls. Reads and staged writes run at once. Install, publish, server and LifeTime calls pause until a person approves. Needs Python 3.9+.</p>
+            <p>With <code>oml code</code>, the agent writes one program instead of many tool calls. Reads and staged writes run at once; install, publish, server and LifeTime calls wait for a person. Needs Python 3.9+.</p>
           </div>
           <div class="code">
-            <div class="code-head"><span>check.py · <code>oml code run --json -f check.py</code></span><button class="copy" type="button" aria-label="Copy the oml code example">Copy</button></div>
-<pre><code>mods = ["Orders.oml", "Orders_CS.oml", "Customers_CS.oml"]
+            <div class="code-head"><span>check.py · oml code run --json -f check.py</span><button class="copy" type="button" aria-label="Copy the oml code example">Copy</button></div>
+<pre><code class="lang-py">mods = ["Orders.oml", "Orders_CS.oml", "Customers_CS.oml"]
 found = parallel([("oml.read", {"args": ["check", m]}) for m in mods])
 [helpers.oml.out(r)["summary"] for r in found]</code></pre>
           </div>
@@ -467,7 +479,7 @@ found = parallel([("oml.read", {"args": ["check", m]}) for m in mods])
         <div class="split">
           <div>
             <h3>Give a good task</h3>
-            <p>Say four things: the module file, what to build or change, which elements of other modules to use (<code>Module.Element</code>), and what the agent may not do. One task per message works best; split big features into data model, logic, then screens.</p>
+            <p>Say four things: the module file, what to build or change, which elements of other modules to use (<code>Module.Element</code>), and what the agent may not do. One task per message; split big features into data, logic, then screens.</p>
           </div>
           <div class="code">
             <div class="code-head"><span>Example task</span><button class="copy" type="button" aria-label="Copy the example task">Copy</button></div>
@@ -478,7 +490,7 @@ Stage the result and validate it. Do not install or publish.</code></pre>
           </div>
         </div>
 
-        <p class="note">Setup per harness, task examples, memory and the optional hooks: <a href="https://github.com/Topurrra/oml-cli/blob/main/oml-full.md#ai-agents">oml-full.md, AI agents</a>. A strong model can lead cheap worker agents with <a href="https://github.com/Topurrra/oml-cli/blob/main/skill/architect.md">architect.md</a>.</p>
+        <p class="note">Setup per harness, task examples, memory and hooks: <a href="https://github.com/Topurrra/oml-cli/blob/main/oml-full.md#ai-agents">oml-full.md, AI agents</a>. A strong model can lead cheap worker agents with <a href="https://github.com/Topurrra/oml-cli/blob/main/skill/architect.md">architect.md</a>.</p>
       </div>
     </section>
 
@@ -487,17 +499,17 @@ Stage the result and validate it. Do not install or publish.</code></pre>
       <div class="wrap">
         <div class="section-head">
           <p class="eyebrow">Safety</p>
-          <h2 id="safety-title">Everything is assumed to be in production</h2>
-          <p>Agents must assume every module already runs in production, with data and other modules using it. <code>apply</code> refuses what loses entity data, stops for your yes before deletes and data risks, and lists every change that breaks the modules using a public element.</p>
+          <h2 id="safety-title">Every module is treated as live</h2>
+          <p>Agents assume each module already runs in production, with data and consumers. <code>apply</code> enforces it.</p>
         </div>
 
         <div class="split">
           <ul class="refuse">
-            <li>Always refused: deleting an existing entity or attribute, changing an attribute's data type, renaming an attribute</li>
-            <li>Always refused: an entity deleted and made again, or copied from another module (a new, empty table)</li>
-            <li>Your yes first: deleting any other existing element (actions, screens, blocks, structures, static records and the like)</li>
-            <li>Your yes first: a shorter length, fewer decimals or a new mandatory setting; a new identifier; SQL with <code>DELETE</code>, <code>UPDATE</code>, <code>TRUNCATE</code>, <code>DROP</code>, <code>ALTER</code>, <code>MERGE</code></li>
-            <li>Allowed and reported: renames, edits and public signature changes, with what the consuming modules must do</li>
+            <li class="no"><strong>Refused.</strong> Deleting an entity or attribute, changing an attribute's type, renaming an attribute.</li>
+            <li class="no"><strong>Refused.</strong> An entity deleted and made again, or copied from another module: a new, empty table.</li>
+            <li class="ask"><strong>Asks first.</strong> Deleting any other element: actions, screens, blocks, structures, static records.</li>
+            <li class="ask"><strong>Asks first.</strong> A shorter length, fewer decimals, a new mandatory or identifier; SQL with <code>DELETE</code>, <code>UPDATE</code>, <code>TRUNCATE</code>, <code>DROP</code>, <code>ALTER</code>, <code>MERGE</code>.</li>
+            <li class="ok"><strong>Done and reported.</strong> Renames, edits and public signature changes, with what the consuming modules must do.</li>
           </ul>
           <div class="table-wrap">
             <table class="who">
@@ -514,7 +526,7 @@ Stage the result and validate it. Do not install or publish.</code></pre>
             </table>
           </div>
         </div>
-        <p class="note">Elements created in the same spec stay fully editable. The project profile can let agents skip the question for deletes and data risks (<code>autoApprove.deletes</code>, <code>autoApprove.dataDeletion</code>); entity data is never deleted. All 11 rules: <a href="https://github.com/Topurrra/oml-cli/blob/main/skill/rules.md">skill/rules.md</a>.</p>
+        <p class="note">Elements made in the same spec stay fully editable. The project profile can skip the question for deletes and data risks (<code>autoApprove.deletes</code>, <code>autoApprove.dataDeletion</code>); entity data is never deleted.</p>
         <details class="all-rules">
           <summary>All 11 production rules</summary>
           <ol class="rules"><li><span class="badge guidance">Agent guidance</span><div><strong>Everything in the module also exists in production.</strong> Existing entities have data. Existing public elements have consumers in other modules. Treat every change to an existing element as a production change.</div></li><li><span class="badge">Enforced by apply</span><div><strong>Never delete or rebuild entity data.</strong> Do not delete an existing entity (regular or static) or attribute. Do not change an attribute's data type or rename an attribute. Do not delete an entity and create it again, or paste a copied entity (<code>copy</code>): both make a new, empty table. If the user wants one of these, tell them to do it by hand in Service Studio.</div></li><li><span class="badge">Enforced by apply</span><div><strong>Deleting any other existing element needs the user's yes:</strong> actions, screens, blocks, structures and their attributes, static records, parameters, block events, roles, exceptions, site properties, timers, REST methods, processes. <code>oml apply</code> stops with <code>needsApproval</code>. Ask the user. On a clear yes, run the same apply again with <code>--user-approved</code> and a new staged path.</div></li><li><span class="badge">Reported by apply</span><div><strong>Change existing elements in place. Never duplicate them.</strong> You may rename, edit and restructure existing actions, screens, blocks, structures and entities, and change a public element's signature: inputs, outputs, events, public. Never make a copy such as GetOrders2 to avoid a change. <code>oml apply</code> lists each change that breaks the modules using a public element in <code>breaking</code>. Tell the user: those modules must refresh references and fix their callers.</div></li><li><span class="badge">Enforced by apply</span><div><strong>Ask before a change that can lose data</strong> in an existing attribute or entity: a shorter length, fewer decimals, a new mandatory setting, an auto number change, a new identifier or multi-tenant setting. Other settings, such as a longer length, are fine. Before a unique index on an existing entity, ask the user to check for duplicates.</div></li><li><span class="badge">Enforced by apply</span><div><strong>Ask before SQL that changes data:</strong> <code>DELETE</code>, <code>UPDATE</code>, <code>TRUNCATE</code>, <code>DROP</code>, <code>ALTER</code>, <code>MERGE</code>. Read-only SQL and <code>INSERT</code> are fine.</div></li><li><span class="badge guidance">Agent guidance</span><div><strong>Never weaken security.</strong> Do not add the Anonymous role, remove roles from existing screens, or set <code>exposeReadOnly</code> false on a public entity, unless the user asks for that exact change. Make a server action public only when the user agrees (apply warns <code>PublicServerAction</code>). Other elements may be public when the design needs it.</div></li><li><span class="badge guidance">Agent guidance</span><div><strong>Do only what the user asked.</strong> No clean-up, refactoring, renames, or removal of &quot;unused&quot; elements or dependencies unless the user asks.</div></li><li><span class="badge guidance">Agent guidance</span><div><strong>Never open, patch, or rewrite an <code>.oml</code> file</strong> with an editor, patch tool, or script. It is a binary package. Change modules only through <code>oml apply</code>.</div></li><li><span class="badge guidance">Agent guidance</span><div><strong>Never run <code>install</code>, <code>publish</code>, <code>references</code>, or a LifeTime deploy, tag, abort, or continue without a clear yes from the user</strong> for that exact action.</div></li><li><span class="badge guidance">Agent guidance</span><div><strong>Do not invent rules.</strong> If something is not forbidden here and is not destructive, do what the user asked. If you are not sure, ask the user. Do not guess.</div></li></ol>
@@ -532,11 +544,11 @@ Stage the result and validate it. Do not install or publish.</code></pre>
         <div class="see-grid">
           <figure class="shot">
             <img src="dashboard.png" alt="The oml dashboard home page" loading="lazy" decoding="async">
-            <figcaption><code>oml dashboard</code>: setup check, module explorer, check and review reports, platform server scores over time, code-mode programs, LifeTime and what agents ran. It listens on 127.0.0.1 and never installs, publishes or deploys.</figcaption>
+            <figcaption><code>oml dashboard</code>: setup check, module explorer, check and review reports, server scores, code-mode programs, LifeTime and what agents ran. Local only; it never installs, publishes or deploys.</figcaption>
           </figure>
           <div class="card demo">
             <h3>Architecture report</h3>
-            <p><code>oml architecture</code> writes one zoomable HTML page of applications, modules, layers, dependencies and findings. <code>--publish-order</code> gives the order to publish in.</p>
+            <p><code>oml architecture</code> writes one zoomable HTML page: applications, modules, layers, dependencies and findings. <code>--publish-order</code> gives the order to publish in.</p>
             <div class="layers" aria-hidden="true">
               <span>End-user</span><span>Core</span><span>Foundation</span>
             </div>
@@ -552,7 +564,7 @@ Stage the result and validate it. Do not install or publish.</code></pre>
         <div class="section-head">
           <p class="eyebrow">Install</p>
           <h2 id="install-title">Install oml</h2>
-          <p>You need Windows, Service Studio 11 and the .NET 10 runtime (Service Studio 11.55.94 and later install it). Publish and Refresh All need Service Studio 11.55.91+ with its MCP server started: <strong>Edit &gt; MCP Server &gt; Start MCP server</strong>.</p>
+          <p>Windows, Service Studio 11 and the .NET 10 runtime (Service Studio 11.55.94+ installs it). Publish and Refresh All also need Studio's MCP server: <strong>Edit &gt; MCP Server &gt; Start MCP server</strong> (11.55.91+).</p>
         </div>
 
         <div class="install-grid">
@@ -561,14 +573,14 @@ Stage the result and validate it. Do not install or publish.</code></pre>
             <ol class="plain">
               <li>Download <code>oml-&lt;version&gt;-win-x64.zip</code> from <a href="https://github.com/Topurrra/oml-cli/releases">Releases</a>.</li>
               <li>Unzip it and add <code>bin</code> to PATH.</li>
-              <li>Run <code>oml doctor</code>: it checks your setup and says what to fix.</li>
+              <li>Run <code>oml doctor</code>. It checks your setup and says what to fix.</li>
             </ol>
           </div>
           <div class="card">
             <h3>From source</h3>
             <div class="code">
               <div class="code-head"><span>PowerShell</span><button class="copy" type="button" aria-label="Copy the build from source commands">Copy</button></div>
-<pre><code>dotnet build -c Release src/OmlCli.csproj
+<pre><code class="lang-sh">dotnet build -c Release src/OmlCli.csproj
 $env:PATH = "$PWD\src\bin\Release\net10.0;$env:PATH"
 oml doctor</code></pre>
             </div>

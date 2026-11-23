@@ -27,6 +27,47 @@
   });
   updateToggle();
 
+  // Syntax colors. Only spans are added: textContent, and so what Copy copies, stays the same.
+  const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+  const tok = (kind, s) => `<span class="t-${kind}">${esc(s)}</span>`;
+  // A shell line: oml, its subcommands (lowercase words right after it), flags, placeholders, paths, strings.
+  const shell = line => {
+    if (/^\s*#/.test(line)) return tok('com', line);
+    let out = '', index = 0, inSub = false;
+    for (const [, space, str, hole, word] of line.matchAll(/(\s+)|("[^"]*"|'[^']*')|(<[^<>]+>)|([^\s"'<]+)/g)) {
+      if (space) { out += space; continue; }
+      let kind;
+      if (str) kind = 'str';
+      else if (hole) kind = 'ph';
+      else if (index === 0) { kind = word === 'oml' ? 'cmd' : 'bin'; inSub = word === 'oml'; }
+      else if (inSub && /^[a-z][a-z-]*$/.test(word)) kind = 'sub';
+      else if (/^--?[a-z]/i.test(word)) kind = 'flag';
+      else if (/^\$/.test(word)) kind = 'var';
+      else if (/^[=,;|]$/.test(word)) kind = 'punc';
+      else if (/^\d[\d.]*$/.test(word)) kind = 'num';
+      else if (/[\\/.:]/.test(word)) kind = 'path';
+      else kind = 'arg';
+      if (index > 0 && kind !== 'sub') inSub = false;
+      out += tok(kind, str || hole || word);
+      index++;
+    }
+    return out;
+  };
+  const json = text => text.replace(/("(?:[^"\\]|\\.)*")(\s*:)?|\b(true|false|null)\b|(-?\d+(?:\.\d+)?)|([{}[\],:])|([^"{}[\],:\d]+)/g,
+    (m, str, colon, kw, num, punc, rest) =>
+      str ? tok(colon ? 'key' : 'str', str) + (colon ? tok('punc', colon) : '')
+        : kw ? tok('kw', kw) : num ? tok('num', num) : punc ? tok('punc', punc) : esc(rest));
+  const python = text => text.replace(/(#.*)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|\b(for|in|if|else|elif|def|return|import|from|as|and|or|not|None|True|False|lambda|with|while)\b|\b([A-Za-z_]\w*)(?=\()|(\b\d+\b)|([\s\S])/g,
+    (m, com, str, kw, fn, num, other) =>
+      com ? tok('com', com) : str ? tok('str', str) : kw ? tok('kw', kw) : fn ? tok('fn', fn) : num ? tok('num', num) : esc(other));
+  document.querySelectorAll('pre code.lang-sh').forEach(code => {
+    code.innerHTML = code.textContent.split('\n').map(line => `<span class="ln">${shell(line)}</span>`).join('\n');
+  });
+  document.querySelectorAll('pre code.lang-json').forEach(code => { code.innerHTML = json(code.textContent); });
+  document.querySelectorAll('pre code.lang-py').forEach(code => { code.innerHTML = python(code.textContent); });
+  // Commands written inline: the task table and the cards' chips.
+  document.querySelectorAll('#job-table td code').forEach(code => { code.innerHTML = shell(code.textContent); });
+
   // Copy buttons: copy the text of the <code> in the same .code block.
   const copyText = async text => {
     if (navigator.clipboard && window.isSecureContext) {
