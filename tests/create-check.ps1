@@ -75,6 +75,27 @@ try {
   $x = Json create gamma --dir $Tmp --in (Join-Path $Tmp 'missing')
   Require ($LASTEXITCODE -eq 2 -and -not (Test-Path (Join-Path $Tmp 'gamma'))) 'bad input creates nothing'
   Write-Host 'ok   create: refuses a folder with files, a bad name and a bad input (and creates nothing)'
+
+  # A path is the parent folder and the name; missing folders are made. --server keeps only the host, --hooks installs one agent's hooks.
+  $deep = Join-Path $Tmp 'deep\er'
+  $r = Json create (Join-Path $deep 'gamma') --server 'https://dev.example.com/Orders' --hooks copilot --no-library --no-doctor
+  $gamma = Join-Path $deep 'gamma'
+  Require ($LASTEXITCODE -eq 0 -and $r.folder -eq $gamma -and (Test-Path (Join-Path $gamma '.github\hooks\oml.json'))) "create <path> --hooks copilot: $($r | ConvertTo-Json -Compress)"
+  Require ((Get-Content (Join-Path $gamma '.oml\oml-config.json') -Raw | ConvertFrom-Json).outsystems.serverHost -eq 'dev.example.com') 'create --server keeps the host'
+  Require (@($r.ready | Where-Object { $_.step -eq 'hooks' -and $_.status -eq 'done' }).Count -eq 1 -and @($r.optional | Where-Object { $_ -like 'oml hooks install*' -or $_ -like '*serverHost*' }).Count -eq 0) "create hooks step and optional: $($r | ConvertTo-Json -Compress)"
+  $r = Json create (Join-Path $Tmp 'Upper')
+  Require ($LASTEXITCODE -eq 2 -and $r.hint -eq 'Use upper.') "a path with an upper-case name: $($r | ConvertTo-Json -Compress)"
+  # Asked, for a person (OML_ASK=1 lets a pipe answer): name, folder, modules, author, server, agent, yes.
+  $answers = "Delta`n$Tmp`n`nAna Dev`ndev.example.com`n1`ny`n"
+  $env:OML_ASK = '1'
+  try { $out = $answers | & $Oml create --no-library --no-doctor 2>&1 | Out-String } finally { $env:OML_ASK = $null }
+  $delta = Join-Path $Tmp 'delta'
+  Require ($LASTEXITCODE -eq 0 -and (Test-Path (Join-Path $delta '.claude\settings.local.json')) -and $out -match 'The same as: oml create delta') "create asked: $out"
+  Require ((Get-Content (Join-Path $delta '.oml\oml-config.json') -Raw | ConvertFrom-Json).author -eq 'Ana Dev') 'create asked: author'
+  $env:OML_ASK = '1'
+  try { $out = "eps`n$Tmp`n`n`n`n0`nn`n" | & $Oml create 2>&1 | Out-String } finally { $env:OML_ASK = $null }
+  Require ($LASTEXITCODE -eq 2 -and -not (Test-Path (Join-Path $Tmp 'eps'))) "create asked, answered no: $out"
+  Write-Host 'ok   create: a path makes missing folders, --server, --hooks, and the questions for a person (no creates nothing)'
 } finally {
   foreach ($n in $saved.Keys) { [Environment]::SetEnvironmentVariable($n, $saved[$n]) }
   Remove-TestWorkFolder $Tmp

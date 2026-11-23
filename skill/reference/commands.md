@@ -1387,7 +1387,7 @@ One `oml memory recall --module Orders` process on 100,000 records took 266 ms w
 
 ## Create a project
 
-`oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--no-skill] [--no-library] [--no-doctor]` is the starting point of a project, such as `oml create falcon --in C:\Downloads\falcon`. The name is 1-40 lower-case letters, digits and hyphens; the folder `<parent>\<project>` must be new or empty, and nothing is created when an input is wrong.
+`oml create <project | path> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--server <host>] [--hooks claude|copilot|codex|gemini|all] [--no-skill] [--no-library] [--no-doctor]` is the starting point of a project, such as `oml create falcon --in C:\Downloads\falcon` or `oml create C:\work\falcon`. The name is 1-40 lower-case letters, digits and hyphens; a path gives the parent folder and the name, and missing folders are made; the folder `<parent>\<project>` must be new or empty, and nothing is created when an input is wrong. `--server` sets `outsystems.serverHost`; `--hooks` installs one agent's hooks (as `oml hooks install --agent`). A person who runs `oml create` alone in a terminal is asked for each of these, one question at a time, and sees the command line it stands for; agents and scripts get the usage instead.
 
 - **Folders:** `modules/` (the project's `.oap` and `.oml` files), `staged/`, `specs/`, `browser/`, `mocks/`, `scenarios/`.
 - **Memory:** `.oml/memory/memory.log`, as `oml memory init` makes it.

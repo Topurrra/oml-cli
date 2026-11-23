@@ -4,8 +4,10 @@ using System.Text.RegularExpressions;
 
 namespace OmlCli;
 
-// `oml create <project> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--no-skill] [--no-library]
-// [--no-doctor]`: a project that is ready to work in, from one command. The output's `ready` list has one row per
+// `oml create <project | path> [--dir <parent>] [--in <folder|file.oap|file.oml>]... [--author "<name>"] [--server <host>]
+// [--hooks claude|copilot|codex|gemini|all] [--no-skill] [--no-library] [--no-doctor]`; `oml create` alone, run by a person in
+// a terminal, asks for each of these (Ask). A path (C:\work\orders) is the parent folder and the name; missing
+// folders are created. a project that is ready to work in, from one command. The output's `ready` list has one row per
 // step (done, skipped or failed, with the command that repeats it): folders, memory (as oml memory init), the project
 // profile (.oml/oml-config.json, see ProjectConfig), the skill, the OutSystems docs for oml doc --search
 // --library (downloaded once per machine; skipped when they are there), the modules and the map, and a setup check
@@ -27,10 +29,25 @@ static class CreateCommand
 
     public static int Run(string[] args)
     {
+        // No name: a person is asked for one and for the rest; options typed after oml create still apply.
+        if ((args.Length == 0 || args[0].StartsWith("--") && args[0] is not ("--help" or "-h")) && Person())
+        {
+            if (Ask() is not { } asked) return Fail("Nothing was created.");
+            args = [.. asked, .. args];
+        }
         if (args.Length == 0 || args[0] is "--help" or "-h") { Console.WriteLine(CliUsage.For("create")); return args.Length == 0 ? 2 : 0; }
         var name = args[0];
-        if (!ProjectName.IsMatch(name)) return Fail($"Project name '{name}': use 1-40 lower-case letters, digits and hyphens, such as falcon.");
-        string? parent = null, author = null;
+        string? parent = null, author = null, server = null, hooks = null;
+        // A path: its last part is the name, the rest is the parent folder.
+        if (name.IndexOfAny(['/', '\\', ':']) >= 0)
+        {
+            var full = Path.GetFullPath(name).TrimEnd('/', '\\');
+            parent = Path.GetDirectoryName(full);
+            name = Path.GetFileName(full);
+        }
+        if (!ProjectName.IsMatch(name))
+            return Fail($"Project name '{name}': use 1-40 lower-case letters, digits and hyphens, such as falcon.",
+                ProjectName.IsMatch(name.ToLowerInvariant()) ? $"Use {name.ToLowerInvariant()}." : null);
         var inputs = new List<string>();
         bool skill = true, library = true, doctor = true;
         for (var i = 1; i < args.Length; i++)
@@ -40,6 +57,8 @@ static class CreateCommand
                 case "--dir" when i + 1 < args.Length: parent = args[++i]; break;
                 case "--in" when i + 1 < args.Length: inputs.Add(Path.GetFullPath(args[++i])); break;
                 case "--author" when i + 1 < args.Length: author = args[++i]; break;
+                case "--server" when i + 1 < args.Length: server = args[++i]; break;
+                case "--hooks" when i + 1 < args.Length: hooks = args[++i].ToLowerInvariant(); break;
                 case "--no-skill": skill = false; break;
                 case "--no-hooks": break; // hooks are opt-in now: oml hooks install
                 case "--no-library": library = false; break;
@@ -50,6 +69,10 @@ static class CreateCommand
         // The name oml writes as creator and last modifier in this project (`author` in .oml/oml-config.json).
         if (author is not null && ProjectConfig.Normalize(ProjectConfig.Find("author")!, author, out author) is { } badAuthor)
             return Fail($"--author: {badAuthor}");
+        if (hooks is not null && hooks is not ("claude" or "copilot" or "codex" or "gemini" or "all" or "none"))
+            return Fail($"--hooks {hooks}: use claude, copilot, codex, gemini, all or none.");
+        if (server is not null && ProjectConfig.Normalize(ProjectConfig.Find("outsystems.serverHost")!, server, out server) is { } badServer)
+            return Fail($"--server: {badServer}");
         foreach (var input in inputs)
             if (!Directory.Exists(input) && !(File.Exists(input) && Path.GetExtension(input).ToLowerInvariant() is ".oap" or ".oml"))
                 return Fail($"--in {input}: not a folder, .oap or .oml file.");
@@ -75,6 +98,7 @@ static class CreateCommand
         // The project profile with every default, for the person to edit (oml config set, or the file).
         var profile = new ProjectConfig.Values();
         if (author is { Length: > 0 }) profile.Put("author", author);
+        if (server is { Length: > 0 }) profile.Put("outsystems.serverHost", server);
         ProjectConfig.Save(root, profile);
         created.Add(".oml/oml-config.json");
         Step("config", "done", (author is { Length: > 0 } ? $"author {author}, the rest " : "") + "defaults; oml config show explains every setting");
@@ -151,6 +175,15 @@ static class CreateCommand
         }
         else Step("map", "skipped", "no --in: modules/ is empty", $"put .oap or .oml files in modules/, then: oml map build {name} --in modules");
 
+        // Agent hooks, only for the agent the person named.
+        if (hooks is not null and not "none")
+        {
+            var (code, output) = Captured(() => AgentHooks.Run(["install", "--dir", root, "--agent", hooks]));
+            var files = (output?["agents"] as JsonArray)?.Select(a => Path.GetRelativePath(root, a?["file"]?.ToString() ?? "").Replace('\\', '/')).ToList() ?? [];
+            created.AddRange(files);
+            Step("hooks", code == 0 ? "done" : "failed", code == 0 ? string.Join(", ", files) : output?["error"]?.ToString(), code == 0 ? null : $"oml hooks install --dir {root} --agent {hooks}");
+        }
+
         // The setup check: what on this machine still stops the work (Service Studio, its MCP server, LifeTime variables).
         if (doctor)
         {
@@ -173,7 +206,8 @@ static class CreateCommand
                 author is { Length: > 0 } ? null : "oml config set author \"<name>\"   (the name Service Studio shows as creator and last modifier of what oml creates)",
                 "oml config set ui.targets desktop   (and the other settings: what agents do, skip and ask; oml config show)",
                 "oml team-rules add <file.md>   (your team's own rules)",
-                "oml hooks install   (optional agent hooks: guards, a memory reminder, the profile at session start)",
+                hooks is null or "none" ? "oml hooks install --agent claude|copilot|codex|gemini   (optional agent hooks: guards, a memory reminder, the profile at session start)" : null,
+                server is { Length: > 0 } ? null : "oml config set outsystems.serverHost <host>   (the platform server: list and download modules with Service Studio closed)",
                 "oml browser start --headed   (log in to the app once; later browser runs keep the login)",
                 "oml explorer-menu   (right-click entries in Windows Explorer, once per machine)",
             }.OfType<string>().ToArray(),
@@ -182,6 +216,66 @@ static class CreateCommand
                 : new[] { $"cd {root}", "Put the project's .oap or .oml files in modules/ (oml lifetime download can fetch them).", $"oml map build {name} --in modules", "Start your agent in this folder and give it a task." },
         });
         return 0;
+    }
+
+    // A person at a terminal, not an agent or a script: the same test as the bare `oml` menu.
+    // OML_ASK=1 asks also with redirected input (the tests answer through a pipe).
+    static bool Person() => Environment.GetEnvironmentVariable("OML_ASK") == "1" || MenuModel.Bare(Console.IsInputRedirected, Console.IsOutputRedirected, Environment.GetEnvironmentVariable) == BareChoice.Menu;
+
+    // `oml create` alone, for a person: one question per setting, with the value Enter keeps in brackets. Returns the
+    // command line it stands for (printed, so the person learns it), or null when the person stopped.
+    static string[]? Ask()
+    {
+        string C(string text, string color) => TerminalColors.Paint(text, color);
+        string? Line(string question, string keep)
+        {
+            Console.Write(C("? ", TerminalColors.Cyan) + TerminalColors.BoldText(question) + (keep.Length > 0 ? C($" [{keep}]", TerminalColors.Dim) : "") + " ");
+            var line = Console.ReadLine();
+            return line is null ? null : line.Trim().Length == 0 ? keep : line.Trim().Trim('"');
+        }
+        Console.WriteLine(C("oml create", TerminalColors.Bold + TerminalColors.Cyan) + ": a new project folder for your modules and your agent. Enter keeps the value in [brackets]; Ctrl+C stops.");
+        string? name;
+        while (true)
+        {
+            name = Line("Project name (lower-case letters, digits and hyphens, such as orders)", "");
+            if (name is null) return null;
+            if (ProjectName.IsMatch(name)) break;
+            if (ProjectName.IsMatch(name.ToLowerInvariant())) { name = name.ToLowerInvariant(); break; }
+            Console.WriteLine(C("  Use 1-40 lower-case letters, digits and hyphens.", TerminalColors.Yellow));
+        }
+        var parent = Line("Folder to create it in (made if missing)", Environment.CurrentDirectory);
+        if (parent is null) return null;
+        string? input;
+        while (true)
+        {
+            input = Line("Modules to copy in: a folder, .oap or .oml (Enter: none yet)", "");
+            if (input is null) return null;
+            if (input.Length == 0 || Directory.Exists(input) || File.Exists(input) && Path.GetExtension(input).ToLowerInvariant() is ".oap" or ".oml") break;
+            Console.WriteLine(C("  Not a folder, .oap or .oml file.", TerminalColors.Yellow));
+        }
+        var author = Line("Your name, shown in Service Studio as creator of what oml makes (Enter: later)", Environment.GetEnvironmentVariable("OML_AUTHOR") ?? "");
+        if (author is null) return null;
+        var server = Line("Platform server of DEV, such as dev.example.com (Enter: none)", Environment.GetEnvironmentVariable("OML_SERVER_HOST") ?? "");
+        if (server is null) return null;
+        Console.WriteLine("  Agents: 1 Claude Code   2 GitHub Copilot (VS Code, app, CLI)   3 Codex   4 Gemini CLI   5 Cursor   6 all of them   0 none");
+        string? hooks;
+        while (true)
+        {
+            var pick = Line("Which agent do you use? oml adds its safety hooks for it", "0");
+            if (pick is null) return null;
+            hooks = pick switch { "1" or "5" => "claude", "2" => "copilot", "3" => "codex", "4" => "gemini", "6" => "all", "0" => "none", _ => null };
+            if (hooks is not null) break;
+            Console.WriteLine(C("  Type a number from 0 to 6.", TerminalColors.Yellow));
+        }
+        var args = new List<string> { name!, "--dir", parent };
+        if (input.Length > 0) args.AddRange(["--in", input]);
+        if (author.Length > 0) args.AddRange(["--author", author]);
+        if (server.Length > 0) args.AddRange(["--server", server]);
+        if (hooks != "none") args.AddRange(["--hooks", hooks]);
+        string Quote(string a) => a.Any(char.IsWhiteSpace) ? $"\"{a}\"" : a;
+        Console.WriteLine(C("  The same as: ", TerminalColors.Dim) + "oml create " + string.Join(" ", args.Select(Quote)));
+        var go = Line($"Create {Path.Combine(Path.GetFullPath(parent), name!)}? (y/n)", "y");
+        return go is "y" or "Y" or "yes" ? args.ToArray() : null;
     }
 
     // The oml version a project's skill/ copy came from; doctor compares it with the running oml.

@@ -176,6 +176,8 @@ static class ProjectConfig
     internal static string? Normalize(Setting s, string text, out string value, bool fromFile = false)
     {
         value = text.Trim();
+        // A pasted address of the platform server keeps only its host.
+        if (s.Key == "outsystems.serverHost" && value.Length > 0) { if (value.Contains("://")) value = value[(value.IndexOf("://") + 3)..]; value = value.Split('/')[0]; }
         switch (s.Kind)
         {
             case "bool":
