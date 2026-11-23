@@ -410,7 +410,7 @@ Other installed kinds resolve as `I<Kind>Node`. Other node keys use installed se
 Check them before use:
 
 ```powershell
-oml model-types "OutSystems.Model.Logic.Nodes.I*Node"
+oml spec model-types "OutSystems.Model.Logic.Nodes.I*Node"
 ```
 
 Start and End are created when needed. An End named `End` reuses the implicit End.
@@ -693,7 +693,7 @@ Label, Image, Icon, List, ListItem, TableRecords, HeaderCell, RowCell, Popup, an
 Discover available types with:
 
 ```powershell
-oml widget-types
+oml spec widget-types
 ```
 
 Children use the widget or its first content placeholder.
@@ -810,7 +810,7 @@ properties panel offers; a wrong name lists those values.
 Widget interfaces resolve under `OutSystems.Model.UI.Web.Widgets`:
 
 ```powershell
-oml model-types "OutSystems.Model.UI.Web.Widgets.I*"
+oml spec model-types "OutSystems.Model.UI.Web.Widgets.I*"
 ```
 
 ```json
@@ -977,7 +977,7 @@ Labels persist where supported. Raise Exception on Service Studio 11.55.92 needs
 ### Generic model operations
 
 For a change no other key makes. `add`, `remove`, `move` and `set` (with `type`) reach any Model API object by type
-and member name, checked against the installed Service Studio. Look up a type's members with `oml model-types <Type>`.
+and member name, checked against the installed Service Studio. Look up a type's members with `oml spec model-types <Type>`.
 Prefer a named key when one exists (`entities`, `screens`, `addVariables`, ...): it fills in what a new element needs.
 
 | Op | Keys | What it does |
@@ -1055,7 +1055,7 @@ Locales, translation imports, translation writes, and folders run after logic an
 | `scripts` | `name`, `file`, optional `public` (false). Sets `JavaScript` to the file text. Screens and blocks accept `requiredScripts`, an array of script names. |
 | `themes` | `name`, optional `styleSheet` and `baseTheme`. `styleSheet` is CSS text, an existing file path, or `{ "file": ... }`; a value that looks like a path (`theme.css`, `css/app.css`) but names no file is refused. A new theme without `styleSheet` starts empty. On a theme made with Theme Editor, the model keeps the Theme Editor part (its banner and `:root` block, first in `describe --css`) apart: `styleSheet` replaces only the rest. A `styleSheet` copied from `describe --css` may start with that part; apply drops it there, so it is never there twice. A text that differs only in line endings is not a change. Creates a Web theme in Traditional Web modules, otherwise a Mobile theme. Does not select the module default theme. |
 | `resources` | `name`, `file`, optional `public` (false). Stores the exact file bytes. |
-| `folders` | `name`, `area`, `elements` paths. Reuses folders with the same area and name. Moves elements by their typed `Folder` property. `entities` is an alias for `ServerEntities`. Other areas match installed `ESpaceTreeFolder` names without case sensitivity: `serverActions`, `clientActions`, `serviceActions`, `structures`, `images`, `resources`, `scripts`, `themes`, `siteProperties`, `timers`, `roles`, `processes`, and others listed by `oml model-types ESpaceTreeFolder`. Rejects elements outside the requested area. |
+| `folders` | `name`, `area`, `elements` paths. Reuses folders with the same area and name. Moves elements by their typed `Folder` property. `entities` is an alias for `ServerEntities`. Other areas match installed `ESpaceTreeFolder` names without case sensitivity: `serverActions`, `clientActions`, `serviceActions`, `structures`, `images`, `resources`, `scripts`, `themes`, `siteProperties`, `timers`, `roles`, `processes`, and others listed by `oml spec model-types ESpaceTreeFolder`. Rejects elements outside the requested area. |
 
 Image, script and resource creation lists reuse existing names without updating their content. An existing theme takes a different `styleSheet` and `baseTheme` (UI); the report's `changed` lists `styleSheet of theme <name>` and `baseTheme of theme <name>`. Left out, they keep the theme's values. A module has no style sheet of its own: put module-wide CSS in a theme.
 `inspect.content` lists content, locales, module translations, and folder entries. `tree` shows `folder`, `requiredScripts`, and image `ref` values.

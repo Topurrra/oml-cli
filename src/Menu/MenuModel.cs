@@ -55,14 +55,14 @@ internal static class MenuModel
                 [Text("app", "Application name"), Text("env", "Environment name"), Folder("Folder to save it in", key: "out")], a => ["lifetime", "download", a["app"], "--env", a["env"], "--out", a["out"]]),
         ]),
         new("Agents", "What AI agents did and learned in this project", [
-            new("What agents ran", "Per command: count, failures and median time, from the local usage log.", None, _ => ["log", "summary"]),
+            new("What agents ran", "Per command: count, failures and median time, from the local usage log.", None, _ => ["learn", "usage"]),
             new("What agents learned", "Where agents fail and retry, from the local log and memory.", None, _ => ["learn", "report"]),
             new("Project memory", "The facts, decisions and traps saved for the next agent.", None, _ => ["memory", "list"]),
             new("Refresh the skill in this project", "Update the project's skill folder and AGENTS.md to this oml.", None, _ => ["skill", "refresh"]),
         ]),
         new("Docs", "OutSystems rules and warnings", [
             new("Search the docs", "Ranked search of the rules, spec keys, recipes and commands.", [Text("words", "Search for")], a => ["doc", "--search", a["words"]]),
-            new("Explain a warning", "Cause and fix of a validation message, by id or title words.", [Text("warning", "Warning id or words")], a => ["explain-warning", a["warning"]]),
+            new("Explain a warning", "Cause and fix of a validation message, by id or title words.", [Text("warning", "Warning id or words")], a => ["doc", "warning", a["warning"]]),
         ]),
         new("Assets", "Fonts and images", [
             new("Convert a font to WOFF2", "A web font from a TTF or OTF file.", [new("file", "Which font?", AskKind.Font)], a => ["font", "woff2", a["file"]]),

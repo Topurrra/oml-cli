@@ -18,7 +18,7 @@ A short tour of every feature, grouped by job. Each command has more options: `o
 | Compare two published versions on the server | `oml review --server <Module> 4 published` |
 | Get a module without opening Service Studio | `oml server pull <Module> --out M.oml` |
 | Check the whole environment every evening | `oml server check` |
-| Fix a Service Studio error | `oml explain-warning <id>` |
+| Fix a Service Studio error | `oml doc warning <id>` |
 | Move a Traditional Web module to Reactive | `oml migrate plan old.oml --name NewModule` |
 | See a screen the way users see it | `oml browser page <url>` |
 | Find why a widget looks wrong | `oml browser look <url> <widget>` |
@@ -84,7 +84,7 @@ More:
 
 - `oml spec <key>` prints one spec key (15-60 lines). `oml spec --search "<words>"` finds the right key. `oml spec schema` gives VS Code autocomplete.
 - 20 recipes in `skill/recipes/`: entity with CRUD, list and detail screens, search and paging, forms with validation, REST client, exposed API, email, BDD screen and more.
-- `oml new` makes a new module, also from a template. `oml templates` lists the samples.
+- `oml new` makes a new module, also from a template. `oml new --templates` lists the samples.
 - `oml apply --batch` and `oml install --batch` handle many modules in one process.
 - `oml translations export` writes Excel or ResX translation files.
 
@@ -182,7 +182,7 @@ The `skill/` folder holds instructions, rules, recipes and references. Keep it a
 | Claude Code | Copy `skill/` to `%USERPROFILE%\.claude\skills\outsystems-oml\`, or put `@AGENTS.md` in the project's `CLAUDE.md`. |
 | Other agents | Give them `skill/AGENTS.md` or `skill/SKILL.md` as instructions. |
 
-The default load (`SKILL.md` and `rules.md`) is about 2.8k tokens. Optional: a strong model leads cheap worker agents with [skill/architect.md](skill/architect.md).
+The default load (`SKILL.md` and `rules.md`) is about 3.3k tokens. Optional: a strong model leads cheap worker agents with [skill/architect.md](skill/architect.md).
 
 ### Fewer calls, fewer tokens
 
@@ -199,8 +199,8 @@ The default load (`SKILL.md` and `rules.md`) is about 2.8k tokens. Optional: a s
 |---|---|
 | `doc` | Short OutSystems rules by topic, written for small models (0.7k-2.3k tokens each): Reactive UI, OutSystems UI patterns, data, logic, security, REST, processes, architecture, warnings, migration, troubleshooting. |
 | `doc --search` | The 3 most likely sections, spec keys, recipes, warnings or commands for any words. Local search, no model, no network. |
-| `outsystems-docs fetch` | Downloads the OutSystems 11 docs (Markdown, about 15 MB); `doc --search --library` then answers platform questions. |
-| `explain-warning` | Cause and fix of a validation message. `apply` already adds the fix to each new error. |
+| `doc library fetch` | Downloads the OutSystems 11 docs (Markdown, about 15 MB); `doc --search --library` then answers platform questions. |
+| `doc warning` | Cause and fix of a validation message. `apply` already adds the fix to each new error. |
 | `team-rules add` | Your company's own rules (naming, layers, Confluence pages as Markdown). They override oml's best practices, never the production rules. |
 
 ### Memory and learning
@@ -209,7 +209,7 @@ The default load (`SKILL.md` and `rules.md`) is about 2.8k tokens. Optional: a s
 |---|---|
 | `memory` | Project memory: decisions, answers, traps, one fact per record in `.oml/memory/memory.log`, with a hash chain. Agents recall the best 3 records in their first read. Secrets are refused. `memory handoff` briefs the next agent; `memory dream` tidies at the end of the day. |
 | `learn` | Where agents fail and retry, from the local usage log. `learn propose` turns it into trap records and draft company skills; a person accepts each, and can undo it. |
-| `log summary` | Per command: count, failures, median time. The log stays on your machine; `OML_LOG=0` turns it off. |
+| `learn usage` | Per command: count, failures, median time. The log stays on your machine; `OML_LOG=0` turns it off. |
 
 ### Hooks
 
@@ -244,8 +244,8 @@ Before each release, `tests/skill-scan.ps1` scans `skill/` with [NVIDIA SkillSpe
 |---|---|
 | `menu` | Type `oml` in a terminal: everyday tasks in groups, each showing the command it runs, so you learn as you go. Agents never see it. |
 | `dashboard` | A local web page with the same tools: today at a glance (setup, environment score, commands run, programs waiting for approval), module explorer, check and review reports, platform server scores over time with module versions to save or compare, code-mode programs, LifeTime, what agents ran and learned, developer tools. Listens on 127.0.0.1 with a random key; it never installs, publishes, deploys or approves. |
-| `show-change` | An agent's change walkthrough on the dashboard: call stacks, flows, element links, the review, and comments to send back. Idea from [diffmap](https://github.com/tanishqkancharla/diffmap) (MIT). |
-| `explorer-menu` | Right-click entries in Windows Explorer: fonts to WOFF2, optimize images, convert to ICO, trace to SVG, OpenAPI and dashboard for `.oml` files, architecture report for folders. No admin rights. |
+| `dashboard --change` | An agent's change walkthrough on the dashboard: call stacks, flows, element links, the review, and comments to send back. Idea from [diffmap](https://github.com/tanishqkancharla/diffmap) (MIT). |
+| `menu explorer` | Right-click entries in Windows Explorer: fonts to WOFF2, optimize images, convert to ICO, trace to SVG, OpenAPI and dashboard for `.oml` files, architecture report for folders. No admin rights. |
 
 ![The oml dashboard home page](docs/dashboard.png)
 
@@ -264,7 +264,7 @@ Before each release, `tests/skill-scan.ps1` scans `skill/` with [NVIDIA SkillSpe
 |---|---|
 | `doctor` | Checks the setup and says what to fix. |
 | `version`, `selftest` | The build and its check; the self-test runs by itself on a new Service Studio build. |
-| `model-types`, `widget-types` | OutSystems API members on the installed build. |
+| `spec model-types`, `spec widget-types` | OutSystems API members on the installed build. |
 
 Output is compact JSON on stdout. Exit codes: 0 ok, 1 model or validation failure, 2 usage or environment.
 

@@ -71,7 +71,7 @@ Project profile: a session may start with an "oml project profile" (`.oml/oml-co
    `oml spec check <spec.json>; oml apply <source.oml> <spec.json> <new-staged.oml> --describe-created`
    Read `summary` first, then its lists. After a good apply, do not run `validate`, `inspect` or `describe` again.
    `needsApproval`: nothing was saved; follow rule 3. `breaking`: tell the user (rule 4).
-   **A good apply means `saved: true`, no `newErrors`, and no `newWarnings`.** Every new warning is a defect until you prove otherwise. Entries have a `hint` when the fix is known; otherwise `oml explain-warning <id>`. Fix each one or explain it to the user.
+   **A good apply means `saved: true`, no `newErrors`, and no `newWarnings`.** Every new warning is a defect until you prove otherwise. Entries have a `hint` when the fix is known; otherwise `oml doc warning <id>`. Fix each one or explain it to the user.
 4. **Fix (only if needed, 1 call per attempt).** Change only what the report names, then repeat step 3 with a NEW staged path. Never retry an unchanged spec.
 5. **UI work: see it in the real app.** Ask the user for the DEV URL of the screen if you do not have it. Before step 2, preview the UI (golden rule 1). Before a publish there is no visual check: report "pending visual check". After step 6 the user installs and publishes to DEV. Then run `oml browser page <screen url> --screenshot <Screen>.png` (or open the screen in your own browser when the profile says `browser agent`), look at the picture, and read `layout` and `errors`. Fix in a new staged file if needed. A login page? Ask the user to run `oml browser start --headed` and log in; then run it again. Follow `oml doc ui-checklist`.
 6. **Report.** Run `oml review <source.oml> <staged.oml> --md <new path>.md`, then show the staged path, what was built, `changed`, `approved`, `breaking` and the .md. 0 findings does not mean the code is correct. Ask before `install` or `publish`; run `oml validate <staged.oml> --warnings` right before `install`. A change the user should read first (several parts, a UI): `oml doc dif`. Then ask whether the user wants test scenarios for what was built: `oml test scenarios <source.oml> <staged.oml>` (BDD per public action, a browser script per screen). You may suggest `oml learn report` to the user; never accept, reject or undo a proposal for them.
@@ -87,7 +87,7 @@ After the loop: install after a yes (zero validation errors needed; report the b
 | Not sure which key, topic or recipe? | `oml doc --search "<words>"`; use OutSystems terms (entity, screen, aggregate) when you can |
 | Spec keys; one key | `oml spec [<key>]` |
 | Rules for a topic | `oml doc [<topic>[#<section>]]` |
-| Fix of an error or warning | `oml explain-warning <id or title words>` |
+| Fix of an error or warning | `oml doc warning <id or title words>` |
 | Any failure, also platform | `oml doc troubleshooting` |
 
 Topics: `golden-rules`, `best-practices`, `ui-reactive`, `osui-patterns`, `ui-checklist`, `data-rules`, `logic-rules`, `security`, `rest`, `processes-timers-email`, `architecture-rules`, `traditional-to-reactive`, `warnings`, `testing`, `troubleshooting`, `dif`, `harnesses`.

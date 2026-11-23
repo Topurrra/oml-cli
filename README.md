@@ -14,7 +14,7 @@ Agents that change OutSystems modules need to be cheap, fast and safe. Compared 
 |---|---|---|
 | Works on | Modules open in Service Studio (newer builds can find and open them) | Module files: many modules, many agents, Studio may be closed for reading and checks |
 | A change | Goes into a working copy that Studio's Compare-and-Merge shows. No production rules | Goes into a staged copy. Production rules are enforced, you review it, then it is installed with a backup |
-| Token use | A 70 KB skill to read first, then one call per read or C# change | A 2.8k-token skill, compact JSON, short `describe` answers, and `oml code`: one program runs many calls and returns only the answer |
+| Token use | A 70 KB skill to read first, then one call per read or C# change | A 3.3k-token skill, compact JSON, short `describe` answers, and `oml code`: one program runs many calls and returns only the answer |
 | Parallel agents | One edit session per module: a second agent waits | Each agent has its own file; one command merges the results |
 | Checks and review | Studio's TrueChange messages and Compare-and-Merge | 36 AI Mentor-like rules, a plain-words review of two versions, architecture maps |
 | Server versions | The latest version only (Studio 11.55.98+) | Pull, compare and check any version of any module, with scores over time |
@@ -73,7 +73,7 @@ Not a terminal person? Type `oml` for a menu that shows each command it runs, or
 
 ## Use with AI agents
 
-Put the `skill/` folder in your project (`oml create` does it). It works with Claude Code, GitHub Copilot, Cursor, Codex, Gemini CLI and any agent that reads `AGENTS.md`. The default load is about 2.8k tokens; the rest is read only when a task needs it.
+Put the `skill/` folder in your project (`oml create` does it). It works with Claude Code, GitHub Copilot, Cursor, Codex, Gemini CLI and any agent that reads `AGENTS.md`. The default load is about 3.3k tokens; the rest is read only when a task needs it.
 
 The agent works in a loop: read the module, copy a recipe into a spec, `apply` to a staged file, `validate`, fix and repeat. It asks you before anything that touches a real module or environment.
 
@@ -113,7 +113,7 @@ It prints the manual step instead, for you to do in Service Studio. `apply` save
 | Tests | `test bdd`, `test scenarios`, `test data` |
 | Whole applications | `map`, `mock` |
 | Agents | `code`, `mcp`, `batch`, `memory`, `learn`, `hooks`, `doc` |
-| For people | `menu`, `dashboard`, `explorer-menu`, `show-change` |
+| For people | `menu`, `dashboard`, `menu explorer`, `dashboard --change` |
 | Packages and assets | `app`, `extension`, `font`, `image` |
 
 Every feature and use case in short: [oml-full.md](oml-full.md). Every command with its options: [commands.md](skill/reference/commands.md). Every spec key: [spec.md](skill/reference/spec.md).

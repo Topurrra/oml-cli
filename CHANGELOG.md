@@ -2,9 +2,40 @@
 
 Keep a Changelog style: one section per release, newest first.
 
-## Unreleased
+## 2.0.0
 
-### Added
+Everything since 1.21.1. A major version: the production rules, the command names and the dashboard changed, and agents
+need the new skill. Old command names still work.
+
+### Breaking changes and how to upgrade
+
+- **Production rules.** `oml apply` now changes existing elements in place and never needs a duplicate. Deleting an entity
+  or attribute, changing an attribute's type, renaming an attribute, and copying an entity from another module are always
+  refused. Deleting any other existing element, and changes that can lose data, stop with `needsApproval` until the user
+  says yes: run the same apply again with `--user-approved`, or set `autoApprove.deletes` and `autoApprove.dataDeletion`.
+  `allowDataLoss` is no longer used. Signature changes of public elements are saved and listed in `breaking`.
+- **Command names.** 13 commands were merged into others: `stats` and `header` are `inspect --stats` and `inspect --header`;
+  `explain-warning` is `doc warning`; `outsystems-docs` is `doc library`; `model-types`, `widget-types` and `expression`
+  are `spec model-types`, `spec widget-types` and `spec expr`; `log summary` is `learn usage`; `explorer-menu` is
+  `menu explorer`; `selftest` is `doctor --selftest --show`; `show-change` is `dashboard --change`; `mock` is `map mock`;
+  `templates` is `new --templates`. `oml qa` is `oml browser`. The old names still run, so scripts keep working; help and
+  docs show only the new ones.
+- **Hooks are opt-in, and Copilot has its own file.** Run `oml hooks install` (or `--agent copilot|claude|codex|gemini|all`)
+  in each project again: it replaces hook commands that older versions quoted (the cause of "hook errored" denials) and
+  writes `.github/hooks/oml.json` for GitHub Copilot.
+- **Project settings** live in `.oml/oml-config.json` (`oml config example` prints every setting). `oml config init`
+  renames an older `.oml/config.json`. The LifeTime host can be set there (`outsystems.lifetimeHost`); the token stays in
+  `OML_LIFETIME_TOKEN`.
+- **The dashboard is for looking.** Its Check, Review and OpenAPI pages, translations export and test screens are gone:
+  use `oml check`, `oml review`, `oml openapi`, `oml translations export` and `oml test bdd`. Fonts and images are in
+  Developer tools.
+- **Removed:** `oml preview`, `oml qa restyle`, and the `checks.preview` and `checks.livePreview` settings.
+- **Agents:** give them the new skill: `oml create` writes it into a new project, or copy `skill/` again. An agent with the
+  old skill uses the old rules and names.
+
+### Latest additions and fixes
+
+#### Added
 
 - **The dashboard is for looking, and is easier to use.** The only actions that make something are the Developer tools and Architecture (and Get modules, which copies modules into the work folder).
   - **Fewer pages.** The sidebar is Home, Get modules, Module explorer, Architecture, Work with agents, Agent activity, What agents learned, Platform server, LifeTime and Developer tools. The Check, Review and OpenAPI pages, translations export and test screens are CLI only (`oml check`, `oml review`, `oml openapi`, `oml translations export`, `oml test bdd`); their dashboard endpoints are gone. Fonts and images are two tools in Developer tools. An old address (`#/assets`, `#/check`) opens where the thing is now.
@@ -26,21 +57,21 @@ Keep a Changelog style: one section per release, newest first.
 - **Frontend skills for OutSystems UI work (`skill/frontend`, `oml doc frontend`):** the 16 interface skills of jakubkrehel/skills (MIT), remade for OutSystems 11 Reactive and Traditional Web. Design rules: `better-interface` (one ranked review), `better-accessibility`, `better-layout`, `better-writing`, `better-typography`, `better-colors`, `better-ui`, `better-motion` and `build-design`, written as theme CSS, widget properties and attributes and OutSystems UI patterns. Workflows the user asks for: `interface-review` (a staged copy against its source), `explain-interface`, `break` and `variant` (previews injected with `oml browser try`), `state-machine` (a test screen in a staged copy), `afk` (staged copies and review files, never an install or publish) and `upskill` (team rules, hooks, checks and settings from session history and oml's logs). `oml doc <name>` prints one (`<name>/<file>` a linked file); `oml doc --search` adds the best matching skill after its doc hits, so the doc ranking is unchanged; `oml doc ui-checklist` points to them.
 - **The official OutSystems skill's examples as specs:** tests/model-ops/examples.md lists each example with the spec that does it; tests/model-ops-check.ps1 applies all of them. Recipe `attribute-position-reorder`.
 
-### Changed
+#### Changed
 
 - **New production rules: agents change existing elements in place instead of duplicating them.** `oml apply` compares the result with the source module by key and has three outcomes. **Always refused** (rule 2, with any flag or setting): deleting an existing entity (regular or static) or attribute, changing an attribute's data type, renaming an attribute, an entity deleted and made again with a new key, and a `copy` that holds an entity (a new, empty table; `oml migrate` keeps entities in the old module, so it is not affected). **Saved only with the user's yes**: deleting any other existing element (rule 3: actions, screens, blocks, structures and their attributes, static records, parameters, events, roles, exceptions, site properties, timers, REST methods, processes), and changes that can lose data (rule 5: a shorter length, fewer decimals, a new mandatory setting or an auto number change on an existing attribute, a new identifier or multi-tenant setting; rule 6: new or changed SQL with `DELETE`, `UPDATE`, `MERGE`, `TRUNCATE`, `DROP`, `ALTER`). Without the yes apply saves nothing and reports `needsApproval: [{kind: "delete"|"data", element, what}]`, a `next` that says to ask the user, and exit 1. **`oml apply --user-approved`** saves them and lists each in `approved`; the project profile's `autoApprove.deletes` and `autoApprove.dataDeletion` save each kind without the flag. In `oml mcp` and `oml code`, `apply --user-approved` is a gated call. **Saved and reported**: renames and edits of existing actions, screens, blocks, structures and entities, entity settings (label, order by, is active, update behavior, expose read only), a longer length, optional, and every signature change of a public element (renamed, made private, inputs, outputs and events added, removed or retyped, made mandatory): apply and `oml review` list each one in `breaking` with what the consuming modules must do (refresh references, fix callers). Security changes stay warnings (rule 7). Creation lists now set an existing attribute's length, decimals and mandatory setting, an input's type and an event's mandatory setting as the spec says, and `edits.remove` takes existing elements under the same rules. `allowDataLoss` is no longer needed. skill/rules.md, SKILL.md, the spec and command references, README, oml-full.md and the website say the new rules; tests/rules-check.ps1, tests/model-ops, the self-test and the data, public and reuse checks test each outcome.
 
-### Fixed
+#### Fixed
 
 - **`oml flow` lists a flow's nodes and edges in the same order on every run.** Edges followed the model's child order, which changes from one load to the next, so two runs (or a warm and a cold run) printed the edges in a different order. Nodes are now sorted by position and then id, and edges follow that node order. warm-check compares `flow` byte for byte again, and dashboard-check runs it three times.
 
 - The Dropdown keys in `oml spec`: `labels` and `values`, written on one item of the list (`Status.Label`), not `optionsText` and `optionsValue`.
 
-## 1.23.0
+### Prepared as 1.23.0 (never released on its own)
 
 Traditional Web to Reactive, prepared by code, and an interactive menu for people.
 
-### Added
+#### Added
 
 - **Newer Service Studio builds, and `oml studio open <Module>`.** From Service Studio 11.55.98.65437 the open-module list is `listOpenModules`, not `listApps` (which those builds no longer have); oml reads the server's tool list and uses whichever it has, so `pull`, `publish`, `references`, `query --live`, `studio` and `studio close` keep working. `oml studio` also prints the server's own line (`server`: "Service Studio <version>, MCP contract <N>.") and `canOpen`. `oml studio open <Module> [--environment <host>]` finds the module on the environment Service Studio is logged in to (`searchApps`) and opens it in a new tab (`openModule`, Service Studio 11.55.99.65452+), waiting while Studio downloads it; unknown and ambiguous names refuse, older builds refuse with the manual step. It is a gated call in `oml mcp` and `oml code`. A `MODULE_AMBIGUOUS` or `ENVIRONMENT_REQUIRED` answer comes with what to do. `tests/studio-check.ps1` covers both kinds of build against a mock, taken from the official skill's description (OutSystems/outsystems11-mcp, 8cdd94f).
 - **`oml mcp`: an MCP server on stdio, so Service Studio loads once for many calls.** An agent's MCP client starts `oml mcp` once and calls three tools, `read`, `write` and `gated`; each takes `{"args": [...]}`, an oml command line. The commands run in the server's process, so the model and the self-test load once: an `inspect` takes milliseconds instead of about 2 s, and a module that a command only reads stays open for the next call (a file that changed on disk is read again). A result is `{"exit", "output", "stderr"}` with the command's own JSON; `isError` is true only when oml refused the call, such as a command in the wrong tool (the refusal names the right one) or a `batch` through `read` with a step that writes. Which tool runs which command is one table in the code (`oml commands` shows it as `mcp`). Calls that arrive together are all answered: commands in the process run one at a time, while gated commands, `browser` and `doctor` run in a child oml process next to them. `server` and `review --server` read the OML_SERVER_* variables from the person's Windows user variables when the client did not pass them. `tests/mcp-check.ps1` covers the protocol, the tools, the refusals and the speed.
@@ -74,7 +105,7 @@ Traditional Web to Reactive, prepared by code, and an interactive menu for peopl
 
 - **The dashboard shows the work oml does now.** Home opens with Today: the setup, the latest environment score and its change, today's oml commands and failures, and the code-mode programs that wait for your approval; each tile opens its page. A new Platform server page shows the environment score of every `oml server check` run as a chart (hover, or focus it and use the arrow keys; a table view too), each module's score, change and trend, and the run's report, all from the cache with no login; it runs the check, lists the modules and versions on the server, saves a version to a new file, and compares two versions with `oml review --server`. The login comes from `OML_SERVER_*` (the Windows user variables when the dashboard's own environment has none); the page never gets the password. Agent activity lists the code-mode programs of a project, with the calls that wait and the `oml code approve` command to run in your own terminal. The sidebar has Agents (Work with agents, Agent activity, What agents learned) and Environment (Platform server, LifeTime).
 
-### Changed
+#### Changed
 
 - **The skill description names the jobs oml does** (inspect or change a module, check before install, compare or review two versions, fix Service Studio errors, migrate Traditional Web to Reactive, publish and deploy with LifeTime). With Haiku, skill-creator's trigger evals went from 12 of 15 to 15 and 14 of 15 in two runs (no near miss triggered). Two task-eval checks accept more right answers (reading with `oml batch`; "oml never loads ODC modules").
 - **`oml migrate plan`: exposed REST and SOAP services stay in the old module**, so their consumers keep working. The plan's `next` starts with a question for the person; `--copy-exposed` copies them on a yes, and the person then moves the consumers.
@@ -135,7 +166,7 @@ Traditional Web to Reactive, prepared by code, and an interactive menu for peopl
 - **`oml migrate`: a UI flow's OnException action is translated into `onException` of 4-screens.json.** Before, it was only listed as "not covered". Its nodes go through the screen-action translation, as Service Studio's converter clones them: exception handlers keep Log Error (Abort Transaction goes: a client action has no transaction), destinations stay, `Feedback_Message` becomes a message node, server calls merge into one server action. A flow whose template counterpart already has an OnException keeps the template's (Reactive templates handle sign-in and errors there), and one that navigates to a screen the new module will not have is left out; each gets a note that says what the old handler did. In NoLockIn, `Common/OnException` is translated without a template and noted with the OUIAI template; the translated handler applies with 0 errors.
 - **`onException` in a spec takes an array** (one OnException action per UI flow), **`oml export` reads OnException actions** (`uiFlow`, locals, flow), and **`oml inspect` lists `uiFlows`** with each flow's OnException.
 
-### Fixed
+#### Fixed
 
 - Dashboard: each page's description under its title and on the Home links showed "undefined".
 - **A new Traditional Web screen shows its widgets.** Service Studio gives a new Traditional screen the module's default layout (LayoutTopMenu: header, menu, login). `oml apply` put a spec's `widgets` beside that layout, where the page shows nothing but the header; they now go into its MainContent (and `placeholders`/`title` into its other placeholders), as when you drop widgets on the screen in Service Studio. Found publishing a test screen to a Personal Environment.
@@ -157,15 +188,15 @@ Traditional Web to Reactive, prepared by code, and an interactive menu for peopl
 - **`oml --help` did not name `oml skill`.**
 - **`ListFilter`, `ListIndexOf`, `ListAny`, `ListAll` and `ListSort` written with `<List>.Current` read the wrong rows at run time.** Their Condition (By for ListSort) is a lambda over each element: Service Studio writes `ThreadId = Id` (`Value` for a list of a basic type), while `Mails.Current.ThreadId` reads the outer list's current row (`getCurrent(callContext.iterationContext)` in the JavaScript), so a filter returned neighbours of the right rows or nothing. `apply` now drops `<List>.Current.` when it names the node's own list argument, makes a bare `<List>.Current` into `Value`, and sets the list argument before the condition. Another list's `Current` stays as written.
 
-### Removed
+#### Removed
 
 - **The last traces of `oml preview`.** The project profile no longer skips `checks.preview` and `checks.livePreview` silently: an old config file that still has them gets the usual "unknown setting (ignored)" note. Search no longer maps "preview a screen" to the UI checklist. The test fixture `tests/preview.json` is now `tests/ui-sample.json`, and the evolve tests use `oml qa` as their sample command.
 
-## 1.22.0
+### Prepared as 1.22.0 (never released on its own)
 
 Less waiting and fewer questions: a project profile, a project that is ready after one command, and hooks that work in GitHub Copilot.
 
-### Added
+#### Added
 
 - **Project profile** (`.oml/config.json`, `oml config`). A person turns parts of the work on or off: screen sizes (`ui.targets`), themes (`ui.themes`), RTL, accessibility, translations, the checks (`checks.qa`, `review`, `uiChecklist`, `bestPractices`, `testScenarios`, `testData`), the questions (`ask.testing`, `testScenarios`, `devUrl`, `producerChoice`), the fast lane for small CSS and text changes (`lane.fast`), the browser (`browser`: `oml` or `agent`), `app.devUrl`, memory, the docs library, the map and the hook guards. `oml config` prints the lines an agent follows, `oml config show` explains every setting, `oml config set <key> <value>` changes one, `oml config init` writes the defaults. Asking before install, publish, deploy and data deletion, and the `.oml` write guard, cannot be turned off.
 - **Session-start hook.** `oml hooks install` adds `oml hooks session`: an agent starts with the project profile as context, at no command and no turn.
@@ -175,19 +206,19 @@ Less waiting and fewer questions: a project profile, a project that is ready aft
 - **MCP server addresses in the profile.** `outsystems.mcpServer` is Service Studio's MCP server (this computer only): `oml pull`, `publish`, `references`, `studio` and `doctor` use it, and so does the new `OML_STUDIO_URL` variable. `outsystems.odcMcpServer` is the ODC tenant's server, for agents.
 - **`oml create` makes the project ready.** It also writes `.oml/config.json`, downloads the OutSystems docs (once per machine; `--no-library`), runs the setup check (`--no-doctor`), and prints `ready`: one row per step with its status and the command that repeats a step that did not finish.
 
-### Removed
+#### Removed
 
 - **`oml preview`**, both the offline form and `--live`, is gone, and so is the dashboard Previews page. Agents can look at the running app themselves: after the user installs and publishes to DEV, run `oml qa page <screen url> --screenshot <Screen>.png` (or use the agent's own browser when the profile says `browser agent`). Before a publish there is no visual check; the agent reports "pending visual check".
 - **`oml qa restyle`**, which only `oml preview --live` used and which was never documented, is gone.
 - **`checks.preview` and `checks.livePreview`** are no longer settings. A config file that still has them is read without a complaint and the two keys are ignored.
 
-### Fixed
+#### Fixed
 
 - **Hooks in GitHub Copilot on Windows.** The hook command started with a quoted path. Copilot runs it in PowerShell, where that is a string, not a command: the hook failed and Copilot denied every tool call ("hook errored"). The path is now written with forward slashes and no quotes; a path with a space keeps its quotes and gets a `powershell` line. Run `oml hooks install` again in existing projects; `oml hooks status` says when a project needs it.
 - **Reading part of a large reference** was refused in Copilot and VS Code, whose read tools have no `limit`. A `view_range` or a start and end line of at most 400 lines is accepted.
 - **The `.oml` write guard** knows the edit tools of VS Code's Local sessions (`replace_string_in_file`, `create_file`, `insert_edit_into_file`, ...).
 
-### Changed
+#### Changed
 
 - `oml doc --search` and `oml spec --search` are about a third faster from the second call: the index of the built-in docs is saved next to the usage log (`search-index.bin`, rebuilt for each oml build; `OML_SEARCH_CACHE=0` turns it off). A damaged file is ignored. The library index gets a new format and rebuilds once.
 - The launcher has one command table (`src/CommandTable.cs`) for dispatch, the `--timings` refusal and launcher help, so a new command is added in one place. The hidden `oml commands` prints it as JSON, and `oml commands --check` compares it with the usage text.
