@@ -70,6 +70,7 @@ static class DocSearch
         // Weak is judged on this index's own hits; a strong company match makes the answer not weak.
         var weak = hits.Count > 0 && searched.Weak(hits, query);
         if (!specOnly && !library && folder is null && WithCompany(query, top, hits) is { } merged) (hits, weak) = (merged.Hits, weak && !merged.Strong);
+        if (!specOnly && !library && folder is null) hits = FrontendSkills.WithBest(query, hits);
         var result = new JsonObject
         {
             ["query"] = query,

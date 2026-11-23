@@ -2,6 +2,7 @@
 
 Use this list for every block and screen you build. You cannot see the result, so look at a screenshot of the real app.
 Never report UI work as done without at least one screenshot that you looked at: `oml browser page --screenshot` after the user publishes to DEV (or your own browser when the project profile says `browser agent`). Before a publish there is no visual check: report the work as "pending visual check" instead of done.
+For the design rules behind this list, read the frontend skill that matches the work (`oml doc frontend` lists them, such as `better-layout`); `better-interface` reviews a whole screen.
 
 - **Labels:** No default widget texts. A new Link has the text "link" and a new Button has "Button". Replace them; do not add text after them.
 - **Content:** Use real demo content. No "Demo content", "Lorem ipsum" or "Text".

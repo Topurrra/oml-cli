@@ -46,6 +46,7 @@ static class DocCommand
             foreach (var (name, file) in company) Console.WriteLine($"{name}  -  {CompanySkills.Header(File.ReadAllText(file))!.Value.Description}");
         }
         Console.WriteLine();
+        Console.WriteLine("Frontend skills (UI design rules and UI workflows for OutSystems): oml doc frontend lists them; oml doc <name> prints one.");
         Console.WriteLine("oml doc <topic> prints one topic; oml doc <topic>#<section> prints one section (oml doc ui-reactive#forms).");
         Console.WriteLine("oml doc commands lists the sections of the command reference; oml doc commands#<section> prints one (oml doc commands#memory).");
         Console.WriteLine("oml explain-warning <id> prints the cause and fix of one validation message.");
@@ -74,13 +75,19 @@ static class DocCommand
             if (string.IsNullOrWhiteSpace(section)) { Console.WriteLine(body); return 0; }
             return ShowSection(name, body, section);
         }
+        // A frontend skill (skill/frontend): `frontend`, `<skill>` or `<skill>/<file>`. Exact names only.
+        if (FrontendSkills.Text(name) is { } frontend)
+        {
+            if (string.IsNullOrWhiteSpace(section)) { Console.WriteLine(frontend); return 0; }
+            return ShowSection(name, frontend, section);
+        }
         var topics = Topics();
         var q = SpecDocs.Norm(name);
         var matches = topics.Where(t => SpecDocs.Norm(t) == q).ToList();
         if (matches.Count == 0 && q.Length >= 3) matches = topics.Where(t => SpecDocs.Norm(t).StartsWith(q)).ToList();
         if (matches.Count != 1)
         {
-            var close = matches.Count > 1 ? matches : Closest(topics, q);
+            var close = matches.Count > 1 ? matches : Closest(topics.Concat(FrontendSkills.All()), q);
             return Fail($"Unknown doc topic '{name}'. Closest: {string.Join(", ", close)}. Run 'oml doc' for the list.");
         }
         var text = Text(matches[0]).TrimEnd();

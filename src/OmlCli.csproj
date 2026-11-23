@@ -41,6 +41,9 @@
     <!-- Also the doc topic `oml doc rules` (DocCommand). -->
     <EmbeddedResource Include="..\skill\rules.md" LogicalName="OmlCli.rules.md" />
     <EmbeddedResource Include="..\skill\recipes\*.jsonc" LogicalName="OmlCli.recipes.%(Filename)%(Extension)" />
+    <!-- `oml doc <name>` for the frontend skills (FrontendSkills.cs): skill\frontend\better-motion\SKILL.md becomes
+         OmlCli.frontend.better-motion\SKILL.md. Not doc topics. -->
+    <EmbeddedResource Include="..\skill\frontend\**\*.md" LogicalName="OmlCli.frontend.%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Verification message-id catalog (see VerifyCatalog.cs). -->
     <EmbeddedResource Include="Core\Data\verify-message-ids.txt" LogicalName="OmlCli.verifymessageids.txt" />
     <!-- oml migrate: what each Traditional UI library element (OutSystemsUIWeb, RichWidgets, OutSystemsChartsWeb) becomes in Reactive. -->

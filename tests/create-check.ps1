@@ -16,7 +16,7 @@ try {
   $r = Json create alpha --dir $Tmp --no-library --no-doctor
   $root = Join-Path $Tmp 'alpha'
   Require ($LASTEXITCODE -eq 0 -and $r.folder -eq $root) "create: $($r | ConvertTo-Json -Compress)"
-  foreach ($p in 'modules', 'staged', 'specs', 'browser', 'mocks', 'scenarios', '.oml\memory\memory.log', '.oml\map.json', '.oml\oml-config.json', 'skill\SKILL.md', 'AGENTS.md', 'CLAUDE.md', '.gitignore', 'PROJECT.md') {
+  foreach ($p in 'modules', 'staged', 'specs', 'browser', 'mocks', 'scenarios', '.oml\memory\memory.log', '.oml\map.json', '.oml\oml-config.json', 'skill\SKILL.md', 'skill\frontend\README.md', 'skill\frontend\LICENSE.txt', 'skill\frontend\better-motion\recipes.md', 'AGENTS.md', 'CLAUDE.md', '.gitignore', 'PROJECT.md') {
     Require (Test-Path (Join-Path $root $p)) "missing $p"
   }
   Require ((Get-Content (Join-Path $root 'CLAUDE.md') -Raw).Trim() -eq '@AGENTS.md') 'CLAUDE.md imports AGENTS.md'
@@ -31,7 +31,7 @@ try {
     $m = Json memory add "alpha uses the Core layer for entities" --kind decision
     Require ($LASTEXITCODE -eq 0 -and $m.id -eq 0) "memory works in the new project: $($m | ConvertTo-Json -Compress)"
   } finally { Pop-Location }
-  Write-Host 'ok   create: layout, memory, skill, AGENTS.md, CLAUDE.md, no hooks, .gitignore, PROJECT.md'
+  Write-Host 'ok   create: layout, memory, skill (with skill/frontend), AGENTS.md, CLAUDE.md, no hooks, .gitignore, PROJECT.md'
 
   # 1a. --author goes into the project's config; without it, setting one is the first optional step.
   Require (@($r.optional)[0] -like 'oml config set author*') "create without --author: $($r.optional -join ' | ')"
