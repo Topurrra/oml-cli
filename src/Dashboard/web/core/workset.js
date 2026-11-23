@@ -87,6 +87,18 @@ export function modulePicker(onOpen, opts) {
   input.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
   const pull = h('button', { class: 'button', type: 'button' }, 'Copy from Service Studio');
   pull.addEventListener('click', () => pullFlow(pull, status, path => { input.value = path; go(); }));
+  if (opts && opts.compact) {
+    // One row: the path (working set and recent files as suggestions), Open, and Copy from Service Studio as icons.
+    open.replaceChildren(icon('run')); open.className = 'icon-button primary';
+    open.setAttribute('aria-label', 'Open the module'); open.title = 'Open the module';
+    pull.replaceChildren(icon('download')); pull.className = 'icon-button';
+    pull.setAttribute('aria-label', 'Copy the open module from Service Studio'); pull.title = 'Copy the open module from Service Studio (' + CONNECT_NOTE + ')';
+    input.placeholder = 'Module file (.oml): paste a path, or pick from the working set';
+    return {
+      el: h('div', { class: 'picker-compact' }, h('div', { class: 'toolbar' }, h('label', { for: id, class: 'sr-only' }, 'Module file (.oml)'), h('div', { class: 'grow' }, input), open, pull), recent, status),
+      input, go,
+    };
+  }
   return {
     el: h('section', { class: 'card', 'aria-label': 'Choose a module' },
       h('div', { class: 'field' }, h('label', { for: id }, 'Module file (.oml)'), h('div', { class: 'row' }, h('div', { class: 'grow' }, input), open, pull),

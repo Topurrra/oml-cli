@@ -53,33 +53,7 @@ static partial class Dashboard
         return path;
     }
 
-    // ---- Check ----
-
-    static async Task<Reply> CheckModules(JsonObject body)
-    {
-        var args = new List<string> { "check" };
-        if (Str(body, "path") is not null) args.Add(ModuleFile(body));
-        foreach (var input in SearchIn(body)) args.AddRange(["--in", input]);
-        if (args.Count == 1) throw new BadInput("Choose a module, or type a folder with .oml or .oap files.");
-        if (JsonFile(body, "rules", "The rules file") is { } rules) args.AddRange(["--rules", rules]);
-        if (JsonFile(body, "baseline", "The baseline (an earlier check report)") is { } baseline) args.AddRange(["--baseline", baseline]);
-        var folder = NewWorkFolder("check");
-        var (html, json) = (Path.Combine(folder, "check.html"), Path.Combine(folder, "check.json"));
-        args.AddRange(["--out", html, "--json", json]);
-        var r = await Oml([.. Timed(body, args)]);
-        var extra = Report(html, json); // the page and its JSON from /download/<id>
-        extra["json"] = File.Exists(json) ? json : null;
-        return Wrap(r, extra);
-    }
-
-    static async Task<Reply> CheckInitRules()
-    {
-        var file = Path.Combine(NewWorkFolder("check"), "oml-rules.json");
-        var r = await Oml("check", "--init-rules", "--out", file);
-        return Wrap(r, new JsonObject { ["path"] = File.Exists(file) ? file : null });
-    }
-
-    // ---- Review ----
+    // ---- Review (the review fence of an agent's change walkthrough) ----
 
     static async Task<Reply> ReviewModules(JsonObject body)
     {
@@ -146,15 +120,4 @@ static partial class Dashboard
         Wrap(await Oml([.. Timed(body, ["tree", ModuleFile(body), ElementPath(Str(body, "name")), "--depth", Number(body, "depth", 1, 13, 2).ToString()])]));
 
     static async Task<Reply> ValidateModule(JsonObject body) => Wrap(await Oml([.. Timed(body, ["validate", ModuleFile(body), "--warnings"])]));
-
-    static async Task<Reply> ScaffoldTests(JsonObject body)
-    {
-        var module = ModuleFile(body);
-        var bdd = ModuleFile(body, "bdd");
-        var actions = (body["actions"] as JsonArray ?? []).Select(a => ElementName(a is JsonValue v && v.TryGetValue<string>(out var s) ? s : null, "a server action name")).ToList();
-        if (actions.Count is 0 or > 20) throw new BadInput("Choose 1 to 20 public server actions.");
-        var spec = Path.Combine(NewWorkFolder("tests"), Path.GetFileNameWithoutExtension(module) + "_Tests.bdd-spec.json");
-        var r = await Oml([.. Timed(body, ["test", "bdd", module, .. actions, "--bdd", bdd, "--out", spec])]);
-        return Wrap(r, new JsonObject { ["path"] = File.Exists(spec) ? spec : null, ["spec"] = File.Exists(spec) ? await File.ReadAllTextAsync(spec) : null });
-    }
 }

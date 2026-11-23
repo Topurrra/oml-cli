@@ -71,6 +71,7 @@ static class ProjectConfig
         new("author", "text", "", null, "The name written as creator and last modifier of what oml creates or changes in this project; empty means not set. The variable OML_AUTHOR wins over it.", Max: 100),
         new("outsystems.mcpServer", "url-local", "", null, "Address of Service Studio's MCP server (O11), such as http://127.0.0.1:41820/mcp. oml publish, pull, references and studio use it; empty means the default port. Only this computer (127.0.0.1 or localhost)."),
         new("outsystems.serverHost", "text", "", null, "The platform server of the DEV environment, such as dev.example.com (https:// is dropped). oml server and the dashboard use it to list and download modules with Service Studio closed; OML_SERVER_HOST wins over it. The login stays in OML_SERVER_USER and OML_SERVER_PASSWORD, never in this file.", Max: 255),
+        new("outsystems.lifetimeHost", "text", "", null, "The LifeTime server, such as lifetime.example.com (https:// is dropped). oml lifetime and the dashboard read environments, applications and deployments there; OML_LIFETIME_HOST wins over it. The token stays in OML_LIFETIME_TOKEN, never in this file.", Max: 255),
         new("outsystems.odcMcpServer", "url", "", null, "Address of the OutSystems MCP server of your ODC tenant, such as https://mytenant.outsystems.dev/mcp. Agents use it for ODC apps; oml itself does not call it."),
         new("code.use", "bool", "true", null, "Agents run a step of three or more oml calls with logic between them as one oml code program. Off: they chain commands and use oml batch."),
         new("memory.recall", "bool", "true", null, "Agents recall project memory at the start of a task."),
@@ -181,7 +182,7 @@ static class ProjectConfig
     {
         value = text.Trim();
         // A pasted address of the platform server keeps only its host.
-        if (s.Key == "outsystems.serverHost" && value.Length > 0) { if (value.Contains("://")) value = value[(value.IndexOf("://") + 3)..]; value = value.Split('/')[0]; }
+        if (s.Key is "outsystems.serverHost" or "outsystems.lifetimeHost" && value.Length > 0) { if (value.Contains("://")) value = value[(value.IndexOf("://") + 3)..]; value = value.Split('/')[0]; }
         switch (s.Kind)
         {
             case "bool":
@@ -329,10 +330,16 @@ static class ProjectConfig
 
     // The platform server host: OML_SERVER_HOST as it is (oml server refuses a scheme or a path there), else
     // outsystems.serverHost of the project with any scheme and path dropped.
-    internal static string ServerHost(Values v)
+    internal static string ServerHost(Values v) => Host("OML_SERVER_HOST", v, "outsystems.serverHost");
+
+    // The LifeTime host: OML_LIFETIME_HOST as it is, else outsystems.lifetimeHost of the project (the folder oml
+    // runs in) with any scheme and path dropped. The token is only ever read from OML_LIFETIME_TOKEN.
+    internal static string LifeTimeHost() => Host("OML_LIFETIME_HOST", Load(null), "outsystems.lifetimeHost");
+
+    static string Host(string variable, Values v, string key)
     {
-        if (Environment.GetEnvironmentVariable("OML_SERVER_HOST") is { Length: > 0 } env) return env;
-        var text = v.Get("outsystems.serverHost").Trim();
+        if (Environment.GetEnvironmentVariable(variable) is { Length: > 0 } env) return env;
+        var text = v.Get(key).Trim();
         if (text.Contains("://")) text = text[(text.IndexOf("://") + 3)..];
         return text.Split('/')[0];
     }

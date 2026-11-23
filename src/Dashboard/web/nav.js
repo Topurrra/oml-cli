@@ -3,9 +3,8 @@
 // The order here is the order of the sidebar on screen (tests/dashboard-check.ps1 compares them).
 export const NAV = [
   { group: 'Start', title: 'Start', ids: ['home', 'modules'] },
-  { group: 'Module', title: 'Your module', ids: ['explorer', 'openapi', 'architecture', 'check', 'review'] },
+  { group: 'Module', title: 'Your module', ids: ['explorer', 'architecture'] },
   { group: 'Agents', title: 'Agents', ids: ['agents', 'activity', 'learned'] },
   { group: 'Environment', title: 'Environment', ids: ['server', 'lifetime'] },
-  { group: 'Assets', title: 'Assets', ids: ['assets'] },
   { group: 'Tools', title: 'Tools', ids: ['tools'] },
 ];

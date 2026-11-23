@@ -1,3 +1,4 @@
+import { iconButton } from '../core/table.js';
 import { h, add } from '../core/dom.js';
 import { store } from '../core/store.js';
 import { api, need } from '../core/api.js';
@@ -9,7 +10,7 @@ import { onLeave } from '../core/lifecycle.js';
 import { hashParams } from '../core/state.js';
 import { gallery, stash, placeMedia, settled } from '../core/dif-media.js';
 
-// The Dif page (oml show-change <file.md>): an agent's change walkthrough. Plain Markdown plus three oml parts:
+// The Dif page (oml dashboard --change <file.md>): an agent's change walkthrough. Plain Markdown plus three oml parts:
 //   ```callstack    rows "+" new, "-" removed, " " unchanged; [[...]] links and "# note" at the end of a row
 //   ```review       "before: Orders.oml" and "after: Orders.staged.oml": oml review of the two, from the model
 //   ```flow         "module:" and "action:": the action's flow as a diagram (oml flow)
@@ -37,7 +38,7 @@ export default {
     // No file yet: type the path of one (the page shows no file the person did not give).
     function opener(hint) {
       const field = pathField('Markdown file', store.get('dif-file', ''), 'C:\\Work\\specs\\orders-export.md', hint);
-      const open = h('button', { class: 'button primary', type: 'button' }, 'Open');
+      const open = iconButton('run', 'Open the walkthrough', null, { primary: true });
       const go = async () => {
         if (!field.value()) { field.input.focus(); return; }
         const data = await task(open, doc, 'Reading…', () => api('dif', { path: field.value() }));
@@ -47,16 +48,16 @@ export default {
       field.input.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
       head.replaceChildren(field.el, open);
       notes.hidden = true;
-      doc.replaceChildren(h('div', { class: 'doc' }, h('p', { class: 'muted' }, 'An agent writes the walkthrough as Markdown, for example specs/<name>.md, and runs oml show-change <file>. ',
+      doc.replaceChildren(h('div', { class: 'doc' }, h('p', { class: 'muted' }, 'An agent writes the walkthrough as Markdown, for example specs/<name>.md, and runs oml dashboard --change <file>. ',
         'Besides normal Markdown it can show call stacks, element links and the review of the staged module.')));
     }
 
     function show(data, started) {
       current = data;
-      const reload = h('button', { class: 'button small', type: 'button' }, 'Reload');
+      const reload = iconButton('refresh', 'Read the walkthrough again', null, { small: true });
       reload.addEventListener('click', async () => { const again = await refetch(true); if (again) render(again); });
       head.replaceChildren(h('div', { class: 'card-head' }, h('h2', { class: 'mono small', text: data.file }), h('div', { class: 'row' }, reload)),
-        cli('oml show-change ' + (/\s/.test(data.file) ? '"' + data.file + '"' : data.file)));
+        cli('oml dashboard --change ' + (/\s/.test(data.file) ? '"' + data.file + '"' : data.file)));
       notes.hidden = false;
       render(data);
       // The file the agent keeps editing: show its newest version (checked every 2 seconds while the page is open).
@@ -226,13 +227,13 @@ export default {
 
     function comments() {
       const list = saved();
-      const copyAll = h('button', { class: 'button small', type: 'button', disabled: !list.length }, 'Copy comments');
+      const copyAll = iconButton('copy', 'Copy all comments', null, { small: true, disabled: !list.length });
       copyAll.addEventListener('click', () => copy(asMarkdown(list), 'Comments'));
-      const clear = h('button', { class: 'button small', type: 'button', disabled: !list.length }, 'Clear');
+      const clear = iconButton('trash', 'Clear all comments', null, { small: true, disabled: !list.length });
       clear.addEventListener('click', () => { if (confirm('Delete every comment on this file?')) keep([]); });
       notes.replaceChildren(h('div', { class: 'card-head' }, h('h2', {}, `Comments (${list.length})`), h('div', { class: 'row' }, copyAll, clear)),
         list.length ? h('ol', { class: 'dif-comments' }, list.map((c, n) => {
-          const del = h('button', { class: 'button small', type: 'button', 'aria-label': 'Delete comment ' + (n + 1) }, 'Delete');
+          const del = iconButton('trash', 'Delete comment ' + (n + 1), null, { small: true });
           del.addEventListener('click', () => keep(saved().filter(x => x.id !== c.id)));
           return h('li', {}, h('div', { class: 'tiny muted' }, c.section || 'Top'), h('blockquote', { class: 'dif-quote', text: c.quote }), h('p', { text: c.text }), del);
         })) : h('p', { class: 'hint' }, 'Select text in the walkthrough and press Comment. Comments stay in this browser; Copy comments gives the agent a numbered list.'));

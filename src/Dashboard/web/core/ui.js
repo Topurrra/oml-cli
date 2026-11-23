@@ -162,7 +162,20 @@ export function dropZone(accept, label, onFiles) {
 }
 
 const MAX_UPLOAD = 140 * 1024 * 1024; // base64 adds a third; the server takes 200 MB per request
-export function readFiles(files) {
+const MAX_FILES = 200;
+// types: the extensions this drop takes ('.oml'); a drop skips the file picker's accept filter, so it is checked here
+// too (the server checks again, and looks at the content). maxEach: the largest single file.
+export function readFiles(files, types, maxEach) {
+  if (files.length > MAX_FILES) return Promise.reject(new ApiError(`That is ${files.length} files. Send at most ${MAX_FILES} at once.`));
+  if (types && types.length) {
+    const wrong = files.filter(f => !types.some(t => f.name.toLowerCase().endsWith(t)));
+    if (wrong.length) return Promise.reject(new ApiError(`${wrong.map(f => f.name).slice(0, 5).join(', ')}${wrong.length > 5 ? ' and more' : ''}: not ${types.join(', ')}.`));
+  }
+  if (maxEach) {
+    const big = files.find(f => f.size > maxEach);
+    if (big) return Promise.reject(new ApiError(`${big.name} is ${bytes(big.size)}. Each file can be at most ${bytes(maxEach)}.`));
+  }
+  if (files.some(f => f.size === 0)) return Promise.reject(new ApiError(`${files.find(f => f.size === 0).name} is empty.`));
   const total = files.reduce((s, f) => s + f.size, 0);
   if (total > MAX_UPLOAD) return Promise.reject(new ApiError(`These files are ${bytes(total)}. Send at most ${bytes(MAX_UPLOAD)} at once.`));
   return Promise.all(files.map(f => new Promise((resolve, reject) => {
@@ -248,7 +261,7 @@ export function dropGuard() {
   const hasFiles = e => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
   const where = () => pageDrop ? 'Drop the files anywhere on this page.'
     : document.querySelector('#page .drop') ? 'Drop the files on the dashed box.'
-    : 'This page takes no files. Images and fonts: open Fonts and images. Modules for an architecture page: open Architecture.';
+    : 'This page takes no files. Images and fonts: open Developer tools. Modules for an architecture page: open Architecture.';
   let depth = 0;
   const hide = () => { depth = 0; overlay.hidden = true; root.classList.remove('dragging-files'); };
   window.addEventListener('dragenter', e => {

@@ -34,9 +34,9 @@ static class LifeTime
         try
         {
             var (verb, positional, options) = Parse(args);
-            var host = Environment.GetEnvironmentVariable("OML_LIFETIME_HOST");
+            var host = ProjectConfig.LifeTimeHost();
             if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(token))
-                throw new LtError("Set OML_LIFETIME_HOST (hostname, no scheme) and OML_LIFETIME_TOKEN in the environment.", 2);
+                throw new LtError("Set the LifeTime host (oml config set outsystems.lifetimeHost <host>, or OML_LIFETIME_HOST) and OML_LIFETIME_TOKEN.", 2);
             var root = Endpoint(host);
             using var handler = new HttpClientHandler { AllowAutoRedirect = false };
             using var http = new HttpClient(handler) { BaseAddress = root, Timeout = TimeSpan.FromSeconds(100) };
@@ -223,9 +223,9 @@ static class LifeTime
                     || args[index + 1].StartsWith("--") || args.Skip(index + 1).Contains("--team") || args.Contains("--team-label"))
                     throw new LtError("--team requires one team name and cannot be repeated", 2);
                 var team = args[index + 1];
-                var host = Environment.GetEnvironmentVariable("OML_LIFETIME_HOST");
+                var host = ProjectConfig.LifeTimeHost();
                 if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(token))
-                    throw new LtError("set OML_LIFETIME_HOST and OML_LIFETIME_TOKEN", 2);
+                    throw new LtError("set the LifeTime host (outsystems.lifetimeHost) and OML_LIFETIME_TOKEN", 2);
                 var root = Endpoint(host);
                 if (token.Any(char.IsControl)) throw new LtError("invalid OML_LIFETIME_TOKEN format", 2);
                 using var handler = new HttpClientHandler { AllowAutoRedirect = false };

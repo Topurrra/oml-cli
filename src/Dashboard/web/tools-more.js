@@ -1,6 +1,7 @@
 // Developer tools for the dashboard (second half). Same rules as tools.js: browser only, no server calls.
 import { h, add } from './core/dom.js';
-import { area, text, button, outBox, status, copyOut, id } from './tools-ui.js';
+import { onLeave } from './core/lifecycle.js';
+import { area, text, button, outBox, status, copyOut, id, tooLong } from './tools-ui.js';
 
 // ---- Unix time ----
 const time = {
@@ -55,8 +56,11 @@ const diff = {
     const trim = h('input', { type: 'checkbox', id: id('trim') });
     const out = h('div', { class: 'out diff', 'aria-live': 'polite' });
     const compare = () => {
+      const big = tooLong(left.el.value, 2 * 1024 * 1024) || tooLong(right.el.value, 2 * 1024 * 1024);
+      if (big) { out.replaceChildren(big); return; }
       const norm = s => s.replace(/\r/g, '').split('\n').map(l => trim.checked ? l.trim().replace(/\s+/g, ' ') : l);
       const a = norm(left.el.value), b = norm(right.el.value);
+      // The comparison keeps a table of every line pair: 3000 × 3000 lines is the most this page does at once.
       if (a.length > 3000 || b.length > 3000) { out.replaceChildren('Each text can have at most 3000 lines here.'); return; }
       const rows = diffLines(a, b);
       const added = rows.filter(r => r[0] === '+').length, removed = rows.filter(r => r[0] === '-').length;
@@ -69,6 +73,10 @@ const diff = {
 };
 
 // ---- Regex ----
+// The match runs in regex-worker.js: a pattern that backtracks for ever (such as (a+)+$ on a long text) stops the worker
+// after REGEX_LIMIT ms, never this page. A new keystroke ends the run before it.
+const REGEX_LIMIT = 1500;
+const MAX_REGEX_TEXT = 1024 * 1024;
 const regex = {
   id: 'regex', name: 'Regex tester', desc: 'Try a JavaScript regular expression on a text and see every match and group.',
   render(el) {
@@ -76,26 +84,40 @@ const regex = {
     const flags = text('Flags', { value: 'gi' });
     const input = area('Text', { rows: 8, placeholder: 'ana@example.com, rui@example.com' });
     const out = h('div', { class: 'out', 'aria-live': 'polite' }), list = h('div');
+    let worker = null, timer = null, debounce = null;
+    const stop = () => { if (worker) worker.terminate(); worker = null; clearTimeout(timer); };
+    onLeave(stop);
     const run = () => {
+      stop();
       list.replaceChildren();
-      let re;
-      try { re = new RegExp(pattern.el.value, flags.el.value.includes('g') ? flags.el.value : flags.el.value + 'g'); }
-      catch (e) { out.replaceChildren(h('span', { class: 'saved-bad' }, e.message)); return; }
-      if (!pattern.el.value) { out.replaceChildren(input.el.value); return; }
-      const s = input.el.value, parts = [], rows = [];
-      let last = 0, count = 0;
-      for (const m of s.matchAll(re)) {
-        if (++count > 1000) break;
-        parts.push(s.slice(last, m.index), h('mark', {}, m[0]));
-        last = m.index + m[0].length;
-        rows.push(h('tr', {}, h('td', { class: 'num' }, count), h('td', { class: 'mono' }, m[0]), h('td', { class: 'mono small' }, m.slice(1).map((g, i) => `$${i + 1}=${g === undefined ? '(none)' : g}`).join('  '))));
-      }
-      parts.push(s.slice(last));
-      out.replaceChildren(...parts);
-      add(list, rows.length ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', { class: 'num' }, '#'), h('th', {}, 'Match'), h('th', {}, 'Groups'))), h('tbody', {}, rows)))
-        : h('p', { class: 'muted' }, 'No match.'));
+      const s = input.el.value, p = pattern.el.value;
+      if (!/^[dgimsuyv]*$/.test(flags.el.value)) { out.replaceChildren(h('span', { class: 'saved-bad' }, 'Flags can only be d, g, i, m, s, u, v and y.')); return; }
+      if (s.length > MAX_REGEX_TEXT) { out.replaceChildren(h('span', { class: 'saved-bad' }, `The text is ${s.length} characters. Use at most ${MAX_REGEX_TEXT} here.`)); return; }
+      if (!p) { out.replaceChildren(s); return; }
+      worker = new Worker('regex-worker.js');
+      const mine = worker;
+      timer = setTimeout(() => {
+        if (worker !== mine) return;
+        stop();
+        out.replaceChildren(h('span', { class: 'saved-bad' }, `Stopped after ${REGEX_LIMIT / 1000} s: this pattern takes too long on this text (it backtracks too much). Make the repeated parts more exact.`));
+      }, REGEX_LIMIT);
+      worker.onmessage = e => {
+        if (worker !== mine) return;
+        stop();
+        const { error, matches } = e.data;
+        if (error) { out.replaceChildren(h('span', { class: 'saved-bad' }, error)); return; }
+        const parts = [];
+        let last = 0;
+        for (const m of matches) { parts.push(s.slice(last, m.index), h('mark', {}, m.text)); last = m.index + m.text.length; }
+        parts.push(s.slice(last));
+        out.replaceChildren(...parts);
+        add(list, matches.length ? h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', { class: 'num' }, '#'), h('th', {}, 'Match'), h('th', {}, 'Groups'))),
+          h('tbody', {}, matches.map((m, i) => h('tr', {}, h('td', { class: 'num' }, i + 1), h('td', { class: 'mono' }, m.text), h('td', { class: 'mono small' }, m.groups.map((g, j) => `$${j + 1}=${g === null ? '(none)' : g}`).join('  ')))))))
+          : h('p', { class: 'muted' }, 'No match.'), matches.length >= 1000 ? h('p', { class: 'hint' }, 'Only the first 1000 matches are shown.') : null);
+      };
+      worker.postMessage({ pattern: p, flags: flags.el.value, text: s });
     };
-    [pattern.el, flags.el, input.el].forEach(x => x.addEventListener('input', run));
+    [pattern.el, flags.el, input.el].forEach(x => x.addEventListener('input', () => { clearTimeout(debounce); debounce = setTimeout(run, 200); }));
     add(el, h('div', { class: 'grid-2' }, pattern.field, flags.field), input.field, out, h('div', { class: 'field' }), list);
   },
 };
@@ -202,6 +224,8 @@ const css = {
     const input = area('CSS', { rows: 12, placeholder: '.order-card { padding: 16px; color: var(--color-neutral-9); }' });
     const out = outBox(), msg = h('div');
     const run = fn => {
+      const big = tooLong(input.el.value);
+      if (big) { out.textContent = ''; msg.replaceChildren(big); return; }
       const r = fn(input.el.value);
       out.textContent = r;
       const a = new Blob([input.el.value]).size, b = new Blob([r]).size;

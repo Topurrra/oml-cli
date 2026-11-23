@@ -44,7 +44,18 @@ try {
     $env:OML_LIFETIME_HOST = ''
     $null = Invoke-Architecture @('--team','Commerce')
     $r = Invoke-Lt @('environments') 2
-    Assert ($r.error -match 'OML_LIFETIME_HOST') 'Missing host error'
+    Assert ($r.error -match 'outsystems.lifetimeHost' -and $r.error -match 'OML_LIFETIME_HOST') 'Missing host error'
+    # The host can come from the project settings instead (https:// and a path are dropped); the variable wins over it.
+    $project = Join-Path $Tmp ('lt-project-' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory $project | Out-Null
+    & $Oml config set outsystems.lifetimeHost 'https://127.0.0.1:1/lifetime' --dir $project | Out-Null
+    Push-Location $project
+    try {
+        $fromConfig = & $Oml lifetime environments 2> $progress | ConvertFrom-Json
+        Assert ($LASTEXITCODE -ne 0 -and $fromConfig.error -notmatch 'outsystems.lifetimeHost' -and $fromConfig.error -notmatch 'Set the LifeTime host') "LifeTime host from the project settings: $($fromConfig | ConvertTo-Json -Compress)"
+        $doctorLt = (& $Oml doctor | ConvertFrom-Json).checks | Where-Object name -eq 'lifeTime'
+        Assert ($doctorLt.status -eq 'ok') "doctor: the LifeTime host from the project settings: $($doctorLt | ConvertTo-Json -Compress)"
+    } finally { Pop-Location; Remove-Item -LiteralPath $project -Recurse -Force -ErrorAction SilentlyContinue }
     $env:OML_LIFETIME_HOST = '127.0.0.1:1'
     $credential = $env:OML_LIFETIME_TOKEN; $env:OML_LIFETIME_TOKEN = ''
     $null = Invoke-Architecture @('--team','Commerce')
@@ -186,13 +197,14 @@ try {
         $r = Dash 'lt/download' @{ app = 'Orders'; env = 'Development'; extract = $true }
         Assert ($r.code -eq 0 -and $r.download -and $r.output.extracted[0].name -eq 'OrdersCore' -and (Test-Path -LiteralPath $r.output.extracted[0].path) -and $r.cli -match '--extract$') "Dashboard download and extract: $($r | ConvertTo-Json -Depth 4 -Compress)"
         Remove-Item -LiteralPath $r.folder -Recurse -Force
-        # architecture --team and check --team run in the launcher (LifeTime download first), then in Core, as on the command line.
+        # architecture --team runs in the launcher (LifeTime download first), then in Core, as on the command line. The
+        # dashboard makes only the architecture page (check --team is CLI only): an old kind = 'check' still gets it.
         foreach ($kind in 'architecture', 'check') {
             $r = Dash 'lt/report' @{ team = 'Commerce'; kind = $kind }
             Assert ($r.code -eq 0 -and $r.view -and $r.download -and $r.jsonDownload -and (Test-Path -LiteralPath $r.path) -and
-                $r.cli -eq "oml $kind --team Commerce --out $kind.html --json $kind.json") "Dashboard $kind --team: $($r | ConvertTo-Json -Depth 4 -Compress)"
+                $r.cli -eq 'oml architecture --team Commerce --out architecture.html --json architecture.json') "Dashboard team report ($kind): $($r | ConvertTo-Json -Depth 4 -Compress)"
             $json = Invoke-RestMethod "$base/download/$($r.jsonDownload)?key=$dashKey"
-            Assert ($json.schema -eq 1) "Dashboard $kind --team JSON through /download"
+            Assert ($json.schema -eq 1) "Dashboard team report ($kind) JSON through /download"
             Remove-Item -LiteralPath (Split-Path $r.path) -Recurse -Force
         }
         Assert (@(Get-ChildItem -LiteralPath $env:TEMP -Directory -Filter 'oml-architecture-*').Count -eq 0) 'Dashboard team reports removed their temporary packages'
@@ -202,7 +214,7 @@ try {
             try { Invoke-WebRequest "$base/api/$path" -Method Post -Headers @{ 'X-Oml-Key' = $dashKey } -UseBasicParsing | Out-Null; throw "$path answered" }
             catch { Assert ($_.Exception.Response.StatusCode.value__ -eq 404) "$path must be 404" }
         }
-        Write-Host 'ok   dashboard LifeTime: teams, team apps, download through /download, architecture and check --team (mock only)'
+        Write-Host 'ok   dashboard LifeTime: teams, team apps, download through /download, architecture --team (mock only)'
     } finally {
         if (-not $dashboard.HasExited) { Stop-Process -Id $dashboard.Id -Force -ErrorAction SilentlyContinue }
         Remove-Item -LiteralPath $dashOut, "$dashOut.err" -ErrorAction SilentlyContinue

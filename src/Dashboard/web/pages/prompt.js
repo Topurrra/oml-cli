@@ -1,3 +1,4 @@
+import { iconButton } from '../core/table.js';
 import { h, add } from '../core/dom.js';
 import { store } from '../core/store.js';
 import { api, need } from '../core/api.js';
@@ -22,7 +23,7 @@ export default {
     const setList = h('div');
     const findName = h('input', { type: 'search', id: 'p-find', class: 'code', placeholder: 'Customer_Validate or Customer*', spellcheck: 'false' });
     const findIn = h('input', { type: 'text', id: 'p-in', class: 'code', placeholder: 'C:\\Work\\Producers', value: store.get('producers', ''), spellcheck: 'false' });
-    const findButton = h('button', { class: 'button', type: 'button' }, 'Find');
+    const findButton = iconButton('search', 'Find the element', null, { primary: true });
     const findOut = h('div', { class: 'stack' });
     const checks = {
       validate: ['Stage the result and validate it', opts.validate],

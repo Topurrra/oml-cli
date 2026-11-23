@@ -5,12 +5,17 @@ import { state, setModule } from './state.js';
 
 let renderId = 0;
 let moved = false;
+// Pages that were removed or merged: an old link or bookmark opens where the thing is now.
+const RENAMED = { assets: '#/tools?tool=images', check: '#/home', review: '#/home', openapi: '#/explorer' };
 
 // Render the page for the current hash, or Home. `pages` is the registry, `ctx` is passed to each page's render.
 export async function route(pages, ctx) {
   runCleanups();
   const root = document.documentElement;
-  const id = (location.hash.match(/^#\/([\w-]+)/) || [])[1] || 'home';
+  let id = (location.hash.match(/^#\/([\w-]+)/) || [])[1] || 'home';
+  // Pages that moved: an old link opens where the thing is now.
+  const target = RENAMED[id];
+  if (target) { history.replaceState(null, '', target); id = target.match(/^#\/([\w-]+)/)[1]; }
   // #/explorer?module=C:\Work\Orders.oml opens that module: a link a person can keep.
   const linked = new URLSearchParams(location.hash.split('?')[1] || '').get('module');
   if (linked && linked !== state.module) setModule(linked);

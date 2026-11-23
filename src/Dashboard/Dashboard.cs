@@ -250,11 +250,31 @@ static partial class Dashboard
     }
 
     // The page and its files. A strict policy: scripts and styles from this server only, no inline script, nothing remote.
+#if DEBUG
+    // A Debug build serves the page files from src/Dashboard/web when that folder is there, so a change to a page
+    // shows on reload without a rebuild. Release builds always serve the embedded copy.
+    static readonly string? WebFolder = Directory.Exists(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Dashboard", "web")))
+        ? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Dashboard", "web")) : null;
+
+    static Stream? DiskAsset(string name)
+    {
+        if (WebFolder is null) return null;
+        var parts = name.Split('.');
+        var rel = parts.Length > 2 && parts[0] is "core" or "pages" or "data" ? Path.Combine(parts[0], string.Join('.', parts[1..])) : name;
+        var file = Path.Combine(WebFolder, rel);
+        return File.Exists(file) ? File.OpenRead(file) : null;
+    }
+#else
+    static Stream? DiskAsset(string name) => null;
+#endif
+
     static async Task Asset(HttpListenerResponse response, string name)
     {
-        using var stream = typeof(Dashboard).Assembly.GetManifestResourceStream("OmlCli.web." + name);
+        using var stream = DiskAsset(name) ?? typeof(Dashboard).Assembly.GetManifestResourceStream("OmlCli.web." + name);
         if (stream is null || !Types.TryGetValue(Path.GetExtension(name), out var type)) { await Text(response, 404, "Not found."); return; }
         response.ContentType = type;
+        // Always ask again: after an oml update the browser must not keep running the old page files.
+        response.Headers["Cache-Control"] = "no-cache";
         response.Headers["Content-Security-Policy"] = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self'; " +
             "connect-src 'self'; frame-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
         response.Headers["X-Frame-Options"] = "DENY";

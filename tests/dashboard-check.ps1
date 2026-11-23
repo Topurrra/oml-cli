@@ -336,7 +336,8 @@ try {
     $uploaded = Api 'modules/upload' @{ files = @(@{ name = 'Up.oml'; data = [Convert]::ToBase64String([IO.File]::ReadAllBytes($module)) }) }
     Require ((Test-Path -LiteralPath $uploaded.files[0].path) -and $uploaded.files[0].kind -eq 'oml' -and $uploaded.folder.StartsWith($first.workFolder, [StringComparison]::OrdinalIgnoreCase)) 'module upload kept in the work folder'
     foreach ($bad in @(@('modules/folder', @{ folder = (Join-Path $Tmp 'no-such-folder') }), @('modules/app', @{ path = $module }), @('modules/upload', @{ files = @(@{ name = 'x.txt'; data = 'AAAA' }) }),
-        @('openapi', @{ path = $module; servers = @('ftp://x') }), @('architecture', @{ in = @($folder); layers = (Join-Path $Tmp 'missing-layers.json') }))) {
+        @('convert/images', @{ files = @(@{ name = 'notes.png'; data = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes('just text')) }) }),
+        @('convert/fonts', @{ files = @(@{ name = 'empty.woff'; data = '' }) }), @('architecture', @{ in = @($folder); layers = (Join-Path $Tmp 'missing-layers.json') }))) {
         try { Api $bad[0] $bad[1] | Out-Null; throw "$($bad[0]) accepted bad input" }
         catch { Require ($_.Exception.Response.StatusCode.value__ -eq 400) "$($bad[0]) bad input must be 400: $_" }
     }
@@ -360,7 +361,7 @@ try {
     Write-Host 'ok   dashboard: working set sources (folder, package, upload), /download key and expiry, architecture --json, extension inspect'
 
     # No write endpoint exists, not even a hidden one.
-    foreach ($path in 'lt/deploy', 'lt/tag', 'lt/abort', 'lt/continue', 'install', 'publish', 'references', 'apply', 'run') {
+    foreach ($path in 'lt/deploy', 'lt/tag', 'lt/abort', 'lt/continue', 'install', 'publish', 'references', 'apply', 'run', 'openapi', 'check', 'check/init-rules', 'test/scaffold', 'translations/export') {
         foreach ($method in 'GET', 'POST') {
             try { Invoke-WebRequest "$base/api/$path" -Method $method -Headers $headers -UseBasicParsing | Out-Null; throw "$method $path answered" }
             catch { Require ($_.Exception.Response.StatusCode.value__ -eq 404) "$method /api/$path must be 404: $_" }
@@ -373,24 +374,10 @@ try {
         catch { Require ($_.Exception.Response.StatusCode.value__ -eq 400) "$What must be refused with 400: $_" }
     }
 
-    # Check: findings, the HTML report, the JSON report as a baseline, a rules file.
-    $check = Api 'check' @{ path = $module }
-    Require ($check.code -eq 0 -and @($check.output.findings).Count -ge 1 -and $check.view -and (Test-Path $check.json) -and $check.download -and $check.jsonDownload -and !$check.html -and $check.cli -like 'oml check *--out *--json *') "check endpoint: $($check | ConvertTo-Json -Depth 8 -Compress)"
-    $rerun = Api 'check' @{ path = $module; baseline = $check.json }
-    Require ($rerun.code -eq 0 -and $rerun.output.summary.new -eq 0 -and $rerun.output.summary.existing -ge 1 -and @($rerun.output.findings | Where-Object status -ne 'existing').Count -eq 0) 'check with a baseline: every finding must be existing'
-    $rulesFile = Api 'check/init-rules' @{}
-    Require ($rulesFile.code -eq 0 -and (Test-Path $rulesFile.path) -and (Get-Content $rulesFile.path -Raw) -match '"rules"') 'check init-rules endpoint'
-    $ruled = Api 'check' @{ in = @($module); rules = $rulesFile.path }
-    Require ($ruled.code -eq 0 -and $ruled.cli -like '*--in *--rules *') 'check with --in and --rules'
-    Refused 'check' @{} 'check without a module or folder'
-    Refused 'check' @{ path = $module; baseline = $module } 'a baseline that is not .json'
-
     # Review: risks, changes, findings, Markdown and release notes.
     $review = Api 'review' @{ before = $blank; after = $module }
     Require ($review.code -eq 0 -and $review.output.summary.added -ge 4 -and $review.markdown -match 'Logic bugs are not covered' -and $review.notes -and $review.view -and $review.download -and $review.markdownDownload -and $review.cli -like 'oml review *--md *--notes *') "review endpoint: $($review | ConvertTo-Json -Depth 8 -Compress)"
     # The large outputs come from /download/<id>, not inside the JSON answer.
-    Require ((Invoke-WebRequest "$base/download/$($check.download)?key=$key" -UseBasicParsing).Content -match '<html') 'check HTML download'
-    Require ((Invoke-RestMethod "$base/download/$($check.jsonDownload)?key=$key").findings) 'check JSON download'
     Require ((Invoke-WebRequest "$base/download/$($review.download)?key=$key" -UseBasicParsing).Content -match '<html') 'review HTML download'
     Require ([Text.Encoding]::UTF8.GetString((Invoke-WebRequest "$base/download/$($review.markdownDownload)?key=$key" -UseBasicParsing).RawContentStream.ToArray()) -match 'Logic bugs are not covered') 'review Markdown download'
     Refused 'review' @{ before = $module; after = $module } 'review of a file with itself'
@@ -418,7 +405,7 @@ try {
     New-Item -ItemType Junction -Path (Join-Path $mediaFolder 'jump') -Target $outside | Out-Null
     [IO.File]::WriteAllBytes((Join-Path $Tmp 'above.png'), $png1)
     $dif = Api 'dif'
-    Require ($null -eq $dif.file -and $dif.hint -match 'oml show-change') "dif without a file: $($dif | ConvertTo-Json -Compress)"
+    Require ($null -eq $dif.file -and $dif.hint -match 'oml dashboard --change') "dif without a file: $($dif | ConvertTo-Json -Compress)"
     $dif = Api 'dif' @{ path = $difFile }
     Require ($dif.file -eq $difFile -and $dif.folder -eq (Split-Path $difFile) -and $dif.markdown -match 'callstack' -and $dif.modified) "dif endpoint: $($dif | ConvertTo-Json -Compress)"
     Refused 'dif' @{ path = $module } 'dif of a file that is not Markdown'
@@ -507,10 +494,6 @@ try {
     $validate = Api 'validate' @{ path = $module }
     $noHandler = @($validate.output.warnings | Where-Object id -eq 'NoErrorHandlingInFlow')
     Require ($validate.code -in 0, 1 -and $noHandler.Count -eq 1 -and $noHandler[0].hint -and $validate.cli -like 'oml validate * --warnings') 'validate endpoint'
-    $scaffold = Api 'test/scaffold' @{ path = $producer; actions = @('PlaceOrder'); bdd = $bdd }
-    Require ($scaffold.code -eq 0 -and (Test-Path $scaffold.path) -and $scaffold.spec -match 'PlaceOrder_Tests' -and @($scaffold.output.next).Count -ge 2 -and $scaffold.cli -like 'oml test bdd * PlaceOrder --bdd *') "test bdd endpoint: $($scaffold | ConvertTo-Json -Depth 8 -Compress)"
-    Refused 'test/scaffold' @{ path = $producer; actions = @('PlaceOrder') } 'test bdd without --bdd'
-    Refused 'test/scaffold' @{ path = $producer; actions = @(); bdd = $bdd } 'test bdd without an action'
 
     # Timings, and a tree depth that is not a number.
     $timed = Api 'inspect' @{ path = $module; timings = $true }
@@ -519,26 +502,25 @@ try {
     Require ($timedDocs.code -eq 0 -and $timedDocs.cli -notlike '*--timings*') 'timings must not reach the launcher commands'
     Refused 'tree' @{ path = $module; name = 'PvCard'; depth = 'x' } 'a tree depth that is not a number'
     # The work folders this check made (one per action, under the dashboard work folder).
-    foreach ($file in $check.json, $rerun.json, $ruled.json, $rulesFile.path, $scaffold.path) { if ($file) { Remove-Item (Split-Path $file) -Recurse -Force -ErrorAction SilentlyContinue } }
     if ($review.folder) { Remove-Item $review.folder -Recurse -Force -ErrorAction SilentlyContinue }
-    Write-Host 'ok   dashboard: check (baseline, rules), review, search, doc/open, warn, find --text, tree, history, css, validate, test bdd, timings'
+    Write-Host 'ok   dashboard: review, search, doc/open, warn, find --text, tree, history, css, validate, timings; check, OpenAPI and test bdd are CLI only'
 
     # Screenshots, when a browser exists.
     if ($browser) {
         $shots = @()
         $m = [uri]::EscapeDataString($module)
-        $targets = @(@{ page = 'home'; hash = '#/home' }, @{ page = 'explorer'; hash = "#/explorer?module=$m" }, @{ page = 'tools'; hash = '#/tools' },
-            @{ page = 'check'; hash = "#/check?module=$m"; expect = 'missing-description' },
-            @{ page = 'review'; hash = "#/review?before=$([uri]::EscapeDataString($blank))&after=$m"; expect = 'PvCard' },
+        $targets = @(@{ page = 'home'; hash = '#/home' }, @{ page = 'explorer'; hash = "#/explorer?module=$m" }, @{ page = 'tools'; hash = '#/tools?tool=images'; expect = 'Fonts to WOFF2' },
             @{ page = 'dif'; hash = "#/dif?file=$([uri]::EscapeDataString($difFile))&selftest=1"; expect = 'ShowCard' },
-            @{ page = 'modules'; hash = '#/modules' }, @{ page = 'prompt'; hash = '#/prompt?selftest=1' }, @{ page = 'architecture'; hash = '#/architecture' }, @{ page = 'lifetime'; hash = '#/lifetime' },
+            @{ page = 'modules'; hash = '#/modules'; expect = 'Platform server' }, @{ page = 'prompt'; hash = '#/prompt?selftest=1' }, @{ page = 'architecture'; hash = '#/architecture' }, @{ page = 'lifetime'; hash = '#/lifetime' },
             @{ page = 'server'; hash = '#/server'; expect = 'OrdersCore' }) +
-            @('agents', 'recipes', 'assets', 'openapi', 'activity', 'learned' | ForEach-Object { @{ page = $_; hash = "#/$_"; themes = @('light') } })
+            @('agents', 'recipes', 'activity', 'learned' | ForEach-Object { @{ page = $_; hash = "#/$_"; themes = @('light') } }) +
+            # An old address of a removed page opens where the thing is now.
+            @(@{ page = 'tools'; hash = '#/assets'; themes = @('light'); expect = 'Fonts to WOFF2'; shot = 'assets-moved' })
         foreach ($target in $targets) {
             foreach ($theme in $(if ($target.themes) { $target.themes } else { 'light', 'dark' })) {
-                $png = Join-Path $Tmp "dashboard-$($target.page)-$theme.png"
+                $png = Join-Path $Tmp "dashboard-$(if ($target.shot) { $target.shot } else { $target.page })-$theme.png"
                 $profile = Join-Path $Tmp "dash-profile-$([guid]::NewGuid().ToString('N'))"
-                $dom = Join-Path $Tmp "dashboard-$($target.page)-$theme.html"
+                $dom = Join-Path $Tmp "dashboard-$(if ($target.shot) { $target.shot } else { $target.page })-$theme.html"
                 $address = "$base/?key=$key&theme=$theme$($target.hash)"
                 # Under regress load a page can miss the 20 s render budget (the first module load is the slowest):
                 # a page that is not ready gets one more try with 40 s.
@@ -589,7 +571,7 @@ try {
             Require ($promptDom -match 'data-selftest="ok"') "Prompt self-test (working set API and prompt text) did not pass ($theme): $([regex]::Match($promptDom, 'Prompt self-test[^<]*').Value)"
             Require ((Get-Content (Join-Path $Tmp "dashboard-modules-$theme.html") -Raw) -match 'Working set') "Get modules page ($theme)"
         }
-        Write-Host "ok   dashboard pages (home, explorer, tools, check, review, agents, dif, modules, prompt, architecture, lifetime, server; the rest in light): no JavaScript errors, screenshots $($shots -join ', ')"
+        Write-Host "ok   dashboard pages (home, explorer, tools with its self-test of every tool and the shared table, agents, dif, modules, prompt, architecture, lifetime, server; the rest in light; an old #/assets link): no JavaScript errors, screenshots $($shots -join ', ')"
     } else { Write-Host 'skip dashboard screenshots: no Edge or Chrome' }
 
     Require ((Token-State) -eq $tokensBefore) 'The dashboard created or changed a Service Studio session token without a click'

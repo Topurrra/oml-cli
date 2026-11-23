@@ -122,6 +122,8 @@
     "mcpServer": "",
     // The platform server of the DEV environment, such as dev.example.com (https:// is dropped). oml server and the dashboard use it to list and download modules with Service Studio closed; OML_SERVER_HOST wins over it. The login stays in OML_SERVER_USER and OML_SERVER_PASSWORD, never in this file.
     "serverHost": "",
+    // The LifeTime server, such as lifetime.example.com (https:// is dropped). oml lifetime and the dashboard read environments, applications and deployments there; OML_LIFETIME_HOST wins over it. The token stays in OML_LIFETIME_TOKEN, never in this file.
+    "lifetimeHost": "",
     // Address of the OutSystems MCP server of your ODC tenant, such as https://mytenant.outsystems.dev/mcp. Agents use it for ODC apps; oml itself does not call it.
     "odcMcpServer": ""
   },

@@ -3,7 +3,7 @@
 import { h, add } from './core/dom.js';
 import { api, need, ApiError } from './core/api.js';
 import { cli, errorBox } from './core/ui.js';
-import { area, text, button, outBox, status, copyOut } from './tools-ui.js';
+import { area, text, button, outBox, status, copyOut, id, tooLong } from './tools-ui.js';
 
 // ---- JSON ----
 // Where JSON.parse failed. Newer browsers no longer say "at position N", so a small scanner finds the spot itself.
@@ -73,6 +73,8 @@ const json = {
     const out = outBox(), msg = h('div');
     const run = mode => {
       msg.replaceChildren(); out.textContent = '';
+      const big = tooLong(input.el.value);
+      if (big) { add(msg, big); return; }
       let value;
       try { value = JSON.parse(input.el.value); }
       catch (e) { add(msg, h('div', { class: 'message error', role: 'alert' }, h('strong', {}, 'Not valid JSON. '), h('pre', { text: jsonError(input.el.value, e) }))); return; }
@@ -160,6 +162,8 @@ const spec = {
     const msg = h('div'), keys = h('div');
     const check = async () => {
       msg.replaceChildren();
+      const big = tooLong(input.el.value);
+      if (big) { msg.replaceChildren(big); return; }
       let s;
       try { s = await schema(); } catch (e) { msg.replaceChildren(errorBox(e)); return; }
       let value;
@@ -193,7 +197,9 @@ const b64 = {
     const urlSafe = h('input', { type: 'checkbox', id: id('b64url') });
     const out = outBox(), msg = h('div');
     const encode = () => {
-      msg.replaceChildren();
+      msg.replaceChildren(); out.textContent = '';
+      const big = tooLong(input.el.value);
+      if (big) { add(msg, big); return; }
       const bin = Array.from(new TextEncoder().encode(input.el.value), b => String.fromCharCode(b)).join('');
       let r = btoa(bin);
       if (urlSafe.checked) r = r.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -201,6 +207,8 @@ const b64 = {
     };
     const decode = () => {
       msg.replaceChildren(); out.textContent = '';
+      const big = tooLong(input.el.value);
+      if (big) { add(msg, big); return; }
       try {
         let s = input.el.value.trim().replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
         while (s.length % 4) s += '=';
@@ -219,7 +227,7 @@ const url = {
   render(el) {
     const input = area('Text', { rows: 5, placeholder: 'Orders & Invoices/2026' });
     const out = outBox(), msg = h('div');
-    const go = fn => { msg.replaceChildren(); try { out.textContent = fn(input.el.value); } catch { out.textContent = ''; add(msg, status('error', 'This text has a broken % sequence.')); } };
+    const go = fn => { msg.replaceChildren(); const big = tooLong(input.el.value); if (big) { out.textContent = ''; add(msg, big); return; } try { out.textContent = fn(input.el.value); } catch { out.textContent = ''; add(msg, status('error', 'This text has a broken % sequence.')); } };
     add(el, input.field, h('div', { class: 'row' },
       button('Encode', () => go(encodeURIComponent), true), button('Decode', () => go(s => decodeURIComponent(s.replace(/\+/g, ' ')))), copyOut(out, 'Result')), msg, h('div', { class: 'field' }), out);
   },
@@ -238,6 +246,8 @@ const jwt = {
     };
     const decode = () => {
       out.replaceChildren();
+      const big = tooLong(input.el.value, 64 * 1024);
+      if (big) { add(out, big); return; }
       const parts = input.el.value.trim().split('.');
       if (parts.length < 2) { add(out, status('error', 'A JWT has three parts separated by dots.')); return; }
       let header, payload;

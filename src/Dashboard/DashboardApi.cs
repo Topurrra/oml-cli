@@ -33,7 +33,6 @@ static partial class Dashboard
                 (false, "inspect") => await InspectModule(Body()),
                 (false, "describe") => await DescribeElement(Body()),
                 (false, "find") => await FindElements(Body()),
-                (false, "openapi") => await OpenApiExport(Body()),
                 (false, "architecture") => await ArchitectureReport(Body()),
                 (false, "modules/folder") => FolderModules(Body()),
                 (false, "modules/app") => Wrap(await Oml("app", "list", PackageFile(Body()))),
@@ -41,11 +40,8 @@ static partial class Dashboard
                 (false, "modules/upload") => UploadModules(Body()),
                 (false, "extension/inspect") => Wrap(await Oml("extension", "inspect", ExistingFile(Body(), "path", [".xif"], "an extension .xif file"))),
                 (true, "templates") => Wrap(await Oml("templates")),
-                (false, "translations/export") => await ExportTranslations(Body()),
                 (false, "convert/fonts") => await ConvertFonts(Body()),
                 (false, "convert/images") => await ConvertImages(Body()),
-                (false, "check") => await CheckModules(Body()),
-                (false, "check/init-rules") => await CheckInitRules(),
                 (false, "review") => await ReviewModules(Body()),
                 (false, "search") => await SearchDocs(Body()),
                 (false, "doc/open") => await OpenDoc(Body()),
@@ -53,7 +49,6 @@ static partial class Dashboard
                 (false, "tree") => await TreeElement(Body()),
                 (false, "flow") => await FlowElement(Body()),
                 (false, "validate") => await ValidateModule(Body()),
-                (false, "test/scaffold") => await ScaffoldTests(Body()),
                 (true, "spec/schema") => Wrap(await Oml("spec", "schema")),
                 (true, "recipes") => Recipes(),
                 (true, "dif") => DifRead(null),
@@ -178,14 +173,14 @@ static partial class Dashboard
 
     static Reply Info()
     {
-        var host = Environment.GetEnvironmentVariable("OML_LIFETIME_HOST");
+        var host = ProjectConfig.LifeTimeHost();
         var hasToken = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OML_LIFETIME_TOKEN"));
         return new Reply(200, new JsonObject
         {
             ["version"] = typeof(Dashboard).Assembly.GetName().Version?.ToString(3),
             ["workFolder"] = WorkRoot,
             ["serviceStudio"] = Locations.ServiceStudio,
-            ["lifeTime"] = new JsonObject { ["configured"] = !string.IsNullOrWhiteSpace(host) && hasToken, ["host"] = string.IsNullOrWhiteSpace(host) ? null : host },
+            ["lifeTime"] = new JsonObject { ["configured"] = !string.IsNullOrWhiteSpace(host) && hasToken, ["host"] = string.IsNullOrWhiteSpace(host) ? null : host, ["hasToken"] = hasToken },
             ["log"] = new JsonObject { ["enabled"] = UsageLog.Enabled, ["file"] = UsageLog.FilePath ?? UsageLog.DefaultPath },
             ["browser"] = Locations.BrowserPath() is not null,
             ["server"] = ServerState(),
@@ -244,25 +239,6 @@ static partial class Dashboard
         foreach (var folder in folders) args.AddRange(["--in", folder]);
         if (args.Count == 2) throw new BadInput("Choose a module, or add a folder with producer modules.");
         return Wrap(await Oml([.. Timed(body, args)]));
-    }
-
-    static async Task<Reply> OpenApiExport(JsonObject body)
-    {
-        var module = ModuleFile(body);
-        var folder = NewWorkFolder("openapi");
-        var args = new List<string> { "openapi", module, "--out", folder };
-        if (Str(body, "api") is { } api) args.InsertRange(2, ["--api", ElementName(api, "a REST API name")]);
-        foreach (var server in (body["servers"] as JsonArray ?? []).Select(v => v is JsonValue j && j.TryGetValue<string>(out var t) ? t.Trim() : "").Where(t => t.Length > 0))
-        {
-            if (server.Length > 500 || !Uri.TryCreate(server, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
-                throw new BadInput($"A server must be a full http:// or https:// address: {server}");
-            args.AddRange(["--server", server]);
-        }
-        var r = await Oml([.. Timed(body, args)]);
-        var files = new JsonArray();
-        foreach (var file in Directory.GetFiles(folder, "*.json").Order(StringComparer.OrdinalIgnoreCase))
-            files.Add(new JsonObject { ["name"] = Path.GetFileName(file), ["path"] = file, ["text"] = await File.ReadAllTextAsync(file) });
-        return Wrap(r, new JsonObject { ["files"] = files, ["folder"] = folder });
     }
 
     static async Task<Reply> ArchitectureReport(JsonObject body)
@@ -387,19 +363,6 @@ static partial class Dashboard
             return new Reply(200, new JsonObject { ["folder"] = folder, ["files"] = files });
         }
         finally { TryDelete(temp); }
-    }
-
-    static async Task<Reply> ExportTranslations(JsonObject body)
-    {
-        var module = ModuleFile(body);
-        var format = Str(body, "format") is "ResX" ? "ResX" : "Excel";
-        var folder = NewWorkFolder("translations");
-        var target = format == "Excel" ? Path.Combine(folder, Path.GetFileNameWithoutExtension(module) + ".xlsx") : Path.Combine(folder, "resx");
-        var r = await Oml("translations", "export", module, target, "--format", format);
-        var files = new JsonArray();
-        foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories).Order(StringComparer.OrdinalIgnoreCase))
-            files.Add(new JsonObject { ["name"] = Path.GetFileName(file), ["path"] = file, ["download"] = AddDownload(Path.GetFileName(file), "application/octet-stream", file) });
-        return Wrap(r, new JsonObject { ["folder"] = folder, ["files"] = files });
     }
 
     // ---- fonts and images ----
@@ -595,12 +558,38 @@ static partial class Dashboard
                 byte[] data;
                 try { data = Convert.FromBase64String(Str(file, "data") ?? ""); }
                 catch (FormatException) { throw new BadInput($"{name}: the file data did not arrive correctly."); }
+                if (data.Length == 0) throw new BadInput($"{name} is empty.");
+                if (!LooksLike(Path.GetExtension(name).ToLowerInvariant(), data))
+                    throw new BadInput($"{name}: the content is not a {Path.GetExtension(name).TrimStart('.').ToUpperInvariant()} file. Was it renamed?");
                 File.WriteAllBytes(Path.Combine(input, name), data);
                 names.Add(name);
             }
             return (folder, names);
         }
         catch { TryDelete(folder); throw; }
+    }
+
+    // The first bytes of a font or an image must match its extension: a renamed file never reaches a converter.
+    // Modules and packages (.oml, .oap) are checked by the commands that read them.
+    internal static bool LooksLike(string extension, byte[] data)
+    {
+        bool Starts(params byte[] sig) => data.Length >= sig.Length && data.AsSpan(0, sig.Length).SequenceEqual(sig);
+        bool Ascii(string sig, int at = 0) => data.Length >= at + sig.Length && System.Text.Encoding.ASCII.GetString(data, at, sig.Length) == sig;
+        return extension switch
+        {
+            ".ttf" => Starts(0, 1, 0, 0) || Ascii("true") || Ascii("OTTO"),
+            ".otf" => Ascii("OTTO") || Starts(0, 1, 0, 0),
+            ".woff" => Ascii("wOFF"),
+            ".woff2" => Ascii("wOF2"),
+            ".png" => Starts(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A),
+            ".jpg" or ".jpeg" => Starts(0xFF, 0xD8, 0xFF),
+            ".gif" => Ascii("GIF87a") || Ascii("GIF89a"),
+            ".bmp" => Ascii("BM"),
+            ".webp" => Ascii("RIFF") && Ascii("WEBP", 8),
+            ".ico" => Starts(0, 0, 1, 0),
+            ".svg" => System.Text.Encoding.UTF8.GetString(data, 0, Math.Min(data.Length, 4096)).Contains("<svg", StringComparison.OrdinalIgnoreCase),
+            _ => true,
+        };
     }
 
     // Temporary folder names mean nothing to a person and should not reach the page.
@@ -642,7 +631,7 @@ static partial class Dashboard
 
     static async Task<Reply> LifeTimeRead(string verb, string? value = null)
     {
-        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OML_LIFETIME_HOST")) || string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OML_LIFETIME_TOKEN")))
+        if (string.IsNullOrWhiteSpace(ProjectConfig.LifeTimeHost()) || string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OML_LIFETIME_TOKEN")))
             return new Reply(200, new JsonObject { ["configured"] = false });
         var args = new List<string> { "lifetime", verb };
         if (verb == "apps" && !string.IsNullOrWhiteSpace(value))
@@ -660,7 +649,7 @@ static partial class Dashboard
     }
 
     static bool LifeTimeConfigured() =>
-        !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OML_LIFETIME_HOST")) && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OML_LIFETIME_TOKEN"));
+        !string.IsNullOrWhiteSpace(ProjectConfig.LifeTimeHost()) && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OML_LIFETIME_TOKEN"));
 
     // `lt download`: a GET of the package running in one environment. The .oap and its modules stay in the work folder.
     static async Task<Reply> LifeTimeDownload(JsonObject body)
@@ -678,12 +667,12 @@ static partial class Dashboard
         return Wrap(r with { Cli = CliText(args.Select(a => a == folder ? @"C:\Exports" : a)) }, extra);
     }
 
-    // `architecture --team` and `check --team`: read only; the packages go to a temporary folder that the command removes.
+    // `architecture --team`: read only; the packages go to a temporary folder that the command removes.
     static async Task<Reply> LifeTimeTeamReport(JsonObject body)
     {
         if (!LifeTimeConfigured()) return new Reply(200, new JsonObject { ["configured"] = false });
         var team = LifeTimeName(Str(body, "team"), "a team");
-        var kind = Str(body, "kind") is "check" ? "check" : "architecture";
+        const string kind = "architecture";
         var folder = NewWorkFolder(kind);
         var (html, json) = (Path.Combine(folder, kind + ".html"), Path.Combine(folder, kind + ".json"));
         var args = new List<string> { kind, "--team", team };

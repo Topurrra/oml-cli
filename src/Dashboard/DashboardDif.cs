@@ -31,7 +31,7 @@ static partial class Dashboard
 
     // Checked when the dashboard starts: an existing Markdown file of at most 2 MB.
     static string? DifProblem(string path) =>
-        !path.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? $"oml show-change needs a Markdown (.md) file: {path}"
+        !path.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? $"oml dashboard --change needs a Markdown (.md) file: {path}"
         : !File.Exists(path) ? $"File not found: {path}"
         : new FileInfo(path).Length > MaxDifBytes ? $"{path} is larger than 2 MB." : null;
 
@@ -41,7 +41,7 @@ static partial class Dashboard
         string path;
         if (typed is null)
         {
-            if (difFile is null) return new Reply(200, new JsonObject { ["file"] = null, ["hint"] = "Start it with oml show-change <file.md>, or type the path of a Markdown file." });
+            if (difFile is null) return new Reply(200, new JsonObject { ["file"] = null, ["hint"] = "Start it with oml dashboard --change <file.md>, or type the path of a Markdown file." });
             path = difFile;
         }
         else path = UserPath(typed, "a Markdown (.md) file");

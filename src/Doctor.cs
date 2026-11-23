@@ -82,16 +82,16 @@ static class Doctor
         checks.Add(StudioMcp(version));
 
         // 6. lifeTime
-        var host = Environment.GetEnvironmentVariable("OML_LIFETIME_HOST");
+        var host = ProjectConfig.LifeTimeHost();
         var token = Environment.GetEnvironmentVariable("OML_LIFETIME_TOKEN"); // never printed, never measured
         var hasHost = !string.IsNullOrWhiteSpace(host);
         var hasToken = !string.IsNullOrWhiteSpace(token);
         checks.Add(hasHost && hasToken ? new Check("lifeTime", "ok", "LifeTime host and token are set.")
             : !hasHost && !hasToken ? new Check("lifeTime", "skip", "not configured, only needed for oml lifetime")
-            : hasHost ? new Check("lifeTime", "warn", "OML_LIFETIME_HOST is set, but OML_LIFETIME_TOKEN is not.",
-                "Set OML_LIFETIME_TOKEN, or clear OML_LIFETIME_HOST if you do not use oml lifetime.")
-            : new Check("lifeTime", "warn", "OML_LIFETIME_TOKEN is set, but OML_LIFETIME_HOST is not.",
-                "Set OML_LIFETIME_HOST to the LifeTime hostname without a scheme, or clear OML_LIFETIME_TOKEN."));
+            : hasHost ? new Check("lifeTime", "warn", "The LifeTime host is set, but OML_LIFETIME_TOKEN is not.",
+                "Set OML_LIFETIME_TOKEN, or clear outsystems.lifetimeHost (and OML_LIFETIME_HOST) if you do not use oml lifetime.")
+            : new Check("lifeTime", "warn", "OML_LIFETIME_TOKEN is set, but the LifeTime host is not.",
+                "Run: oml config set outsystems.lifetimeHost <host> (the hostname without https://), or clear OML_LIFETIME_TOKEN."));
 
         // 7. browser
         var browser = Locations.BrowserPath();

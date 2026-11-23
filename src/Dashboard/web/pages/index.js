@@ -2,11 +2,7 @@
 import home from './home.js';
 import modules from './modules.js';
 import explorer from './explorer.js';
-import assets from './assets.js';
-import openapi from './openapi.js';
 import architecture from './architecture.js';
-import check from './check.js';
-import review from './review.js';
 import agents from './agents.js';
 import lifetime from './lifetime.js';
 import server from './server.js';
@@ -18,8 +14,7 @@ import recipes from './recipes.js';
 import dif from './dif.js';
 
 export const PAGES = [
-  home, modules, explorer, agents, assets, openapi, architecture, check, review,
-  server, lifetime, activity, learned, tools,
-  // Not in the sidebar (nav.js lists only agents); still reachable by URL: #/prompt, #/recipes, #/dif.
+  home, modules, explorer, architecture, agents, activity, learned, server, lifetime, tools,
+  // Not in the sidebar: Work with agents shows them as tabs. Still reachable by URL: #/prompt, #/recipes, #/dif.
   prompt, recipes, dif,
 ];

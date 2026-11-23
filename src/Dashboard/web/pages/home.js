@@ -1,3 +1,4 @@
+import { iconButton } from '../core/table.js';
 import { h, add, icon } from '../core/dom.js';
 import { api, need } from '../core/api.js';
 import { task, cli, pullWarning, CONNECT_NOTE } from '../core/ui.js';
@@ -19,7 +20,7 @@ export default {
   async render(main, ctx) {
     const tiles = h('div', { class: 'tiles', role: 'list', 'aria-label': 'Today' });
     const doctorOut = h('div');
-    const again = h('button', { class: 'button', type: 'button' }, 'Check again');
+    const again = iconButton('refresh', 'Check the setup again', null);
     // The page itself never calls `studio` or `pull`: they ask Service Studio for a session, which shows a dialog
     // there. The server check below comes from `doctor` (an MCP initialize only); the rest waits for a click.
     const studioStatus = h('div', { class: 'row small' }, h('span', { class: 'muted' }, 'Checking whether the MCP server answers…'));
@@ -107,7 +108,7 @@ export default {
       add(studioOut, open.length === 0 ? h('p', { class: 'muted' }, 'Service Studio answers, but no module is open.') :
         h('div', { class: 'table-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Open module'), h('th', {}, ''))),
           h('tbody', {}, open.map(a => {
-            const b = h('button', { class: 'button small', type: 'button', 'aria-label': `Copy ${a.name} from Service Studio to a file` }, 'Copy to a file');
+            const b = iconButton('download', `Copy ${a.name} from Service Studio to a file`, null, { small: true });
             b.addEventListener('click', async () => {
               const r = await task(b, out, `Saving ${a.name}… Approve the request in Service Studio if it asks.`, async () => need(await api('pull', { module: a.name }), [0, 1]));
               if (r) { setModule(r.path); workset.add(r.path, { kind: 'studio', module: a.name }); add(out, h('div', { class: 'message' }, 'Saved to ', h('code', { text: r.path }), ' ', h('a', { href: '#/explorer' }, 'Open it in the Module explorer')), pullWarning(r), cli(r.cli)); }
