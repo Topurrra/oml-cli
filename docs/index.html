@@ -67,7 +67,7 @@
           </div>
           <ul class="pills" aria-label="At a glance">
             <li><strong>0.08 s</strong> per command, warm</li>
-            <li><strong>3×</strong> fewer tokens than the MCP</li>
+            <li>up to <strong>3×</strong> fewer tokens than the MCP</li>
             <li><strong>11</strong> production rules</li>
           </ul>
           <p class="small muted">Windows · Service Studio 11 · .NET 10 runtime · MIT license</p>
@@ -109,7 +109,7 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
             <tbody>
               <tr>
                 <th scope="row">Works on</th>
-                <td data-label="OutSystems MCP">Modules open in Service Studio</td>
+                <td data-label="OutSystems MCP">Modules open in Service Studio (newer builds can open them)</td>
                 <td data-label="oml">Module files. Many modules, many agents. Service Studio can stay closed for reads and checks.</td>
               </tr>
               <tr>
@@ -227,7 +227,7 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
               <tbody>
                 <tr><th scope="row">One <code>inspect</code> or <code>describe</code></th><td>1.9 s</td><td class="win">0.07 s</td></tr>
                 <tr><th scope="row">An <code>oml code</code> program with an oml call</th><td>5 s</td><td class="win">0.33 s</td></tr>
-                <tr><th scope="row">5 inspects through <code>oml mcp</code></th><td>9.4 s</td><td class="win">13 ms</td></tr>
+                <tr><th scope="row">5 inspects in a row (warm: through <code>oml mcp</code>)</th><td>9.4 s</td><td class="win">13 ms</td></tr>
               </tbody>
             </table>
           </div>
@@ -393,7 +393,8 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
                 <tr><td>Move a Traditional Web module to Reactive</td><td><code>oml migrate plan old.oml --name NewModule</code></td></tr>
                 <tr><td>See a screen the way users see it</td><td><code>oml browser page &lt;url&gt;</code></td></tr>
                 <tr><td>Find why a widget looks wrong</td><td><code>oml browser look &lt;url&gt; &lt;widget&gt;</code></td></tr>
-                <tr><td>Test a screen as a role</td><td><code>oml browser accounts</code></td></tr>
+                <tr><td>Click through a screen like a tester, logged in as a role</td><td><code>oml browser run &lt;script.json&gt;</code></td></tr>
+                <tr><td>See the test accounts by role</td><td><code>oml browser accounts</code></td></tr>
                 <tr><td>Make a screen look better</td><td><code>oml doc better-ui</code></td></tr>
                 <tr><td>Know what to test after a change</td><td><code>oml test scenarios before.oml after.oml</code></td></tr>
                 <tr><td>Publish after review (asks first)</td><td><code>oml publish &lt;Module&gt;</code></td></tr>
@@ -422,7 +423,7 @@ oml install staged\Orders.oml modules\Orders.oml</code></pre>
         <ul class="new-list">
           <li><h3>Warm workers</h3><p>Model commands take about 0.08 s instead of 2 to 5. A background oml keeps Service Studio loaded; <code>oml code</code> uses it too.</p></li>
           <li><h3>Edit in place</h3><p>Agents change existing elements instead of copying them. Deletes and data risks wait for your yes. Entity data is never deleted.</p></li>
-          <li><h3>Asks, in color</h3><p><code>oml create</code> asks for the folder, modules, server and agent. Green is passed, yellow needs a look, red failed. <code>oml config example</code> prints every setting.</p></li>
+          <li><h3>Prompts and color</h3><p><code>oml create</code> asks for the folder, modules, server and agent. Green is passed, yellow needs a look, red failed. <code>oml config example</code> prints every setting.</p></li>
           <li><h3>Test accounts by role</h3><p>One account per role in <code>.oml/test-accounts.local.json</code>. Browser scripts log in with <code>{"login": "Manager"}</code>, and oml types the password.</p></li>
           <li><h3>16 UI skills</h3><p>Accessibility, layout, typography, color, motion and copy, rewritten for Reactive and Traditional Web. Read one with <code>oml doc better-ui</code>.</p></li>
           <li><h3>Copilot hooks</h3><p><code>oml hooks install --agent copilot</code> guards VS Code agents. A hook never blocks a call because of an oml error.</p></li>
