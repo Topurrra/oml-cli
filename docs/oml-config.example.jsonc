@@ -154,5 +154,14 @@
     "externalBrowser": true,
     // The session-start hook gives this profile to the agent, so it needs no command to read it.
     "sessionProfile": true
+  },
+
+  "performance": {
+    // Model commands (inspect, describe, apply, check, ...) run in a warm oml worker that keeps Service Studio loaded, so they take a fraction of a second instead of 2 to 5. Off: every command starts Service Studio itself.
+    "warm": true,
+    // How many warm workers may run at once. A command that finds every worker busy runs on its own, so parallel agents never wait. A whole number from 1 to 8.
+    "warmWorkers": 2,
+    // A warm worker stops after this many minutes without a command. A whole number from 1 to 1440.
+    "warmIdleMinutes": 20
   }
 }

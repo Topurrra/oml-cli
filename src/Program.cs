@@ -30,6 +30,9 @@ public static class Program
         if (filtered.FirstOrDefault() == "menu" && CommandTable.Find(filtered) is { } menu) return menu.Run!(args, filtered);
         // oml mcp: a long-running server; the usage log must not copy its protocol stream. Each call is logged on its own.
         if (filtered.FirstOrDefault() == "mcp" && CommandTable.Find(filtered) is { } mcp) return mcp.Run!(args, filtered);
+        // A warm worker (started by WarmPool): long-running too, and each command is logged by the oml process that sent it.
+        // It ends with Environment.Exit, so no thread that Service Studio started can keep it alive.
+        if (filtered is ["warm", "serve", .. var serve]) Environment.Exit(WarmWorker.Serve(serve));
         if (args.Length == 0 && MenuModel.Bare(Console.IsInputRedirected, Console.IsOutputRedirected, Environment.GetEnvironmentVariable) == BareChoice.Menu) return MenuApp.Run([]);
         // The usage log: one line per command, written after it ends (on unless OML_LOG=0; then nothing is wrapped or written).
         return UsageLog.Enabled ? UsageLog.Measure(filtered, () => Dispatch(args, filtered)) : Dispatch(args, filtered);
@@ -52,9 +55,12 @@ public static class Program
 
     // The last guard: whatever a command did not handle itself becomes one JSON error, never a .NET stack trace.
     // Core is called by reflection, so the real exception sits inside a TargetInvocationException.
-    internal static int Dispatch(string[] args, string[] filtered)
+    internal static int Dispatch(string[] args, string[] filtered) => Guard(() => DispatchCommand(args, filtered));
+
+    // The guard itself; a warm worker runs each command inside it too, so a crash there is reported as it is here.
+    internal static int Guard(Func<int> run)
     {
-        try { return DispatchCommand(args, filtered); }
+        try { return run(); }
         catch (Exception e)
         {
             while (e is TargetInvocationException { InnerException: { } inner }) e = inner;
@@ -85,8 +91,14 @@ public static class Program
             if (adjusted.Length != filtered.Length) args = args.Where(a => a != "--no-profile").ToArray();
             filtered = adjusted;
         }
-        return CommandTable.Find(filtered) is { } cmd ? cmd.Run!(args, filtered) : RunCore(args);
+        // A model command goes to a warm worker when one is free (WarmPool); null: it runs here.
+        if (WarmPool.Run(args, filtered) is { } warm) return warm;
+        return RunTail(args, filtered);
     }
+
+    // The command itself, after help and the project profile: in this process, or in a warm worker for another one.
+    internal static int RunTail(string[] args, string[] filtered) =>
+        CommandTable.Find(filtered) is { } cmd ? cmd.Run!(args, filtered) : RunCore(args);
 
     // `check --team`: refuse bad outputs, rules file or baseline before the team's applications are downloaded.
     internal static string? CheckPreflight(string[] args)

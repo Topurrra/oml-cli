@@ -22,10 +22,10 @@ static class ProjectConfig
     internal const string FileName = "oml-config.json";
     internal const string LegacyFileName = "config.json";
 
-    // Max: the longest value a text setting takes.
-    internal sealed record Setting(string Key, string Kind, string Default, string[]? Choices, string About, bool Locked = false, int Max = 300);
+    // Max: the longest value a text setting takes, or the largest value of a number; Min: the smallest value of a number.
+    internal sealed record Setting(string Key, string Kind, string Default, string[]? Choices, string About, bool Locked = false, int Max = 300, int Min = 0);
 
-    // Kind: bool, choice (one of Choices), list (comma-separated, each one of Choices) or text.
+    // Kind: bool, choice (one of Choices), list (comma-separated, each one of Choices), number (a whole number from Min to Max) or text.
     internal static readonly Setting[] Settings =
     [
         new("ui.targets", "list", "desktop,tablet,phone", ["desktop", "tablet", "phone"], "Screen sizes the project supports. Agents design and test only these."),
@@ -82,6 +82,9 @@ static class ProjectConfig
         new("hooks.externalBrowser", "bool", "true", null, "With browser = agent, the hook refuses shell commands that start Edge, Chrome or Firefox."),
         new("hooks.sessionProfile", "bool", "true", null, "The session-start hook gives this profile to the agent, so it needs no command to read it."),
         new("hooks.omlWrites", "bool", "true", null, "The hook refuses editing or writing .oml files with a tool or a shell.", Locked: true),
+        new("performance.warm", "bool", "true", null, "Model commands (inspect, describe, apply, check, ...) run in a warm oml worker that keeps Service Studio loaded, so they take a fraction of a second instead of 2 to 5. Off: every command starts Service Studio itself."),
+        new("performance.warmWorkers", "number", "2", null, "How many warm workers may run at once. A command that finds every worker busy runs on its own, so parallel agents never wait.", Max: 8, Min: 1),
+        new("performance.warmIdleMinutes", "number", "20", null, "A warm worker stops after this many minutes without a command.", Max: 1440, Min: 1),
     ];
 
     // Keys that were renamed: the old one still reads and sets the new one.
@@ -193,6 +196,11 @@ static class ProjectConfig
                 if (items.Length == 0) return $"give at least one of {string.Join(", ", s.Choices!)}.";
                 if (items.FirstOrDefault(i => !s.Choices!.Contains(i)) is { } bad) return $"'{bad}' is not one of {string.Join(", ", s.Choices!)}.";
                 value = string.Join(",", s.Choices!.Where(items.Contains)); // always in the order of Choices
+                return null;
+            case "number":
+                if (!int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var number) || number < s.Min || number > s.Max)
+                    return $"'{text}' is not a whole number from {s.Min} to {s.Max}.";
+                value = number.ToString(System.Globalization.CultureInfo.InvariantCulture);
                 return null;
             case "url" or "url-local":
                 if (value.Length == 0) return null;
@@ -411,7 +419,7 @@ static class ProjectConfig
                     settings = Settings.Select(s => new
                     {
                         key = s.Key, value = all.Get(s.Key), @default = all.Get(s.Key) == s.Default ? null : s.Default,
-                        choices = s.Kind switch { "bool" => "on, off", "text" => null, "url" or "url-local" => "an address, or \"\" to clear it", _ => string.Join(", ", s.Choices!) + (s.Kind == "list" ? " (one or more, comma-separated)" : "") },
+                        choices = s.Kind switch { "bool" => "on, off", "text" => null, "number" => $"a whole number from {s.Min} to {s.Max}", "url" or "url-local" => "an address, or \"\" to clear it", _ => string.Join(", ", s.Choices!) + (s.Kind == "list" ? " (one or more, comma-separated)" : "") },
                         locked = s.Locked ? true : (bool?)null, about = s.About,
                     }),
                     next = "oml config set <key> <value> changes one; agents read the result with oml config.",
@@ -470,7 +478,7 @@ static class ProjectConfig
         string? group = null;
         string Value(Setting s) => s.Kind switch
         {
-            "bool" => s.Default,
+            "bool" or "number" => s.Default,
             "list" => "[" + string.Join(", ", s.Default.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => "\"" + x + "\"")) + "]",
             _ => System.Text.Json.JsonSerializer.Serialize(s.Default),
         };
@@ -488,7 +496,7 @@ static class ProjectConfig
             else b.Append(',');
             var indent = g is null ? "  " : "    ";
             if (g is null) b.Append(",\n");
-            var choices = s.Kind switch { "choice" or "list" => " One" + (s.Kind == "list" ? " or more" : "") + " of: " + string.Join(", ", s.Choices!) + ".", _ => "" };
+            var choices = s.Kind switch { "choice" or "list" => " One" + (s.Kind == "list" ? " or more" : "") + " of: " + string.Join(", ", s.Choices!) + ".", "number" => $" A whole number from {s.Min} to {s.Max}.", _ => "" };
             b.Append($"\n{indent}// {s.About}{choices}\n{indent}\"{name}\": {Value(s)}");
         }
         if (group is not null) b.Append("\n  }");
@@ -506,6 +514,7 @@ static class ProjectConfig
             JsonNode node = s.Kind switch
             {
                 "bool" => JsonValue.Create(value == "true"),
+                "number" => JsonValue.Create(int.Parse(value, System.Globalization.CultureInfo.InvariantCulture)),
                 "list" => new JsonArray(value.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => (JsonNode?)JsonValue.Create(x)).ToArray()),
                 _ => JsonValue.Create(value),
             };

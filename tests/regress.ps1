@@ -34,6 +34,12 @@ foreach ($child in @(Get-ChildItem -LiteralPath $tmp -Force | Where-Object { $_.
 $base = Join-Path $tmp "base"; New-Item -ItemType Directory -Force $base | Out-Null
 $env:TEMP = $tmp; $env:TMP = $tmp
 $env:OML_LOG = '0' # the suite must not write to a person's usage log (it is on by default)
+# Every unit runs its commands cold, as they always did: what a unit checks (timing phases, the self-test record, process
+# and file behavior) is the behavior of a fresh oml process, and no unit then depends on which other units keep a warm
+# worker busy. warm-check turns warm workers on for its own commands and compares them with cold runs byte for byte.
+# (A hidden variable, not the project config: the units run in the repository and in tmp, where no config may change a
+# person's own use of oml.)
+$env:OML_WARM = '0'
 # Test what the sources say, never a stale build: an incremental build takes a few seconds when nothing changed.
 $repo = Split-Path $tests -Parent
 & dotnet build (Join-Path $repo 'src\OmlCli.csproj') -c Release --nologo -v q -clp:ErrorsOnly | Out-Host
@@ -284,6 +290,11 @@ Unit 'timings-check' {
   try { & (Join-Path $tests 'timings-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL timings checks: $_" }
 }
+# warm-check starts warm workers of this build for its own commands and stops them at the end (the other units run cold).
+Unit 'warm-check' {
+  try { & (Join-Path $tests 'warm-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL warm checks: $_" }
+}
 Unit 'encoding-check' {
   try { & (Join-Path $tests 'encoding-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL encoding checks: $_" }
@@ -521,6 +532,8 @@ while ($true) {
   }
   Flush-Output
 }
+# No warm worker of this build may outlive the suite (warm-check stops its own; this covers an interrupted unit).
+& $oml warm stop | Out-Null
 foreach ($u in @($units | Where-Object { -not $_.Started })) {
   $fail++
   $done[$u.Name] = [pscustomobject]@{ Name = $u.Name; Fail = 1; Text = "FAIL $($u.Name): never started, waiting for $($u.After -join ', ')"; Seconds = 0 }

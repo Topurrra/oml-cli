@@ -23,12 +23,32 @@ static class Timings
         origin = Stopwatch.GetTimestamp();
         var first = !started;
         started = true;
+        var callerStartup = warmStartup;
+        warmStartup = null;
+        if (enabled && callerStartup is { } ticks)
+        {
+            // A warm worker's command: "startup" is the calling oml process's own start, until it sent the command, and
+            // Service Studio's start-up is 0: the worker did it before. A module still open from an earlier command
+            // has no "load" phase either.
+            phases.Add(("startup", ticks));
+            phases.Add(("serviceStudioInit", 0));
+            origin -= ticks;
+            return;
+        }
         if (!enabled || !first) return;
         var since = DateTime.Now - Process.GetCurrentProcess().StartTime;
         phases.Add(("startup", (long)(since.TotalSeconds * Stopwatch.Frequency)));
         origin -= phases[0].ticks;
     }
     static bool started;
+    static long? warmStartup;
+
+    // A warm worker, before each command: the next Start reports the caller's start-up (milliseconds) as "startup".
+    public static void Warm(long callerStartupMs)
+    {
+        started = true;
+        warmStartup = callerStartupMs * Stopwatch.Frequency / 1000;
+    }
 
     public static T Measure<T>(string phase, Func<T> work)
     {

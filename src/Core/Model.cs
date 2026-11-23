@@ -17,7 +17,31 @@ static class Model
 
     static IModelServices? services;
 
-    public static IModelServices Services() => services ?? Timings.Measure("serviceStudioInit", InitServices);
+    public static IModelServices Services() => services is null ? Timings.Measure("serviceStudioInit", InitServices) : warmPending ? WarmServices() : services;
+
+    // A warm worker started Service Studio before its first command. The first command after WarmBegin that needs the
+    // model still gets the lines the start-up wrote on stderr, as in a fresh process (Timings reports the phase as 0).
+    static bool warmPending;
+    static string initNotes = "";
+
+    public static void WarmUp()
+    {
+        var previous = Console.Error;
+        var notes = new StringWriter();
+        Console.SetError(notes);
+        try { Services(); }
+        finally { Console.SetError(previous); }
+        initNotes = notes.ToString();
+    }
+
+    public static void WarmBegin() => warmPending = services is not null;
+
+    static IModelServices WarmServices()
+    {
+        warmPending = false;
+        if (initNotes.Length > 0) Console.Error.Write(initNotes);
+        return services!;
+    }
 
     static IModelServices InitServices()
     {
