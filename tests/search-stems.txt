@@ -20,11 +20,13 @@ bind: bind, binding
 block: block, blocks
 boolean: boolean, booleans
 branch: branch, branches
+break: breaking, breaks
 build: build, building
 button: button, buttons
 call: call, called, calling, calls
 call: call, calling, calls
 callback: callback, callbacks
+caller: caller, callers
 cas: case, cases
 cell: cell, cells
 chang: change, changed, changes, changing
@@ -81,6 +83,7 @@ field: field, fields
 fil: file, files
 filter: filter, filtered, filters
 fix: fix, fixed
+flag: flag, flags
 flow: flow, flows
 folder: folder, folders
 font: font, fonts
@@ -182,7 +185,7 @@ rol: role, roles
 row: row, rows
 rul: rule, rules
 run: run, running, runs
-sav: save, saved, saving
+sav: save, saved, saves, saving
 say: say, says
 scaffold: scaffold, scaffolding
 schedul: schedule, schedules
