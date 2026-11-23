@@ -257,6 +257,8 @@ static class ProjectConfig
             lines.Add("Browser: look at the app with your own built-in browser tool. Never start Edge, Chrome or Firefox from a shell. Use oml browser only for saved test runs the user asks for.");
         if (v.Get("outsystems.mcpServer") is { Length: > 0 } studioMcp)
             lines.Add($"Service Studio MCP server (O11): {studioMcp}. oml pull, publish, references and studio already use it; call it yourself only for a step oml has no command for.");
+        if (Qa.TestAccounts.Roles(v.File is null ? null : Path.GetDirectoryName(Path.GetDirectoryName(v.File))) is { Count: > 0 } roles)
+            lines.Add($"Test accounts of the app, by role: {Join(roles)}. In a browser script log in with {{\"login\": \"<role>\"}}, or fill \"$account:<role>.username\" and \"$account:<role>.password\". Never read .oml/test-accounts.local.json and never ask for a password.");
         if (ServerHost(v) is { Length: > 0 } serverHost)
             lines.Add($"Platform server: {serverHost}. oml server lists, downloads and checks modules there with Service Studio closed.");
         if (v.Get("outsystems.odcMcpServer") is { Length: > 0 } odcMcp)

@@ -12,7 +12,7 @@ namespace OmlCli.Qa;
 // person who logs in (see QaHandoff).
 sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string shotDir, bool capture = false, QaShot.Limit shots = default, QaHandoff? person = null)
 {
-    static readonly string[] Actions = ["open", "click", "fill", "select", "press", "wait", "screenshot", "handoff", "raw", "expect"];
+    static readonly string[] Actions = ["open", "click", "fill", "select", "press", "wait", "screenshot", "handoff", "raw", "login", "expect"];
     const int HandoffMs = 300_000;   // a handoff waits 5 minutes unless the step gives "timeout"
     // Words that make a click destructive. Such a click needs "allowDestructive": true in its step.
     // No word boundaries: widget names run words together (DeleteButton, BtnRemoveUser).
@@ -38,6 +38,7 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
                 case "open": seq = await Open(value, seq, notes); break;
                 case "click": await Click(value, step); break;
                 case "fill": await Fill(value, notes); break;
+                case "login": await Login(value, notes); break;
                 case "select": await Select(value); break;
                 case "press": await browser.Press(value.GetString() ?? throw new QaUsage("press: give a key such as \"Enter\".")); break;
                 case "wait": await Wait(value); break;
@@ -46,14 +47,14 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
                 case "raw": result["raw"] = await Raw(value, step); break;
             }
             // Opening also covers the browser's cold start and the app's first load: at least 30 seconds.
-            if (action is "open" or "click" or "fill" or "select" or "press" or "handoff") result["readyMs"] = await browser.WaitReady(action == "open" ? Math.Max(timeoutMs, 30_000) : timeoutMs);
+            if (action is "open" or "click" or "fill" or "select" or "press" or "handoff" or "login") result["readyMs"] = await browser.WaitReady(action == "open" ? Math.Max(timeoutMs, 30_000) : timeoutMs);
             // A time limit from a saved run: slower than it means the app got slower, not that the test should wait longer.
             if (step.TryGetProperty("maxMs", out var max) && max.TryGetInt64(out var limit) && clock.ElapsedMilliseconds > limit)
                 throw new QaFailure($"{action} took {clock.ElapsedMilliseconds} ms; the limit is {limit} ms (maxMs). The app is slower than when the file was saved.");
             if (capture && action is not ("wait" or "screenshot")) { var path = new Uri(await browser.Url()).AbsolutePath.TrimEnd('/'); result["screen"] = Uri.UnescapeDataString(path[(path.LastIndexOf('/') + 1)..]); }
             if (step.TryGetProperty("expect", out var expect)) await Expect(expect, seq);
             // What happens on a login page while a person logs in (an identity provider's scripts) is not the app under test.
-            var allowErrors = action == "handoff" || step.TryGetProperty("allowErrors", out var ae) && ae.GetBoolean();
+            var allowErrors = action is "handoff" or "login" || step.TryGetProperty("allowErrors", out var ae) && ae.GetBoolean();
             var calls = await Calls(seq);
             if (calls.Count > 0) result["calls"] = calls;
             var problems = allowErrors ? [] : await Problems(seq, exceptions, console, notes, step);
@@ -361,9 +362,37 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
     static (string, int?) Target(string text) => (text, null);
 
     // "$env:NAME" reads the variable, so a test user's password never sits in the file or the report.
+    // {"login": "<Role>"} on a login page: the role's test account (TestAccounts) in the first text field of the page and
+    // the password field, then Enter. Works on the OutSystems login screens of Reactive and Traditional Web apps.
+    async Task Login(JsonElement value, JsonArray notes)
+    {
+        var role = value.ValueKind == JsonValueKind.String ? value.GetString()! : value.TryGetProperty("as", out var a) ? a.GetString() ?? "" : "";
+        if (role.Length == 0) throw new QaUsage("login: give a role from .oml/test-accounts.local.json, such as {\"login\": \"Manager\"}.");
+        TestAccounts.Find(role); // a clear message before the page is touched
+        var fields = new JsonObject
+        {
+            ["css:input:not([type=hidden]):not([type=password]):not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=button])"] = $"$account:{role}.username",
+            ["css:input[type=password]"] = $"$account:{role}.password",
+        };
+        using var doc = JsonDocument.Parse(fields.ToJsonString());
+        await Fill(doc.RootElement, notes);
+        await browser.Press("Enter");
+    }
+
     static (string Text, bool Secret) Value(JsonElement value)
     {
         var text = value.ValueKind == JsonValueKind.String ? value.GetString()! : value.ToString();
+        // "$account:<Role>.username" or ".password": a test account by role; the password is a secret.
+        if (text.StartsWith("$account:", StringComparison.Ordinal) && text.LastIndexOf('.') is var dot and > 9)
+        {
+            var account = TestAccounts.Find(text[9..dot]);
+            return text[(dot + 1)..] switch
+            {
+                "username" => (account.Username, false),
+                "password" => (account.Password, true),
+                var other => throw new QaUsage($"{text}: use $account:<role>.username or $account:<role>.password, not .{other}."),
+            };
+        }
         if (!text.StartsWith("$env:", StringComparison.Ordinal)) return (text, false);
         var name = text[5..];
         return (Environment.GetEnvironmentVariable(name) ?? throw new QaUsage($"The environment variable {name} is not set."), true);
@@ -372,7 +401,7 @@ sealed class QaRunner(IQaEngine browser, Uri? baseUrl, int timeoutMs, string sho
     static string Describe(string action, JsonElement value) => action switch
     {
         "fill" or "select" when value.ValueKind == JsonValueKind.Object =>
-            action + " " + string.Join(", ", value.EnumerateObject().Select(p => $"{p.Name}={(p.Value.ToString().StartsWith("$env:") ? p.Value.ToString() : Quote(p.Value.ToString()))}")),
+            action + " " + string.Join(", ", value.EnumerateObject().Select(p => $"{p.Name}={(p.Value.ToString().StartsWith("$env:") || p.Value.ToString().StartsWith("$account:") ? p.Value.ToString() : Quote(p.Value.ToString()))}")),
         "expect" => "expect " + JsonSerializer.Serialize(value), // one line, however the file indents it
         _ => action + " " + value,
     };

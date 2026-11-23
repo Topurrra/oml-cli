@@ -1185,7 +1185,8 @@ A browser script (JSONC):
 |---|---|
 | `open` | A screen name or path under `baseUrl`, or a full URL on the same host. |
 | `click` | Clicks the target. A click on Delete, Remove and similar needs `"allowDestructive": true` in the step. |
-| `fill` | Types into fields, checks the value, and types again once if the screen resets it. `"$env:NAME"` reads a variable, so secrets are not in the file or the report. |
+| `fill` | Types into fields, checks the value, and types again once if the screen resets it. `"$env:NAME"` reads a variable, and `"$account:<role>.username"` / `"$account:<role>.password"` a test account, so secrets are not in the file or the report. |
+| `login` | `"<role>"`: logs in on the login page with that role's test account: the first text field, the password field, then Enter. |
 | `select` | Picks a dropdown option by its text. |
 | `press` | A key: Enter, Tab, Escape, arrows, Space, Backspace, Delete. DevTools only. |
 | `wait` | Milliseconds, or a text to wait for. |
@@ -1267,7 +1268,9 @@ The window comes to the front and oml prints one line on stderr, such as `{"atte
 - Each click on a button or link becomes a `click` step with the widget Name, or `text:<label>` for an element without a Name.
 - Text typed into a field you clicked, and dropdown choices, become `fill` and `select` steps. They are read at the next click.
 - A click that changes the screen gets `expect screen`; one that shows a feedback message gets `expect feedback`.
-- A password field is written as `"$env:APP_PASSWORD"`, never its value.
+- A password field is written as `"$env:APP_PASSWORD"` or `"$account:<role>.password"`, never its value.
+
+**Test accounts.** `.oml/test-accounts.local.json` holds the app's test accounts, one per role: `{ "accounts": [ { "role": "Manager", "username": "...", "password": "..." } ] }`. `oml create` writes it with an empty example and adds it to `.gitignore`; the person fills it in. A browser script logs in with `{ "login": "Manager" }` or fills `$account:` values; oml types the password and never prints it. `oml browser accounts` lists the roles and usernames (no passwords), and the profile names the roles that are ready. Agents never read or write the file: the hook refuses it. An unknown role or one without a username or password stops the run with the roles there are.
 - Fields that changed without a click into them (the screen set them, or Tab) are listed in `notes`, not recorded.
 
 Finish with Ctrl+C in the console (keeps text typed after the last click) or by closing the window. Check the file and add expectations before you run it. With UI Automation, a low-level mouse hook sees your left clicks; only clicks inside the recording window are used.

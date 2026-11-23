@@ -101,6 +101,9 @@ static class CreateCommand
         if (server is { Length: > 0 }) profile.Put("outsystems.serverHost", server);
         ProjectConfig.Save(root, profile);
         created.Add(".oml/oml-config.json");
+        // The app's test accounts per role, for the person to fill in; agents never read it, and it stays out of git.
+        File.WriteAllText(Path.Combine(root, ".oml", Qa.TestAccounts.FileName), Qa.TestAccounts.Template());
+        created.Add(".oml/" + Qa.TestAccounts.FileName);
         Step("config", "done", (author is { Length: > 0 } ? $"author {author}, the rest " : "") + "defaults; oml config show explains every setting");
 
         // The agent's instructions: a copy of the skill that came with this oml, AGENTS.md for any agent, CLAUDE.md for Claude Code.
@@ -141,7 +144,7 @@ static class CreateCommand
             "# oml: staged copies and outputs are rebuilt, never committed",
             "staged/", "*.staged.oml", "browser/out/", "*.blank.oml",
             "# oml: caches and local state (memory.log itself is kept)",
-            ".oml/memory/memory.idx", ".oml/memory/.lock", ".oml/memory/memory.log.torn-*", ".oml/testdata/", ".oml/evolve/*/", ".oml/codemode/", ".oml/code/",
+            ".oml/memory/memory.idx", ".oml/memory/.lock", ".oml/memory/memory.log.torn-*", ".oml/testdata/", ".oml/evolve/*/", ".oml/codemode/", ".oml/code/", ".oml/test-accounts.local.json",
             ".claude/settings.local.json", ".github/hooks/oml.json", ".codex/hooks.json", ".gemini/settings.json", "") );
         created.Add(".gitignore");
 
@@ -208,6 +211,7 @@ static class CreateCommand
                 "oml team-rules add <file.md>   (your team's own rules)",
                 hooks is null or "none" ? "oml hooks install --agent claude|copilot|codex|gemini   (optional agent hooks: guards, a memory reminder, the profile at session start)" : null,
                 server is { Length: > 0 } ? null : "oml config set outsystems.serverHost <host>   (the platform server: list and download modules with Service Studio closed)",
+                "fill .oml/test-accounts.local.json   (a test account of your app per role: browser scripts log in with {\"login\": \"<role>\"})",
                 "oml browser start --headed   (log in to the app once; later browser runs keep the login)",
                 "oml explorer-menu   (right-click entries in Windows Explorer, once per machine)",
             }.OfType<string>().ToArray(),

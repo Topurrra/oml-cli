@@ -303,6 +303,11 @@ Unit 'qa-replay-check' -Group browser {
   try { & (Join-Path $tests 'qa-replay-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL qa replay checks: $_" }
 }
+# accounts-check logs in by role on a local login page in a real browser.
+Unit 'accounts-check' -Group browser {
+  try { & (Join-Path $tests 'accounts-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL accounts checks: $_" }
+}
 # qa-attach-check starts a browser of its own with remote debugging and attaches to it (--attach, handoff, raw).
 Unit 'qa-attach-check' -Group browser {
   try { & (Join-Path $tests 'qa-attach-check.ps1') -Oml $oml -Tmp $tmp }

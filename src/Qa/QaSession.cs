@@ -117,7 +117,8 @@ static class QaSession
             else if (sent[i] is "--html" or "--append" && sent[i + 1].IndexOf('=') is var eq and > 0)
                 sent[i + 1] = sent[i + 1][..(eq + 1)] + Path.GetFullPath(sent[i + 1][(eq + 1)..]);
         JsonObject answer;
-        try { answer = Send(s, new JsonObject { ["args"] = new JsonArray([.. sent.Select(a => (JsonNode)a)]) }, 30 * 60_000); }
+        // The session runs in its own folder: the test accounts are the caller's project's.
+        try { answer = Send(s, new JsonObject { ["args"] = new JsonArray([.. sent.Select(a => (JsonNode)a)]), ["accounts"] = TestAccounts.PathFor() }, 30 * 60_000); }
         catch (TimeoutException) { throw new QaUsage("The browser session is busy with another request. Wait, or run with --no-session."); }
         return (answer["code"]!.GetValue<int>(), answer["output"]!.AsObject());
     }
@@ -191,6 +192,7 @@ static class QaSession
                         await Task.Delay(Timeout.Infinite, cancel);   // the caller went away: only the condition can end the wait
                     } : null);
                 (int Code, JsonObject Output) answer;
+                TestAccounts.FileOverride = request["accounts"]?.GetValue<string>();
                 try { answer = QaCommand.Execute(args, (browser, note), person).GetAwaiter().GetResult(); }
                 catch (Exception e) when (e is QaUsage or QaFailure or CdpException or IOException) { answer = (2, new JsonObject { ["error"] = e.Message }); }
                 try { writer.WriteLine(new JsonObject { ["code"] = answer.Code, ["output"] = answer.Output }.ToJsonString()); }

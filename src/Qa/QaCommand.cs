@@ -27,6 +27,7 @@ static class QaCommand
             switch (args[0])
             {
                 case "start": return QaSession.Start(Options(args[1..]));
+                case "accounts" when args.Length == 1: return TestAccounts.List();
                 case "stop": return QaSession.Stop();
                 case "serve" when args.Length >= 2: return QaSession.Serve(args[1], Options(args[2..]));
                 case "record" when args.Length >= 2: return QaRecorder.Run(args[1], Options(args[2..])).GetAwaiter().GetResult();

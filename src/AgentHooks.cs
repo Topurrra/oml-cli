@@ -265,6 +265,10 @@ static class AgentHooks
         string? Text(params string[] keys) => keys.Select(k => input[k] is JsonValue v && v.TryGetValue<string>(out var s) ? s : null).FirstOrDefault(s => s is not null);
         int? Number(string key) => input[key] is JsonValue v && v.TryGetValue<int>(out var n) ? n : null;
         var path = Text("file_path", "path", "absolute_path", "notebook_path", "filePath");
+        // The app's test passwords: oml types them; an agent never reads or writes the file.
+        const string Accounts = "test-accounts.local.json holds the app's test passwords: never read or write it. Use a browser script step {\"login\": \"<role>\"} (oml browser accounts lists the roles); the user fills the file.";
+        if (kind is Kind.Read or Kind.Edit or Kind.Grep && path is not null && path.Replace('\\', '/').EndsWith("/" + Qa.TestAccounts.FileName, StringComparison.OrdinalIgnoreCase)) return Accounts;
+        if (kind == Kind.Shell && Text("command", "command_line", "cmd") is { } shown && shown.Contains(Qa.TestAccounts.FileName, StringComparison.OrdinalIgnoreCase) && !Rx.OmlCommand.IsMatch(shown)) return Accounts;
         switch (kind)
         {
             case Kind.Read when bigDocs && BigDoc(path) is { } doc && !Ranged(input):
