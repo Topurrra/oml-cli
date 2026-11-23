@@ -95,8 +95,10 @@ try {
     Invoke-Checked dotnet (@('clean', 'src') + $buildArgs)
     # The quick tier on a fresh build: the real applications, the map, a few apply fixtures, the text tooling.
     Invoke-Checked pwsh @('-NoProfile', '-File', 'tests/regress.ps1', '-Smoke')
+    # ReadyToRun: oml's own code is compiled ahead, so a command starts without JIT work (about 10 ms on a short command,
+    # 0.1 to 0.2 s on one that loads a module). oml runs only on Windows, so the win-x64 images lose nothing.
     Invoke-Checked dotnet (@('publish', 'src/OmlCli.csproj') + $buildArgs + @(
-        '-r', 'win-x64', '--self-contained', 'false', '-p:UseAppHost=true', '-o', $bin
+        '-r', 'win-x64', '--self-contained', 'false', '-p:UseAppHost=true', '-p:PublishReadyToRun=true', '-o', $bin
     ))
     foreach ($required in @('oml.exe', 'oml.dll', 'oml.deps.json', 'oml.runtimeconfig.json', 'OmlCli.Core.dll')) {
         if (-not (Test-Path -LiteralPath (Join-Path $bin $required) -PathType Leaf)) {
