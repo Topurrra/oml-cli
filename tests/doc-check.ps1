@@ -1,5 +1,5 @@
 # oml doc and oml explain-warning: topic list, one topic, one section, unknown names, warning lookups, size budgets of the
-# knowledge files, of the default skill load, of oml --help and of each command reference section, links in skill/, the warnings.md table shape, and the `hint`
+# knowledge files, of the default skill load, of oml --help and of each command reference section, links in skill/, the frontend skills, the warnings.md table shape, and the `hint`
 # that apply adds to a known new warning. Throws on the first failure.
 param([string]$Oml, [string]$Tmp, [string]$Module)
 $ErrorActionPreference = 'Stop'
@@ -29,12 +29,13 @@ function Tokens($path) { [math]::Ceiling((Get-Content -Raw $path).Replace("`r`n"
 # traditional-to-reactive was raised from 900 to 1250 for the `oml migrate` flow and what the developer decides, then to 1700 for the screen translation (4-screens.json, client variables, layout, css, other content). memory
 # was raised by 200 for "What recall learns" (usefulness, newest wins, stale records, suggested traps, oml learn). warnings was
 # raised by 50 because the command is now named `oml explain-warning` (was `oml warn`) and the file names it twice.
+# ui-checklist was raised by 50 for the pointer to the frontend skills (skill/frontend).
 # traditional-to-reactive was raised by 100 for oml migrate check, the last step of the flow.
 # traditional-to-reactive was raised by 100 for the rules taken from the comparison with Service Studio's converter (ServerValues, Radio Group, Download, emails, page-only calls).
 $budget = [ordered]@{
   'ui-reactive' = 1650; 'osui-patterns' = 2000; 'data-rules' = 1250; 'logic-rules' = 1200; 'security' = 800
   'rest' = 950; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2200
-  'traditional-to-reactive' = 2300; 'troubleshooting' = 2300; 'ui-checklist' = 700; 'testing' = 2000
+  'traditional-to-reactive' = 2300; 'troubleshooting' = 2300; 'ui-checklist' = 750; 'testing' = 2000
   'best-practices' = 1300; 'rules' = 900; 'memory' = 1300; 'dif' = 800; 'harnesses' = 300; 'golden-rules' = 1300
 }
 # Where a topic's file is: skill/reference/<topic>.md, except rules (skill/rules.md; SKILL.md holds the same 11 rules).
@@ -202,11 +203,45 @@ foreach ($f in Get-ChildItem (Join-Path $repo 'skill') -Recurse -Filter *.md) {
     if (-not (Test-Path (Join-Path $f.DirectoryName $target))) { Fail "$($f.Name): broken link $target" }
   }
 }
+# 9. the frontend skills (skill/frontend, adapted from jakubkrehel/skills, MIT): all 16 there, frontmatter name = folder,
+#    the user-invoked ones marked, ASCII, 2600 tokens a file (+15%), oml doc <name> and <name>/<file> print the file
+#    without frontmatter, oml doc frontend prints the README, the README and ui-checklist point to them, and each name
+#    searched alone gives that skill first.
+$front = Join-Path $repo 'skill/frontend'
+$design = 'better-interface', 'better-accessibility', 'better-layout', 'better-writing', 'better-typography', 'better-colors', 'better-ui', 'better-motion', 'build-design'
+$workflows = 'interface-review', 'explain-interface', 'break', 'state-machine', 'variant', 'afk', 'upskill'
+function Body([string]$path) { ([regex]::Replace((Get-Content -Raw $path).Replace("`r`n", "`n"), '(?s)\A---\n.*?\n---\n', '')).Trim() }
+$readme = (Get-Content -Raw (Join-Path $front 'README.md'))
+foreach ($s in $design + $workflows) {
+  $file = Join-Path $front "$s/SKILL.md"
+  if (-not (Test-Path $file)) { Fail "skill/frontend/$s/SKILL.md is missing" }
+  $text = (Get-Content -Raw $file).Replace("`r`n", "`n")
+  $head = [regex]::Match($text, '(?s)\A---\n(.*?)\n---\n').Groups[1].Value
+  if ($head -notmatch "(?m)^name: $([regex]::Escape($s))$" -or $head -notmatch '(?m)^description: .{20,}$') { Fail "skill/frontend/$s/SKILL.md: frontmatter needs name: $s and a description" }
+  $userInvoked = $head -match '(?m)^disable-model-invocation: true$'
+  if ($userInvoked -ne ($s -in $workflows)) { Fail "skill/frontend/$s/SKILL.md: disable-model-invocation must be set exactly on the user-invoked workflows" }
+  if (-not $readme.Contains("``$s``")) { Fail "skill/frontend/README.md does not name $s" }
+  $hits = (Run 'doc', '--search', $s).Text | ConvertFrom-Json
+  if ($hits.hits[0].open -ne "oml doc $s") { Fail "oml doc --search $s does not give the skill first: $($hits.hits[0].open)" }
+}
+foreach ($f in Get-ChildItem $front -Recurse -Filter *.md) {
+  if ((Get-Content -Raw $f.FullName) -match '[^\x00-\x7F]') { Fail "$($f.FullName) has a non-ASCII character" }
+  if ((Tokens $f.FullName) -gt 2600 * 1.15) { Fail "$($f.FullName) is $(Tokens $f.FullName) tokens; budget 2600 (+15%)" }
+  $rel = [IO.Path]::GetRelativePath($front, $f.FullName).Replace('\', '/') -replace '\.md$', ''
+  $name = if ($rel -eq 'README') { 'frontend' } elseif ($rel -like '*/SKILL') { $rel -replace '/SKILL$', '' } else { $rel }
+  $r = Run 'doc', $name
+  if ($r.Exit -ne 0 -or $r.Text -ne (Body $f.FullName)) { Fail "oml doc $name does not print $rel.md (exit $($r.Exit))" }
+}
+$r = Run 'doc', 'better-motion#press-scales-to-096'
+if ($r.Exit -ne 0 -or $r.Text -notmatch '^## Press scales to 0.96' -or $r.Text -match '## Stagger') { Fail "oml doc better-motion#section: $($r.Text)" }
+if ((Run 'doc').Text -notmatch 'oml doc frontend') { Fail 'oml doc does not point to oml doc frontend' }
+if (-not (Get-Content -Raw (Join-Path $ref 'ui-checklist.md')).Contains('oml doc frontend')) { Fail 'ui-checklist.md does not point to the frontend skills' }
+
 # docs/oml-config.example.jsonc is what oml config example prints: every setting, so people copy a current file.
 $example = (& $Oml config example | Out-String).Replace("`r`n", "`n").TrimEnd()
 $saved = (Get-Content -Raw (Join-Path $repo 'docs/oml-config.example.jsonc')).Replace("`r`n", "`n").TrimEnd()
 if ($example -ne $saved) { Fail "docs/oml-config.example.jsonc differs from oml config example: run oml config example > docs/oml-config.example.jsonc" }
-Write-Host "ok   doc: $($budget.Count) topics, sections, unknown names, warn lookups, $($ids.Count) ids, budgets (default load $load tokens, oml --help $help, oml help --all $helpAll, $($commandWords.Count) command words in the overview, largest of $($sections.Count) command sections $biggest), links"
+Write-Host "ok   doc: $($budget.Count) topics, sections, unknown names, warn lookups, $($ids.Count) ids, budgets (default load $load tokens, oml --help $help, oml help --all $helpAll, $($commandWords.Count) command words in the overview, largest of $($sections.Count) command sections $biggest), links, $($design.Count + $workflows.Count) frontend skills"
 
 # 9. apply adds the warnings.md fix as `hint` to a new warning it covers, and no hint to other ids
 $spec = Join-Path $work 'hint.json'
