@@ -128,7 +128,8 @@ static class AgentHooks
         string? reason;
         try { reason = JsonNode.Parse(input) is JsonObject o ? Refusal(o) : null; }
         catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException) { reason = null; }
-        if (reason is null) return 0;
+        // No decision: an empty JSON object, which Copilot documents for "no decision" and every other agent reads as nothing.
+        if (reason is null) { Console.Out.WriteLine("{}"); return 0; }
         Console.Error.WriteLine("oml hook: " + reason);
         Console.Out.WriteLine(new JsonObject
         {
@@ -336,6 +337,21 @@ static class AgentHooks
     {
         Directory.CreateDirectory(Path.GetDirectoryName(settings)!);
         File.WriteAllText(settings, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }) + Environment.NewLine);
+    }
+
+    // Hook files in a project whose oml command starts with a quoted path: PowerShell (GitHub Copilot on Windows) cannot
+    // run it, so the hook errors and Copilot denies every tool call. Written by oml before 1.22.
+    internal static List<string> QuotedHooks(string dir)
+    {
+        var found = new List<string>();
+        foreach (var t in Targets.Where(t => t.Agent != "copilot"))
+        {
+            var file = Path.Combine(dir, t.File);
+            if (!File.Exists(file) || Load(file, out _) is not { } root) continue;
+            var command = Entries(root, t)?.FirstOrDefault(Ours)?["hooks"]?.AsArray().Select(h => h?["command"] is JsonValue v && v.TryGetValue<string>(out var c) ? c : null).FirstOrDefault(c => c?.EndsWith(Marker) == true);
+            if (command is not null && command.StartsWith('"') && Entries(root, t)?.FirstOrDefault(Ours)?["hooks"]?[0]?["powershell"] is null) found.Add(t.File);
+        }
+        return found;
     }
 
     static JsonArray? Entries(JsonObject root, Target t, bool stop = false) => root["hooks"]?[stop ? t.StopEvent : t.Event] as JsonArray;

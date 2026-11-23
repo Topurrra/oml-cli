@@ -111,6 +111,11 @@ static class Doctor
             : new Check("path", "warn", $"{folder} is not on PATH, so oml does not run from other folders.",
                 $"Add it for this session: $env:PATH = \"{folder};$env:PATH\". To keep it, add the folder to your user PATH in Windows Settings."));
 
+        // Hooks of an older oml that GitHub Copilot cannot run: it then denies every tool call ("hook errored").
+        if (AgentHooks.QuotedHooks(Environment.CurrentDirectory) is { Count: > 0 } quoted)
+            checks.Add(new Check("hooks", "warn", $"The oml hooks in {string.Join(", ", quoted)} start with a quoted path: GitHub Copilot runs hooks in PowerShell, which cannot run that, so it denies every tool call (hook errored).",
+                "Run: oml hooks install   (rewrites oml's entries; your other settings stay)"));
+
         // 9. skill: a project's skill/ copy from an older oml misses the newer rules and recipes.
         if (CreateCommand.StaleSkill(Environment.CurrentDirectory) is { } stale)
             checks.Add(new Check("skill", "warn", $"This project's skill/ is from oml {stale.version ?? "(unknown, older)"}; this oml is {CreateCommand.OmlVersion}, so agents read older rules and recipes.",
