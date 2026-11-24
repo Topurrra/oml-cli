@@ -114,7 +114,17 @@ static class Model
     public static IESpace Load(byte[] bytes, string phase = "load", string? path = null)
     {
         try { return Timings.Measure(phase, () => Services().LoadESpace(bytes, null, null, null)); }
-        catch (InvalidDataException e) { throw new CliError($"Cannot read {path ?? "the module"}: it is not a valid .oml module ({e.Message}).", 2); }
+        catch (InvalidDataException e)
+        {
+            var other = Path.GetExtension(path ?? "").ToLowerInvariant() switch
+            {
+                ".xif" => " It is an extension: read it with oml extension inspect.",
+                ".oap" => " It is an application package: list its modules with oml app list.",
+                ".osp" => " It is a solution package: list its modules with oml app list.",
+                _ => "",
+            };
+            throw new CliError($"Cannot read {path ?? "the module"}: it is not a valid .oml module ({e.Message}).{other}", 2);
+        }
     }
 
     // `oml batch` keeps the modules it only reads, keyed by full path, file write time and length, so the next

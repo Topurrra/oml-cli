@@ -233,7 +233,7 @@ partial class Builder
         if (spec.TryGetProperty("onAfterFetch", out var after)
             && after.GetString() != (Reflect.Get(aggregate, "OnAfterFetch") is { } handler && Reflect.Get(handler, "Destination") is { } target ? Model.NameOf(target) : null))
             changed.Add("onAfterFetch");
-        if (changed.Count > 0) problems.Add(Reuse.Changed(label, changed, "Change an existing aggregate with edits: set on its tree paths, or addToAggregate."));
+        if (changed.Count > 0) problems.Add(Reuse.Changed(label, changed, "Change an existing aggregate with edits: set on its path (maxRecords, startIndex, fetch, onAfterFetch) or on its parts' tree paths, or addToAggregate."));
     }
 
     // Spec input that is not compared and not applied, in the report's warnings (not a model defect).

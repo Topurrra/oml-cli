@@ -185,12 +185,15 @@ static class Describe
         [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] Unreadable.Item[]? unreadable);
 
     // `describe --css`: the whole style sheet of a screen, block, email or theme, to edit before a restyle replaces it.
-    public static object StyleSheet(IESpace m, string path)
+    public static Sheet StyleSheet(IESpace m, string path)
     {
         var o = ElementPaths.Resolve(m, path);
         if (Reflect.Property(o, "StyleSheet") is null) throw new ModelError($"{Kind(o)} {Name(o)} has no style sheet: --css reads screens, blocks, emails and themes.");
-        return new { element = ElementPaths.PathTo(m, o) ?? Name(o), kind = Kind(o), styleSheet = Reflect.Get(o, "StyleSheet") as string ?? "" };
+        return new Sheet(ElementPaths.PathTo(m, o) ?? Name(o), Kind(o), Reflect.Get(o, "StyleSheet") as string ?? "");
     }
+
+    // Serialized as { element, kind, styleSheet }, as before.
+    internal sealed record Sheet(string element, string kind, string styleSheet);
 
     // `describe --css --all`: every theme, screen and block with a style sheet, as { element, kind, styleSheet }.
     public static List<object> AllStyleSheets(IESpace m)
@@ -488,6 +491,7 @@ static class Describe
             Add("Sorts", "order by", Sort);
             Add("SortsInGroupBy", "order groups by", Sort);
             if (Expr(node, "MaxRecords") is { Length: > 0 } max) text += " max " + max;
+            if (Expr(node, "StartIndex") is { Length: > 0 } start && start != "0") text += " start " + start;
             if (Reflect.Get(node, "Fetch")?.ToString() == "OnDemand") text += " [on demand]";
             if (Reflect.Get(node, "CacheInMinutes") is int cache and > 0) text += " cache " + cache + " min";
             if (Reflect.Get(node, "Timeout") is int timeout) text += " timeout " + timeout + " s";

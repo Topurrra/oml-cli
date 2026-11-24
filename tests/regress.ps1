@@ -284,6 +284,10 @@ Unit 'inplace-check' {
   try { & (Join-Path $tests 'inplace-check.ps1') -Oml $oml -Tmp $tmp }
   catch { $global:fail++; Write-Host "FAIL apply in place checks: $_" }
 }
+Unit 'feedback-check' {
+  try { & (Join-Path $tests 'feedback-check.ps1') -Oml $oml -Tmp $tmp }
+  catch { $global:fail++; Write-Host "FAIL feedback fixes checks: $_" }
+}
 # commands-check reads HKCU (menu explorer --status twice), so it runs apart from setup-check, which writes there.
 Unit 'commands-check' -Group hkcu {
   try { & (Join-Path $tests 'commands-check.ps1') -Oml $oml -Tmp $tmp }

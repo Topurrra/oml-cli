@@ -29,6 +29,7 @@ static class MapCommand
                 "impact" => Impact(Load(project), One(words, "impact <element>")),
                 "data" => Data(Load(project), One(words, "data <Entity>")),
                 "api" => Api(Load(project), One(words, "api <RestMethod>")),
+                "selftest" => SelfTest(),   // hidden: the link tracing on a large synthetic map (tests/map-check.ps1)
                 _ => throw new MapException($"Unknown map command '{args[0]}'.", 2, "Run 'oml map --help'."),
             };
         }
@@ -367,24 +368,36 @@ static class MapCommand
     // Replaces action ends with what they carry, by path prefix: a caller reading Wrapper.Customer.CustomerId reads what
     // the wrapper assigned to Customer (api:CrmApi.GetClient.out:Response) plus .CustomerId. Four passes reach through
     // wrappers of wrappers. Only links between APIs and entities are kept.
+    // Each pass looks the partner links up by path (an index of every dotted prefix), not by scanning every link for
+    // every link: that scan was quadratic and hung `map data`, `map api` and `mock` on maps of about 100 modules.
     static List<Link> Resolve(List<Link> raw)
     {
         var all = new List<Link>(raw);
-        var seen = all.Select(l => (l.From, l.To)).ToHashSet();
-        static bool Under(string path, string prefix) => path.Equals(prefix, StringComparison.OrdinalIgnoreCase) || path.StartsWith(prefix + ".", StringComparison.OrdinalIgnoreCase);
+        var seen = new HashSet<(string, string)>(all.Select(l => (l.From.ToLowerInvariant(), l.To.ToLowerInvariant())));
+        // The path itself and every prefix that ends before a dot: Under(path, prefix) holds exactly for these.
+        static IEnumerable<string> Prefixes(string path)
+        {
+            yield return path;
+            for (var i = path.Length - 1; i > 0; i--) if (path[i] == '.') yield return path[..i];
+        }
         for (var pass = 0; pass < 4; pass++)
         {
-            var added = new List<Link>();
+            // Action ends by exact path: k.To for outputs read by callers, k.From prefixes for inputs passed on.
+            var byTo = all.Where(k => k.To.StartsWith("action:")).ToLookup(k => k.To, StringComparer.OrdinalIgnoreCase);
+            var byFromPrefix = all.Where(k => k.From.StartsWith("action:"))
+                .SelectMany(k => Prefixes(k.From).Select(p => (p, k))).ToLookup(x => x.p, x => x.k, StringComparer.OrdinalIgnoreCase);
+            var fresh = new List<Link>();
+            void Add(Link link) { if (seen.Add((link.From.ToLowerInvariant(), link.To.ToLowerInvariant()))) fresh.Add(link); }
             foreach (var l in all)
             {
                 if (l.From.StartsWith("action:") && l.From.Contains(".out:"))
-                    foreach (var k in all.Where(k => k.To.StartsWith("action:") && Under(l.From, k.To)))
-                        added.Add(new Link(k.From + l.From[k.To.Length..], l.To, k.Via + " -> " + l.Via));
+                    foreach (var prefix in Prefixes(l.From))
+                        foreach (var k in byTo[prefix])
+                            Add(new Link(k.From + l.From[k.To.Length..], l.To, k.Via + " -> " + l.Via));
                 if (l.To.StartsWith("action:") && l.To.Contains(".in:"))
-                    foreach (var k in all.Where(k => k.From.StartsWith("action:") && Under(k.From, l.To)))
-                        added.Add(new Link(l.From + k.From[l.To.Length..], k.To, l.Via + " -> " + k.Via));
+                    foreach (var k in byFromPrefix[l.To])
+                        Add(new Link(l.From + k.From[l.To.Length..], k.To, l.Via + " -> " + k.Via));
             }
-            var fresh = added.Where(a => seen.Add((a.From, a.To))).ToList();
             if (fresh.Count == 0) break;
             all.AddRange(fresh);
         }
@@ -392,6 +405,43 @@ static class MapCommand
     }
 
     static List<Link> Links(Map map) => Links(map.Flows.Select(f => (f.Module, f.Flow)));
+
+    // For the self-test: 5000 wrapper actions over a REST method and 5000 callers that save the wrapper's output in an
+    // entity. Every chain must resolve (api out -> entity attribute), and fast: the old scan took minutes on such maps.
+    static int SelfTest()
+    {
+        var failures = new List<string>();
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        LinksSelfTest(failures);
+        TerminalOutput.PrintObject(new { ok = failures.Count == 0, ms = watch.ElapsedMilliseconds, failures });
+        return failures.Count == 0 ? 0 : 1;
+    }
+
+    internal static void LinksSelfTest(List<string> failures)
+    {
+        const int n = 5000;
+        var flows = new List<(string, JsonObject)>();
+        for (var i = 0; i < n; i++)
+        {
+            flows.Add(($"IS{i}", (JsonObject)JsonNode.Parse($$"""
+                { "path": "W{{i}}", "outputs": ["Out"],
+                  "calls": [{ "type": "rest", "node": "R", "api": "Api{{i}}", "target": "Get", "args": {} }],
+                  "assigns": [{ "to": "Out", "value": "R.Response" }] }
+                """)!));
+            flows.Add(($"Core{i}", (JsonObject)JsonNode.Parse($$"""
+                { "path": "C{{i}}",
+                  "calls": [{ "type": "action", "node": "A", "module": "IS{{i}}", "target": "W{{i}}", "args": {} },
+                            { "type": "entity", "node": "Save", "entity": "E{{i}}", "op": "create", "args": { "Source": "Rec" } }],
+                  "assigns": [{ "to": "Rec.Name", "value": "A.Out.Name" }] }
+                """)!));
+        }
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var links = Links(flows);
+        watch.Stop();
+        var resolved = links.Count(l => l.From.StartsWith("api:Api", StringComparison.Ordinal) && l.From.EndsWith(".Get.out:Response.Name", StringComparison.Ordinal) && l.To.StartsWith("entity:E", StringComparison.Ordinal));
+        if (resolved != n) failures.Add($"map links: {resolved} of {n} wrapper chains resolved");
+        if (watch.Elapsed.TotalSeconds > 5) failures.Add($"map links: {2 * n} flows took {watch.Elapsed.TotalSeconds:0.0} s");
+    }
 
     // For oml mock: the facts of every module and the resolved links, or why the map cannot be read.
     internal sealed class MapLoadException(string message, int code, string? hint) : Exception(message)

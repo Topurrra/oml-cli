@@ -310,6 +310,19 @@ partial class Builder
                     Warnings.Add($"replaceWidgets at '{Required("at")}' removed the Label {labelName}, which pointed at {targetName}; no new Label has \"targetWidget\": \"{targetName}\", so that input lost its label link (screen readers use it)");
                 // Widgets lists nested widgets too: the fingerprint walks from the top ones.
                 var oldSet = old.ToHashSet(ReferenceEqualityComparer.Instance);
+                // At a screen, its layout (a block instance with placeholders) goes too, unless the new widgets bring it back.
+                if (ReferenceEquals(container, screen))
+                    foreach (var layout in old.Where(w => !Ancestors(w).Any(oldSet.Contains) && ElementPaths.Kind(w).Contains("BlockInstance", StringComparison.Ordinal)
+                                 && old.Any(c => Ancestors(c).Contains(w) && ElementPaths.Kind(c).Contains("Placeholder", StringComparison.Ordinal))))
+                    {
+                        var source = Reflect.Get(layout, "SourceBlock") is { } b ? Model.NameOf(b) : null;
+                        if (source is not null && WidgetNames(given, "sourceBlock").Any(n => n.EndsWith(source, StringComparison.OrdinalIgnoreCase))) continue;
+                        var placeholder = old.FirstOrDefault(c => Ancestors(c).Contains(layout) && ElementPaths.Kind(c).Contains("Placeholder", StringComparison.Ordinal));
+                        var layoutPath = ElementPaths.Segment(layout, (IObjectSignature)screen);
+                        var placeholderPath = placeholder?.Parent is IObjectSignature owner && ReferenceEquals(owner, layout) ? "/" + ElementPaths.Segment(placeholder, layout) : "/<placeholder>";
+                        Warnings.Add($"replaceWidgets at '{Required("at")}' removed the layout {source ?? layoutPath}: the screen has no layout now. "
+                            + $"To keep it, replace inside its placeholder instead: \"at\": \"{Required("at")}/{layoutPath}{placeholderPath}\".");
+                    }
                 var fingerprint = ReviewModel.Fingerprint(m, old.Where(w => !Ancestors(w).Any(oldSet.Contains)));
                 foreach (var w in old) rules.Delete(w);
                 foreach (var w in old) w.Delete();
@@ -370,6 +383,10 @@ partial class Builder
                     // At once, not with the expressions: a later edit (replaceWidgets) must see the new target.
                     if (p.Name.Equals("targetWidget", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.String)
                         TargetWidget(target, p.Value.GetString()!);
+                    // An aggregate's or data action's On After Fetch: a screen action of its screen or block, as in a spec.
+                    else if (p.Name.Equals("onAfterFetch", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.String
+                             && Reflect.Property(target, "OnAfterFetch") is not null)
+                        AfterFetch(target, p.Value.GetString(), label);
                     // A widget's HTML attributes: each named attribute is added or its value replaced; others stay.
                     else if (p.Name.Equals("attributes", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.Object)
                         Attributes(target, p.Value, label);

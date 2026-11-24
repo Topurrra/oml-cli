@@ -22,7 +22,7 @@ oml extension inspect <file.xif>
 oml extension new <out.xif> --name <Name> [--spec <spec.json>]
 oml inspect <module.oml> [--own] [--only entities,structures,actions,screens,blocks,references,timers,roles,processes,rest,static,siteProperties,uiFlows] [--history] [--changed-since <yyyy-mm-dd>]
 oml inspect --in <folder> [--recursive] [--own] [--only ...]   (every .oml in the folder in one process: {modules:[{file,...}]}, a broken file gives an error entry)
-oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [--history] [--css] [--sql [--out <file.sql>]]
+oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [--history] [--css|--sql [--out <file>]]
 oml export <module.oml> <Element>...   (a screen, web block, email, server action or OnException action as JSON for tools; read with describe)
 oml query <module.oml> "<ModelQL>" [--limit N] [--max-chars N] [--live] | --fields <Type>   (read-only model questions: "Root { Entities { Name } }"; Studio may be closed)
 oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)

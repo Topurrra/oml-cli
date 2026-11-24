@@ -34,7 +34,7 @@ function Tokens($path) { [math]::Ceiling((Get-Content -Raw $path).Replace("`r`n"
 # traditional-to-reactive was raised by 100 for the rules taken from the comparison with Service Studio's converter (ServerValues, Radio Group, Download, emails, page-only calls).
 $budget = [ordered]@{
   'ui-reactive' = 1650; 'osui-patterns' = 2000; 'data-rules' = 1250; 'logic-rules' = 1200; 'security' = 800
-  'rest' = 950; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2200
+  'rest' = 950; 'processes-timers-email' = 1200; 'architecture-rules' = 800; 'warnings' = 2300
   'traditional-to-reactive' = 2300; 'troubleshooting' = 2300; 'ui-checklist' = 750; 'testing' = 2000
   'best-practices' = 1300; 'rules' = 900; 'memory' = 1300; 'dif' = 800; 'harnesses' = 300; 'golden-rules' = 1300
 }

@@ -28,6 +28,7 @@ partial class Builder
         var label = $"email {e.Name}";
         if (m.Kind.ToString() == "Service") throw new ModelError("a Service module has no emails");
         if (string.IsNullOrWhiteSpace(e.Subject)) throw new ModelError("subject is required: a Text expression; a literal keeps its quotes inside the JSON string");
+        e = e with { Flow = FlowFor(Flows(m, WebUi.IsTraditional(m)), e.Name, n => n is OutSystems.Model.UI.IEmail || ElementPaths.Kind(n).Contains("Email", StringComparison.Ordinal), e.Flow, "Emails", label) };
         if (WebUi.IsTraditional(m)) { CreateWebEmail(e, label); return; }
         if (e.Preparation is not null) throw new ModelError("preparation is for Traditional Web emails; a Reactive email gets its data from its inputs");
         foreach (var w in e.Widgets ?? new()) EmailWidget(w);   // Reactive and Mobile only: a Traditional email is checked by the model

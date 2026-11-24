@@ -488,7 +488,10 @@ static partial class ServerApi
             var migration = Property("SoapWSRestMigration");
             if (migration.Length > 0 && !migration.Split('|').Contains(feature, StringComparer.OrdinalIgnoreCase))
                 Warning = $"This server's flag SoapWSRestMigration={migration} has no {feature}: Service Studio uses SOAP for this here. oml tried REST anyway.";
-            Token = client.Login(User!, Password!, Property("IdentityService_ServiceURL").Length > 0);
+            RefusedLogin.Check(Host!, User!, Password!);
+            try { Token = client.Login(User!, Password!, Property("IdentityService_ServiceURL").Length > 0); }
+            catch (ServerError e) when (e.LoginRefused) { RefusedLogin.Record(Host!, User!, Password!); throw; }
+            RefusedLogin.Clear(Host!);
             http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", Token);
             return client;
         }
@@ -526,7 +529,8 @@ static partial class ServerApi
                 throw new ServerError("This server has no REST login (server.identity/connect/token answered 404). " + StudioPull) { NoRestRoute = true };
             if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized)
                 throw new ServerError($"Login refused (HTTP {(int)response.StatusCode}). Check OML_SERVER_USER and OML_SERVER_PASSWORD: the same login as in Service Studio."
-                    + (identityService ? " This environment signs in through an external identity provider, which may not take a password here." : ""));
+                    + (identityService ? " This environment signs in through an external identity provider, which may not take a password here." : "")
+                    + " " + RefusedLogin.NoRetry) { LoginRefused = true };
             Check(response, "logging in");
             var token = Json(response) is JsonObject o && o["access_token"] is JsonValue t && t.TryGetValue<string>(out var s) ? s : "";
             if (token.Length == 0 || token.Any(char.IsControl)) throw new ServerError("The server's login answer has no usable access token.");
@@ -609,6 +613,57 @@ static partial class ServerApi
     sealed class ServerError(string message) : Exception(message)
     {
         public bool NoRestRoute { get; init; }
+        public bool LoginRefused { get; init; }
         public string? Next { get; init; }
+    }
+
+    // The platform locks an account after a few refused logins, and an agent that runs oml server again after a refusal
+    // sends the same wrong password each time. After a refusal oml does not log in again with the same user and password
+    // for 30 minutes; a changed user or password may try at once. The file holds the user name, the time and a salted
+    // SHA-256 of the password (the password itself sits in plain text in the user's environment already), never the
+    // password. Kept in the host's cache folder; a successful login removes it.
+    internal static class RefusedLogin
+    {
+        internal const string NoRetry = "oml will not try this login again for 30 minutes, so the account is not locked: do not run oml server again until the user has fixed the login.";
+        static readonly TimeSpan Wait = TimeSpan.FromMinutes(30);
+
+        static string File(string host) => Path.Combine(HostCacheFolder(host), "login-refused.json");
+
+        static string Hash(string salt, string user, string password) =>
+            Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(salt + "\n" + user + "\n" + password)));
+
+        public static void Check(string host, string user, string password)
+        {
+            JsonObject? last;
+            try { last = System.IO.File.Exists(File(host)) ? JsonNode.Parse(System.IO.File.ReadAllText(File(host))) as JsonObject : null; }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException) { return; }
+            if (last is null || Text(last, "salt") is not { Length: > 0 } salt || Text(last, "hash") != Hash(salt, user, password)) return;
+            if (!DateTime.TryParse(Text(last, "time"), null, System.Globalization.DateTimeStyles.RoundtripKind, out var time)) return;
+            var left = time.ToUniversalTime() + Wait - DateTime.UtcNow;
+            if (left <= TimeSpan.Zero) return;
+            throw new ServerError($"The last login as {user} on {host} was refused at {time.ToLocalTime():HH:mm}, with the same user and password. "
+                + $"oml did not try again: OutSystems locks the account after a few refused logins. Fix OML_SERVER_USER or OML_SERVER_PASSWORD (a changed login is tried at once), or wait {Math.Ceiling(left.TotalMinutes)} minutes.")
+            { LoginRefused = true };
+        }
+
+        public static void Record(string host, string user, string password)
+        {
+            try
+            {
+                Directory.CreateDirectory(HostCacheFolder(host));
+                var salt = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
+                System.IO.File.WriteAllText(File(host), new JsonObject
+                {
+                    ["user"] = user, ["time"] = DateTime.UtcNow.ToString("o"), ["salt"] = salt, ["hash"] = Hash(salt, user, password),
+                }.ToJsonString());
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
+
+        public static void Clear(string host)
+        {
+            try { System.IO.File.Delete(File(host)); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        }
     }
 }

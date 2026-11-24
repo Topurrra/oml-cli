@@ -119,6 +119,13 @@ public static partial class Cli
         target = Path.GetFullPath(target);
         if (!File.Exists(staged) || !File.Exists(target)) throw new CliError("Both staged and target must exist.", 2);
         if (string.Equals(staged, target, StringComparison.OrdinalIgnoreCase)) throw new CliError("Staged and target are the same file.", 2);
+        // The order is staged first, then target. A target in a staged folder, from a file outside one, is the swapped
+        // order: it would copy the real module over the staged change.
+        static bool InStaged(string path) => Path.GetDirectoryName(path)!.Split(Path.DirectorySeparatorChar).Any(p => p.Equals("staged", StringComparison.OrdinalIgnoreCase));
+        if (InStaged(target) && !InStaged(staged))
+            throw new CliError($"The arguments look swapped: the target {target} is in a staged folder and the file to install is not. The order is oml install <staged.oml> <target.oml>. Nothing installed.", 2);
+        if (Model.IsModulePath(target) && !target.EndsWith(".oml", StringComparison.OrdinalIgnoreCase))
+            throw new CliError($"The target {target} is a backup. Install over the module itself; to go back to a backup, install the backup as the staged file. Nothing installed.", 2);
 
         var bytes = File.ReadAllBytes(staged);
         var validatedHash = Convert.ToHexString(SHA256.HashData(bytes));

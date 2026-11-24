@@ -21,7 +21,7 @@ static class CliUsage
         oml inspect <module.oml> --stats   (how many of each element kind)
         oml inspect --header <file.oml>...   (the module header without loading the model: name, version, upgrade level, key, hashes, signature, type)
         oml inspect --header --diff <a.oml> <b.oml>   (which header fields differ)
-        oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [--history] [--css] [--sql [--out <file.sql>]]
+        oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [--history] [--css|--sql [--out <file>]]
         oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
         oml find <module.oml> --text "<words>" [--top N]  (this module's elements ranked by name, description, expressions, SQL, labels)
         oml query <module.oml> "<ModelQL>" [--limit N] [--max-chars N] [--live] | --fields <Type>   (read-only model questions: "Root { Entities { Name } }"; Studio may be closed)

@@ -186,6 +186,9 @@ static class Reflect
         var prop = Property(o, key, writable: true);
         if (prop is null && value.ValueKind == JsonValueKind.String && Setter(o, key, typeof(string), fuzzy: true) is { } near)
             return (Stage.Expression, () => Invoke(near, o, new object?[] { value.GetString() }));
+        // A number for an expression the model sets from text (startIndex: 20 as "20"); the docs allow both.
+        if (prop is null && value.ValueKind == JsonValueKind.Number && Setter(o, key, typeof(string), fuzzy: false) is { } asText)
+            return (Stage.Expression, () => Invoke(asText, o, new object?[] { value.GetRawText() }));
         if (prop is null) throw new ModelError($"{o.GetType().Name} has no settable '{key}' on this build{SettableHint(o.GetType().Name, key)}{ModelTypes.SettableHint(o, key)}");
         var t = prop.PropertyType;
         var target = Nullable.GetUnderlyingType(t) ?? t;

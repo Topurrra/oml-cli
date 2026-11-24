@@ -669,7 +669,7 @@ Inspect reports platform names and key fields, including generated role actions.
 | Scope | Keys | Meaning |
 |---|---|---|
 | Root | `screens`, `blocks` | UI elements in a named flow. |
-| Screen/block | name, flow, title, inputs, locals, aggregates, dataActions, actions, widgets, public, description | Flow defaults MainFlow and is created if missing. String title is an expression. `public` makes a block usable by other modules. `description` is shown in Service Studio (give every public block and its inputs one). |
+| Screen/block | name, flow, title, inputs, locals, aggregates, dataActions, actions, widgets, public, description | Flow defaults MainFlow and is created if missing; listed again without `flow`, an existing screen or block of another flow is the one changed. To add parts to an existing one, list it again or use `addParts`. String title is an expression. `public` makes a block usable by other modules. `description` is shown in Service Studio (give every public block and its inputs one). |
 | Lifecycle | onInitialize, onReady, onRender, onDestroy; block only: onParametersChanged | Names of actions owned by the screen/block. On an existing screen or block (listed again or `addParts`), an unset handler is set; a creation list reports it in `changed`. Changing a set one in a creation list is refused (use `set`). |
 | Block events | events (block), triggerEvent (flow node), events (BlockInstance) | See Block events below. |
 | Styling and access | styleSheet, isDefault, access | Raw CSS; true selects the landing screen (Traditional Web: the default Entry of the screen's UI flow, never the module's Default Screen, which its compiler refuses); access uses the platform shape. |
@@ -900,12 +900,12 @@ The production rules (rules.md) hold for every edit, found by key when the build
 | `insertNodes` | action, after, connector, flow, ifMissing | Insert a nonempty flow at an outgoing connector. Final implicit next inherits the old successor. `"ifMissing": true` skips the insert when the flow is already there (each named node exists; each unnamed `refreshData` has a refresh of its data source): use it in a patch that runs again on every sync. |
 | `replaceNode` | element, node | Build one flow node again from `node` (one node spec, as in a flow list) in the same place: one connector in, one out. Use it to update an existing node `set` cannot reach (an Assign's values). When the new node equals the old one, apply keeps the old one, so the edit can run on every sync. |
 | `addExceptionHandler` | action, flow | Add a separate handler entry and path. Flow must start with exceptionHandler. |
-| `addWidgets` | screen, parent, area, index, widgets | Append by default. Parent is relative to screen/block; area defaults children. Index is zero-based. |
-| `replaceWidgets` | at, area, widgets | Replaces all widgets inside the element at `at` (a screen, block, email, widget or placeholder path); that element stays. Same widget spec as creation. Area as in addWidgets. |
+| `addWidgets` | screen, parent, area, index, widgets | Append by default. Parent is relative to screen/block; area defaults children. Index is zero-based. Without `parent`: a block's first Placeholder, else the screen's root (outside its layout block); name the layout's placeholder, such as `parent: "Layout/MainContent"`, to add inside it. |
+| `replaceWidgets` | at, area, widgets | Replaces all widgets inside the element at `at` (a screen, block, email, widget or placeholder path); that element stays. At a screen, that removes its layout block instance too (a warning says so): use the layout's placeholder path to keep the layout. Same widget spec as creation. Area as in addWidgets. |
 | `addParts` | screen, inputs, locals, aggregates, dataActions, actions, lifecycle keys; other supported screen parts | Adds through the shared screen builder. Names must be free. Block `events` follow the existing-block rule in Block events. |
 | `addVariables` | action, inputs, outputs, locals | Adds variables; names must be free. |
 | `setAccess` | screen, anonymous, registered, roles | Replaces access memberships. Omitted flags false, roles empty. |
-| `set` | element, properties | Property map uses interface-first reflection, expression setters, and reference lookup. |
+| `set` | element, properties | Property map uses interface-first reflection, expression setters, and reference lookup. On an aggregate or data action: `maxRecords`, `startIndex` (number or expression), `fetch`, `onAfterFetch` (a screen action name). |
 | `rename` | element, to | Renames any element except an existing attribute (rule 2). Refuses occupied names and model renaming. Use instead of setting Name. |
 | `delete` | element | See deletion rules below. |
 | `addToAggregate` | aggregate, sources, joins, filters, sorts, groupBy, aggregates, calculated, group keys | Adds parts to an existing aggregate with the query keys. |

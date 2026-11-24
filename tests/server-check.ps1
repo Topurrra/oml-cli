@@ -276,8 +276,20 @@ try {
     $good = $env:OML_SERVER_PASSWORD
     $env:OML_SERVER_PASSWORD = 'wrong-' + [guid]::NewGuid().ToString('N')
     $r = Invoke-Server @('modules') 2
-    Assert ($r.error -match 'Login refused \(HTTP 400\)' -and $r.error -match 'OML_SERVER_PASSWORD') 'login refused'
+    Assert ($r.error -match 'Login refused \(HTTP 400\)' -and $r.error -match 'OML_SERVER_PASSWORD' -and $r.error -match 'will not try this login again') 'login refused'
+    # The same wrong login again is not sent (the platform would lock the account); a changed one is tried at once,
+    # and a good login clears the mark.
+    $marker = Join-Path $env:OML_SERVER_CACHE "127.0.0.1_$port\login-refused.json"
+    Assert (Test-Path $marker) 'a refused login is remembered'
+    Assert ((Get-Content -Raw $marker) -notmatch [regex]::Escape($env:OML_SERVER_PASSWORD)) 'the mark does not hold the password'
+    $r = Invoke-Server @('modules') 2
+    Assert ($r.error -match 'oml did not try again' -and $r.error -notmatch 'HTTP 400') "the same refused login is not tried again: $($r.error)"
+    $env:OML_SERVER_PASSWORD = 'wrong2-' + [guid]::NewGuid().ToString('N')
+    $r = Invoke-Server @('modules') 2
+    Assert ($r.error -match 'Login refused \(HTTP 400\)') 'a changed login is tried at once'
     $env:OML_SERVER_PASSWORD = $good
+    $r = Invoke-Server @('modules') 0
+    Assert ($r.count -gt 0 -and -not (Test-Path $marker)) 'a good login clears the mark'
 
     # 7. No REST route: no server API at all, then the API without the module routes; both point to oml pull.
     $env:OML_SERVER_HOST = "127.0.0.1:$($port + 1)"

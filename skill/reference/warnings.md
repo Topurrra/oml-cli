@@ -30,7 +30,7 @@ Common errors and warnings. Look one up with `oml doc warning <id or title words
 | Id | Title | Cause | Fix |
 |---|---|---|---|
 | `ExpressionUnknownObject` | Invalid Expression | Name not in scope (renamed aggregate, wrong path, loop label). | Use final names and `<List>.Current`; check with `oml tree`. |
-| `ExpressionUnknownFunction` | Invalid Expression | Function does not exist. | Closest built-ins: `CurrDateTime()`, `CurrDate()`, `CurrTime()`. `GenerateGuid()` does not exist: use an extension or the Text module. See `oml doc logic-rules`; errors are `<Handler>.ExceptionMessage`. |
+| `ExpressionUnknownFunction` | Invalid Expression | Function does not exist. | No `Ceil`: `Trunc(x) + If(x > Trunc(x), 1, 0)`; `Round`, `Trunc` exist. Closest built-ins: `CurrDateTime()`, `CurrDate()`, `CurrTime()`. `GenerateGuid()` does not exist: use an extension or the Text module. See `oml doc logic-rules`; errors are `<Handler>.ExceptionMessage`. |
 | `ExpressionInvalidVariableType`, `ExpressionInvalidExpressionType` | Invalid Data Type | Value type does not fit. | Convert it; bind an Identifier with a Dropdown, not an Input. |
 | `ParserUnexpectedElement`, `ParserUnterminatedStringLiteral` | Invalid Expression | Syntax error, often text without quotes. | Write text as `"\"Text\""` in the spec. |
 
@@ -55,6 +55,7 @@ Common errors and warnings. Look one up with `oml doc warning <id or title words
 
 | Id | Title | Cause | Fix |
 |---|---|---|---|
+| `InvalidResourceURL_Offline` | Invalid Resource URL | A CSS or image URL (often a `data:` theme icon) cannot be kept offline. | A web app works: explain it. Offline apps: use a module resource. |
 | `NoErrorHandlingInFlow` | No Exception Handling | UI flow without OnException, no global handler. | Add `onException` for the flow or set `globalExceptionHandler`. |
 | `NoErrorHandlingForAllExceptions` | Missing 'AllExceptions' | OnException lacks an AllExceptions handler. | Add an `exceptionHandler` for AllExceptions. |
 | `InvalidErrorHandler_AbortTrans`, `InvalidErrorHandler_Log` | Unexpected Exception Handler, Audit Suggestion | UI flow handler with Abort Transaction or Log Error off. | Set `abortTransaction` and `logError` true. |

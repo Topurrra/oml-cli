@@ -53,6 +53,10 @@ try {
     Require ($from.from -eq 'api:CrmApi.GetClient.out:Response.CustomerId' -and $from.via -like '*GetClientInfo*SyncCustomer*') "data valuesFrom: $($from | ConvertTo-Json -Compress)"
     Require (($d.valuesTo | Where-Object attribute -eq 'ExternalId').to -eq 'api:CrmApi.GetCreditLines.in:CustomerId') 'data valuesTo'
     Write-Host 'ok   map data: API output -> entity attribute -> next API input, through wrappers'
+    # The tracing on a large map (10,000 flows): it was quadratic and hung map data, map api and mock on ~100 modules.
+    $s = Json map selftest
+    Require ($LASTEXITCODE -eq 0 -and $s.ok) "map selftest: $($s | ConvertTo-Json -Compress)"
+    Write-Host "ok   map data on 10,000 flows in $($s.ms) ms"
 
     # 4. The API chain: GetClient -> Customer.ExternalId (launches CustomerCredits) -> GetCreditLines.
     $a = Json map api CrmApi.GetClient

@@ -153,6 +153,12 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 if (v.Description is not null && Reflect.Property(p, "Description", writable: true) is { } desc) desc.SetValue(p, v.Description);
                 if (v.Default is not null) Defer(p, ($"{where}.default", () => Reflect.Call(p, "SetDefaultValue", v.Default)));
             }
+            catch (ModelError e) when (factory == "CreateOutputParameter" && e.Message.Contains("not implemented", StringComparison.OrdinalIgnoreCase))
+            {
+                // A screen or block action has no outputs in OutSystems; the model only throws NotImplementedException.
+                problems.Add($"{where}: a screen action cannot have outputs. Put the result in a local variable of the screen, "
+                    + "or move the logic to a client action (clientActions) or a client function (\"function\": true) that returns it, and call that.");
+            }
             catch (ModelError e) { problems.Add($"{where}: {e.Message}"); }
         }
     }
@@ -432,6 +438,7 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         if (WebUi.IsTraditional(m)) { CreateWebScreen(s, block); return; }
         if (s.Preparation is not null) throw new ModelError("preparation requires a Traditional Web module; use aggregates or lifecycle actions for Reactive/Mobile");
         var label = $"{(block ? "block" : "screen")} {s.Name}";
+        s = s with { Flow = FlowFor(Flows(m, web: false), s.Name, n => IsScreenOrBlock(n, block), s.Flow, "MainFlow", label) };
         var flow = m.MobileFlows.FirstOrDefault(f => f.Name == s.Flow) ?? NewMobileFlow(s.Flow);
         if (flow.Nodes.FirstOrDefault(n => Model.NameOf(n) == s.Name) is { } found) { ReuseScreen(found, s, block, label); existing.Add(label); return; }
         object screen = block ? flow.CreateBlock(s.Name, services.NewKey()) : flow.CreateScreen(s.Name, services.NewKey());
@@ -444,6 +451,28 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
 
         ScreenParts(screen, s, label);
     }
+
+    // The UI flow to use for a screen, block or email the spec names. Listed again without "flow" (the default flow), an
+    // element that lives in another UI flow is changed there: creating it in the default flow made a second element with
+    // the same name (and a new flow when there was none). With another flow named, a copy is refused.
+    static string FlowFor(IEnumerable<(string Name, IEnumerable<object> Nodes)> flows, string name, Func<object, bool> isKind,
+        string wanted, string defaultFlow, string label)
+    {
+        var all = flows.ToList();
+        if (all.Any(f => f.Name == wanted && f.Nodes.Any(n => Model.NameOf(n) == name))) return wanted;
+        var other = all.Where(f => f.Name != wanted && f.Nodes.Any(n => Model.NameOf(n) == name && isKind(n))).Select(f => f.Name).ToList();
+        if (other.Count == 0) return wanted;
+        if (other.Count == 1 && wanted == defaultFlow) return other[0];
+        throw new ModelError($"{label} already exists in UI flow {string.Join(", ", other)}. Set \"flow\": \"{other[0]}\" to change it; "
+            + $"another {label.Split(' ')[0]} named {name} in {wanted} would be a copy.");
+    }
+
+    // Every element of each UI flow: its nodes (screens, blocks) and its other children (emails are not nodes).
+    static IEnumerable<(string, IEnumerable<object>)> Flows(IESpace m, bool web) => web
+        ? m.WebFlows.Select(f => (f.Name, f.Nodes.Cast<object>().Concat(ElementPaths.Children(f)).Distinct(ReferenceEqualityComparer.Instance)))
+        : m.MobileFlows.Select(f => (f.Name, f.Nodes.Cast<object>().Concat(ElementPaths.Children(f)).Distinct(ReferenceEqualityComparer.Instance)));
+
+    static bool IsScreenOrBlock(object n, bool block) => block ? Inspect.IsBlock(n) : n is OutSystems.Model.UI.IScreenSignature;
 
     // The model silently renames a flow whose name is taken, for example by a referenced module's MainFlow.
     IMobileFlow NewMobileFlow(string name)
@@ -716,6 +745,10 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
             var property = existing.FirstOrDefault(x => string.Equals(Reflect.Get(x, "Property") as string, a.Name, StringComparison.OrdinalIgnoreCase));
             if (property is null)
             {
+                if (!Reflect.Has(widget, "CreateExtendedProperty"))
+                    throw new ModelError(ElementPaths.Kind(widget).Contains("BlockInstance", StringComparison.Ordinal)
+                        ? $"a block instance takes no HTML attributes ('{a.Name}'): only the inputs its block declares. Wrap it in a Container that has the attribute, or add an input to the block"
+                        : $"this {ElementPaths.Kind(widget)} has no HTML attributes on this build ('{a.Name}')");
                 property = Reflect.Call(widget, "CreateExtendedProperty") ?? throw new ModelError("this widget has no attributes on this build");
                 if (Reflect.Property(property, "Property", writable: true) is { } name) name.SetValue(property, a.Name);
                 else Reflect.Call(property, "SetProperty", a.Name);

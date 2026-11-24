@@ -153,7 +153,8 @@ public static partial class Cli
             return Emit(Describe.AllStyleSheets(whole.Module));
         }
         if (names.Count == 0) throw new CliError("describe needs at least one element name.", 2);
-        if (outFile is not null && !sql) throw new CliError("--out goes with --sql: describe <module.oml> <Action or Action/SqlNode> --sql --out <file.sql>.", 2);
+        if (outFile is not null && !sql && !css) throw new CliError("--out goes with --sql or --css: describe <module.oml> <Action> --sql --out <file.sql>, or <Screen> --css --out <file.css>.", 2);
+        if (outFile is not null && css && names.Count != 1) throw new CliError("describe --css --out takes one element: its style sheet goes to the file as plain CSS.", 2);
         if (sql)
         {
             if (css || depthGiven || history || searchIn.Count > 0) throw new CliError("describe --sql prints only SQL statements: it takes no --depth, --in, --history or --css.", 2);
@@ -165,6 +166,13 @@ public static partial class Cli
         if (css)
         {
             var sheets = names.Select(n => Describe.StyleSheet(module, n)).ToList();
+            // --out: the plain CSS in a file to edit and give back as {"file": ...}; the answer names it without the sheet.
+            if (outFile is not null)
+            {
+                var one = sheets[0];
+                File.WriteAllText(outFile, one.styleSheet, new System.Text.UTF8Encoding(false));
+                return Emit(new { one.element, one.kind, @out = Path.GetFullPath(outFile), chars = one.styleSheet.Length });
+            }
             return Emit(sheets.Count == 1 ? sheets[0] : sheets);
         }
         // One name keeps the single-object shape and fails as before; several give an array, a bad name an error entry.

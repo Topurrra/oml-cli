@@ -13,6 +13,7 @@ partial class Builder
     void CreateWebScreen(ScreenSpec s, bool block)
     {
         var label = $"{(block ? "block" : "screen")} {s.Name}";
+        s = s with { Flow = FlowFor(Flows(m, web: true), s.Name, n => IsScreenOrBlock(n, block), s.Flow, "MainFlow", label) };
         var flow = m.WebFlows.FirstOrDefault(f => f.Name == s.Flow);
         if (flow is null)
         {

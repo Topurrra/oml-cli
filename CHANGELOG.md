@@ -2,6 +2,39 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 2.1.1
+
+Fixes from field use on a large project (94 modules), in one release.
+
+### Fixed
+
+- **`oml server` no longer helps lock the account.** After a refused login, oml does not log in again with the same
+  user and password for 30 minutes and says why: OutSystems locks an account after a few refused logins, and an agent
+  that ran `oml server` again sent the same wrong password each time. A changed user or password is tried at once; a
+  good login clears the mark. The mark keeps the user name, the time and a salted hash, never the password.
+- **`oml map data`, `oml map api` and `oml mock` no longer hang on big maps.** Following values through wrapper actions
+  compared every link with every other link; it now looks them up by path. 10,000 flows take well under a second.
+- **A block, screen or email listed again without `flow`** changes the existing one in its own UI flow (for example
+  `Common`). Before, it made a second element with the same name in a new `MainFlow` (or `Emails`). With another flow
+  named, it is refused.
+- **`set` on an existing aggregate or data action takes `onAfterFetch`** (a screen action name), as a creation spec
+  does. The refusal sent people to `set`, which refused it too.
+- **A number for `startIndex`** (`"startIndex": 20`) works in specs and `set`, as the reference says; only a string
+  worked. `oml describe` shows an aggregate's start index (`max 10 start 20`).
+
+### Changed
+
+- `replaceWidgets` at a screen warns when it removes the screen's layout block, and names the placeholder path that
+  keeps it.
+- Clearer messages: a screen action with outputs (use a local variable, a client action or a client function), HTML
+  attributes on a block instance (wrap it in a Container), `oml inspect` of a `.xif`, `.oap` or `.osp` file (the command
+  that reads it), and an unknown `Ceil` or `Floor` (what to use instead). `InvalidResourceURL_Offline` has a hint.
+- `oml install` refuses swapped arguments (the target in a `staged` folder and the file to install outside one) and a
+  backup file as the target.
+- `oml describe <module> <Screen> --css --out <file.css>` writes the style sheet as plain CSS to edit.
+- spec.md: `addWidgets` without `parent`, `replaceWidgets` at a screen, `set` on aggregates, and `addParts` from the
+  screen row.
+
 ## 2.1.0
 
 Change a module in one step when you allow it, and move Traditional Web modules to Reactive with `oml migrate`.
