@@ -172,7 +172,7 @@ foreach ($pair in @('enum', 'oml doc data-rules#static-entities'), @('modal', 'o
 
 # a typo is fixed on the word as typed, before stemming: unsed -> unused
 $h = @((Search 'unsed action warning').hits)
-if (-not ($h | Where-Object open -eq 'oml explain-warning UnusedUserAction')) { Fail "typo 'unsed': $(($h | ForEach-Object open) -join ', ')" }
+if (-not ($h | Where-Object open -eq 'oml doc warning UnusedUserAction')) { Fail "typo 'unsed': $(($h | ForEach-Object open) -join ', ')" }
 # singular and plural of an exact key: screen and edit find the screens and edits keys first
 foreach ($q in 'screen', 'edit', 'event') {
   $h = @((Search $q).hits)
