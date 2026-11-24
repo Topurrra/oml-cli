@@ -454,7 +454,8 @@ static class DocSearch
         int code;
         try
         {
-            var args = Args(d.Open);
+            // The command as the launcher runs it: a merged form (`oml doc warning <id>`) becomes the command that runs it.
+            var args = new[] { "oml" }.Concat(CliUsage.Normalize(Args(d.Open)[1..])).ToArray();
             code = args[1] switch
             {
                 "doc" => DocCommand.Run(args[2..]),

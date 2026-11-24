@@ -22,9 +22,9 @@ try {
   $env:OML_LIBRARY = Join-Path $work 'lib'
 
   $r = Call 'outsystems-docs'
-  Require ($r.Exit -eq 0 -and $r.Json.sources.Count -eq 0 -and $r.Json.hint -match 'outsystems-docs fetch') "empty status: $($r.Text)"
+  Require ($r.Exit -eq 0 -and $r.Json.sources.Count -eq 0 -and $r.Json.hint -match 'oml doc library fetch') "empty status: $($r.Text)"
   $r = Call 'doc', '--search', 'zone address', '--library'
-  Require ($r.Exit -eq 2 -and $r.Text -match 'oml outsystems-docs fetch') "search without a library: $($r.Text)"
+  Require ($r.Exit -eq 2 -and $r.Text -match 'oml doc library fetch') "search without a library: $($r.Text)"
 
   # A repository as GitHub's "Download ZIP" gives it: src\ with Markdown, a LICENSE, and files that are not copied.
   $repo = Join-Path $work 'docs-product-master'

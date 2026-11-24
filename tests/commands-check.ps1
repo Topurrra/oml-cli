@@ -82,9 +82,9 @@ $helps = [ordered]@{
 }
 foreach ($old in $helps.Keys) {
   $o = Call @($old, '--help')
-  # The old name's own help, as before: its usage lines, or its own usage text (explain-warning, model-types).
-  Require ($o.Exit -eq 0 -and $o.Text -match "oml $([regex]::Escape($old))( |$)") "oml $old --help: exit $($o.Exit), $($o.Text)"
+  # The old name's own help: its usage lines, which name the old command or, in usage texts, the new form.
   $form = $helps[$old]
+  Require ($o.Exit -eq 0 -and ($o.Text -match "oml $([regex]::Escape($old))( |$)" -or $o.Text -match "oml $([regex]::Escape($form -join ' '))( |$)")) "oml $old --help: exit $($o.Exit), $($o.Text)"
   $n = Call ($form + '--help')
   $lines = @($n.Text -split "`n" | Where-Object { $_ })
   Require ($n.Exit -eq 0 -and $lines.Count -ge 1) "oml $($form -join ' ') --help: exit $($n.Exit), $($n.Text)"

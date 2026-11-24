@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 function Require($condition, $message) { if (-not $condition) { throw "api: $message" } }
 
 $usage = (& $Oml model-types) -join "`n"
-Require ($LASTEXITCODE -eq 0 -and $usage.Contains('oml model-types <TypeName>...') -and $usage.Contains('Useful types:')) "no name: exit $LASTEXITCODE, $usage"
+Require ($LASTEXITCODE -eq 0 -and $usage.Contains('oml spec model-types <TypeName>...') -and $usage.Contains('Useful types:')) "no name: exit $LASTEXITCODE, $usage"
 $names = [regex]::Matches(($usage -split 'Useful types:')[1], '\b(?:OutSystems|ServiceStudio)\.[A-Za-z0-9_.*]+') | ForEach-Object Value
 Require ($names.Count -ge 15) "only $($names.Count) useful type names: $usage"
 $found = & $Oml model-types @names | ConvertFrom-Json
