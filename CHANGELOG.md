@@ -12,6 +12,8 @@ Search several modules at once, and fixes from field use on a large project (94 
   `.oml` in it. The modules are read one after another and ranked together, so the best match comes first whichever
   module holds it; each hit names its `module` and `file`. One module keeps the old answer. The skill names it, and
   `oml doc --search` finds it.
+- **XML tool in the dashboard's Developer tools:** format, minify and check XML (SOAP messages, config files), in the
+  browser only. An error shows the line and column; text inside mixed content is kept as written.
 
 ### Fixed
 
