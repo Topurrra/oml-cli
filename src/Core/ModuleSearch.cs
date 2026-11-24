@@ -11,27 +11,80 @@ static class ModuleSearch
     internal static readonly SearchOptions Options = new() { TitleWeight = 4, KeysWeight = 2, BodyWeight = 0.5, BodyB = 0.9 };
     static readonly string[] FieldNames = ["name", "description or kind", "text"];
 
+    // The top hits of one index, each with why it matched (the fields and a snippet).
+    static List<(SearchHit hit, string why)> Rank(List<SearchDoc> docs, string query, int top)
+    {
+        var index = new SearchIndex(docs, Options);
+        var terms = index.QueryTerms(query).Keys.ToHashSet(StringComparer.Ordinal);
+        return index.Search(query, top).Select(h => (h, string.Join("; ", index.MatchedFields(h.Doc, query).Select(f => f == 0 ? FieldNames[f]
+            : $"{FieldNames[f]}: {SearchText.Snippet(f == 1 ? h.Doc.Keys : h.Doc.Body, terms, true, 100)}")))).ToList();
+    }
+
+    // Several modules: one index over all their elements, so the scores compare across modules. Each module is read and
+    // closed before the next (`open` gives it and its owner to dispose); a module that cannot be read is an error entry.
+    public static object FindMany(List<string> files, Func<string, (IESpace module, IDisposable owner)> open, string query, int top)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        using var unreadable = new Unreadable();
+        var docs = new List<SearchDoc>();
+        var where = new Dictionary<string, (string module, string file, string? path)>(StringComparer.Ordinal);
+        var errors = new List<object>();
+        for (var i = 0; i < files.Count; i++)
+        {
+            try
+            {
+                var (m, owner) = open(files[i]);
+                using (owner)
+                {
+                    var (found, elements) = Read(m);
+                    foreach (var doc in found)
+                    {
+                        var element = elements[doc.Id];
+                        var id = i + ":" + doc.Id;
+                        where[id] = (m.Name, files[i], Unreadable.Try(() => "path of " + doc.Title, () => ElementPaths.PathTo(m, element), null));
+                        doc.Id = id;
+                        docs.Add(doc);
+                    }
+                }
+            }
+            catch (Exception e) when (e is not OutOfMemoryException) { errors.Add(new { file = files[i], error = e.Message }); }
+        }
+        var hits = Rank(docs, query, top).Select(r => new
+        {
+            module = where[r.hit.Doc.Id].module,
+            kind = r.hit.Doc.Kind,
+            name = r.hit.Doc.Title.Length > 0 ? r.hit.Doc.Title : null,
+            path = where[r.hit.Doc.Id].path,
+            file = where[r.hit.Doc.Id].file,
+            r.why,
+            score = r.hit.Score,
+        }).ToList();
+        var result = System.Text.Json.JsonSerializer.SerializeToNode(new
+        {
+            query,
+            hits,
+            modules = files.Count - errors.Count,
+            searched = docs.Count,
+            ms = watch.ElapsedMilliseconds,
+            errors = errors.Count > 0 ? errors : null,
+            hint = hits.Count == 0 ? "No element matches. Try other words, or 'oml inspect --in <folder> --own' for the overview." : null,
+        })!.AsObject();
+        if (unreadable.Items() is { } items) result["unreadable"] = System.Text.Json.JsonSerializer.SerializeToNode(items);
+        return result;
+    }
+
     public static object Find(IESpace m, string query, int top)
     {
         var watch = System.Diagnostics.Stopwatch.StartNew();
         using var unreadable = new Unreadable();
         var (docs, elements) = Read(m);
-        var index = new SearchIndex(docs, Options);
-        var terms = index.QueryTerms(query).Keys.ToHashSet(StringComparer.Ordinal);
-        var hits = index.Search(query, top).Select(h =>
+        var hits = Rank(docs, query, top).Select(r => new
         {
-            var element = elements[h.Doc.Id];
-            var fields = index.MatchedFields(h.Doc, query).ToList();
-            var why = string.Join("; ", fields.Select(f => f == 0 ? FieldNames[f]
-                : $"{FieldNames[f]}: {SearchText.Snippet(f == 1 ? h.Doc.Keys : h.Doc.Body, terms, true, 100)}"));
-            return new
-            {
-                kind = h.Doc.Kind,
-                name = h.Doc.Title.Length > 0 ? h.Doc.Title : null,
-                path = Unreadable.Try(() => "path of " + h.Doc.Title, () => ElementPaths.PathTo(m, element), null),
-                why,
-                score = h.Score,
-            };
+            kind = r.hit.Doc.Kind,
+            name = r.hit.Doc.Title.Length > 0 ? r.hit.Doc.Title : null,
+            path = Unreadable.Try(() => "path of " + r.hit.Doc.Title, () => ElementPaths.PathTo(m, elements[r.hit.Doc.Id]), null),
+            r.why,
+            score = r.hit.Score,
         }).ToList();
         var result = System.Text.Json.JsonSerializer.SerializeToNode(new
         {

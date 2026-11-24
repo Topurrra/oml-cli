@@ -2,9 +2,15 @@
 
 Keep a Changelog style: one section per release, newest first.
 
-## 2.1.1
+## 2.2.0
 
-Fixes from field use on a large project (94 modules), in one release.
+Search several modules at once, and fixes from field use on a large project (94 modules), in one release.
+
+### Added
+
+- **`oml find --text` over several modules:** `oml find A.oml B.oml --text "<words>"`, or `--in <folder>` for every
+  `.oml` in it. The modules are read one after another and ranked together, so the best match comes first whichever
+  module holds it; each hit names its `module` and `file`. One module keeps the old answer.
 
 ### Fixed
 

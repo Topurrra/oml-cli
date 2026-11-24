@@ -1,4 +1,4 @@
-# Fixes from field feedback (2.1.1), on one small Reactive module: set onAfterFetch and a numeric startIndex on existing
+# Fixes from field feedback (2.2.0), on one small Reactive module: set onAfterFetch and a numeric startIndex on existing
 # aggregates (describe shows the start), replaceWidgets at a screen warns that the layout goes, a block listed again
 # without "flow" changes the one in its flow (no copy in a new MainFlow), clear messages for screen action outputs and
 # HTML attributes on a block instance, describe --css --out, inspect of a .xif, and install refusing swapped arguments.

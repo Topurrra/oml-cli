@@ -342,7 +342,17 @@ $m = ModuleBench $mod $moduleBench
 $d = & $Oml describe $mod 'InvoiceCard/Container[0]/Text[0]'
 if ($LASTEXITCODE -ne 0) { Fail "describe of a find --text path: $d" }
 $r = Run 'find', $mod, '--text'
-if ($r.Exit -ne 2 -or $r.Text -notmatch 'oml find <module.oml> --text') { Fail "find --text without words: $($r.Text)" }
+if ($r.Exit -ne 2 -or $r.Text -notmatch 'oml find <module\.oml>.*--text') { Fail "find --text without words: $($r.Text)" }
+# Several modules in one ranking: a folder (--in) with the fixture and a blank module, and two names; each hit names its module.
+$many = Join-Path $work 'many'; New-Item -ItemType Directory $many | Out-Null
+Copy-Item $mod (Join-Path $many 'Invoices.oml'); Copy-Item $Module (Join-Path $many 'Blank.oml')
+$f = (& $Oml find --in $many --text 'approve invoice' --top 3) | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0 -or $f.modules -ne 2 -or $f.hits[0].name -ne 'Invoice_Approve' -or -not $f.hits[0].module -or $f.hits[0].file -notlike '*Invoices.oml') { Fail "find --text --in folder: $($f | ConvertTo-Json -Depth 5 -Compress)" }
+$f = (& $Oml find (Join-Path $many 'Blank.oml') (Join-Path $many 'Invoices.oml') --text 'DueDate') | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0 -or $f.modules -ne 2 -or $f.hits[0].name -ne 'DueDate') { Fail "find --text over two modules: $($f | ConvertTo-Json -Depth 5 -Compress)" }
+$r = Run 'find', '--in', (Join-Path $work 'no-such-folder'), '--text', 'x'
+if ($r.Exit -ne 2) { Fail "find --text --in a missing folder: $($r.Text)" }
+Write-Host 'ok   find --text over several modules: --in folder and names, one ranking, each hit with module and file'
 Write-Host ("ok   find --text: fixture {0} queries, top1 {1:P0}, top3 {2:P0}, {3} elements, {4} ms per search in oml batch; doc and warn steps in oml batch" -f $moduleBench.Count, $m.top1, $m.top3, $m.searched, $m.ms)
 
 if ($RealModule) {

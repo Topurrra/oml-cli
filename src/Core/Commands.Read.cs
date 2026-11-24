@@ -39,22 +39,43 @@ public static partial class Cli
         return Emit(Finder.Find(args[1], module, searchIn));
     }
 
-    // find <module.oml> --text "<words>" [--top N]: rank the module's own elements by name, description and the text inside them.
+    // find <module.oml>... [--in <folder|file.oml>]... --text "<words>" [--top N]: rank the modules' own elements by name,
+    // description and the text inside them. One module keeps its answer shape; several are ranked together, each hit
+    // naming its module and file.
     static int? FindText(List<string> args)
     {
-        const string usage = "Usage: oml find <module.oml> --text \"<words>\" [--top N]";
-        string? module = null, query = null;
+        const string usage = "Usage: oml find <module.oml>... [--in <folder|file.oml>]... --text \"<words>\" [--top N]";
+        string? query = null;
+        var modules = new List<string>();
         var top = 5;
+        var folders = false;
         for (var i = 1; i < args.Count; i++)
         {
             if (args[i] == "--text" && i + 1 < args.Count) query = args[++i];
             else if (args[i] == "--top" && i + 1 < args.Count && int.TryParse(args[i + 1], out top) && top is >= 1 and <= 50) i++;
-            else if (!args[i].StartsWith("--") && module is null) module = args[i];
-            else throw new CliError($"find --text takes one module, --text and --top 1-50. {usage}", 2);
+            else if (args[i] == "--in" && i + 1 < args.Count)
+            {
+                var place = args[++i];
+                if (Directory.Exists(place))
+                {
+                    folders = true;
+                    modules.AddRange(Directory.EnumerateFiles(place, "*.oml").OrderBy(f => f, StringComparer.OrdinalIgnoreCase));
+                }
+                else if (File.Exists(place)) modules.Add(place);
+                else throw new CliError($"--in: no folder or file {place}.", 2);
+            }
+            else if (!args[i].StartsWith("--")) modules.Add(args[i]);
+            else throw new CliError($"find --text takes modules, --in <folder|file.oml>, --text and --top 1-50. {usage}", 2);
         }
-        if (module is null || string.IsNullOrWhiteSpace(query)) throw new CliError(usage, 2);
-        using var open = Open(module);
-        return Emit(Timings.Measure("search", () => ModuleSearch.Find(open.Module, query.Trim(), top)));
+        if (string.IsNullOrWhiteSpace(query)) throw new CliError(usage, 2);
+        modules = modules.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (modules.Count == 0) throw new CliError(folders ? "No .oml file in the --in folder. " + usage : usage, 2);
+        if (modules.Count == 1 && !folders)
+        {
+            using var open = Open(modules[0]);
+            return Emit(Timings.Measure("search", () => ModuleSearch.Find(open.Module, query.Trim(), top)));
+        }
+        return Emit(Timings.Measure("search", () => ModuleSearch.FindMany(modules, f => { var o = Open(f); return (o.Module, o); }, query.Trim(), top)));
     }
 
     static int? CmdInspect(List<string> args)

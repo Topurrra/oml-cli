@@ -23,7 +23,7 @@ static class CliUsage
         oml inspect --header --diff <a.oml> <b.oml>   (which header fields differ)
         oml describe <module.oml> <Element>... [--depth N] [--in <folder|file.oml>]... [--history] [--css|--sql [--out <file>]]
         oml find <Name|Pat*> [module.oml] [--in <folder|file.oml>]...  (which module has it: own, referenced, producer files)
-        oml find <module.oml> --text "<words>" [--top N]  (this module's elements ranked by name, description, expressions, SQL, labels)
+        oml find <module.oml>... [--in <folder|file.oml>]... --text "<words>" [--top N]  (elements ranked by name, description, expressions, SQL, labels; several modules in one ranking)
         oml query <module.oml> "<ModelQL>" [--limit N] [--max-chars N] [--live] | --fields <Type>   (read-only model questions: "Root { Entities { Name } }"; Studio may be closed)
         oml tree <module.oml> <ElementName> [--depth N]   (object tree of one action, screen, entity, ...; at most 250 parts)
         oml flow <module.oml> <Action>   (one flow as a graph: nodes with their positions and what they do, and the connectors; the Dif page draws it)
