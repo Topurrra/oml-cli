@@ -10,9 +10,15 @@ Search several modules at once, and fixes from field use on a large project (94 
 
 - **`oml find --text` over several modules:** `oml find A.oml B.oml --text "<words>"`, or `--in <folder>` for every
   `.oml` in it. The modules are read one after another and ranked together, so the best match comes first whichever
-  module holds it; each hit names its `module` and `file`. One module keeps the old answer.
+  module holds it; each hit names its `module` and `file`. One module keeps the old answer. The skill names it, and
+  `oml doc --search` finds it.
 
 ### Fixed
+
+- **Messages name today's commands.** Errors, hints and `next` steps said old names (`oml outsystems-docs`,
+  `oml explain-warning`, `oml model-types`, `oml templates`, `oml explorer-menu`, `oml mock`, ...); they now say
+  `oml doc library`, `oml doc warning`, `oml spec model-types`, `oml new --templates`, `oml menu explorer`,
+  `oml map mock`. The old names still work. `oml doc library <unknown>` also says how to search the docs.
 
 - **`oml server` no longer helps lock the account.** After a refused login, oml does not log in again with the same
   user and password for 30 minutes and says why: OutSystems locks an account after a few refused logins, and an agent
