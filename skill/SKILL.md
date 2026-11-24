@@ -101,7 +101,7 @@ Copy one from `recipes/` and read its header ([README](recipes/README.md)):
 
 | Command | Use it for |
 |---|---|
-| `oml inspect`, `describe`, `find`, `tree` | Read a module: overview (`--own --only ...`), what an element does, who owns a name, exact paths for `edits`. |
+| `oml inspect`, `describe`, `find`, `tree` | Read a module: overview (`--own --only ...`), what an element does, who owns a name, exact paths for `edits`. No name yet: `find --text "<words>"` over one module or `--in <folder>`. |
 | `oml apply`, `spec`, `batch`, `validate`, `install` | Change: staged apply, spec help, many commands at once, check, copy over the target (confirm). |
 | `oml new`, `openapi`, `architecture`, `test bdd` | New module, export OpenAPI, layer report, BDD tests. |
 | `oml studio`, `pull`, `publish`, `references`, `lifetime` | Service Studio and LifeTime. Confirm every change. |

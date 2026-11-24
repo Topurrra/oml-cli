@@ -104,7 +104,7 @@ static class Evidence
 
     static bool Real(string? message) => message is { Length: > 0 } && message != "(no message)";
 
-    // The same message from the same command, grouped exactly as `oml log summary` groups it: at least minCount times,
+    // The same message from the same command, grouped exactly as `oml learn usage` groups it: at least minCount times,
     // in at least two sessions.
     public static List<Failure> Repeated(List<UsageLog.Row> rows, int minCount = 3) =>
         rows.Where(r => r.Exit != 0 && Real(r.Error)).GroupBy(r => (r.Cmd, r.Error!))

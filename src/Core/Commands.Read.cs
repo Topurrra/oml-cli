@@ -283,7 +283,7 @@ public static partial class Cli
         return errors.Length == 0 ? 0 : 1;
     }
 
-    // `oml header <file.oml>...` and `oml header --diff <a> <b>`: the module header, read without loading the model
+    // `oml inspect --header <file.oml>...` and `oml inspect --header --diff <a> <b>`: the module header, read without loading the model
     // (name, version, upgrade level, key, hashes, signature, type). Fast and never touches the module content.
     static int? CmdMeta(List<string> args)
     {

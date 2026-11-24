@@ -5,7 +5,7 @@ using OutSystems.Model.Processes.Nodes;
 
 namespace OmlCli;
 
-// Coordinates and sizes are in model units, not pixels. Measured through oml model-types/tree
+// Coordinates and sizes are in model units, not pixels. Measured through oml spec model-types/tree
 // on Studio 11: NodePositions (3196,800), displacement 2660; NodeSizes 914 x 928.
 // The typed API has no per-node rendered label bounds. Reserve an extra icon width
 // for labels, and use the Studio displacement in both directions.

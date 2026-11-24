@@ -44,7 +44,7 @@ public static partial class Cli
                     if (op.GetString() == "set" && p.Name is "targetWidget" or "attributes" or "value") continue;
                     var near = settable.Keys.Select(k => (k, d: SpecHelp.Distance(p.Name.ToLowerInvariant(), k.ToLowerInvariant())))
                         .Where(x => x.d <= Math.Max(2, p.Name.Length / 3)).OrderBy(x => x.d).Select(x => x.k).Take(3).ToList();
-                    Add($"{at}.properties.{p.Name}", $"{ModelTypes.Short(type)} has no settable '{p.Name}'.{(near.Count > 0 ? $" Closest: {string.Join(", ", near)}." : "")} It takes: {string.Join(", ", settable.Keys.Take(30))}{(settable.Count > 30 ? ", ..." : "")} (oml model-types {ModelTypes.Short(type)})");
+                    Add($"{at}.properties.{p.Name}", $"{ModelTypes.Short(type)} has no settable '{p.Name}'.{(near.Count > 0 ? $" Closest: {string.Join(", ", near)}." : "")} It takes: {string.Join(", ", settable.Keys.Take(30))}{(settable.Count > 30 ? ", ..." : "")} (oml spec model-types {ModelTypes.Short(type)})");
                     continue;
                 }
                 // A Set*(string) method takes an expression or text: any string is fine.

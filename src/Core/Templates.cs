@@ -49,7 +49,7 @@ static class Templates
         if (File.Exists(output)) throw new CliError($"Output already exists: {output}. Use a new output path, or delete that file first.", 2);
         var matches = File.Exists(template) ? new[] { Path.GetFullPath(template) }
             : Candidates().Where(p => Path.GetFileNameWithoutExtension(p).Equals(template, StringComparison.OrdinalIgnoreCase)).ToArray();
-        if (matches.Length != 1) throw new CliError($"Template '{template}' {(matches.Length == 0 ? "not found" : "is ambiguous; use its full path")}. Run 'oml templates', or provide an exported .oml module.", 2);
+        if (matches.Length != 1) throw new CliError($"Template '{template}' {(matches.Length == 0 ? "not found" : "is ambiguous; use its full path")}. Run 'oml new --templates', or provide an exported .oml module.", 2);
         if (Path.GetExtension(matches[0]).ToLowerInvariant() is ".oap" or ".osp")
             throw new CliError("Export the bundle's Reactive module as .oml before using --template.", 2);
         try

@@ -64,7 +64,7 @@ static class EvolveProposals
                 new JsonArray([new JsonObject { ["memory"] = trap.Seq }, .. EvolveAnalysis.Cites(rows).Select(c => c!.DeepClone())]), rows[0].Cmd));
         foreach (var (id, rows, fix) in a.Warnings.Where(w => w.Fix is not null))
             lessons.Add(new Lesson($"warn|{id}", "warnings", "Warnings looked up often",
-                $"Agents looked up {Code(id)} {rows.Count} times. The fix from oml explain-warning: {fix} ({EvolveAnalysis.Lines(rows)})",
+                $"Agents looked up {Code(id)} {rows.Count} times. The fix from oml doc warning: {fix} ({EvolveAnalysis.Lines(rows)})",
                 EvolveAnalysis.Cites(rows), "explain-warning"));
         foreach (var (rule, count, files) in a.CheckRules)
         {

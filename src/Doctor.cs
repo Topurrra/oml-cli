@@ -168,7 +168,7 @@ static class Doctor
         if (context is null) return new Check("selfTest", "skip", "Not run: Service Studio's model API did not load.");
         try
         {
-            // Same entry point as `oml selftest`; it returns the report as JSON and prints nothing.
+            // Same entry point as `oml doctor --selftest --show`; it returns the report as JSON and prints nothing.
             var core = context.LoadFromAssemblyName(new AssemblyName("OmlCli.Core"));
             var json = (string)core.GetType("OmlCli.Cli", throwOnError: true)!.GetMethod("SelfTestReport")!.Invoke(null, new object[] { ss })!;
             using var doc = JsonDocument.Parse(json);
@@ -177,12 +177,12 @@ static class Doctor
             var first = doc.RootElement.TryGetProperty("failures", out var failures)
                 ? failures.EnumerateArray().Select(f => f.GetString()).FirstOrDefault() : null;
             return new Check("selfTest", "fail", $"Self-test failed on Service Studio {label}: {Shorten(first ?? "no details")}",
-                "Run oml selftest for the full report. The model API may have changed in this Service Studio build.");
+                "Run oml doctor --selftest --show for the full report. The model API may have changed in this Service Studio build.");
         }
         catch (Exception e)
         {
             return new Check("selfTest", "fail", $"Self-test could not run: {Shorten((e.InnerException ?? e).Message)}",
-                "Run oml selftest for the full report.");
+                "Run oml doctor --selftest --show for the full report.");
         }
     }
 

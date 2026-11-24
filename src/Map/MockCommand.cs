@@ -6,7 +6,7 @@ using System.Text.Json.Nodes;
 
 namespace OmlCli;
 
-// `oml mock <Api.Method> | --api <Api> | --all [--personas <file.json>] [--out <folder>] [--project <name>]`: mock
+// `oml map mock <Api.Method> | --api <Api> | --all [--personas <file.json>] [--out <folder>] [--project <name>]`: mock
 // responses for consumed REST APIs, to paste into a mock server such as Castlemock. Built from the application map
 // (oml map build), so the mocks agree with each other: values the map links (an API output saved in an entity and read
 // into the next API's input, through wrappers and processes) form one group, and every persona has one value per group.
@@ -50,12 +50,12 @@ static class MockCommand
                     case "--personas": personasFile = Path.GetFullPath(Value()); break;
                     case "--out": outDir = Path.GetFullPath(Value()); break;
                     default:
-                        if (args[i].StartsWith("--")) throw new MockException($"Unknown option {args[i]}.", 2, "Run 'oml mock --help'.");
+                        if (args[i].StartsWith("--")) throw new MockException($"Unknown option {args[i]}.", 2, "Run 'oml map mock --help'.");
                         if (method is not null) throw new MockException("Give one Api.Method, or --api <Api>, or --all.");
                         method = args[i]; break;
                 }
             }
-            if ((method is null ? 0 : 1) + (api is null ? 0 : 1) + (all ? 1 : 0) != 1) throw new MockException("Give one Api.Method, or --api <Api>, or --all.", 2, "Usage: oml mock <Api.Method> | --api <Api> | --all [--personas <file.json>] [--out <folder>]");
+            if ((method is null ? 0 : 1) + (api is null ? 0 : 1) + (all ? 1 : 0) != 1) throw new MockException("Give one Api.Method, or --api <Api>, or --all.", 2, "Usage: oml map mock <Api.Method> | --api <Api> | --all [--personas <file.json>] [--out <folder>]");
             var map = MapCommand.LoadFacts(project);
             var personas = personasFile is null ? Defaults.ToList() : ReadPersonas(personasFile);
             return Generate(map, method, api, personas, outDir ?? Path.GetFullPath("mocks"), personasFile);
@@ -73,7 +73,7 @@ static class MockCommand
     }
 
     // personas.json: [{ "name": "normal", "items": 2, "status": 200, "purpose": "...", "values": { "Customer.ExternalId": "C-1001" } }]
-    // A value key is a group name as oml mock prints it (an entity attribute such as Customer.ExternalId, or Api.Method.in:Param)
+    // A value key is a group name as oml map mock prints it (an entity attribute such as Customer.ExternalId, or Api.Method.in:Param)
     // or a plain field name (FullName) that sets that field in every response of the persona.
     static List<Persona> ReadPersonas(string file)
     {

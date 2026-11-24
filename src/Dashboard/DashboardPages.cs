@@ -96,7 +96,7 @@ static partial class Dashboard
     static readonly Regex OpenHelp = new("^oml ([a-z-]+(?: [a-z-]+)?) --help$");
     static readonly Regex OpenRecipe = new(@"^skill/recipes/([A-Za-z0-9-]+\.jsonc)$");
 
-    // Opens one search hit: its `open` value is a command (oml doc ..., oml spec ..., oml explain-warning ..., oml <cmd> --help)
+    // Opens one search hit: its `open` value is a command (oml doc ..., oml spec ..., oml doc warning ..., oml <cmd> --help)
     // or a recipe path. Only these forms run; the target is checked like any other input.
     static async Task<Reply> OpenDoc(JsonObject body)
     {

@@ -127,7 +127,7 @@ static class CreateCommand
         else Step("skill", "skipped", "--no-skill");
 
         // The OutSystems docs for oml doc --search --library: one copy per machine, so a second project downloads nothing.
-        if (!library) Step("library", "skipped", "--no-library", "oml outsystems-docs fetch");
+        if (!library) Step("library", "skipped", "--no-library", "oml doc library fetch");
         else if (Library.Folders().Count == Library.Sources.Length) Step("library", "done", "already on this machine: " + Library.Root);
         else
         {
@@ -135,8 +135,8 @@ static class CreateCommand
             if (code == 0) Step("library", "done", "downloaded to " + Library.Root);
             else
             {
-                Step("library", "failed", output?["error"]?.ToString() ?? "the download did not finish (no network, or a proxy)", "oml outsystems-docs fetch");
-                notes.Add("The OutSystems docs were not downloaded; platform questions (oml doc --search ... --library) need them. Run: oml outsystems-docs fetch");
+                Step("library", "failed", output?["error"]?.ToString() ?? "the download did not finish (no network, or a proxy)", "oml doc library fetch");
+                notes.Add("The OutSystems docs were not downloaded; platform questions (oml doc --search ... --library) need them. Run: oml doc library fetch");
             }
         }
 
@@ -213,7 +213,7 @@ static class CreateCommand
                 server is { Length: > 0 } ? null : "oml config set outsystems.serverHost <host>   (the platform server: list and download modules with Service Studio closed)",
                 "fill .oml/test-accounts.local.json   (a test account of your app per role: browser scripts log in with {\"login\": \"<role>\"})",
                 "oml browser start --headed   (log in to the app once; later browser runs keep the login)",
-                "oml explorer-menu   (right-click entries in Windows Explorer, once per machine)",
+                "oml menu explorer   (right-click entries in Windows Explorer, once per machine)",
             }.OfType<string>().ToArray(),
             next = inputs.Count > 0
                 ? new[] { $"cd {root}", "oml map overview", "Start your agent in this folder and give it a task." }
@@ -379,7 +379,7 @@ static class CreateCommand
         | `staged/` | The agent's staged copies (`oml apply` writes here), installed only after your yes. With `autoApprove.install` on, agents change the module itself instead, after a backup next to it (`<file>.<time>.bak`). |
         | `specs/` | Change specs (JSON). |
         | `browser/` | Browser scripts and saved replays (`oml browser run <file> --save <replay>`). |
-        | `mocks/` | Mock responses for your mock server (`oml mock --all --out mocks`). |
+        | `mocks/` | Mock responses for your mock server (`oml map mock --all --out mocks`). |
         | `scenarios/` | What to test after a change (`oml test scenarios <source> <staged> --out scenarios/<task>`). |
         | `.oml/` | Project memory (`oml memory`), the project configuration (`oml-config.json`), the map's project name, test-data runs. |
 

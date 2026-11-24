@@ -7,7 +7,7 @@ namespace OmlCli;
 // `oml doc --search` and `oml spec --search`: one ranked search over everything the CLI knows without Service Studio.
 // The corpus is built in memory from the embedded files: every `oml doc` topic split into sections (and table rows),
 // every warnings.md row, the spec reference sections and its key index, and every recipe's header and keys.
-// Each hit says how to open the whole answer: an `oml doc`, `oml spec` or `oml explain-warning` command, or a recipe path.
+// Each hit says how to open the whole answer: an `oml doc`, `oml spec` or `oml doc warning` command, or a recipe path.
 static class DocSearch
 {
     const string Usage = "Usage: oml doc --search \"<words>\" [--top N] [--in <folder of .md files> | --library]";
@@ -53,7 +53,7 @@ static class DocSearch
         if (library)
         {
             var folders = Library.Folders();
-            if (folders.Count == 0) return Fail("No library yet. Run 'oml outsystems-docs fetch' first (it downloads the OutSystems 11 docs).");
+            if (folders.Count == 0) return Fail("No library yet. Run 'oml doc library fetch' first (it downloads the OutSystems 11 docs).");
             try { searched = LibraryIndex(folders, notes); }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.SecurityException)
             { return Fail($"Cannot read the library at {Clip(Library.Root, 300)}: {Clip(e.Message, 300)}"); }
@@ -118,7 +118,7 @@ static class DocSearch
             docs.Add(new SearchDoc
             {
                 Id = "warn:" + (row.Ids.FirstOrDefault() ?? SearchText.Norm(row.Title)), Kind = "warning", Title = row.Ids.Length > 0 ? $"{row.Title} ({string.Join(", ", row.Ids)})" : row.Title,
-                Open = row.Ids.Length > 0 ? $"oml explain-warning {name}" : $"oml explain-warning \"{row.Title}\"",
+                Open = row.Ids.Length > 0 ? $"oml doc warning {name}" : $"oml doc warning \"{row.Title}\"",
                 Keys = string.Join(" ", row.Ids) + "\n" + row.Section, Names = row.Ids, Body = $"{Plain(row.Cause)} Fix: {Plain(row.Fix)}",
                 Parent = "warnings#" + SpecDocs.Slug(row.Section), // a row ranked above its warnings.md section hides the section
             });
@@ -310,7 +310,7 @@ static class DocSearch
         ["lifetime"] = "lifetime deploy deployment environments production staging tag version application release promote",
         ["server"] = "list all modules versions history older version on the server without service studio closed",
         ["review"] = "what changed difference compare two versions before after code review diff",
-        ["find"] = "which module defines owns where is defined producer consumer search elements by words",
+        ["find"] = "which module defines owns where is defined producer consumer search elements by words text description logic all modules across folder",
         ["inspect"] = "overview list entities screens actions blocks contents summary of a module",
         ["describe"] = "what does an element server action screen entity do details explain",
         ["tree"] = "object tree nodes paths of an action or screen",

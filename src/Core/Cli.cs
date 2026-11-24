@@ -59,7 +59,7 @@ public static partial class Cli
         }
     }
 
-    // `oml doctor --selftest`: the same self-test as `oml selftest`, returned as JSON and not printed.
+    // `oml doctor --selftest`: the same self-test as `oml doctor --selftest --show`, returned as JSON and not printed.
     public static string SelfTestReport(string serviceStudioDir)
     {
         Model.ServiceStudioDir = serviceStudioDir;

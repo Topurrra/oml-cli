@@ -738,7 +738,7 @@ static partial class Dashboard
         foreach (var line in Enumerable.Reverse(lines).Take(200))
         {
             try { if (JsonNode.Parse(line) is JsonObject row) rows.Add(row); }
-            catch (JsonException) { } // a damaged line is skipped, as in oml log summary
+            catch (JsonException) { } // a damaged line is skipped, as in oml learn usage
         }
         body["lines"] = rows;
         return new Reply(200, body);

@@ -90,7 +90,7 @@ internal static class TerminalOutput
 }
 
 // Progress on stderr for slow commands, only when a person watches a console: an agent's or script's redirected output
-// stays clean. `oml outsystems-docs fetch` already prints its own bar; the commands that use this one do the same.
+// stays clean. `oml doc library fetch` already prints its own bar; the commands that use this one do the same.
 internal static class TerminalProgress
 {
     public static bool Active => !TerminalOutput.InRun && !ConsoleFacts.ErrorRedirected;

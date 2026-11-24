@@ -68,7 +68,7 @@ static partial class Migrate
         foreach (var input in inputs)
             if (!Directory.Exists(input) && !(File.Exists(input) && Path.GetExtension(input).Equals(".oml", StringComparison.OrdinalIgnoreCase)))
                 throw new Refusal($"--in {input}: not a folder or an .oml file.");
-        if (template is not null && !(File.Exists(template) && Path.GetExtension(template).Equals(".oml", StringComparison.OrdinalIgnoreCase))) throw new Refusal($"--template {template}: not an .oml file.", "Give a Reactive template module file (see oml templates).");
+        if (template is not null && !(File.Exists(template) && Path.GetExtension(template).Equals(".oml", StringComparison.OrdinalIgnoreCase))) throw new Refusal($"--template {template}: not an .oml file.", "Give a Reactive template module file (see oml new --templates).");
         outDir ??= Path.Combine(Environment.CurrentDirectory, "migrate", name);
         if (File.Exists(outDir) || Directory.Exists(outDir) && Directory.EnumerateFileSystemEntries(outDir).Any())
             throw new Refusal($"{outDir} exists and is not empty.", "migrate plan never writes into a folder that has files: choose another --out.");
@@ -197,7 +197,7 @@ static partial class Migrate
 
     internal static bool IsTraditional(JsonNode inspect) => (S(inspect, "kind") ?? "").StartsWith("Web", StringComparison.OrdinalIgnoreCase);
 
-    // Module name -> producer file, from the output of `oml header` (an object for one file, an array for several; a file that is
+    // Module name -> producer file, from the output of `oml inspect --header` (an object for one file, an array for several; a file that is
     // not a module has `error`). The property names are the header record's own (Name, Key, ESpaceType); matched without case.
     internal static (Dictionary<string, string> map, List<string> notes) ProducerMap(JsonNode header, string oldName)
     {
@@ -674,7 +674,7 @@ static partial class Migrate
         var created = Q(Path.Combine(outDir, name + ".oml"));
         var staged = Q(Path.Combine(outDir, name + ".staged.oml"));
         var last = staged;
-        next.Add($"oml new {created} --template {(template is null ? "<a Reactive template module: see oml templates>" : Q(template))} --name {name}");
+        next.Add($"oml new {created} --template {(template is null ? "<a Reactive template module: see oml new --templates>" : Q(template))} --name {name}");
         if (r.Unresolved.Count > 0)
             next.Add($"Before the next step, ask the person to open {name} in Service Studio and add in Manage Dependencies: {string.Join("; ", r.Unresolved)}. The copy refuses without them. Then: oml pull {name} --out {created}");
         next.Add($"oml apply {created} {F("3-new-module.json")} {staged}   (references, then the copy from {(r.Source is null ? "the prepared module" : "the working copy")})");

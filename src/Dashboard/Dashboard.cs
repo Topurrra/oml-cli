@@ -383,7 +383,7 @@ static partial class Dashboard
         });
     }
 
-    // Also `oml explorer-menu run`, which runs one command the same way outside the dashboard.
+    // Also `oml menu explorer run`, which runs one command the same way outside the dashboard.
     internal static Result Execute(string[] args)
     {
         args = CliUsage.Normalize(args);

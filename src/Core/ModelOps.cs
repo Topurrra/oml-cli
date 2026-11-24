@@ -36,7 +36,7 @@ static class ModelTypes
         var close = types.Select(t => (t, d: SpecHelp.Distance(bare.ToLowerInvariant(), Short(t).ToLowerInvariant().TrimStart('i'))))
             .Where(x => x.d <= Math.Max(2, bare.Length / 3) || Short(x.t).Contains(bare.TrimStart('I'), StringComparison.OrdinalIgnoreCase))
             .OrderBy(x => x.d).ThenBy(x => Rank(x.t)).Select(x => Short(x.t)).Distinct().Take(6).ToList();
-        throw new ModelError($"unknown Model API type '{name}'.{(close.Count > 0 ? $" Closest: {string.Join(", ", close)}." : "")} List types with oml model-types \"*{bare.TrimStart('I')}*\".");
+        throw new ModelError($"unknown Model API type '{name}'.{(close.Count > 0 ? $" Closest: {string.Join(", ", close)}." : "")} List types with oml spec model-types \"*{bare.TrimStart('I')}*\".");
     }
 
     static IEnumerable<Type> WithBases(Type t) => new[] { t }.Concat(t.GetInterfaces());
@@ -57,7 +57,7 @@ static class ModelTypes
     static PropertyInfo[] SafeProperties(Type t) { try { return t.GetProperties(); } catch (Exception) { return []; } }
     static MethodInfo[] SafeMethods(Type t) { try { return t.GetMethods(); } catch (Exception) { return []; } }
 
-    /// The Model API interfaces an object implements, most specific first (the one oml model-types should show).
+    /// The Model API interfaces an object implements, most specific first (the one oml spec model-types should show).
     internal static Type? Of(object o) => All().Where(t => t.IsInstanceOfType(o))
         .OrderBy(t => Rank(t) == 2 ? 1 : 0).ThenByDescending(t => All().Count(x => x.IsAssignableFrom(t))).ThenBy(Rank).FirstOrDefault();
 
@@ -68,7 +68,7 @@ static class ModelTypes
         var keys = Settable(type).Keys.ToList();
         var near = keys.Select(k => (k, d: SpecHelp.Distance(key.ToLowerInvariant(), k.ToLowerInvariant()))).Where(x => x.d <= Math.Max(2, key.Length / 3))
             .OrderBy(x => x.d).Select(x => x.k).Take(3).ToList();
-        return $". {(near.Count > 0 ? $"Closest: {string.Join(", ", near)}. " : "")}{Short(type)} takes: {string.Join(", ", keys.Take(30))}{(keys.Count > 30 ? ", ..." : "")} (oml model-types {Short(type)})";
+        return $". {(near.Count > 0 ? $"Closest: {string.Join(", ", near)}. " : "")}{Short(type)} takes: {string.Join(", ", keys.Take(30))}{(keys.Count > 30 ? ", ..." : "")} (oml spec model-types {Short(type)})";
     }
 
     /// What a value of this type is written as in a spec.
@@ -159,7 +159,7 @@ partial class Builder
             var own = ModelTypes.Factories(parent.GetType(), typeof(object)).Where(f => f.Name.StartsWith("Create")).Select(f => f.Name).Distinct().Take(15).ToList();
             throw new ModelError($"{ModelTypes.Short(parentType)} '{parentPath ?? "(module)"}' has no {factoryName ?? "Create* method"}{(typeName is null ? "" : $" that makes a {ModelTypes.Short(wanted)}")}."
                 + (makers.Count > 0 ? $" A {ModelTypes.Short(wanted)} is made by: {string.Join(", ", makers)}; point \"parent\" at one of those." : "")
-                + (own.Count > 0 ? $" This parent makes: {string.Join(", ", own)}." : "") + $" See oml model-types {ModelTypes.Short(parentType)}.");
+                + (own.Count > 0 ? $" This parent makes: {string.Join(", ", own)}." : "") + $" See oml spec model-types {ModelTypes.Short(parentType)}.");
         }
         var name = Text(edit, "name");
         var args = edit.TryGetProperty("args", out var a) && a.ValueKind == JsonValueKind.Object ? a : default;

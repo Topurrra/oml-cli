@@ -443,7 +443,7 @@ static class MapCommand
         if (watch.Elapsed.TotalSeconds > 5) failures.Add($"map links: {2 * n} flows took {watch.Elapsed.TotalSeconds:0.0} s");
     }
 
-    // For oml mock: the facts of every module and the resolved links, or why the map cannot be read.
+    // For oml map mock: the facts of every module and the resolved links, or why the map cannot be read.
     internal sealed class MapLoadException(string message, int code, string? hint) : Exception(message)
     {
         public int Code { get; } = code;

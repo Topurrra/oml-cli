@@ -116,7 +116,7 @@ foreach ($t in $budget.Keys) {
 }
 $load = Tokens (Join-Path $repo 'skill/SKILL.md')
 # 2900: the two golden rules (oml doc golden-rules holds the details).
-if ($load -gt 2900 * 1.15) { Fail "SKILL.md is $load tokens; budget 2900 (+15%)" }
+if ($load -gt 2920 * 1.15) { Fail "SKILL.md is $load tokens; budget 2920 (+15%): 2920 for find --text over modules" }
 
 # 7b. AGENTS.md points to the rules and holds none, SKILL.md holds every rule, and every rule on the website, read as in rules.md
 $ruleLines = @{}

@@ -618,7 +618,7 @@ static class Apply
     static IEnumerable<object> Notices(List<(string id, string owner, string message, int count)> notices) =>
         notices.GroupBy(n => n.id).Select(g => (object)new
         {
-            id = g.Key, count = g.Sum(n => n.count), hint = WarningTable.Hint(g.Key), // rows in warnings.md, so `oml explain-warning` finds them too
+            id = g.Key, count = g.Sum(n => n.count), hint = WarningTable.Hint(g.Key), // rows in warnings.md, so `oml doc warning` finds them too
             samples = g.Take(12).Select(n => new { message = n.message, detail = (string?)null, owner = n.owner == "" ? null : n.owner }),
         });
 

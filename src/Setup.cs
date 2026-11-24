@@ -7,17 +7,17 @@ using Microsoft.Win32;
 
 namespace OmlCli;
 
-// `oml explorer-menu`: Explorer right-click entries for the current user, so a developer can convert fonts and images, export
+// `oml menu explorer`: Explorer right-click entries for the current user, so a developer can convert fonts and images, export
 // OpenAPI and make architecture pages without a terminal. It writes only under HKCU\Software\Classes (no admin), and
 // marks every key it creates with the OmlSetup value: --remove deletes only marked keys, and an unmarked key with oml's
 // verb name is never changed.
 //
-// `oml explorer-menu run <action> <path>` is what the entries call. It runs the normal oml command in this process (the same
+// `oml menu explorer run <action> <path>` is what the entries call. It runs the normal oml command in this process (the same
 // runner as the dashboard), then shows the result in Explorer. Failures go to setup.log and to a message box.
 [SupportedOSPlatform("windows")]
 static class Setup
 {
-    const string Usage = "oml explorer-menu [--remove | --status]   |   oml explorer-menu run <font|image|ico|trace|openapi|dashboard|fonts|images|architecture> <path> [--no-ui]";
+    const string Usage = "oml menu explorer [--remove | --status]   |   oml menu explorer run <font|image|ico|trace|openapi|dashboard|fonts|images|architecture> <path> [--no-ui]";
     const string Marker = "OmlSetup", MarkerValue = "oml-cli";
     const string ClassesRoot = @"Software\Classes";
     // Only the tests use another root: a throwaway key under HKCU\Software, never the real Classes key.
@@ -64,7 +64,7 @@ static class Setup
             return Fail("Run oml.exe itself (not through dotnet), so the entries can call it.", 2);
         // Explorer reads %1, %V, %L, ... in a command; a '%' in the exe path could become one of them.
         if (mode is null && exe!.Contains('%'))
-            return Fail($"The path of oml.exe contains '%', which Explorer reads as a placeholder: {exe}. Move oml.exe to a folder without '%' and run oml explorer-menu there.", 2);
+            return Fail($"The path of oml.exe contains '%', which Explorer reads as a placeholder: {exe}. Move oml.exe to a folder without '%' and run oml menu explorer there.", 2);
         try
         {
             return mode switch { "--remove" => Remove(root), "--status" => Status(root, exe!), _ => Install(root, exe!) };
@@ -94,7 +94,7 @@ static class Setup
             .Select(e => @"HKCU\" + KeyPath(root, e)).ToList();
         if (foreign.Count > 0)
             return Fail("Nothing changed. These keys have oml's names but oml did not make them, so it will not overwrite them: "
-                + string.Join(", ", foreign) + ". Remove or rename them yourself, then run oml explorer-menu again.", 1);
+                + string.Join(", ", foreign) + ". Remove or rename them yourself, then run oml menu explorer again.", 1);
         foreach (var e in entries)
         {
             CreateParents(hkcu, root, e.Parent);
@@ -109,7 +109,7 @@ static class Setup
         {
             installed = entries.Select(e => @"HKCU\" + KeyPath(root, e)).ToList(),
             exe,
-            note = "Right-click a font, an image, an .oml file or a folder in Explorer. On Windows 11, choose 'Show more options' first. Remove them with: oml explorer-menu --remove",
+            note = "Right-click a font, an image, an .oml file or a folder in Explorer. On Windows 11, choose 'Show more options' first. Remove them with: oml menu explorer --remove",
         });
         return 0;
     }
@@ -194,8 +194,8 @@ static class Setup
             total = entries.Count,
             entries,
             note = installed == entries.Count ? null
-                : entries.Any(e => e.state == "not made by oml") ? "Some keys have oml's names but oml did not make them; oml explorer-menu will not overwrite them."
-                : "Run oml explorer-menu to add or update the missing entries.",
+                : entries.Any(e => e.state == "not made by oml") ? "Some keys have oml's names but oml did not make them; oml menu explorer will not overwrite them."
+                : "Run oml menu explorer to add or update the missing entries.",
         });
         return 0;
     }

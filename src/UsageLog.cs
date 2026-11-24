@@ -14,7 +14,7 @@ namespace OmlCli;
 // the first problem message cut to 200 characters with folders and secrets removed. For `oml learn` and memory
 // usefulness it also keeps: a hashed session id (OML_SESSION or the agent's session variable), the option NAMES
 // (--module, never their values), the record ids a memory recall returned, the spec key of a failed spec, the id of
-// `oml explain-warning <id>`, and the words of a doc or spec search that found nothing good (cut to 100 characters, secrets
+// `oml doc warning <id>`, and the words of a doc or spec search that found nothing good (cut to 100 characters, secrets
 // masked). It never logs other arguments, spec contents, tokens, environment values or paths, and it sends nothing anywhere.
 // Linked into OmlCli.Core as well (see the Core csproj): the launcher logs whole commands, Core logs run steps.
 static class UsageLog
@@ -134,7 +134,7 @@ static class UsageLog
         return null;
     }
 
-    // The learning fields, read from oml's own output (never from the arguments, except the id of `oml explain-warning`).
+    // The learning fields, read from oml's own output (never from the arguments, except the id of `oml doc warning`).
     static IEnumerable<(string Name, JsonNode Value)> Extras(IReadOnlyList<string> args, int exitCode, string stdout)
     {
         if (args[0] == "explain-warning" && args.Count > 1 && Regex.IsMatch(args[1], "^[A-Za-z][A-Za-z0-9_]{1,60}$")) yield return ("topic", args[1]);
@@ -285,9 +285,9 @@ static class UsageLog
         return rows;
     }
 
-    const string SummaryUsage = "Usage: oml log summary [--hours N] [--file <usage.jsonl>]";
+    const string SummaryUsage = "Usage: oml learn usage [--hours N] [--file <usage.jsonl>]";
 
-    // `oml log summary [--hours N] [--file f]`: per command count, failures, median and total seconds and the 5 most
+    // `oml learn usage [--hours N] [--file f]`: per command count, failures, median and total seconds and the 5 most
     // common failure messages. With --hours, only the last N hours, plus each session's time split: seconds oml spent
     // running commands, and the rest of the session, which is the agent thinking between commands (or the user away).
     // A session is the agent's logged session id, else commands with no 30-minute gap (Sessions).

@@ -1055,7 +1055,7 @@ static partial class Migrate
                 if (placeholders.Count == 0) notes.Add($"No placeholder was read in the layout {layout}: check the placeholder names of the translated screens.");
             }
         }
-        else notes.Add("No --template was given, so the screens are built without a layout block. Give --template <reactive-template.oml> (a template with a Layout block, see oml templates) and plan again to use one.");
+        else notes.Add("No --template was given, so the screens are built without a layout block. Give --template <reactive-template.oml> (a template with a Layout block, see oml new --templates) and plan again to use one.");
 
         // 5. first pass (all entity actions have a wrapper name, so none is refused), then the final decisions, then the real pass
         var allWrappers = EntityActionMap(r.EntityNames).ToDictionary(kv => kv.Key, kv => kv.Value.entity + "_" + kv.Value.op);
