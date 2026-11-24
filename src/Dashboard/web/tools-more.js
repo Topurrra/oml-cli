@@ -235,4 +235,91 @@ const css = {
   },
 };
 
-export const TOOLS_B = [time, diff, regex, contrast, css];
+// ---- XML ----
+// The browser's own parser checks the XML; a small writer prints it again. An element with only text stays on one line;
+// an element that mixes text and elements (<p>Hi <b>you</b></p>) is written as it is, because spaces there are content.
+const escText = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const escAttr = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;').replace(/\t/g, '&#9;').replace(/\n/g, '&#10;').replace(/\r/g, '&#13;');
+
+export class XmlError extends Error {
+  constructor(message, line, column) { super(message); this.line = line; this.column = column; }
+}
+
+function parseXml(src) {
+  const doc = new DOMParser().parseFromString(src, 'application/xml');
+  const err = doc.getElementsByTagName('parsererror')[0];
+  if (err) {
+    const text = err.textContent || 'Not valid XML';
+    const at = /line (\d+)(?: at column |, column |:)(\d+)/i.exec(text);
+    const what = (/column \d+:\s*(.+)/i.exec(text) || [])[1] || text.replace(/^This page contains the following errors:/, '').split('\n')[0];
+    throw new XmlError(what.replace(/Below is a rendering.*$/s, '').trim(), at ? +at[1] : null, at ? +at[2] : null);
+  }
+  // The XML declaration is not a node of the document: keep it as written.
+  const decl = (/^﻿?\s*(<\?xml\s[^?]*\?>)/.exec(src) || [])[1] || null;
+  return { doc, decl };
+}
+
+function writeXml(src, indent) {
+  const { doc, decl } = parseXml(src);
+  const pretty = indent !== null, nl = pretty ? '\n' : '';
+  const blank = n => n.nodeType === 3 && !n.nodeValue.trim();
+  const inline = n => {
+    switch (n.nodeType) {
+      case 1: {
+        const attrs = Array.from(n.attributes, a => ` ${a.name}="${escAttr(a.value)}"`).join('');
+        return n.childNodes.length ? `<${n.tagName}${attrs}>${Array.from(n.childNodes, inline).join('')}</${n.tagName}>` : `<${n.tagName}${attrs}/>`;
+      }
+      case 3: return escText(n.nodeValue);
+      case 4: return `<![CDATA[${n.nodeValue}]]>`;
+      case 7: return `<?${n.target} ${n.data}?>`;
+      case 8: return `<!--${n.nodeValue}-->`;
+      case 10: return `<!DOCTYPE ${n.name}${n.publicId ? ` PUBLIC "${n.publicId}" "${n.systemId}"` : n.systemId ? ` SYSTEM "${n.systemId}"` : ''}>`;
+      default: return '';
+    }
+  };
+  const block = (n, depth) => {
+    const pad = pretty ? indent.repeat(depth) : '';
+    if (n.nodeType !== 1) return pad + inline(n).trim() + nl;
+    const kids = Array.from(n.childNodes);
+    const text = kids.some(k => k.nodeType === 3 && k.nodeValue.trim());
+    const other = kids.some(k => k.nodeType !== 3);
+    // Empty, only text, or text mixed with elements: one line, as written.
+    if (!kids.length || !other || text) return pad + inline(n) + nl;
+    const attrs = Array.from(n.attributes, a => ` ${a.name}="${escAttr(a.value)}"`).join('');
+    return `${pad}<${n.tagName}${attrs}>${nl}${kids.filter(k => !blank(k)).map(k => block(k, depth + 1)).join('')}${pad}</${n.tagName}>${nl}`;
+  };
+  return (decl ? decl + nl : '') + Array.from(doc.childNodes, k => block(k, 0)).join('');
+}
+
+export const formatXml = (src, indent = '  ') => writeXml(src, indent);
+export const minifyXml = src => writeXml(src, null);
+
+const xml = {
+  id: 'xml', name: 'XML', desc: 'Format, minify and check XML (SOAP messages, config files, .oml exports). Errors show the line and column.',
+  render(el) {
+    const input = area('XML', { rows: 12, placeholder: '<order id="42"><line sku="A1" qty="2"/></order>' });
+    const indent = h('select', { 'aria-label': 'Indent' }, [['2', '2 spaces'], ['4', '4 spaces'], ['tab', 'Tab']].map(([v, t]) => h('option', { value: v }, t)));
+    const out = outBox(), msg = h('div');
+    const run = mode => {
+      msg.replaceChildren(); out.textContent = '';
+      const src = input.el.value;
+      const big = tooLong(src);
+      if (big) { add(msg, big); return; }
+      if (!src.trim()) { add(msg, status('error', 'Paste some XML first.')); return; }
+      try {
+        const r = mode === 'min' ? minifyXml(src) : formatXml(src, indent.value === 'tab' ? '\t' : ' '.repeat(+indent.value));
+        if (mode === 'check') { add(msg, status('ok', 'Valid XML.')); return; }
+        out.textContent = r;
+        add(msg, status('ok', `Valid XML. ${src.length} → ${r.length} characters.`));
+      } catch (e) {
+        const where = e.line ? `Line ${e.line}, column ${e.column}: ` : '';
+        const line = e.line ? src.split('\n')[e.line - 1] || '' : '';
+        const caret = e.line ? `\n\n${line}\n${' '.repeat(Math.max(0, e.column - 1))}^` : '';
+        add(msg, h('div', { class: 'message error', role: 'alert' }, h('strong', {}, 'Not valid XML. '), h('pre', { text: where + e.message + caret })));
+      }
+    };
+    add(el, input.field, h('div', { class: 'row' }, button('Format', () => run('format'), true), button('Minify', () => run('min')), button('Check', () => run('check')), indent, copyOut(out, 'XML')), msg, h('div', { class: 'field' }), out);
+  },
+};
+
+export const TOOLS_B = [time, diff, regex, contrast, css, xml];

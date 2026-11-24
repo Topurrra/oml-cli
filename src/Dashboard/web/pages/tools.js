@@ -2,7 +2,7 @@ import { h, add, icon } from '../core/dom.js';
 import { store } from '../core/store.js';
 import { hashParams } from '../core/state.js';
 import { TOOLS_A, badJsonAt, stripComments, validate } from '../tools.js';
-import { TOOLS_B, minifyCss, beautifyCss, diffLines, luminance } from '../tools-more.js';
+import { TOOLS_B, minifyCss, beautifyCss, diffLines, luminance, formatXml, minifyXml } from '../tools-more.js';
 import { TOOLS_FILES } from '../tools-assets.js';
 import { dataTable } from '../core/table.js';
 
@@ -23,6 +23,11 @@ function toolSelfTest() {
   eq(badJsonAt('{\n  "a": 1,\n  "b": [1, 2,]\n}').at, 25, 'json position');
   eq(badJsonAt('{"a": [1, {"b": null}]}'), null, 'valid json');
   eq(Math.round((luminance([255, 255, 255]) + 0.05) / (luminance([0, 0, 0]) + 0.05)), 21, 'contrast');
+  eq(formatXml('<?xml version="1.0"?><a x="1 &amp; 2"><b>t</b><c/><!--n--><p>Hi <i>you</i>!</p></a>'),
+    '<?xml version="1.0"?>\n<a x="1 &amp; 2">\n  <b>t</b>\n  <c/>\n  <!--n-->\n  <p>Hi <i>you</i>!</p>\n</a>\n', 'xml format');
+  eq(minifyXml('<a>\n  <b> t </b>\n  <![CDATA[x<y]]>\n</a>'), '<a><b> t </b><![CDATA[x<y]]></a>', 'xml minify');
+  let bad = null; try { formatXml('<a>\n<b></a>'); } catch (e) { bad = e; }
+  eq(!!(bad && bad.line), true, 'xml error line');
   for (const t of TOOLS) { try { t.render(h('div')); } catch (e) { throw new Error(`tools self-check: the ${t.name} tool does not open: ${e.message}`); } }
   // The shared table every page uses: paging, search, a filter and sorting.
   const rows = Array.from({ length: 40 }, (_, i) => ({ name: 'Item' + i, kind: i % 2 ? 'odd' : 'even', n: i }));
