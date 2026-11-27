@@ -185,19 +185,28 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
         var start = exceptionAction ? null : nodes.OfType<OutSystems.Model.Logic.Nodes.IStartNode>().FirstOrDefault()
                     ?? NewNode(action, typeof(OutSystems.Model.Logic.Nodes.IStartNode), "Start");
         var named = nodes.Where(n => Model.NameOf(n) is not null).GroupBy(n => Model.NameOf(n)!).ToList();
-        var byName = named.Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.Single());
+        // "End" is worked out by End() below (which End the inserted flow reaches), never taken from a label.
+        var byName = named.Where(g => g.Count() == 1 && !(g.Key == "End" && g.Single() is OutSystems.Model.Logic.Nodes.IEndNode)).ToDictionary(g => g.Key, g => g.Single());
         var ambiguous = named.Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet();
         if (start is not null) byName.TryAdd("Start", start);
         // The model stores no name on an End node: after a save a flow with a handler has several Ends, all "End".
         // "End" means the End reached from where this flow is inserted: the main path's, or the handler's in a handler.
         // Worked out now, while the connectors around the insertion are still in place.
         var ends = nodes.OfType<OutSystems.Model.Logic.Nodes.IEndNode>().ToList();
-        var nearestEnd = ends.Count > 1 && action is IObjectSignature flowOwner && (after ?? start) is { } origin ? NearestEnd(flowOwner, origin) : null;
+        var nearestEnd = ends.Count > 0 && action is IObjectSignature flowOwner && (after ?? start) is { } origin ? NearestEnd(flowOwner, origin) : null;
         object End()
         {
             if (byName.TryGetValue("End", out var e)) return e;
-            return byName["End"] = nearestEnd ?? ends.FirstOrDefault()
+            return byName["End"] = nearestEnd ?? MainEnd()
                    ?? NewNode(action, typeof(OutSystems.Model.Logic.Nodes.IEndNode), "End");
+        }
+        // No End is reached from where the flow goes in (the main path ends in a navigate or a raise): an End that a
+        // handler reaches is the handler's, and a handler's path cannot cross the main path, so that one is not reused.
+        object? MainEnd()
+        {
+            if (action is not IObjectSignature owner) return ends.FirstOrDefault();
+            var handlers = nodes.OfType<OutSystems.Model.Logic.Nodes.IExceptionHandlerNode>().Select(h => NearestEnd(owner, h)).OfType<object>().ToHashSet(ReferenceEqualityComparer.Instance);
+            return ends.FirstOrDefault(x => !handlers.Contains(x));
         }
 
         var built = new List<(JsonElement spec, object node, string name, string kind)>();
@@ -322,8 +331,14 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 }
                 if (Reflect.Property(node, "TrueTarget") is not null)
                 {
-                    Connect(node, "TrueTarget", Resolve(Named("true") ?? throw new ModelError($"{name}: 'true' target required")));
-                    Connect(node, "FalseTarget", Resolve(Named("false") ?? throw new ModelError($"{name}: 'false' target required")));
+                    var whenTrue = Resolve(Named("true") ?? throw new ModelError($"{name}: 'true' target required"));
+                    var whenFalse = Resolve(Named("false") ?? throw new ModelError($"{name}: 'false' target required"));
+                    // Both branches end the flow (`if X: return` as the last statement): an If cannot take both to one
+                    // node, so the true branch gets an End of its own.
+                    if (ReferenceEquals(whenTrue, whenFalse) && whenTrue is OutSystems.Model.Logic.Nodes.IEndNode)
+                        whenTrue = NewNode(action, typeof(OutSystems.Model.Logic.Nodes.IEndNode), "End");
+                    Connect(node, "TrueTarget", whenTrue);
+                    Connect(node, "FalseTarget", whenFalse);
                     return;
                 }
                 if (Reflect.Property(node, "CycleTarget") is not null)
@@ -390,9 +405,20 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 JsonValueKind.False => "False",
                 _ => throw new ModelError($"argument '{a.Name}' must be an expression string, a number or true/false"),
             };
-            Reflect.Call(arg, "SetValue", ListLambdas.IsLambda(arg) ? ListLambdas.Rewrite(value, ListLambdas.ListText(list)) : value);
+            var text = ListLambdas.IsLambda(arg) ? ListLambdas.Rewrite(value, ListLambdas.ListText(list)) : value;
+            // An argument that already holds this text keeps it: setting it again parses it again, and the model's parser
+            // refuses some forms it holds (a list literal, `[ { Id: 1 } ]`), so an unchanged one would fail a changed call.
+            // The same text in other spacing or keyword case (`1+2` held, `1 + 2` in the spec) is the same text.
+            if (SameExpression(Describe.Expr(arg, "Value"), text)) continue;
+            Reflect.Call(arg, "SetValue", text);
         }
     }
+
+    // Two expression texts that read the same: equal, or equal once spacing and keyword case are normalized (as review
+    // compares them). A held text that is the same keeps its own form when a node is changed around it.
+    internal static bool SameExpression(string? held, string? wanted) =>
+        held is not null && wanted is not null
+        && (held == wanted || Expressions.Canonical(held) is { } a && a == Expressions.Canonical(wanted));
 
     void Aggregate(object aggregate, JsonElement spec, string where)
     {
@@ -671,6 +697,13 @@ partial class Builder(IESpace m, IModelServices services, List<string> created, 
                 Try($"{where}.attributes", () => Attributes(widget, p.Value, where));
             else if (p.Name.Equals("targetWidget", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.String)
                 Defer(widget, ($"{where}.targetWidget", () => TargetWidget(widget, p.Value.GetString()!)));
+            // Binding the variable (an expression, set late) gives an input the attribute's length: Max Length is set after
+            // every expression queued so far, the binding included, whatever the order of the keys.
+            else if (p.Name.Equals("maxLength", StringComparison.OrdinalIgnoreCase))
+            {
+                var (key, value) = (p.Name, p.Value.Clone());
+                Defer(widget, ($"{where}.{key}", () => Defer(widget, ($"{where}.{key}", () => Queue(where, m, widget, key, value, referencesDone: true)))));
+            }
             else
                 Queue(where, m, widget, p.Name, p.Value, referencesDone: true);
         }

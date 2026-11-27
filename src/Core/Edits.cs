@@ -18,11 +18,14 @@ partial class Builder
             var label = $"edit[{index++}]";
             if (SkipEdits.Contains(index - 1))
             {
-                existing.Add(edit.TryGetProperty("at", out var at) ? $"widgets of {at.GetString()} (already as in the spec)"
-                    : $"node {(edit.TryGetProperty("element", out var e) ? e.GetString() : label)} (already as in the spec)");
-                continue;
+                if (!SkippedRelink(edit, label))
+                {
+                    existing.Add(edit.TryGetProperty("at", out var at) ? $"widgets of {at.GetString()} (already as in the spec)"
+                        : $"node {(edit.TryGetProperty("element", out var e) ? e.GetString() : label)} (already as in the spec)");
+                    continue;
+                }
             }
-            Try(label, () => EditOne(edit, label));
+            else Try(label, () => EditOne(edit, label));
             // Finish topology before resolving the next edit, while keeping expressions last.
             foreach (var stage in new[] { flows, references, targets, widgets })
             {
@@ -30,9 +33,23 @@ partial class Builder
                 stage.Clear();
             }
         }
-        foreach (var expression in expressions) Try(expression.label, expression.apply);
+        for (var i = 0; i < expressions.Count; i++) Try(expressions[i].label, expressions[i].apply);   // an expression may queue one more (maxLength after the binding)
         foreach (var pick in picks) Try(pick.label, pick.apply);   // after the expressions they depend on (a source record list)
         foreach (var deletion in dataDeletes) Try(deletion.label, deletion.apply);
+    }
+
+    // A replaceNode kept because its node equals the module's (SkipEdits): the review fingerprint has no connectors, so the
+    // links its node gives are still made on the kept node. False when none changes.
+    bool SkippedRelink(JsonElement edit, string label)
+    {
+        if (!edit.TryGetProperty("op", out var op) || op.GetString() != "replaceNode" || !edit.TryGetProperty("node", out var node)
+            || node.ValueKind != JsonValueKind.Object || !edit.TryGetProperty("element", out var e) || e.GetString() is not { } path) return false;
+        var relinked = false;
+        Try(label, () =>
+        {
+            if (ElementPaths.Resolve(m, path, write: true) is { Parent: IObjectSignature owner } target && target is IActionNode) relinked = Relink(owner, target, node, label);
+        });
+        return relinked;
     }
 
     int nestedEdits; // replaceNode runs delete and insertNodes through EditOne: only the replaceNode itself is reported
@@ -135,7 +152,11 @@ partial class Builder
                 {
                     var was = ReviewModel.Fingerprint(m, [target]);
                     Change($"node {Required("element")}");
-                    replacements.Add((int.Parse(label[5..^1]), was, () => Elements(Reflect.Get(owner, "Nodes")).OfType<IObjectSignature>().Where(x => Model.NameOf(x) == inPlaceName && !x.WasDeleted).ToList()));
+                    // Its connectors (next, true, false, cycle, otherwise) go where the node says, after the builder's own
+                    // links. A node whose connectors change is never "already as in the spec".
+                    var relinked = Relink(owner, target, node, label);
+                    if (!relinked)
+                        replacements.Add((int.Parse(label[5..^1]), was, () => Elements(Reflect.Get(owner, "Nodes")).OfType<IObjectSignature>().Where(x => Model.NameOf(x) == inPlaceName && !x.WasDeleted).ToList()));
                     break;
                 }
                 var edges = Edges(owner).ToList();
@@ -168,6 +189,7 @@ partial class Builder
                 }
                 finally { nestedEdits--; }
                 Change($"node {Required("element")}");
+                // Equal to the old node: apply runs again keeping the old one, and makes only its link changes (SkippedRelink).
                 if (name is not null)
                     replacements.Add((int.Parse(label[5..^1]), before, () => Elements(Reflect.Get(owner, "Nodes")).OfType<IObjectSignature>().Where(x => Model.NameOf(x) == name && !x.WasDeleted).ToList()));
                 break;
@@ -453,6 +475,12 @@ partial class Builder
                 if (db is not null && !all.Any(p => ReferenceEquals(p.part, target)))
                     throw new ModelError($"'{Required("element")}' is internal structure of an aggregate; delete its sources, joins, filters, sorts, groups or attributes instead");
                 var parts = all.Where(p => !ReferenceEquals(p.part, target)).ToList();
+                // A widget can take others with it (a table's header cell takes its column's row cell): note every widget of
+                // the screen or block and its path first, to report what else went and which paths moved.
+                var ui = target is OutSystems.Model.UI.IWidgetSignature
+                    ? Ancestors(target).FirstOrDefault(a => a.Parent is IObjectSignature up && (up is IESpace || up.Parent is IESpace)) : null;
+                var widgetsBefore = ui is null ? [] : ModuleReferences.Descendants(ui).Where(w => w is OutSystems.Model.UI.IWidgetSignature && !ReferenceEquals(w, target) && !Ancestors(w).Contains(target))
+                    .Select(w => (widget: w, path: WidgetPath(ui, w))).Where(x => x.path is not null).ToList();
                 try { target.Delete(); }
                 catch (Exception e) when (e is not ModelError)
                 {
@@ -468,6 +496,21 @@ partial class Builder
                     }
                     if (parts.FirstOrDefault(p => ((IObjectSignature)p.part).WasDeleted || !after.Contains(p.part)) is { what: { } lost })
                         throw new ModelError($"deleting '{Required("element")}' would also remove {lost} (a model side effect); do it in Service Studio");
+                }
+                if (widgetsBefore.Count > 0)
+                {
+                    var alsoGone = widgetsBefore.Where(x => x.widget.WasDeleted && !widgetsBefore.Any(y => y.widget.WasDeleted && Ancestors(x.widget).Contains(y.widget))).Select(x => x.path!).ToList();
+                    if (alsoGone.Count > 0) Change($"{Required("element")}: also removed {string.Join(", ", alsoGone)} (the model deletes them with it)");
+                    // The widgets whose own index moved (not the ones inside them), in screen order.
+                    var shifted = widgetsBefore.Where(x => !x.widget.WasDeleted && WidgetPath(ui!, x.widget) is { } now && now != x.path).ToList();
+                    var goneParents = alsoGone.Select(g => g[..(g.LastIndexOf('/') + 1)]).ToHashSet();
+                    var moved = shifted.Where(x => !shifted.Any(y => Ancestors(x.widget).Contains(y.widget)))
+                        .OrderBy(x => goneParents.Any(g => x.path!.StartsWith(g, StringComparison.Ordinal) && !x.path[g.Length..].Contains('/')) ? 0 : 1)
+                        .ThenBy(x => x.path, Comparer<string?>.Create((a, b) => string.Compare(System.Text.RegularExpressions.Regex.Replace(a ?? "", @"\d+", d => d.Value.PadLeft(6, '0')),
+                            System.Text.RegularExpressions.Regex.Replace(b ?? "", @"\d+", d => d.Value.PadLeft(6, '0')), StringComparison.Ordinal)))
+                        .Select(x => $"{x.path} is now {WidgetPath(ui!, x.widget)}").ToList();
+                    if (alsoGone.Count > 0 && moved.Count > 0)
+                        Warnings.Add($"{Required("element")}: deleting it also removed {alsoGone.Count} widget{(alsoGone.Count == 1 ? "" : "s")}, so paths after them moved ({string.Join("; ", moved.Take(4))}{(moved.Count > 4 ? $"; {moved.Count - 4} more" : "")}). A later edit of this spec that names one by its old path now finds another widget");
                 }
                 break;
             }
@@ -530,7 +573,18 @@ partial class Builder
         if (node.TryGetProperty("assign", out var assign) && assign.ValueKind == JsonValueKind.Object)
             Defer(target, ($"{where}.assign", () =>
             {
-                foreach (var row in Elements(Reflect.Get(target, "Assignments")).OfType<IObjectSignature>().ToList()) row.Delete();
+                var rows = Elements(Reflect.Get(target, "Assignments")).OfType<IObjectSignature>().ToList();
+                var wanted = assign.EnumerateObject().ToList();
+                // The same variables in the same order: each row is kept, and only a value whose text changed is set. A
+                // value set again is parsed again (the model refuses some forms it holds, such as a list literal) and takes
+                // the spec's spacing, so an unchanged one stays as it is (see Arguments).
+                if (rows.Count == wanted.Count && rows.Zip(wanted).All(p => SameExpression(Describe.Expr(p.First, "Variable"), p.Second.Name)))
+                {
+                    foreach (var (row, a) in rows.Zip(wanted))
+                        if (!SameExpression(Describe.Expr(row, "Value"), a.Value.GetString())) Reflect.Call(row, "SetValue", a.Value.GetString());
+                    return;
+                }
+                foreach (var row in rows) row.Delete();
                 foreach (var a in assign.EnumerateObject())
                 {
                     var assignment = Reflect.Call(target, "CreateAssignment")!;
@@ -558,6 +612,35 @@ partial class Builder
             }
         return true;
     }
+
+    // replaceNode's connector keys on a node changed in place: each that names another node than the one it goes to now is
+    // connected there (End: the End nearest to the node). True when any connector changes.
+    bool Relink(IObjectSignature owner, IObjectSignature target, JsonElement node, string label)
+    {
+        var any = false;
+        foreach (var key in new[] { "next", "true", "false", "cycle", "otherwise" })
+        {
+            if (!node.TryGetProperty(key, out var to) || to.ValueKind != JsonValueKind.String || to.GetString() is not { Length: > 0 } wanted) continue;
+            var property = ConnectorProperty(key);
+            if (Reflect.Property(target, property) is null)
+                throw new ModelError($"'{key}': a {ElementPaths.Kind(target)} has no {key} connector");
+            if (GoesTo(Reflect.Get(target, property), wanted)) continue;
+            any = true;
+            targets.Add(($"{label}.{key}", () =>
+            {
+                var destination = wanted.Equals("End", StringComparison.OrdinalIgnoreCase)
+                    ? NearestEnd(owner, target) ?? throw new ModelError("this flow has no End node to connect to")
+                    : NodeNamed(owner, wanted, label);
+                Connect(target, property, destination);
+            }));
+            Change($"node {ElementPaths.PathTo(m, target) ?? Model.NameOf(target)}: {key} goes to {wanted}");
+        }
+        return any;
+    }
+
+    // A connector's node as a replaceNode link names it: End, or the node's name.
+    static bool GoesTo(object? now, string wanted) =>
+        wanted.Equals("End", StringComparison.OrdinalIgnoreCase) ? now is IEndNode : now is not null && Model.NameOf(now) == wanted;
 
     static object NodeNamed(IObjectSignature owner, string wanted, string from)
     {
@@ -661,6 +744,10 @@ partial class Builder
         while (e.InnerException is not null) e = e.InnerException;
         return e;
     }
+
+    // A widget's path from its screen or block, as edits take it (Screen/... , the shortest exact form inside).
+    static string? WidgetPath(IObjectSignature ui, IObjectSignature w) =>
+        ElementPaths.PathTo(ui, w) is { } inner ? Model.NameOf(ui) + "/" + inner : null;
 
     static IEnumerable<IObjectSignature> Ancestors(IObjectSignature o)
     {

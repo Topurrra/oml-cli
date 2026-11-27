@@ -2,6 +2,44 @@
 
 Keep a Changelog style: one section per release, newest first.
 
+## 2.2.1
+
+Bug fixes only: edits that changed the wrong element, did nothing, changed more than the spec said or were refused, and
+three reads that gave a wrong answer.
+
+### Fixed
+
+- **An edit no longer changes the wrong screen.** A path whose name is in more than one screen or block at different
+  depths (`Caption` in `Dashboard` and in `Home/Box`, by the bare name or under the flow, `MainFlow/Caption`) changed the
+  shallower one and saved without a word. A change by such a path (`set`, `delete`, `rename`, ...) is now refused as
+  ambiguous and lists each exact path (`Box/Caption (Expression), Dashboard/Caption (Expression)`). Reads are as before,
+  and an exact path (`Home/Box/Caption`) still works.
+- **`replaceNode` that changes only links is made.** A node whose `next`, `true`, `false`, `cycle` or `otherwise` was the
+  only change was reported as `already as in the spec` and the flow stayed as it was, both for a node changed in place (an
+  Assign) and for one built again (an aggregate, a SQL node). The links are now made, and `changed` says each one
+  (`A1: next goes to A3`). A node equal to the spec with the same links is still `already as in the spec`.
+- **`replaceNode` keeps the values it does not change.** An argument or assignment that the module holds in other spacing
+  (`1+2  *3` held, `1 + 2 * 3` in the spec) was set again in the spec's form, and an Assign's rows were made again; now
+  only a changed value is set.
+- **An Input's `maxLength` holds with a variable binding.** A new Input bound to an attribute (`"variable": "Rec.Name"`)
+  took the attribute's length (50) over `"maxLength": 10`; Max Length is now set after the binding.
+- **An `if` whose `true` and `false` both go to `End` saves.** It was refused with "Cannot change the target node to
+  End"; the true branch now gets an End of its own.
+- **`End` in nodes inserted beside an exception handler is the main path's.** Where the main path ended in a raise and the
+  only End was the handler's, `insertNodes` used that one and the save failed (`InvalidFlow_BadErrHandlerPath`); a new
+  End is made instead.
+- **A `delete` that takes other widgets with it says so.** A table header cell takes its column's row cell: `changed` now
+  names it, and a warning names the paths that moved. Before, only the header cell was reported.
+- **`set` of a widget event to another handler** removes the old handler's arguments that the new one has no input for.
+  They stayed on the event as `? = 1` (warning `UnusedArgument`).
+- **`oml tree` gives a block instance's block as its `ref`**; it gave an aggregate that an input reads.
+- **`oml export` of a screen with a table** no longer lists the table's inner content holders as widgets of the screen
+  (`CustomPlaceholderWidget` `content`, several with the same path).
+- **`spec model-types`, `spec widget-types` and `doc library status` run through the read tool of `oml mcp`**; they were
+  refused as unknown commands. `doc library fetch` and `update` need the gated tool.
+- **The hint for `ExpressionUnexpectedExpresssionType`** named only `LongIntegerToIdentifier`; a Long Integer (an
+  aggregate's `Count`) into an Integer needs `LongIntegerToInteger`.
+
 ## 2.2.0
 
 Search several modules at once, and fixes from field use on a large project (94 modules), in one release.

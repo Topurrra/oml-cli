@@ -617,6 +617,8 @@ static class Export
             var list = new JsonArray();
             foreach (var w in Describe.List(root, "Widgets").OfType<IObjectSignature>())
             {
+                // The element's widget list also holds each widget's inner content holder ("content"): not a widget of its own.
+                if (ElementPaths.Kind(w) == "CustomPlaceholderWidget" && w.Parent is not null && !ReferenceEquals(w.Parent, root)) continue;
                 if (!visited.Add(w)) continue;
                 var path = rootPath + "/" + Seg(w, root);
                 if (w is IWidgetSignature) list.Add(Widget(w, path, visited));

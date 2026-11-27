@@ -46,7 +46,7 @@ $spec = @{
     @{ name = 'Other'; locals = @(@{ name = 'Shared'; type = 'Integer' }) }, @{ name = 'Third'; locals = @(@{ name = 'Shared'; type = 'Integer' }) },
     @{ name = 'Region' }, @{ name = 'GetThing'; locals = @(@{ name = 'Thing'; type = 'PathsProd.Thing' }) },
     @{ name = 'Dashboard'; widgets = @(@{ type = 'Expression'; name = 'Caption'; value = '"dashboard caption"' }) },
-    @{ name = 'Home'; widgets = @(@{ type = 'Container'; name = 'Dashboard'; children = @(@{ type = 'Expression'; name = 'Title'; value = '"home title"' }) }) },
+    @{ name = 'Home'; widgets = @(@{ type = 'Container'; name = 'Dashboard'; children = @(@{ type = 'Expression'; name = 'Title'; value = '"home title"' }, @{ type = 'Expression'; name = 'Caption'; value = '"home caption"' }) }) },
     @{ name = 'Badges'; widgets = @(@{ type = 'BlockInstance'; name = 'Inst'; sourceBlock = 'Badge'; args = [ordered]@{ Mid = '"m"'; Alpha = '"a"'; Zed = '"z"' } }) },
     @{ name = 'Alpha'; actions = @(@{ name = 'Save'; locals = @(@{ name = 'Note'; type = 'Text' }); flow = @() }) }, @{ name = 'Beta'; actions = @(@{ name = 'Save'; flow = @() }) })
 } | ConvertTo-Json -Depth 10
@@ -101,6 +101,19 @@ $r = Apply $m '{"edits":[{"op":"set","element":"Home/Dashboard/Title","propertie
 Require ($r.saved -and !$r.problems) "Home/Dashboard/Title: $($r.problems -join '; ')"
 Require ((Kind 'Screen:Home' $edited).text -match 'Expression Title value="changed title"') 'the edit did not change Home/Dashboard/Title'
 Require ((Kind 'Screen:Dashboard' $edited).text -match 'value="dashboard caption"' -and (Kind 'Screen:Dashboard' $edited).text -notmatch 'changed') 'the edit changed the screen Dashboard'
+# One widget name in two screens at different depths (Dashboard/Caption, Home/Dashboard/Caption): a change by the bare
+# name or under the flow is refused with both exact paths, never made on the shallower one. Each exact path still works.
+foreach ($path in 'Caption', 'MainFlow/Caption') {
+  foreach ($edit in @("{`"op`":`"set`",`"element`":`"$path`",`"properties`":{`"value`":`"\`"x\`"`"}}", "{`"op`":`"delete`",`"element`":`"$path`"}", "{`"op`":`"rename`",`"element`":`"$path`",`"to`":`"Renamed`"}")) {
+    $out = Join-Path $Tmp 'paths-refused.oml'
+    $r = Apply $m "{`"edits`":[$edit]}" $out
+    Require (!$r.saved -and !(Test-Path $out) -and ($r.problems -join ' ') -match "ambiguous path '$path'.*Container:Dashboard/Caption \(Expression\), Dashboard/Caption \(Expression\)") "a change of $path picked one of two screens' Caption: $($r | ConvertTo-Json -Depth 5 -Compress)"
+  }
+}
+$edited = Join-Path $Tmp 'paths-caption.oml'
+$r = Apply $m '{"edits":[{"op":"set","element":"Home/Dashboard/Caption","properties":{"value":"\"changed caption\""}},{"op":"set","element":"Dashboard/Caption","properties":{"value":"\"other caption\""}}]}' $edited
+Require ($r.saved -and !$r.problems) "exact Caption paths: $($r.problems -join '; ')"
+Require ((Kind 'Screen:Home' $edited).text -match 'Expression Caption value="changed caption"' -and (Kind 'Screen:Dashboard' $edited).text -match 'Expression Caption value="other caption"') 'an exact Caption path did not reach its own screen'
 # replaceWidgets reads its "at" path by the same write rules: no fall-through, no referenced element, each part exact.
 $widgets = '"widgets":[{"type":"Expression","name":"Fresh","value":"\"fresh\""}]'
 foreach ($case in @(@('Dashboard/Title', "no element 'Title' under 'Dashboard' \(Screen\)"), @('Thing', 'belongs to the referenced module \w+; it cannot be changed here'),

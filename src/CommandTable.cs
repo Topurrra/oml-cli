@@ -60,6 +60,8 @@ internal static class CommandTable
         // Warm: the command may run in a warm worker (WarmPool); Warms has the exceptions per subcommand and option.
         new("version", null, Mcp: "read"), new("inspect", null, Mcp: "read", Warm: true), new("describe", null, Mcp: "read", Warm: true), new("find", null, Mcp: "read", Warm: true),
         new("tree", null, Mcp: "read", Warm: true), new("flow", null, Mcp: "read", Warm: true), new("stats", null, Hidden: true, Mcp: "read", Warm: true), new("header", null, Hidden: true, Mcp: "read", Warm: true),
+        // Merged forms (spec model-types, spec widget-types) run these: read tools in oml mcp too.
+        new("model-types", null, Hidden: true, Mcp: "read"), new("widget-types", null, Hidden: true, Mcp: "read"),
         new("expression", null, Hidden: true, Mcp: "read"), new("openapi", null, Mcp: "read", Warm: true), new("export", null, Mcp: "read", Warm: true), new("studio", null, Mcp: "read"),
         new("app", null, Mcp: "read"), new("query", null, Mcp: "read", Warm: true), new("validate", null, Mcp: "read", Warm: true), new("batch", null, Mcp: "read write", Warm: true),
         new("apply", null, Mcp: "write", Warm: true), new("new", null, Mcp: "write", Warm: true),
@@ -109,6 +111,7 @@ internal static class CommandTable
         if (cmd == "studio" && sub == "open") return ["gated"];   // opens a module in Service Studio
         if (cmd == "apply" && a.Contains("--user-approved")) return ["gated"];   // saves deletes and data-risk changes: a person says yes
         if (cmd == "team-rules" && sub is "add" or "remove") return ["write"];   // installs or removes a company skill
+        if (cmd == "outsystems-docs") return sub is "fetch" or "update" ? ["gated"] : ["read"];   // doc library: status reads; fetch and update download
         if (cmd == "test" && sub == "data" && a.Length > 2 && a[2] is "allow" or "create" or "update" or "cleanup") return ["gated"];   // changes data on a server
         return All.FirstOrDefault(c => c.Name == cmd)?.Mcp?.Split(' ') ?? [];
     }

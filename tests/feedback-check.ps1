@@ -88,5 +88,65 @@ $before = (Get-FileHash (Join-Path $staged 'A.oml')).Hash
 $r = Oml-Json @('install', (Join-Path $modules 'A.oml'), (Join-Path $staged 'A.oml'))
 Require ($r.Code -eq 2 -and $r.Text -match 'look swapped' -and (Get-FileHash (Join-Path $staged 'A.oml')).Hash -eq $before) "install swapped: $($r.Text)"
 Write-Host 'ok   install refuses swapped arguments'
+
+# 7. Fixes of 2.2.1, on a module of their own: an Input's maxLength with a variable binding, an If whose branches both
+# end, an End inserted where the only End is a handler's, unchanged values kept as held by replaceNode, an event moved
+# to a handler without the old one's input, tree's ref of a block instance, and the hint for a Long Integer into an Integer.
+$fixBlank = Join-Path $Tmp 'fix-blank.oml'
+& $Oml new $fixBlank --name FixCheck --kind CrossDevice | Out-Null
+$fixed = Join-Path $Tmp 'fixed.oml'
+$r = Oml-Json @('apply', $fixBlank, (Spec 'fixed.json' @'
+{
+  "exceptions": ["Stop"],
+  "entities": [{ "name": "Contact", "attributes": [{ "name": "Name", "type": "Text", "length": 50 }] }],
+  "blocks": [{ "name": "Badge", "inputs": [{ "name": "Caption", "type": "Text" }], "widgets": [{ "type": "Expression", "value": "Caption" }] }],
+  "screens": [
+    { "name": "Form", "locals": [{ "name": "Rec", "type": "Contact" }],
+      "widgets": [{ "type": "Input", "name": "NameInput", "maxLength": 10, "variable": "Rec.Name" }] },
+    { "name": "Clicks", "locals": [{ "name": "N", "type": "Integer" }],
+      "actions": [{ "name": "One", "inputs": [{ "name": "X", "type": "Integer" }], "flow": [{ "kind": "assign", "name": "SetN", "assign": { "N": "X" } }] },
+                  { "name": "Two", "flow": [{ "kind": "assign", "name": "SetN2", "assign": { "N": "2" } }] }],
+      "widgets": [{ "type": "Button", "name": "Go", "children": [{ "type": "Text", "text": "Go" }], "onClick": { "action": "One", "args": { "X": "1" } } }] },
+    { "name": "Board", "aggregates": [{ "name": "GetContacts", "sources": ["Contact"] }],
+      "widgets": [{ "type": "BlockInstance", "name": "Inst", "sourceBlock": "Badge", "args": { "Caption": "GetContacts.List.Current.Contact.Name" } }] }],
+  "serverActions": [
+    { "name": "Take", "inputs": [{ "name": "N", "type": "Integer" }, { "name": "Sep", "type": "Text" }], "outputs": [{ "name": "Joined", "type": "Text" }],
+      "flow": [{ "kind": "assign", "name": "SetJoined", "assign": { "Joined": "Sep" } }] },
+    { "name": "Caller", "outputs": [{ "name": "Out", "type": "Text" }], "locals": [{ "name": "A", "type": "Integer" }, { "name": "B", "type": "Text" }],
+      "flow": [{ "kind": "execute", "name": "DoTake", "action": "Take", "args": { "N": "1+2  *3", "Sep": "\",\"" } },
+               { "kind": "assign", "name": "SetBoth", "assign": { "A": "1+2  *3", "B": "\"x\"" } },
+               { "kind": "assign", "name": "SetOut", "assign": { "Out": "DoTake.Joined + B" } }] },
+    { "name": "Ends", "inputs": [{ "name": "Items", "type": "Integer" }], "flow": [{ "kind": "if", "name": "Empty", "condition": "Items = 0", "true": "End", "false": "End" }] },
+    { "name": "Guard", "inputs": [{ "name": "Items", "type": "Integer" }], "outputs": [{ "name": "Message", "type": "Text" }],
+      "flow": [{ "kind": "assign", "name": "Checking", "assign": { "Message": "\"Checking\"" } },
+               { "kind": "raiseException", "name": "Fail", "exception": "Stop", "message": "\"stop\"" },
+               { "kind": "exceptionHandler", "name": "OnErr", "exception": "AllExceptions" },
+               { "kind": "assign", "name": "Note", "assign": { "Message": "OnErr.ExceptionMessage" }, "next": "End" }] },
+    { "name": "Counted", "outputs": [{ "name": "N", "type": "Integer" }],
+      "flow": [{ "kind": "aggregate", "name": "GetAll", "sources": ["Contact"] }, { "kind": "assign", "name": "SetCount", "assign": { "N": "GetAll.Count" } }] }]
+}
+'@), $fixed)
+Require ($r.Code -eq 0 -and $r.Json.saved) "2.2.1 fixture (an If with both branches to End saves): $($r.Text)"
+$hint = @($r.Json.newWarnings | Where-Object id -eq 'ExpressionUnexpectedExpresssionType')[0].hint
+Require ($hint -match 'LongIntegerToInteger') "the hint for a Long Integer into an Integer: $hint"
+$props = (Oml-Json @('export', $fixed, 'Form')).Json.widgets[0].props
+Require ($props.maxLength -eq '10') "maxLength with a variable binding: $($props | ConvertTo-Json -Compress)"
+$tree = (Oml-Json @('tree', $fixed, 'Board/Inst', '--depth', '1')).Json
+Require ($tree.ref -eq 'Badge') "tree ref of a block instance: $($tree.ref)"
+$r = Oml-Json @('apply', $fixed, (Spec 'fixed-edits.json' @'
+{ "edits": [
+  { "op": "replaceNode", "element": "Caller/DoTake", "node": { "kind": "execute", "name": "DoTake", "action": "Take", "args": { "N": "1 + 2 * 3", "Sep": "\";\"" } } },
+  { "op": "replaceNode", "element": "Caller/SetBoth", "node": { "kind": "assign", "name": "SetBoth", "assign": { "A": "1 + 2 * 3", "B": "\"y\"" } } },
+  { "op": "insertNodes", "action": "Guard", "after": "Start", "flow": [{ "kind": "if", "name": "None", "condition": "Items = 0", "true": "End", "false": "Checking" }] },
+  { "op": "set", "element": "Clicks/Go", "properties": { "onClick": "Two" } }
+] }
+'@), (Join-Path $Tmp 'fixed-edits.oml'))
+Require ($r.Code -eq 0 -and $r.Json.saved -and @($r.Json.newWarnings | Where-Object id -eq 'UnusedArgument').Count -eq 0) "2.2.1 edits (End on the main path, no argument left on the event): $($r.Text)"
+$nodes = @((Oml-Json @('export', (Join-Path $Tmp 'fixed-edits.oml'), 'Caller')).Json.flow.nodes)
+$call = $nodes | Where-Object name -eq 'DoTake'; $set = $nodes | Where-Object name -eq 'SetBoth'
+Require ($call.args.N -ceq '1+2  *3' -and $call.args.Sep -eq '";"' -and $set.assign.A -ceq '1+2  *3' -and $set.assign.B -eq '"y"') "unchanged values kept as held: $($call | ConvertTo-Json -Compress) $($set | ConvertTo-Json -Compress)"
+$clicks = (Oml-Json @('describe', (Join-Path $Tmp 'fixed-edits.oml'), 'Clicks')).Json.text
+Require ($clicks -match 'onClick=Two' -and $clicks -notmatch 'onClick=Two\(') "the old handler's argument stayed: $clicks"
+Write-Host 'ok   2.2.1: maxLength after the binding, an If to End twice, End beside a handler, values kept as held, event arguments, tree ref, Long Integer hint'
 }
 finally { Remove-TestWorkFolder $Tmp }

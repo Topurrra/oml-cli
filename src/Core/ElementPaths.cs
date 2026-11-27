@@ -205,10 +205,26 @@ static class ElementPaths
     static List<IObjectSignature> Matches(IObjectSignature root, IObjectSignature scope, string[] parts, int i, Failure failure)
     {
         if (i == parts.Length) return [scope];
-        foreach (var all in Groups(root, scope, parts[i], i == 0))
+        using var groups = Groups(root, scope, parts[i], i == 0).GetEnumerator();
+        while (groups.MoveNext())
         {
+            var (all, breadth) = groups.Current;
             var group = all;
             if (group.Count == 0) continue;
+            // A write whose first part is a name found breadth-first from the module: the same name on an element of the same
+            // kind deeper down (another screen's widget) is a candidate too. The shallowest is not chosen silently: a change
+            // in another screen is the worst fault. Under a named scope that holds screens or blocks (a flow: MainFlow/Caption),
+            // only a match in another screen or block joins; inside one screen the path has chosen where to look.
+            var fromRoot = i == 0 && ReferenceEquals(scope, root);
+            if (failure.Write && breadth && (fromRoot || HoldsScreens(scope)) && !Regex.IsMatch(parts[i], @"\[\d+\]$"))
+            {
+                var kinds = group.Select(Kind).ToHashSet(StringComparer.Ordinal);
+                var holders = fromRoot ? null : group.Select(Holder).ToHashSet();
+                var deeper = new List<IObjectSignature>();
+                while (groups.MoveNext())
+                    if (groups.Current.breadth) deeper.AddRange(groups.Current.group.Where(o => kinds.Contains(Kind(o)) && holders?.Contains(Holder(o)) != true && !group.Contains(o) && !deeper.Contains(o)));
+                if (deeper.Count > 0) group = group.Concat(deeper).ToList();
+            }
             // The last part, directly under an action: its own input or output parameter wins over a flow node of the
             // same name (`Action/Response`); the typed form `Action/Kind:Name` still reaches the node. A middle part
             // keeps the old rule (the rest of the path chooses), so a path that worked still reaches the same element.
@@ -225,16 +241,28 @@ static class ElementPaths
         return [];
     }
 
+    // The screen, block or email an element is in, else the module's own element that holds it (an action, an entity, a flow).
+    static IObjectSignature Holder(IObjectSignature o)
+    {
+        var x = o;
+        while (x.Parent is IObjectSignature up && up is not IESpace && !IsUi(x)) x = up;
+        return x;
+    }
+
+    static bool HoldsScreens(IObjectSignature scope) => Children(scope).Any(IsUi);
+    static readonly Dictionary<Type, bool> uis = new();
+    static bool IsUi(IObjectSignature o) => Cached(uis, o, () => o is OutSystems.Model.UI.IScreenSignature or OutSystems.Model.UI.IEmail || Inspect.IsBlock(o));
+
     // Candidates for one part, best group first. From the module, a plain name looks at this module's own top-level
     // elements, then at referenced ones, then breadth-first through everything. Under an element, breadth-first only.
-    static IEnumerable<List<IObjectSignature>> Groups(IObjectSignature root, IObjectSignature scope, string part, bool first)
+    static IEnumerable<(List<IObjectSignature> group, bool breadth)> Groups(IObjectSignature root, IObjectSignature scope, string part, bool first)
     {
         var index = Regex.Match(part, @"^(.+)\[(\d+)\]$");
         if (index.Success)
         {
             bool At(IObjectSignature o) => Kind(o).Equals(index.Groups[1].Value, StringComparison.OrdinalIgnoreCase) && o.Parent is { } parent
                 && Children(parent).Where(c => Kind(c) == Kind(o)).ToList().IndexOf(o) == int.Parse(index.Groups[2].Value);
-            foreach (var level in Levels(scope, null)) yield return level.Where(At).ToList();
+            foreach (var level in Levels(scope, null)) yield return (level.Where(At).ToList(), true);
             yield break;
         }
         // A literal name may hold ':' (a node label "Note: x"), so it is also matched as written.
@@ -256,16 +284,16 @@ static class ElementPaths
                 bool Named(IObjectSignature o) => Model.NameOf(o) == element && (kind is null || KindIs(o, kind));
                 if (module == own)
                 {
-                    yield return TopLevel(m, own).Where(Named).ToList();
-                    foreach (var level in Levels(m, references)) yield return level.Where(Named).ToList();
+                    yield return (TopLevel(m, own).Where(Named).ToList(), false);
+                    foreach (var level in Levels(m, references)) yield return (level.Where(Named).ToList(), true);
                 }
-                else yield return Refs.All(m).Where(x => x.owner == module).Select(x => x.element).OfType<IObjectSignature>().Where(Named).Distinct().ToList();
+                else yield return (Refs.All(m).Where(x => x.owner == module).Select(x => x.element).OfType<IObjectSignature>().Where(Named).Distinct().ToList(), false);
                 yield break;
             }
-            yield return TopLevel(m, own).Where(Fits).ToList();
-            yield return Refs.All(m).Where(x => x.owner != own).Select(x => x.element).OfType<IObjectSignature>().Where(Fits).Distinct().ToList();
+            yield return (TopLevel(m, own).Where(Fits).ToList(), false);
+            yield return (Refs.All(m).Where(x => x.owner != own).Select(x => x.element).OfType<IObjectSignature>().Where(Fits).Distinct().ToList(), false);
         }
-        foreach (var level in Levels(scope, null)) yield return level.Where(Fits).ToList();
+        foreach (var level in Levels(scope, null)) yield return (level.Where(Fits).ToList(), true);
     }
 
     // This module's own top-level elements: what the module holds directly (not its references), plus the screens,

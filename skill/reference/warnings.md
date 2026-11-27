@@ -72,7 +72,7 @@ Common errors and warnings. Look one up with `oml doc warning <id or title words
 | `OnDemandDataSetMustBeRefreshed` | Expected Fetch for OnDemand data | On-demand source never refreshed. | Add `refreshData`, or drop `fetch`. |
 | `EntityActionClientSide` | Security Warning | Client action calls an entity action. | Call a server action that checks and saves. |
 | `ServerActionInAnonymousScreen` | Security Warning | Anonymous screen uses a server action. | Make a new screen non-anonymous; else tell the user. |
-| `ExpressionComparingDifferentIdentifiers`, `ExpressionUnexpectedExpresssionType` | Unexpected Data Type | A number compared with an identifier. | Convert (`LongIntegerToIdentifier`); static `Id` is Integer. |
+| `ExpressionComparingDifferentIdentifiers`, `ExpressionUnexpectedExpresssionType` | Unexpected Data Type | A number against an identifier, or a Long Integer (`Count`) into an Integer. | `LongIntegerToIdentifier`, or `LongIntegerToInteger`; static `Id` is Integer. |
 | `InputMandatoryMismatch`, `InputMaxLengthMismatch_Input` | Coherence Suggestion | Input Mandatory or Max Length differs from the attribute. | Match the attribute. |
 | `CrossJoinQuery`, `CrossJoinDataSet` | Scalability Suggestion | Two sources without a join. | Add the join in `joins`. |
 | `InvalidAttribute_EntRefWithoutIdx` | Scalability Suggestion | Reference attribute without index. | Add it to the entity's `indexes`. |

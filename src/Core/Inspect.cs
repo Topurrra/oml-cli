@@ -332,7 +332,7 @@ static class Inspect
             text = o is IExpression e ? e.Text : Reflect.Get(o, "Text") as string,
             targetWidget = Ref(o, "TargetWidget") is { } labelled ? Model.NameOf(labelled) : null, // a Label's input
             // What an execute node, event handler, lifecycle event, refresh or argument points at.
-            @ref = new[] { "Action", "Handler", "Destination", "Exception", "DataSource", "Source", "Parameter", "SourceBlock", "Email", "OnExceptionHandler", "GlobalExceptionHandler", "Image" }
+            @ref = new[] { "SourceBlock", "Action", "Handler", "Destination", "Exception", "DataSource", "Source", "Parameter", "Email", "OnExceptionHandler", "GlobalExceptionHandler", "Image" }
                 .Select(p => Ref(o, p))
                 .Where(v => v is not null).Select(v => Model.NameOf(v!)).FirstOrDefault() ?? (FieldMappings.Is(o) ? FieldMappings.Field(o) : null), // a field mapping points at its target field
             source = ConnectorName(o, "SourceNode"),

@@ -127,6 +127,14 @@ $r = Ask 36 'write' @('apply', 'M.oml', 'spec.json', 'Staged2.oml', '--user-appr
 Require ($r.result.isError -eq $true -and (Body $r).output.useTool -eq 'gated') "apply --user-approved through write: $($r.result.content[0].text)"
 Write-Host 'ok   mcp: refused: install and review --server through read (gated), apply --user-approved through write (gated), memory add (write), unknown command, bad args, unknown tool'
 
+# Merged forms run through read like the plain command (they were refused as unknown commands).
+$id = 90
+foreach ($form in @(@('spec', 'widget-types'), @('spec', 'model-types', 'OutSystems.Model.Logic.Nodes.IIfNode'), @('doc', 'library', 'status'))) {
+  $r = Ask $id 'read' $form; $id++
+  Require ($r.result.isError -eq $false) "merged form $($form -join ' ') through read: $($r.result.content[0].text)"
+}
+Write-Host 'ok   mcp: merged forms (spec model-types, spec widget-types, doc library status) run through read'
+
 # 6. Batch: read-only steps run through read; a write or gated step cannot ride along; no steps on stdin.
 $r = Ask 40 'read' @('batch', 'reads.json')
 $b = Body $r

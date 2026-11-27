@@ -108,6 +108,9 @@ $rall = @(All-Widgets $o.widgets)
 Require ((Shows ($rall | Where-Object name -eq 'TotalInput') 'NewTotal') -and ($rall | Where-Object name -eq 'SaveButton').props.onClick -eq 'Save') 'Reactive widgets'
 $hasOrders = $rall | Where-Object name -eq 'HasOrders'
 Require ($hasOrders -and @(All-Widgets $hasOrders.true | Where-Object name -eq 'OrdersTable').Count -eq 1) "Reactive If branches: $($hasOrders | ConvertTo-Json -Depth 4 -Compress)"
+# A table's inner content holders ("content") are not widgets of the screen.
+$holders = @($o.widgets | Where-Object { $_.kind -eq 'CustomPlaceholderWidget' -and $_.name -eq 'content' })
+Require ($holders.Count -eq 0) "content holders listed as screen widgets: $($holders | ConvertTo-Json -Depth 2 -Compress)"
 
 # inspect: otherContent lists what no other section lists, here the UI flow's exception action.
 $handled = Join-Path $Tmp 'export-web-handled.oml'

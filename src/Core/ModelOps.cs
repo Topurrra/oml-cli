@@ -278,6 +278,13 @@ partial class Builder
                 : throw new ModelError($"{evt} needs a screen action or screen name, or {{ \"destination\": ..., \"args\": {{...}} }}");
         var handler = actions.GetValueOrDefault(target) ?? Refs.Destination(m, target);
         Event(widget, evt, handler);
+        // The old handler's arguments stay on the event with no parameter ("? = ClickedColumn"): they go.
+        if (Reflect.Get(widget, evt) is { } eventNow && Reflect.Get(eventNow, "Arguments") is System.Collections.IEnumerable oldArgs)
+        {
+            var inputs = Elements(Reflect.Get(handler, "InputParameters")).ToHashSet();
+            foreach (var arg in oldArgs.Cast<object>().ToList())
+                if (Reflect.Get(arg, "Parameter") is not { } parameter || !inputs.Contains(parameter)) Reflect.Call(arg, "Delete");
+        }
         if (value.ValueKind == JsonValueKind.Object && value.TryGetProperty("args", out var args) && Reflect.Get(widget, evt) is { } eventObject)
             Defer(widget, ($"{label}.{evt}.args", () => Arguments(eventObject, args)));
     }

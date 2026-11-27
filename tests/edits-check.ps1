@@ -169,4 +169,40 @@ Require ($noInput.Code -eq 1 -and -not $noInput.Result.saved -and -not (Test-Pat
 $notCall = Edit $repointBuilt 'repoint-not-call' @(@{ op = 'repoint'; element = 'Caller/Keep'; action = 'MakeB' })
 Require ($notCall.Code -eq 1 -and -not $notCall.Result.saved -and ($notCall.Result.problems -join ' ') -match 'must be an Execute') "repoint of an Assign was not refused: $($notCall.Result | ConvertTo-Json -Depth 6 -Compress)"
 Write-Host 'ok   repoint: same node, arguments by name, readers kept, no-op, refusals'
+# replaceNode that changes only links (next) is made, never "already as in the spec": in place (Assign) and on a node that
+# is built again (an aggregate equal to the spec keeps its node; the link still changes). An equal node stays a no-op.
+$linkSpec = Join-Path $Tmp 'links-spec.json'
+Set-Content $linkSpec '{ "entities": [{ "name": "Thing", "attributes": [{ "name": "Label" }] }], "serverActions": [
+  { "name": "Steps", "outputs": [{ "name": "X", "type": "Integer" }], "flow": [{ "kind": "assign", "name": "A1", "assign": { "X": "1" } }, { "kind": "assign", "name": "A2", "assign": { "X": "2" } }, { "kind": "assign", "name": "A3", "assign": { "X": "3" } }] },
+  { "name": "Query", "outputs": [{ "name": "N", "type": "Integer" }], "flow": [{ "kind": "aggregate", "name": "GetThings", "sources": ["Thing"], "maxRecords": 10 }, { "kind": "assign", "name": "S1", "assign": { "N": "GetThings.Count" } }, { "kind": "assign", "name": "S2", "assign": { "N": "N + 1" } }] }] }'
+$linkBuilt = Join-Path $Tmp 'links.oml'
+$r = & $Oml apply (Join-Path $Fixtures 'r0.oml') $linkSpec $linkBuilt | ConvertFrom-Json
+Require $r.saved "links fixture did not save: $($r | ConvertTo-Json -Depth 6 -Compress)"
+function Assign($name, $var, $value, $next) { @{ op = 'replaceNode'; element = $name; node = @{ kind = 'assign'; name = ($name -split '/')[-1]; assign = @{ $var = $value }; next = $next } } }
+$e = Edit $linkBuilt 'links-inplace' @((Assign 'Steps/A2' 'X' '2' 'End'), (Assign 'Steps/A3' 'X' '3' 'A2'), (Assign 'Steps/A1' 'X' '1' 'A3'))
+Require ($e.Code -eq 0 -and $e.Result.saved -and -not $e.Result.existing -and (@($e.Result.changed) -join ' ') -match 'A1: next goes to A3') "link-only replaceNode in place was not made: $($e.Result | ConvertTo-Json -Depth 6 -Compress)"
+$text = ((& $Oml describe $e.Out Steps --depth 0 | ConvertFrom-Json).text) -replace "`r", ''
+Require ($text -match 'set X = 1\n\s*set X = 3\n\s*set X = 2\n') "link-only replaceNode in place did not reorder the flow: $text"
+$aggregate = @{ op = 'replaceNode'; element = 'Query/GetThings'; node = @{ kind = 'aggregate'; name = 'GetThings'; sources = @('Thing'); maxRecords = 10; next = 'S2' } }
+$e = Edit $linkBuilt 'links-rebuilt' @((Assign 'Query/S1' 'N' 'GetThings.Count' 'End'), (Assign 'Query/S2' 'N' 'N + 1' 'S1'), $aggregate)
+Require ($e.Code -eq 0 -and $e.Result.saved -and -not $e.Result.existing -and (@($e.Result.changed) -join ' ') -match 'GetThings: next goes to S2') "link-only replaceNode of an aggregate was not made: $($e.Result | ConvertTo-Json -Depth 6 -Compress)"
+$text = ((& $Oml describe $e.Out Query --depth 0 | ConvertFrom-Json).text) -replace "`r", ''
+Require ($text -match 'GetThings: Thing max 10\n\s*set N = N \+ 1\n\s*set N = GetThings.Count') "link-only replaceNode of an aggregate did not reorder the flow: $text"
+$aggregate.node.Remove('next')
+$e = Edit $linkBuilt 'links-same' @($aggregate)
+Require ($e.Code -eq 0 -and $e.Result.saved -and (@($e.Result.existing) -join ' ') -match 'GetThings \(already as in the spec\)') "an equal aggregate replaceNode was not kept: $($e.Result | ConvertTo-Json -Depth 6 -Compress)"
+Write-Host 'ok   replaceNode link-only changes: in place and rebuilt nodes relink, an equal node stays'
+# A delete of a table's header cell takes the column's row cell with it (a model side effect): changed names both, and a
+# warning names the paths that moved.
+$tableSpec = Join-Path $Tmp 'table-spec.json'
+Set-Content $tableSpec '{ "entities": [{ "name": "Row", "attributes": [{ "name": "Label" }, { "name": "Code" }] }], "screens": [{ "name": "Rows", "aggregates": [{ "name": "GetRows", "sources": ["Row"] }],
+  "widgets": [{ "type": "TableRecords", "name": "Table", "source": "GetRows.List",
+    "headerRow": [{ "type": "HeaderCell", "children": [{ "type": "Text", "text": "Label" }] }, { "type": "HeaderCell", "children": [{ "type": "Text", "text": "Code" }] }],
+    "row": [{ "type": "RowCell", "children": [{ "type": "Expression", "value": "GetRows.List.Current.Row.Label" }] }, { "type": "RowCell", "children": [{ "type": "Expression", "value": "GetRows.List.Current.Row.Code" }] }] }] }] }'
+$tableBuilt = Join-Path $Tmp 'table.oml'
+$r = & $Oml apply (Join-Path $Fixtures 'r0.oml') $tableSpec $tableBuilt | ConvertFrom-Json
+Require $r.saved "table fixture did not save: $($r | ConvertTo-Json -Depth 6 -Compress)"
+$e = Edit $tableBuilt 'table-delete' @(@{ op = 'delete'; element = 'Rows/Table/HeaderCell[0]' })
+Require ($e.Code -eq 0 -and $e.Result.saved -and (@($e.Result.changed) -join ' ') -match 'also removed Rows/[^ ]*RowCell\[0\]' -and (@($e.Result.warnings) -join ' ') -match 'RowCell\[1\] is now Rows/[^ ]*RowCell\[0\]') "a header cell delete did not name the row cell and the moved paths: $($e.Result | ConvertTo-Json -Depth 6 -Compress)"
+Write-Host 'ok   delete: a header cell takes its column''s row cell; changed names it and a warning names the moved paths'
 } finally { Remove-TestWorkFolder $Tmp }
